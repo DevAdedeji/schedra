@@ -1,6 +1,6 @@
 <script setup lang="ts">
 const claims = [
-  'MIT licensed',
+  'Own your data',
   'Postgres only',
   'No Redis',
   'DST-safe engine',

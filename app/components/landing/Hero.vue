@@ -3,7 +3,7 @@
     <div class="grid gap-12 py-16 lg:grid-cols-[1.1fr_23rem] lg:gap-16 lg:py-24">
       <div>
         <p class="font-mono text-[10px] uppercase tracking-[0.22em] text-dimmed">
-          Open source · Self-hosted · MIT
+          Open source · Self-hosted · Your infrastructure
         </p>
 
         <h1 class="mt-6 text-[clamp(2.75rem,6.6vw,5.25rem)] font-semibold leading-[0.9] tracking-[-0.045em] text-highlighted">
@@ -75,7 +75,7 @@
 <script setup lang="ts">
 const stats = [
   { label: 'Runtime deps', value: 'Postgres' },
-  { label: 'License', value: 'MIT' },
+  { label: 'Setup', value: 'One command' },
   { label: 'Seat pricing', value: 'None' }
 ]
 </script>

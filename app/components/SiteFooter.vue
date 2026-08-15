@@ -10,7 +10,7 @@ const columns = [
   },
   {
     title: 'Project',
-    links: ['GitHub', 'Roadmap', 'Contributing', 'License', 'Security']
+    links: ['GitHub', 'Roadmap', 'Contributing', 'Security']
   }
 ]
 
@@ -51,7 +51,7 @@ const year = new Date().getFullYear()
       </div>
 
       <div class="flex flex-col gap-2 border-t border-default px-5 py-5 font-mono text-[11px] text-dimmed sm:flex-row sm:items-center sm:justify-between sm:px-6 md:pl-[calc(var(--rail)+3rem)] md:pr-12">
-        <span>© {{ year }} Schedra — MIT licensed</span>
+        <span>© {{ year }} Schedra</span>
         <span>No trackers. No telemetry. No seat pricing.</span>
       </div>
     </div>

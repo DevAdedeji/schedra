@@ -39,8 +39,8 @@ const points = [
   },
   {
     icon: 'i-lucide-git-branch',
-    title: 'Fork it if you want',
-    body: 'MIT licensed, top to bottom. No enterprise tier gating teams, SSO or the API behind a second repository.'
+    title: 'Nothing held back',
+    body: 'One codebase, every feature. No enterprise tier gating teams, SSO or the API behind a second repository.'
   }
 ]
 </script>
