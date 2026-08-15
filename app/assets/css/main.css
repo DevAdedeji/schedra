@@ -1,0 +1,48 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+@theme static {
+  --font-sans: 'Inter Tight', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Vermillion — the single accent.
+     International-style red against a near-monochrome page. The category is
+     uniformly blue and purple; this reads as a precision instrument instead. */
+  --color-vermillion-50: #FFF3EF;
+  --color-vermillion-100: #FFE3DA;
+  --color-vermillion-200: #FFC4B0;
+  --color-vermillion-300: #FF9E7D;
+  --color-vermillion-400: #FF6F42;
+  --color-vermillion-500: #FF3D00;
+  --color-vermillion-600: #E62F00;
+  --color-vermillion-700: #BF2300;
+  --color-vermillion-800: #991D02;
+  --color-vermillion-900: #7A1B06;
+  --color-vermillion-950: #420B00;
+}
+
+:root {
+  /* Near-square. The page is drawn with hairlines, not curves. */
+  --ui-radius: 0.125rem;
+
+  /* One rhythm value drives every horizontal rule on the page, and the hour
+     labels in the rail are laid out against the same value — so the rail and
+     the rules can never drift apart. */
+  --row: 5.5rem;
+
+  /* Width of the hour rail. Content is inset by exactly this much. */
+  --rail: 5rem;
+}
+
+@layer base {
+  /* Time is displayed constantly. Tabular figures stop the grid twitching
+     as digits tick over. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background-color: var(--ui-primary);
+    color: #fff;
+  }
+}
