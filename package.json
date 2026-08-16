@@ -8,7 +8,7 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "node scripts/migrate.mjs",
     "db:studio": "drizzle-kit studio",
     "lint": "eslint .",
     "test": "vitest run",
@@ -38,5 +38,8 @@
     "vitest": "^4.1.10",
     "vue-tsc": "^3.3.9"
   },
-  "packageManager": "pnpm@11.20.0"
+  "packageManager": "pnpm@11.20.0",
+  "engines": {
+    "node": ">=22"
+  }
 }
