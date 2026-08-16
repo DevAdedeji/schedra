@@ -1,11 +1,11 @@
 [build]
-builder = "NIXPACKS"
-buildCommand = "pnpm build"
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
 
 [deploy]
 # Runs after the build, before traffic moves to the new deployment — so a failed
 # migration aborts the deploy instead of crashlooping the running version.
-preDeployCommand = "pnpm db:migrate"
+preDeployCommand = "node scripts/migrate.mjs"
 startCommand = "node .output/server/index.mjs"
 healthcheckPath = "/api/healthz"
 restartPolicyType = "ON_FAILURE"
