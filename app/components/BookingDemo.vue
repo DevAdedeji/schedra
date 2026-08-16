@@ -201,7 +201,7 @@ function reset() {
         :aria-label="longDate.format(day)"
         @click="select(day)"
       >
-        <span class="text-[9px] font-semibold uppercase tracking-[0.1em] opacity-60">
+        <span class="text-[9px] font-semibold uppercase tracking-widest opacity-60">
           {{ weekdayOf.format(day) }}
         </span>
         <span class="text-[13px] font-medium leading-none">{{ day.getDate() }}</span>
@@ -223,7 +223,7 @@ function reset() {
         <span class="shrink-0 font-mono text-[10px] text-dimmed">{{ offset }}</span>
       </div>
 
-      <div class="max-h-[11.5rem] overflow-y-auto px-4 pb-3">
+      <div class="max-h-46 overflow-y-auto px-4 pb-3">
         <div class="grid grid-cols-3 gap-px bg-border">
           <button
             v-for="slot in openSlots"

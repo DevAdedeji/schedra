@@ -20,7 +20,7 @@ const steps = [
     id="how"
     class="border-y border-default bg-default"
   >
-    <div class="mx-auto max-w-[78rem] px-6 py-20 lg:px-10 lg:py-28">
+    <div class="mx-auto max-w-312 px-6 py-20 lg:px-10 lg:py-28">
       <p class="eyebrow text-dimmed">
         How it works
       </p>

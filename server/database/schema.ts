@@ -37,10 +37,12 @@ export const users = pgTable('users', {
   organizationId: uuid('organization_id').references(() => organizations.id, { onDelete: 'set null' }),
 
   email: text('email').notNull(),
+  emailVerified: boolean('email_verified').notNull().default(false),
   name: text('name').notNull(),
   /** Public booking slug — the `adedeji` in `/adedeji/intro-call`. */
   username: text('username').notNull(),
   bio: text('bio'),
+  /** better-auth calls this `image`; mapped in useAuth(). */
   avatarUrl: text('avatar_url'),
   timeZone: text('time_zone').notNull().default('UTC'),
 
@@ -48,6 +50,60 @@ export const users = pgTable('users', {
 }, table => [
   uniqueIndex('users_email_key').on(sql`lower(${table.email})`),
   uniqueIndex('users_username_key').on(sql`lower(${table.username})`)
+])
+
+/**
+ * The next three tables are better-auth's, shaped to match its expected fields
+ * but using our uuid ids and timestamptz. Regenerate a reference copy with
+ * `npx @better-auth/cli generate` after changing auth options.
+ */
+export const sessions = pgTable('sessions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+
+  token: text('token').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  ipAddress: text('ip_address'),
+  userAgent: text('user_agent'),
+
+  ...timestamps
+}, table => [
+  uniqueIndex('sessions_token_key').on(table.token),
+  index('sessions_user_id_idx').on(table.userId)
+])
+
+export const accounts = pgTable('accounts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+
+  accountId: text('account_id').notNull(),
+  providerId: text('provider_id').notNull(),
+
+  /** Hashed by better-auth. Only set for the credentials provider. */
+  password: text('password'),
+
+  accessToken: text('access_token'),
+  refreshToken: text('refresh_token'),
+  idToken: text('id_token'),
+  accessTokenExpiresAt: timestamp('access_token_expires_at', { withTimezone: true }),
+  refreshTokenExpiresAt: timestamp('refresh_token_expires_at', { withTimezone: true }),
+  scope: text('scope'),
+
+  ...timestamps
+}, table => [
+  index('accounts_user_id_idx').on(table.userId)
+])
+
+export const verifications = pgTable('verifications', {
+  id: uuid('id').primaryKey().defaultRandom(),
+
+  identifier: text('identifier').notNull(),
+  value: text('value').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+
+  ...timestamps
+}, table => [
+  index('verifications_identifier_idx').on(table.identifier)
 ])
 
 export const schedules = pgTable('schedules', {

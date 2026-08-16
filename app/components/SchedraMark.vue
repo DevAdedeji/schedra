@@ -16,7 +16,7 @@ withDefaults(defineProps<{
   <span class="inline-flex items-center gap-2.5">
     <svg
       viewBox="0 0 48 48"
-      class="size-[18px] shrink-0"
+      class="size-4.5 shrink-0"
       aria-hidden="true"
     >
       <template v-if="variant === 'tile'">

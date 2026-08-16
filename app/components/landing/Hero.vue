@@ -1,6 +1,6 @@
 <template>
   <section class="bg-muted">
-    <div class="mx-auto max-w-[78rem] px-6 pb-20 pt-16 lg:px-10 lg:pb-28 lg:pt-24">
+    <div class="mx-auto max-w-312 px-6 pb-20 pt-16 lg:px-10 lg:pb-28 lg:pt-24">
       <div class="grid items-center gap-14 lg:grid-cols-[1.15fr_0.85fr] lg:gap-20">
         <div>
           <p class="eyebrow text-primary">
@@ -20,7 +20,7 @@
 
           <div class="mt-10 flex flex-wrap items-center gap-3">
             <UButton
-              to="#get-started"
+              to="/signup"
               size="xl"
               class="rounded-full px-7 font-medium"
             >
@@ -47,14 +47,14 @@
 
         <div class="relative">
           <div
-            class="absolute -inset-6 -rotate-2 rounded-[2rem] bg-primary/10"
+            class="absolute -inset-6 -rotate-2 rounded-4xl bg-primary/10"
             aria-hidden="true"
           />
           <div class="relative rounded-2xl bg-default p-2 shadow-2xl ring-1 ring-black/5">
             <ClientOnly>
               <BookingDemo />
               <template #fallback>
-                <div class="h-[26rem] rounded-lg bg-muted" />
+                <div class="h-104 rounded-lg bg-muted" />
               </template>
             </ClientOnly>
           </div>

@@ -25,7 +25,7 @@ const points = [
     id="developers"
     class="bg-muted"
   >
-    <div class="mx-auto max-w-[78rem] px-6 py-20 lg:px-10 lg:py-28">
+    <div class="mx-auto max-w-312 px-6 py-20 lg:px-10 lg:py-28">
       <div class="max-w-2xl">
         <p class="eyebrow text-dimmed">
           For developers

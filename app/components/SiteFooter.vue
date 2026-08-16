@@ -19,7 +19,7 @@ const year = new Date().getFullYear()
 
 <template>
   <footer class="border-t border-default bg-muted">
-    <div class="mx-auto max-w-[78rem] px-6 lg:px-10">
+    <div class="mx-auto max-w-312 px-6 lg:px-10">
       <div class="grid gap-12 py-16 md:grid-cols-[1.4fr_repeat(3,1fr)]">
         <div>
           <SchedraMark />

@@ -12,10 +12,25 @@ export default defineNuxtConfig({
   css: ['~/assets/css/main.css'],
 
   routeRules: {
-    '/': { prerender: true }
+    '/': { prerender: true },
+    // Authenticated routes read a session, so they must render per request.
+    '/signup': { prerender: false },
+    '/login': { prerender: false },
+    '/forgot-password': { prerender: false },
+    '/reset-password': { prerender: false },
+    '/verify-email': { prerender: false },
+    '/dashboard': { prerender: false }
   },
 
   compatibilityDate: '2026-06-30',
+
+  // Only the marketing page is static; crawling would drag the auth pages in
+  // and they have no database at build time.
+  nitro: {
+    prerender: {
+      crawlLinks: false
+    }
+  },
 
   eslint: {
     config: {

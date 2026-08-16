@@ -14,7 +14,7 @@ const features = [
     id="features"
     class="bg-muted"
   >
-    <div class="mx-auto max-w-[78rem] px-6 py-20 lg:px-10 lg:py-28">
+    <div class="mx-auto max-w-312 px-6 py-20 lg:px-10 lg:py-28">
       <div class="grid gap-14 lg:grid-cols-[0.9fr_1.1fr] lg:gap-20">
         <div class="lg:sticky lg:top-32 lg:self-start">
           <p class="eyebrow text-dimmed">

@@ -10,7 +10,7 @@ const open = ref(false)
 
 <template>
   <header class="sticky top-0 z-50 border-b border-default bg-muted/85 backdrop-blur-md">
-    <div class="mx-auto max-w-[78rem] px-6 lg:px-10">
+    <div class="mx-auto max-w-312 px-6 lg:px-10">
       <div class="flex h-16 items-center justify-between gap-8">
         <NuxtLink
           to="/"
@@ -31,7 +31,7 @@ const open = ref(false)
         <div class="flex items-center gap-2">
           <UColorModeButton size="sm" />
           <UButton
-            to="#get-started"
+            to="/signup"
             size="sm"
             class="hidden rounded-full px-4 font-medium sm:inline-flex"
           >

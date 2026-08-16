@@ -16,7 +16,7 @@ const zones = [
     id="timezones"
     class="border-y border-default bg-default"
   >
-    <div class="mx-auto max-w-[78rem] px-6 py-20 lg:px-10 lg:py-28">
+    <div class="mx-auto max-w-312 px-6 py-20 lg:px-10 lg:py-28">
       <div class="grid items-center gap-14 lg:grid-cols-[1fr_0.9fr] lg:gap-20">
         <div>
           <p class="eyebrow text-dimmed">
@@ -58,7 +58,7 @@ const zones = [
                   {{ entry.country }}
                 </p>
               </div>
-              <div class="w-[6rem] shrink-0 text-right">
+              <div class="w-24 shrink-0 text-right">
                 <p
                   class="tnum font-editorial text-[24px] leading-none"
                   :class="entry.rollover ? 'text-primary' : 'text-highlighted'"

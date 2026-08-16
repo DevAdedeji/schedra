@@ -11,6 +11,11 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['server/**/*.test.ts'],
+
+    // The database tests share one Postgres and truncate between cases, so
+    // running files in parallel lets one wipe another's fixtures mid-test.
+    fileParallelism: false,
+
     coverage: {
       provider: 'v8',
       include: ['server/domain/**/*.ts'],

@@ -1,6 +1,15 @@
 export interface Env {
   databaseUrl: string
   schedraUrl: string
+  authSecret: string
+
+  /** Optional. Google sign-in is hidden when either half is missing. */
+  googleClientId?: string
+  googleClientSecret?: string
+
+  /** Optional. Without a key, emails are logged instead of sent. */
+  resendApiKey?: string
+  emailFrom: string
 }
 
 let cached: Env | null = null
@@ -20,19 +29,42 @@ function parseUrl(name: string, value: string, protocols: string[]) {
   return value
 }
 
+function optional(name: string) {
+  const value = process.env[name]?.trim()
+  return value || undefined
+}
+
 export function useEnv(): Env {
   if (cached) return cached
 
-  const missing = (['DATABASE_URL', 'SCHEDRA_URL'] as const).filter(key => !process.env[key])
+  const missing = (['DATABASE_URL', 'SCHEDRA_URL', 'AUTH_SECRET'] as const)
+    .filter(key => !process.env[key])
   if (missing.length) {
     throw new Error(
       `Missing environment variables: ${missing.join(', ')}. Copy .env.example to .env.`
     )
   }
 
+  const authSecret = process.env.AUTH_SECRET!
+  if (authSecret.length < 32) {
+    throw new Error('AUTH_SECRET must be at least 32 characters. Generate one with `openssl rand -base64 32`.')
+  }
+
+  const googleClientId = optional('GOOGLE_CLIENT_ID')
+  const googleClientSecret = optional('GOOGLE_CLIENT_SECRET')
+
+  if (Boolean(googleClientId) !== Boolean(googleClientSecret)) {
+    throw new Error('GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set together.')
+  }
+
   cached = {
     databaseUrl: parseUrl('DATABASE_URL', process.env.DATABASE_URL!, ['postgres:', 'postgresql:']),
-    schedraUrl: parseUrl('SCHEDRA_URL', process.env.SCHEDRA_URL!, ['http:', 'https:'])
+    schedraUrl: parseUrl('SCHEDRA_URL', process.env.SCHEDRA_URL!, ['http:', 'https:']),
+    authSecret,
+    googleClientId,
+    googleClientSecret,
+    resendApiKey: optional('RESEND_API_KEY'),
+    emailFrom: optional('EMAIL_FROM') ?? 'Schedra <onboarding@resend.dev>'
   }
 
   return cached
