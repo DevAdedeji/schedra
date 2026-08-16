@@ -1,14 +1,4 @@
 <script setup lang="ts">
-/**
- * A real, working slot picker — not a screenshot. Availability is generated
- * deterministically from the date, so the demo is stable between renders while
- * still reacting honestly to today's date, the weekend, and a two-hour minimum
- * notice window.
- *
- * Rendered inside <ClientOnly> because everything here derives from the
- * visitor's own clock and timezone; the page itself is prerendered.
- */
-
 interface Slot {
   time: string
   taken: boolean
@@ -29,8 +19,6 @@ const BASE_SLOTS = [
 const DAYS_AHEAD = 60
 const MIN_NOTICE_MS = 2 * 60 * 60 * 1000
 
-/** Constructing from parts (never mutating) keeps these local-midnight dates
- *  correct across DST boundaries — the same rule the real engine follows. */
 function addDays(date: Date, count: number) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate() + count)
 }
@@ -45,7 +33,6 @@ function sameDay(a: Date, b: Date) {
     && a.getDate() === b.getDate()
 }
 
-/** Stable pseudo-random in [0,1) — the same day always yields the same grid. */
 function noise(seed: number, index: number) {
   const value = Math.sin(seed * 12.9898 + index * 78.233) * 43758.5453
   return value - Math.floor(value)
@@ -67,7 +54,6 @@ function slotsFor(date: Date): Slot[] {
   }))
 }
 
-/** Slots inside the minimum-notice window are never offered. */
 function tooSoon(date: Date, time: string) {
   if (!sameDay(date, today)) return false
   const [hour, minute] = time.split(':').map(Number)
@@ -131,7 +117,6 @@ function reset() {
 
 <template>
   <div class="overflow-hidden rounded-lg border border-default bg-default">
-    <!-- Host -->
     <div class="flex items-center gap-3 border-b border-default px-4 py-3.5">
       <span class="flex size-9 shrink-0 items-center justify-center bg-inverted text-[11px] font-medium tracking-tight text-inverted">
         {{ HOST.initials }}
@@ -150,7 +135,6 @@ function reset() {
       </span>
     </div>
 
-    <!-- Week navigation -->
     <div class="flex items-center justify-between border-b border-default px-4 py-2.5">
       <span class="eyebrow text-highlighted">
         {{ monthLabel }}
@@ -183,7 +167,6 @@ function reset() {
       </div>
     </div>
 
-    <!-- Days -->
     <div class="grid grid-cols-7 gap-px border-b border-default bg-border">
       <button
         v-for="day in days"
@@ -214,7 +197,6 @@ function reset() {
       </button>
     </div>
 
-    <!-- Slots -->
     <div v-if="!confirmed">
       <div class="flex items-baseline justify-between gap-3 px-4 pb-2 pt-3.5">
         <span class="truncate text-[12px] font-medium text-highlighted">
@@ -268,7 +250,6 @@ function reset() {
       </div>
     </div>
 
-    <!-- Confirmation -->
     <div
       v-else
       class="reveal px-4 py-6"

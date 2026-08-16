@@ -1,4 +1,3 @@
-// https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   modules: [
     '@nuxt/eslint',
@@ -13,7 +12,6 @@ export default defineNuxtConfig({
 
   routeRules: {
     '/': { prerender: true },
-    // Authenticated routes read a session, so they must render per request.
     '/signup': { prerender: false },
     '/login': { prerender: false },
     '/forgot-password': { prerender: false },
@@ -24,8 +22,6 @@ export default defineNuxtConfig({
 
   compatibilityDate: '2026-06-30',
 
-  // Only the marketing page is static; crawling would drag the auth pages in
-  // and they have no database at build time.
   nitro: {
     prerender: {
       crawlLinks: false
@@ -41,8 +37,6 @@ export default defineNuxtConfig({
     }
   },
 
-  // Declared explicitly: nuxt-fonts resolves families from `font-family`
-  // declarations, and does not pick this one up from the Tailwind theme token.
   fonts: {
     families: [
       { name: 'Instrument Serif', provider: 'google' }

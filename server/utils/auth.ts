@@ -23,8 +23,6 @@ function createAuth() {
     emailAndPassword: {
       enabled: true,
       minPasswordLength: 10,
-      // An unverified address cannot sign in, so a typo'd email cannot
-      // silently become an account nobody can recover.
       requireEmailVerification: true,
       sendResetPassword: async ({ user, url }) => {
         await sendEmail({
@@ -54,8 +52,6 @@ function createAuth() {
       }
     },
 
-    // Google has already verified the address, so those accounts skip the
-    // confirmation step entirely.
     socialProviders: env.googleClientId && env.googleClientSecret
       ? {
           google: {
@@ -66,7 +62,6 @@ function createAuth() {
       : {},
 
     user: {
-      // Our column is `avatar_url`; better-auth calls the concept `image`.
       fields: { image: 'avatarUrl' },
       additionalFields: {
         username: { type: 'string', required: false, input: true },
@@ -85,7 +80,6 @@ function createAuth() {
           before: async (user) => {
             const record = user as typeof user & { username?: string | null }
 
-            // Google supplies a name but no username; derive a free one.
             if (!record.username) {
               return { data: { ...user, username: await deriveUsername(record.name ?? record.email) } }
             }
@@ -103,8 +97,6 @@ function createAuth() {
       }
     },
 
-    // The tables use uuid primary keys, so ids have to be uuids rather than
-    // better-auth's default random string.
     advanced: {
       database: {
         generateId: () => crypto.randomUUID()

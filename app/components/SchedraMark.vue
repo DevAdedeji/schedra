@@ -1,9 +1,7 @@
 <script setup lang="ts">
 withDefaults(defineProps<{
   wordmark?: boolean
-  /** `tile` is the canonical mark; `line` is the hairline drawing. */
   variant?: 'tile' | 'line'
-  /** For dark or coloured backgrounds — renders the ink and wordmark white. */
   inverted?: boolean
 }>(), {
   wordmark: true,

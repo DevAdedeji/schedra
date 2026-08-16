@@ -3,12 +3,6 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 
 const url = process.env.DATABASE_URL
 
-/**
- * Exercises better-auth against the real schema. The point is to catch a
- * mismatch between what better-auth writes and what the tables accept —
- * a missing column or wrong id type fails here rather than on someone's
- * first sign-up.
- */
 describe.skipIf(!url)('authentication', () => {
   const sql = postgres(url!, { max: 3, onnotice: () => {} })
 
@@ -29,7 +23,6 @@ describe.skipIf(!url)('authentication', () => {
     return useAuth()
   }
 
-  /** Stands in for the visitor clicking the link in their inbox. */
   async function confirmEmail(email: string) {
     await sql`update users set email_verified = true where email = ${email}`
   }
@@ -96,12 +89,6 @@ describe.skipIf(!url)('authentication', () => {
     ).rejects.toThrow()
   })
 
-  /**
-   * Signing up again on an unverified address deliberately succeeds rather
-   * than erroring — better-auth re-sends the confirmation instead of
-   * confirming to a stranger that the address is registered. What must not
-   * happen is a second row.
-   */
   it('does not duplicate the user when signing up twice on one email', async () => {
     const instance = await auth()
     await instance.api.signUpEmail({ body: credentials })
@@ -127,7 +114,6 @@ describe.skipIf(!url)('authentication', () => {
     expect(rows).toHaveLength(0)
   })
 
-  /** Mirrors a Google sign-up, which brings a name but no username. */
   it('derives a valid username when none is supplied', async () => {
     const instance = await auth()
     await instance.api.signUpEmail({

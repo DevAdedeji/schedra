@@ -1,9 +1,4 @@
 <script setup lang="ts">
-/**
- * A joined prefix + input. Nuxt UI's `leading` slot overlays the input's own
- * padding, which is fine for a 16px icon but makes a text prefix collide with
- * whatever is typed — so the prefix is its own segment here.
- */
 const model = defineModel<string>({ required: true })
 
 withDefaults(defineProps<{

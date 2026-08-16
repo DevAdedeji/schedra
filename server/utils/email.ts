@@ -28,8 +28,6 @@ function render({ heading, body, action, footer }: Omit<Email, 'to' | 'subject'>
 export async function sendEmail(email: Email) {
   const env = useEnv()
 
-  // Without a Resend key the link goes to the terminal, so the flow stays
-  // testable locally without any third-party account.
   if (!env.resendApiKey) {
     console.info(
       `\n─── email not sent (RESEND_API_KEY unset) ───\n`

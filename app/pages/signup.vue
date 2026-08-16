@@ -1,19 +1,19 @@
 <script setup lang="ts">
+import type { FormSubmitEvent } from '@nuxt/ui'
+import { signUpFormSchema, type SignUpFormInput } from '#shared/validation'
+
 definePageMeta({ layout: 'auth', middleware: 'guest' })
 useHead({ title: 'Create your Schedra link' })
 
 const { signUp } = useAuthClient()
 const { data: methods } = await useFetch('/api/auth-methods', { key: 'auth-methods' })
 
-const name = ref('')
-const username = ref('')
-const email = ref('')
-const password = ref('')
+const state = reactive({ name: '', username: '', email: '', password: '' })
 const touched = ref(false)
 const pending = ref(false)
 const error = ref('')
 
-const strength = usePasswordStrength(password)
+const strength = usePasswordStrength(toRef(state, 'password'))
 
 function normalise(value: string) {
   return value
@@ -24,13 +24,13 @@ function normalise(value: string) {
     .slice(0, 32)
 }
 
-watch(username, (value) => {
+watch(() => state.username, (value) => {
   const cleaned = normalise(value)
-  if (cleaned !== value) username.value = cleaned
+  if (cleaned !== value) state.username = cleaned
 })
 
-watch(name, (value) => {
-  if (!touched.value) username.value = normalise(value)
+watch(() => state.name, (value) => {
+  if (!touched.value) state.username = normalise(value)
 })
 
 interface Availability { available: boolean, reason: 'invalid' | 'taken' | null, message: string }
@@ -39,7 +39,7 @@ const checking = ref(false)
 const availability = ref<Availability | null>(null)
 let debounce: ReturnType<typeof setTimeout> | undefined
 
-watch(username, (value) => {
+watch(() => state.username, (value) => {
   availability.value = null
   clearTimeout(debounce)
   if (value.length < 2) return
@@ -60,8 +60,15 @@ watch(username, (value) => {
 
 onBeforeUnmount(() => clearTimeout(debounce))
 
+const linkState = computed<'ok' | 'bad' | 'busy' | null>(() => {
+  if (state.username.length < 2) return null
+  if (checking.value) return 'busy'
+  if (!availability.value) return null
+  return availability.value.available ? 'ok' : 'bad'
+})
+
 const linkMessage = computed(() => {
-  if (!username.value || username.value.length < 2) return null
+  if (state.username.length < 2) return null
   if (checking.value) return { tone: 'muted', text: 'Checking…' }
   if (!availability.value) return null
 
@@ -71,18 +78,7 @@ const linkMessage = computed(() => {
   }
 })
 
-const linkState = computed<'ok' | 'bad' | 'busy' | null>(() => {
-  if (!username.value || username.value.length < 2) return null
-  if (checking.value) return 'busy'
-  if (!availability.value) return null
-  return availability.value.available ? 'ok' : 'bad'
-})
-
-const canSubmit = computed(() => !pending.value && availability.value?.available !== false)
-
-async function submit() {
-  if (pending.value) return
-
+async function onSubmit(event: FormSubmitEvent<SignUpFormInput>) {
   if (availability.value && !availability.value.available) {
     error.value = 'Please pick a different link.'
     return
@@ -91,13 +87,10 @@ async function submit() {
   pending.value = true
   error.value = ''
 
-  const address = email.value.trim()
+  const { email } = event.data
 
   const { error: failure } = await signUp.email({
-    name: name.value.trim(),
-    username: username.value,
-    email: address,
-    password: password.value,
+    ...event.data,
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
   })
 
@@ -110,7 +103,7 @@ async function submit() {
     return
   }
 
-  await navigateTo(`/verify-email?email=${encodeURIComponent(address)}`)
+  await navigateTo(`/verify-email?email=${encodeURIComponent(email)}`)
 }
 </script>
 
@@ -135,21 +128,21 @@ async function submit() {
       </div>
     </template>
 
-    <form
+    <UForm
+      :schema="signUpFormSchema"
+      :state="state"
       :class="methods?.google ? 'space-y-5' : 'mt-8 space-y-5'"
-      novalidate
-      @submit.prevent="submit"
+      @submit="onSubmit"
     >
       <UFormField
         label="Your name"
         name="name"
       >
         <UInput
-          v-model="name"
+          v-model="state.name"
           size="xl"
           autocomplete="name"
           placeholder="Ada Lovelace"
-          required
           class="w-full"
         />
       </UFormField>
@@ -159,22 +152,20 @@ async function submit() {
         name="username"
       >
         <UsernameField
-          v-model="username"
+          v-model="state.username"
           :state="linkState"
-          required
           @input="touched = true"
         />
-        <p
-          v-if="linkMessage"
-          class="mt-1.5 text-[12px]"
-          :class="{
-            'text-green-600 dark:text-green-500': linkMessage.tone === 'ok',
-            'text-red-600 dark:text-red-500': linkMessage.tone === 'bad',
-            'text-dimmed': linkMessage.tone === 'muted'
-          }"
-        >
-          {{ linkMessage.text }}
-        </p>
+        <template #help>
+          <span
+            v-if="linkMessage"
+            :class="{
+              'text-green-600 dark:text-green-500': linkMessage.tone === 'ok',
+              'text-red-600 dark:text-red-500': linkMessage.tone === 'bad',
+              'text-dimmed': linkMessage.tone === 'muted'
+            }"
+          >{{ linkMessage.text }}</span>
+        </template>
       </UFormField>
 
       <UFormField
@@ -182,12 +173,11 @@ async function submit() {
         name="email"
       >
         <UInput
-          v-model="email"
+          v-model="state.email"
           type="email"
           size="xl"
           autocomplete="email"
           placeholder="ada@example.com"
-          required
           class="w-full"
         />
       </UFormField>
@@ -197,12 +187,11 @@ async function submit() {
         name="password"
       >
         <UInput
-          v-model="password"
+          v-model="state.password"
           type="password"
           size="xl"
           autocomplete="new-password"
           placeholder="At least 10 characters"
-          required
           class="w-full"
         />
 
@@ -224,10 +213,6 @@ async function submit() {
             :class="strength.textClass"
           >{{ strength.label }}</span>
         </div>
-        <p class="mt-1.5 text-[12px] text-dimmed">
-          Length beats symbols — a few ordinary words is stronger than
-          <span class="whitespace-nowrap">P@ssw0rd!</span>
-        </p>
       </UFormField>
 
       <p
@@ -243,7 +228,6 @@ async function submit() {
         size="xl"
         block
         :loading="pending"
-        :disabled="!canSubmit"
         class="rounded-full font-medium"
       >
         Create my link
@@ -252,7 +236,7 @@ async function submit() {
       <p class="text-center text-[12px] leading-relaxed text-dimmed">
         We'll email you a link to confirm your address.
       </p>
-    </form>
+    </UForm>
 
     <p class="mt-8 border-t border-default pt-6 text-[14px] text-muted">
       Already have one?

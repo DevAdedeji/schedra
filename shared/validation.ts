@@ -1,11 +1,5 @@
 import { z } from 'zod'
 
-/**
- * One definition used by both the form and the server. The browser copy gives
- * fast inline errors; the server copy is the one that actually decides, because
- * `required` attributes are trivially skipped by posting to the endpoint.
- */
-
 export const RESERVED_USERNAMES = new Set([
   'admin', 'api', 'app', 'auth', 'billing', 'blog', 'dashboard', 'designs',
   'docs', 'help', 'login', 'logout', 'me', 'new', 'pricing', 'privacy',
@@ -49,16 +43,27 @@ export const signUpSchema = z.object({
   timeZone: z.string().trim().min(1).max(64).optional()
 })
 
+export const signUpFormSchema = signUpSchema.omit({ timeZone: true })
+
+export const signInSchema = z.object({
+  email: emailSchema,
+  password: z.string().min(1, 'Required')
+})
+
+export const requestResetSchema = z.object({ email: emailSchema })
+
+export const resetPasswordSchema = z
+  .object({
+    password: passwordSchema,
+    confirm: z.string().min(1, 'Required')
+  })
+  .refine(values => values.password === values.confirm, {
+    message: 'These do not match',
+    path: ['confirm']
+  })
+
 export type SignUpInput = z.infer<typeof signUpSchema>
-
-/** First error message per field, shaped for a form. */
-export function fieldErrors(error: z.ZodError): Record<string, string> {
-  const result: Record<string, string> = {}
-
-  for (const issue of error.issues) {
-    const key = String(issue.path[0] ?? '')
-    if (key && !result[key]) result[key] = issue.message
-  }
-
-  return result
-}
+export type SignUpFormInput = z.infer<typeof signUpFormSchema>
+export type SignInInput = z.infer<typeof signInSchema>
+export type RequestResetInput = z.infer<typeof requestResetSchema>
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>

@@ -18,7 +18,7 @@ async function copy() {
     clearTimeout(timer)
     timer = setTimeout(() => (copied.value = false), 1600)
   } catch {
-    // Clipboard unavailable — the link is selectable by hand.
+    // Clipboard unavailable — the link is still selectable by hand.
   }
 }
 

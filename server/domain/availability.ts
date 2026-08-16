@@ -39,7 +39,6 @@ function toSpan(interval: Interval): Span {
   }
 }
 
-/** Returns null when the wall time falls in a DST gap and the policy is `skip`. */
 function resolve(
   date: Temporal.PlainDate,
   time: string,
@@ -55,8 +54,7 @@ function resolve(
   }
 
   // Gaps and ambiguities both yield two candidates, so the count cannot tell
-  // them apart. An ambiguous time exists twice and survives the round trip;
-  // a gap forces Temporal to move the clock.
+  // them apart. An ambiguous time survives the round trip; a gap does not.
   const preserved = earlier.toPlainDateTime().equals(wall)
     && later.toPlainDateTime().equals(wall)
 

@@ -21,7 +21,6 @@ const timestamps = {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
 }
 
-/** A null `organizationId` anywhere below means personal, not unknown. */
 export const organizations = pgTable('organizations', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
@@ -31,7 +30,6 @@ export const organizations = pgTable('organizations', {
   uniqueIndex('organizations_slug_key').on(table.slug)
 ])
 
-/** better-auth will be pointed at this table rather than adding a second user. */
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   organizationId: uuid('organization_id').references(() => organizations.id, { onDelete: 'set null' }),
@@ -39,10 +37,8 @@ export const users = pgTable('users', {
   email: text('email').notNull(),
   emailVerified: boolean('email_verified').notNull().default(false),
   name: text('name').notNull(),
-  /** Public booking slug — the `adedeji` in `/adedeji/intro-call`. */
   username: text('username').notNull(),
   bio: text('bio'),
-  /** better-auth calls this `image`; mapped in useAuth(). */
   avatarUrl: text('avatar_url'),
   timeZone: text('time_zone').notNull().default('UTC'),
 
@@ -52,11 +48,6 @@ export const users = pgTable('users', {
   uniqueIndex('users_username_key').on(sql`lower(${table.username})`)
 ])
 
-/**
- * The next three tables are better-auth's, shaped to match its expected fields
- * but using our uuid ids and timestamptz. Regenerate a reference copy with
- * `npx @better-auth/cli generate` after changing auth options.
- */
 export const sessions = pgTable('sessions', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -79,7 +70,6 @@ export const accounts = pgTable('accounts', {
   accountId: text('account_id').notNull(),
   providerId: text('provider_id').notNull(),
 
-  /** Hashed by better-auth. Only set for the credentials provider. */
   password: text('password'),
 
   accessToken: text('access_token'),
@@ -112,7 +102,6 @@ export const schedules = pgTable('schedules', {
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
 
   name: text('name').notNull(),
-  /** IANA zone that every rule and override below is read in. */
   timeZone: text('time_zone').notNull(),
   isDefault: boolean('is_default').notNull().default(false),
 
@@ -128,10 +117,8 @@ export const availabilityRules = pgTable('availability_rules', {
   id: uuid('id').primaryKey().defaultRandom(),
   scheduleId: uuid('schedule_id').notNull().references(() => schedules.id, { onDelete: 'cascade' }),
 
-  /** ISO-8601: 1 = Monday … 7 = Sunday, matching the engine. */
   weekday: smallint('weekday').notNull(),
   startTime: time('start_time').notNull(),
-  /** An end at or before the start closes on the next day: 22:00–02:00. */
   endTime: time('end_time').notNull(),
 
   ...timestamps
@@ -140,11 +127,6 @@ export const availabilityRules = pgTable('availability_rules', {
   check('availability_rules_weekday_range', sql`${table.weekday} between 1 and 7`)
 ])
 
-/**
- * Rows with times are the windows that replace the weekly rules that day. A row
- * with both times null blocks the day, which is why "no rows at all" and "a
- * blocking row" have to stay distinguishable.
- */
 export const dateOverrides = pgTable('date_overrides', {
   id: uuid('id').primaryKey().defaultRandom(),
   scheduleId: uuid('schedule_id').notNull().references(() => schedules.id, { onDelete: 'cascade' }),
@@ -166,7 +148,6 @@ export const eventTypes = pgTable('event_types', {
   id: uuid('id').primaryKey().defaultRandom(),
   organizationId: uuid('organization_id').references(() => organizations.id, { onDelete: 'set null' }),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  /** Null falls back to the owner's default schedule. */
   scheduleId: uuid('schedule_id').references(() => schedules.id, { onDelete: 'set null' }),
 
   slug: text('slug').notNull(),
@@ -174,7 +155,6 @@ export const eventTypes = pgTable('event_types', {
   description: text('description'),
 
   durationMinutes: integer('duration_minutes').notNull(),
-  /** Null steps by the duration, giving back-to-back slots. */
   incrementMinutes: integer('increment_minutes'),
   bufferBeforeMinutes: integer('buffer_before_minutes').notNull().default(0),
   bufferAfterMinutes: integer('buffer_after_minutes').notNull().default(0),
@@ -209,14 +189,12 @@ export const bookingStatus = pgEnum('booking_status', [
   'rejected'
 ])
 
-/** Overlap prevention lives in 0001_booking_overlap_constraint.sql. */
 export const bookings = pgTable('bookings', {
   id: uuid('id').primaryKey().defaultRandom(),
   organizationId: uuid('organization_id').references(() => organizations.id, { onDelete: 'set null' }),
   eventTypeId: uuid('event_type_id').notNull().references(() => eventTypes.id, { onDelete: 'restrict' }),
   hostId: uuid('host_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
 
-  /** Opaque public identifier for manage and cancel links. Never the row id. */
   uid: text('uid').notNull(),
   status: bookingStatus('status').notNull().default('confirmed'),
 
@@ -225,7 +203,6 @@ export const bookings = pgTable('bookings', {
 
   attendeeName: text('attendee_name').notNull(),
   attendeeEmail: text('attendee_email').notNull(),
-  /** Kept so reminders render in the clock they booked against months later. */
   attendeeTimeZone: text('attendee_time_zone').notNull(),
 
   answers: jsonb('answers'),

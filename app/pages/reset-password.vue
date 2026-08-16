@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import type { FormSubmitEvent } from '@nuxt/ui'
+import { resetPasswordSchema, type ResetPasswordInput } from '#shared/validation'
+
 definePageMeta({ layout: 'auth' })
 useHead({ title: 'Choose a new password' })
 
@@ -8,27 +11,18 @@ const { resetPassword } = useAuthClient()
 const token = computed(() => String(route.query.token ?? ''))
 const invalid = computed(() => !token.value || route.query.error === 'invalid_token')
 
-const password = ref('')
-const confirm = ref('')
+const state = reactive({ password: '', confirm: '' })
 const pending = ref(false)
 const error = ref('')
 
-const strength = usePasswordStrength(password)
-const mismatch = computed(() => confirm.value.length > 0 && confirm.value !== password.value)
+const strength = usePasswordStrength(toRef(state, 'password'))
 
-async function submit() {
-  if (pending.value) return
-
-  if (password.value !== confirm.value) {
-    error.value = 'Those two passwords do not match.'
-    return
-  }
-
+async function onSubmit(event: FormSubmitEvent<ResetPasswordInput>) {
   pending.value = true
   error.value = ''
 
   const { error: failure } = await resetPassword({
-    newPassword: password.value,
+    newPassword: event.data.password,
     token: token.value
   })
 
@@ -71,22 +65,22 @@ async function submit() {
       Pick something long. You'll be signed out everywhere else.
     </p>
 
-    <form
+    <UForm
+      :schema="resetPasswordSchema"
+      :state="state"
       class="mt-8 space-y-5"
-      novalidate
-      @submit.prevent="submit"
+      @submit="onSubmit"
     >
       <UFormField
         label="New password"
         name="password"
       >
         <UInput
-          v-model="password"
+          v-model="state.password"
           type="password"
           size="xl"
           autocomplete="new-password"
           placeholder="At least 10 characters"
-          required
           class="w-full"
         />
 
@@ -115,19 +109,12 @@ async function submit() {
         name="confirm"
       >
         <UInput
-          v-model="confirm"
+          v-model="state.confirm"
           type="password"
           size="xl"
           autocomplete="new-password"
-          required
           class="w-full"
         />
-        <p
-          v-if="mismatch"
-          class="mt-1.5 text-[12px] text-red-600 dark:text-red-500"
-        >
-          These do not match yet.
-        </p>
       </UFormField>
 
       <p
@@ -143,11 +130,10 @@ async function submit() {
         size="xl"
         block
         :loading="pending"
-        :disabled="mismatch || password.length < 10"
         class="rounded-full font-medium"
       >
         Save and sign in
       </UButton>
-    </form>
+    </UForm>
   </div>
 </template>

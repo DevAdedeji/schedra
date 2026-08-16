@@ -3,11 +3,6 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 
 const url = process.env.DATABASE_URL
 
-/**
- * These need a live database: `docker compose up -d && npx drizzle-kit migrate`.
- * They are the only proof that the exclusion constraint is real — a check in
- * application code would pass a unit test and still lose the race in production.
- */
 describe.skipIf(!url)('bookings_no_overlap_per_host', () => {
   const sql = postgres(url!, { max: 5, onnotice: () => {} })
 
@@ -105,8 +100,6 @@ describe.skipIf(!url)('bookings_no_overlap_per_host', () => {
 
       await book(first, '2026-08-17T14:00:00Z', '2026-08-17T14:30:00Z')
 
-      // Issued while the first transaction is still open, so it blocks on the
-      // uncommitted row rather than seeing a free slot.
       const contender = book(second, '2026-08-17T14:00:00Z', '2026-08-17T14:30:00Z')
         .catch((error: unknown) => error)
       await new Promise(resolve => setTimeout(resolve, 50))

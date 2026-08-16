@@ -8,7 +8,6 @@ const promises = [
 
 <template>
   <div class="min-h-screen lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
-    <!-- Brand panel -->
     <aside class="relative flex flex-col justify-between overflow-hidden bg-primary px-8 py-10 text-white lg:px-14 lg:py-14">
       <div
         class="pointer-events-none absolute -right-24 -top-24 size-80 rounded-full bg-white/10 blur-3xl"
@@ -68,7 +67,6 @@ const promises = [
       </ul>
     </aside>
 
-    <!-- Form -->
     <main class="flex items-center justify-center bg-default px-6 py-14 lg:px-14">
       <div class="w-full max-w-100">
         <slot />

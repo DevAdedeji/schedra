@@ -1,25 +1,27 @@
 <script setup lang="ts">
+import type { FormSubmitEvent } from '@nuxt/ui'
+import { requestResetSchema, type RequestResetInput } from '#shared/validation'
+
 definePageMeta({ layout: 'auth', middleware: 'guest' })
 useHead({ title: 'Reset your password' })
 
 const { requestPasswordReset } = useAuthClient()
 
-const email = ref('')
+const state = reactive({ email: '' })
 const pending = ref(false)
 const sent = ref(false)
 
-async function submit() {
-  if (pending.value) return
+async function onSubmit(event: FormSubmitEvent<RequestResetInput>) {
   pending.value = true
 
   await requestPasswordReset({
-    email: email.value.trim(),
+    email: event.data.email,
     redirectTo: '/reset-password'
   })
 
   pending.value = false
   // Always report success. Saying "no such account" would let anyone check
-  // which email addresses are registered here.
+  // which addresses are registered here.
   sent.value = true
 }
 </script>
@@ -37,8 +39,9 @@ async function submit() {
       Check your email.
     </h1>
     <p class="mt-4 text-[15px] leading-relaxed text-muted">
-      If <span class="font-medium text-highlighted">{{ email }}</span> has an
-      account, a reset link is on its way. It works once and expires in an hour.
+      If <span class="font-medium text-highlighted">{{ state.email }}</span> has
+      an account, a reset link is on its way. It works once and expires in an
+      hour.
     </p>
 
     <p class="mt-8 border-t border-default pt-6 text-[14px] text-muted">
@@ -58,22 +61,22 @@ async function submit() {
       password.
     </p>
 
-    <form
+    <UForm
+      :schema="requestResetSchema"
+      :state="state"
       class="mt-8 space-y-5"
-      novalidate
-      @submit.prevent="submit"
+      @submit="onSubmit"
     >
       <UFormField
         label="Email"
         name="email"
       >
         <UInput
-          v-model="email"
+          v-model="state.email"
           type="email"
           size="xl"
           autocomplete="email"
           placeholder="ada@example.com"
-          required
           class="w-full"
         />
       </UFormField>
@@ -87,7 +90,7 @@ async function submit() {
       >
         Send the link
       </UButton>
-    </form>
+    </UForm>
 
     <p class="mt-8 border-t border-default pt-6 text-[14px] text-muted">
       Remembered it?

@@ -1,8 +1,4 @@
 <script setup lang="ts">
-/**
- * One instant — 2026-08-18T22:30:00Z — in four cities. Hardcoded rather than
- * computed so the prerendered HTML and the hydrated client cannot disagree.
- */
 const zones = [
   { city: 'Lagos', country: 'Nigeria', time: '23:30', date: 'Tue 18 Aug' },
   { city: 'London', country: 'United Kingdom', time: '23:30', date: 'Tue 18 Aug' },

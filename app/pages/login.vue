@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import type { FormSubmitEvent } from '@nuxt/ui'
+import { signInSchema, type SignInInput } from '#shared/validation'
+
 definePageMeta({ layout: 'auth', middleware: 'guest' })
 useHead({ title: 'Sign in to Schedra' })
 
@@ -6,39 +9,31 @@ const route = useRoute()
 const { signIn } = useAuthClient()
 const { data: methods } = await useFetch('/api/auth-methods', { key: 'auth-methods' })
 
-const email = ref('')
-const password = ref('')
+const state = reactive({ email: '', password: '' })
 const remember = ref(true)
 const pending = ref(false)
 const error = ref('')
 const unverified = ref(false)
 
-async function submit() {
-  if (pending.value) return
+async function onSubmit(event: FormSubmitEvent<SignInInput>) {
   pending.value = true
   error.value = ''
   unverified.value = false
 
-  const address = email.value.trim()
-
   const { error: failure } = await signIn.email({
-    email: address,
-    password: password.value,
+    ...event.data,
     rememberMe: remember.value
   })
 
   pending.value = false
 
   if (failure) {
-    // A blocked sign-in because the address is unconfirmed is worth naming —
-    // it is actionable, and it does not reveal whether the password was right.
     if (failure.status === 403) {
       unverified.value = true
       return
     }
 
-    // Otherwise deliberately vague: saying which half was wrong tells an
-    // attacker whether an account exists.
+    // Deliberately vague: naming which half was wrong tells an attacker
     error.value = 'That email and password do not match.'
     return
   }
@@ -69,22 +64,22 @@ async function submit() {
       </div>
     </template>
 
-    <form
+    <UForm
+      :schema="signInSchema"
+      :state="state"
       :class="methods?.google ? 'space-y-5' : 'mt-8 space-y-5'"
-      novalidate
-      @submit.prevent="submit"
+      @submit="onSubmit"
     >
       <UFormField
         label="Email"
         name="email"
       >
         <UInput
-          v-model="email"
+          v-model="state.email"
           type="email"
           size="xl"
           autocomplete="email"
           placeholder="ada@example.com"
-          required
           class="w-full"
         />
       </UFormField>
@@ -94,12 +89,11 @@ async function submit() {
         name="password"
       >
         <UInput
-          v-model="password"
+          v-model="state.password"
           type="password"
           size="xl"
           autocomplete="current-password"
           placeholder="Your password"
-          required
           class="w-full"
         />
       </UFormField>
@@ -124,7 +118,7 @@ async function submit() {
       >
         This email is not confirmed yet. Check your inbox for the link, or
         <NuxtLink
-          :to="`/verify-email?email=${encodeURIComponent(email.trim())}`"
+          :to="`/verify-email?email=${encodeURIComponent(state.email.trim())}`"
           class="font-medium text-highlighted underline underline-offset-4"
         >send it again</NuxtLink>.
       </div>
@@ -146,7 +140,7 @@ async function submit() {
       >
         Sign in
       </UButton>
-    </form>
+    </UForm>
 
     <p class="mt-8 border-t border-default pt-6 text-[14px] text-muted">
       No link yet?

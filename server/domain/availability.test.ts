@@ -3,13 +3,6 @@ import { describe, expect, it } from 'vitest'
 import { getAvailableSlots } from './availability'
 import type { AvailabilityQuery, Slot, TimeZone, Weekday } from './types'
 
-/**
- * Every DST fact asserted here was verified against the IANA database through
- * Temporal before the test was written, not recalled from memory. The gap and
- * ambiguity hours differ per zone — the UK skips 01:00, the US skips 02:00 —
- * and guessing produces tests that pass for the wrong reason.
- */
-
 const LAGOS = 'Africa/Lagos' // UTC+1 year round, no DST
 const LONDON = 'Europe/London'
 const NEW_YORK = 'America/New_York'
@@ -20,7 +13,6 @@ const CHATHAM = 'Pacific/Chatham' // UTC+12:45 / +13:45
 const MONDAY: Weekday = 1
 const SUNDAY: Weekday = 7
 
-/** 2026-08-17 is a Monday; 2026-08-16 the Sunday before it. */
 const A_MONDAY = '2026-08-17'
 
 function query(overrides: Partial<AvailabilityQuery> = {}): AvailabilityQuery {
@@ -36,15 +28,12 @@ function query(overrides: Partial<AvailabilityQuery> = {}): AvailabilityQuery {
     ...overrides
   }
 
-  // Unless a case is specifically about notice or horizon, `now` has to sit
-  // before the range it queries — several cases reach back to March or January.
   return {
     ...base,
     now: overrides.now ?? `${Temporal.PlainDate.from(base.from).subtract({ days: 30 })}T00:00:00Z`
   }
 }
 
-/** Slot start times as `HH:mm` in a given zone. */
 function localStarts(slots: Slot[], timeZone: TimeZone) {
   return slots.map(slot =>
     Temporal.Instant.from(slot.start)
@@ -158,7 +147,6 @@ describe('notice and horizon', () => {
       eventType: { durationMinutes: 60, bookingWindowDays: 1 }
     }))
 
-    // Tuesday's window opens after the one-day horizon closes.
     expect(slots).toHaveLength(3)
     expect(starts(slots).every(start => start.startsWith('2026-08-17'))).toBe(true)
   })
@@ -230,7 +218,6 @@ describe('daily cap', () => {
       ]
     }))
 
-    // Blocked for the two busy hours, but the cap is untouched.
     expect(slots.length).toBeGreaterThan(0)
     expect(localStarts(slots, LAGOS)).not.toContain('09:00')
     expect(localStarts(slots, LAGOS)).not.toContain('10:00')
@@ -265,7 +252,6 @@ describe('overlapping rules', () => {
       eventType: { durationMinutes: 120 }
     }))
 
-    // Only a joined 09:00–13:00 window can fit a two-hour meeting at 11:00.
     expect(localStarts(slots, LAGOS)).toEqual(['09:00', '11:00'])
   })
 })
@@ -289,13 +275,11 @@ describe('windows crossing midnight', () => {
       to: A_MONDAY
     }))
 
-    // The window runs into Tuesday, but only Monday was asked for.
     expect(localStarts(slots, LAGOS)).toEqual(['22:00', '23:00'])
   })
 })
 
 describe('DST — spring forward', () => {
-  /** London skips 01:00–02:00 on 2026-03-29. 02:30 exists; 01:30 does not. */
   it('never offers a wall-clock time the gap deleted', () => {
     const slots = getAvailableSlots(query({
       schedule: { timeZone: LONDON, rules: [{ weekday: SUNDAY, start: '00:00', end: '04:00' }] },
@@ -308,7 +292,6 @@ describe('DST — spring forward', () => {
     expect(localStarts(slots, LONDON).some(time => time.startsWith('01:'))).toBe(false)
   })
 
-  /** New York skips 02:00–03:00 on 2026-03-08 — a different hour to the UK. */
   it('skips the correct hour for the zone', () => {
     const slots = getAvailableSlots(query({
       schedule: { timeZone: NEW_YORK, rules: [{ weekday: SUNDAY, start: '01:00', end: '04:00' }] },
@@ -343,7 +326,6 @@ describe('DST — spring forward', () => {
     expect(localStarts(slots, LONDON)).toEqual(['02:30', '03:00', '03:30', '04:00', '04:30'])
   })
 
-  /** Lord Howe shifts by thirty minutes, skipping 02:00–02:30. */
   it('handles a thirty-minute transition', () => {
     const slots = getAvailableSlots(query({
       schedule: { timeZone: LORD_HOWE, rules: [{ weekday: SUNDAY, start: '01:00', end: '04:00' }] },
@@ -357,7 +339,6 @@ describe('DST — spring forward', () => {
 })
 
 describe('DST — fall back', () => {
-  /** New York repeats 01:00–02:00 on 2026-11-01. Both passes are real time. */
   it('offers the repeated hour twice, as distinct instants', () => {
     const slots = getAvailableSlots(query({
       schedule: { timeZone: NEW_YORK, rules: [{ weekday: SUNDAY, start: '00:00', end: '03:00' }] },

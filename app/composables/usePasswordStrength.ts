@@ -1,19 +1,12 @@
 export interface PasswordStrength {
-  /** 0 = empty, 1 = weak, 2 = fair, 3 = strong. */
   score: 0 | 1 | 2 | 3
   label: string
-  /** Tailwind background class for the filled bars. */
   barClass: string
   textClass: string
 }
 
 const SEQUENCES = ['password', 'qwerty', '12345', 'letmein', 'welcome', 'schedra', 'abcdef']
 
-/**
- * Length dominates on purpose. A long ordinary phrase resists guessing far
- * better than a short one peppered with symbols, so character variety only
- * lifts a password that is already long enough.
- */
 export function usePasswordStrength(password: Ref<string>) {
   return computed<PasswordStrength>(() => {
     const value = password.value

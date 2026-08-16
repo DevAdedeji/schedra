@@ -3,11 +3,9 @@ export interface Env {
   schedraUrl: string
   authSecret: string
 
-  /** Optional. Google sign-in is hidden when either half is missing. */
   googleClientId?: string
   googleClientSecret?: string
 
-  /** Optional. Without a key, emails are logged instead of sent. */
   resendApiKey?: string
   emailFrom: string
 }
