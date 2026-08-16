@@ -1,10 +1,10 @@
 <template>
   <div>
     <LandingHero />
-    <LandingProof />
+    <LandingHowItWorks />
     <LandingFeatures />
-    <LandingEngine />
-    <LandingSelfHost />
+    <LandingTimezones />
+    <LandingDevelopers />
     <LandingCta />
   </div>
 </template>

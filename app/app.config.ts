@@ -2,7 +2,7 @@ export default defineAppConfig({
   ui: {
     colors: {
       primary: 'vermillion',
-      neutral: 'neutral'
+      neutral: 'stone'
     },
     button: {
       defaultVariants: {

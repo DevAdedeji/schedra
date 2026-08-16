@@ -1,52 +1,41 @@
 <script setup lang="ts">
 const links = [
-  { label: 'Features', to: '#features' },
-  { label: 'Engine', to: '#engine' },
-  { label: 'Self-host', to: '#self-host' },
-  { label: 'Docs', to: '#' }
+  { label: 'How it works', to: '#how' },
+  { label: 'What you get', to: '#features' },
+  { label: 'For developers', to: '#developers' }
 ]
 
 const open = ref(false)
 </script>
 
 <template>
-  <header class="sticky top-0 z-50 border-b border-default bg-default/85 backdrop-blur-md">
-    <div class="mx-auto max-w-[100rem]">
-      <div class="flex h-14 items-center gap-8 px-5 sm:px-6 md:pl-[calc(var(--rail)+3rem)] md:pr-12">
+  <header class="sticky top-0 z-50 border-b border-default bg-muted/85 backdrop-blur-md">
+    <div class="mx-auto max-w-[78rem] px-6 lg:px-10">
+      <div class="flex h-16 items-center justify-between gap-8">
         <NuxtLink
           to="/"
-          class="shrink-0"
           aria-label="Schedra home"
         >
           <SchedraMark />
         </NuxtLink>
 
-        <nav class="hidden items-center gap-7 md:flex">
+        <nav class="hidden items-center gap-8 md:flex">
           <a
             v-for="link in links"
             :key="link.label"
             :href="link.to"
-            class="text-[13px] font-medium text-muted transition-colors hover:text-highlighted"
+            class="text-[14px] text-muted transition-colors hover:text-highlighted"
           >{{ link.label }}</a>
         </nav>
 
-        <div class="ml-auto flex items-center gap-1.5">
+        <div class="flex items-center gap-2">
           <UColorModeButton size="sm" />
-          <UButton
-            to="https://github.com"
-            target="_blank"
-            icon="i-simple-icons-github"
-            color="neutral"
-            variant="ghost"
-            size="sm"
-            aria-label="Schedra on GitHub"
-          />
           <UButton
             to="#get-started"
             size="sm"
-            class="hidden font-medium sm:inline-flex"
+            class="hidden rounded-full px-4 font-medium sm:inline-flex"
           >
-            Get started
+            Sign up free
           </UButton>
           <UButton
             color="neutral"
@@ -63,13 +52,13 @@ const open = ref(false)
 
       <nav
         v-if="open"
-        class="border-t border-default px-5 py-3 md:hidden"
+        class="border-t border-default py-3 md:hidden"
       >
         <a
           v-for="link in links"
           :key="link.label"
           :href="link.to"
-          class="block py-2.5 text-sm font-medium text-muted transition-colors hover:text-highlighted"
+          class="block py-2.5 text-[15px] text-muted transition-colors hover:text-highlighted"
           @click="open = false"
         >{{ link.label }}</a>
       </nav>

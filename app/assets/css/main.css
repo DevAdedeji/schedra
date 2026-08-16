@@ -4,6 +4,7 @@
 @theme static {
   --font-sans: 'Inter Tight', ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-editorial: 'Instrument Serif', Georgia, 'Times New Roman', serif;
 
   /* Vermillion — the single accent.
      International-style red against a near-monochrome page. The category is
@@ -22,16 +23,7 @@
 }
 
 :root {
-  /* Near-square. The page is drawn with hairlines, not curves. */
-  --ui-radius: 0.125rem;
-
-  /* One rhythm value drives every horizontal rule on the page, and the hour
-     labels in the rail are laid out against the same value — so the rail and
-     the rules can never drift apart. */
-  --row: 5.5rem;
-
-  /* Width of the hour rail. Content is inset by exactly this much. */
-  --rail: 5rem;
+  --ui-radius: 0.5rem;
 }
 
 @layer base {
@@ -39,6 +31,16 @@
      as digits tick over. */
   .tnum {
     font-variant-numeric: tabular-nums;
+  }
+
+  /* Small-caps section labels. Deliberately sans: monospace anywhere other
+     than an actual time or a code block reads as "developer tool". */
+  .eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
   }
 
   ::selection {

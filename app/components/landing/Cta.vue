@@ -1,75 +1,23 @@
-<script setup lang="ts">
-const COMMAND = 'docker compose up -d'
-const copied = ref(false)
-let timer: ReturnType<typeof setTimeout> | undefined
-
-async function copy() {
-  try {
-    await navigator.clipboard.writeText(COMMAND)
-    copied.value = true
-    clearTimeout(timer)
-    timer = setTimeout(() => (copied.value = false), 1600)
-  } catch {
-    // Clipboard unavailable (insecure origin, denied permission) — the command
-    // is still selectable by hand, so there is nothing useful to report.
-  }
-}
-
-onBeforeUnmount(() => clearTimeout(timer))
-</script>
-
 <template>
-  <GridSection
+  <section
     id="get-started"
-    :rail="['10', '11', '12', '13']"
-    muted
+    class="border-t border-default bg-default"
   >
-    <div class="py-20 lg:py-28">
-      <div class="max-w-3xl">
-        <h2 class="text-[clamp(2.25rem,6vw,4.5rem)] font-semibold leading-[0.94] tracking-[-0.045em] text-highlighted">
-          Take your<br>
-          calendar <span class="text-primary">back.</span>
-        </h2>
-
-        <p class="mt-7 max-w-[48ch] text-[15px] leading-relaxed text-muted sm:text-base">
-          Schedra is early and building in the open. Star the repository, run it
-          locally, and tell us what breaks.
-        </p>
-
-        <div class="mt-10 flex flex-wrap items-center gap-3">
-          <UButton
-            to="https://github.com"
-            target="_blank"
-            class="font-medium"
-          >
-            Star on GitHub
-          </UButton>
-          <UButton
-            to="#"
-            color="neutral"
-            variant="outline"
-            class="font-medium"
-            trailing-icon="i-lucide-arrow-right"
-          >
-            Read the docs
-          </UButton>
-        </div>
-
-        <button
-          type="button"
-          class="mt-10 flex items-center gap-3 border border-default bg-default px-4 py-3 font-mono text-[12px] transition-colors hover:border-accented"
-          :aria-label="`Copy command: ${COMMAND}`"
-          @click="copy"
-        >
-          <span class="text-dimmed">$</span>
-          <span class="text-highlighted">{{ COMMAND }}</span>
-          <UIcon
-            :name="copied ? 'i-lucide-check' : 'i-lucide-copy'"
-            class="size-3.5 shrink-0"
-            :class="copied ? 'text-primary' : 'text-dimmed'"
-          />
-        </button>
-      </div>
+    <div class="mx-auto max-w-[78rem] px-6 py-24 text-center lg:px-10 lg:py-32">
+      <h2 class="mx-auto max-w-[18ch] font-editorial text-[clamp(2.5rem,6vw,4.5rem)] leading-[1] tracking-[-0.02em] text-highlighted">
+        Get your booking link.
+      </h2>
+      <p class="mx-auto mt-7 max-w-[42ch] text-[16px] leading-[1.65] text-muted">
+        Free, takes about two minutes, and your calendar comes along. No card,
+        no trial that quietly ends.
+      </p>
+      <UButton
+        to="#"
+        size="xl"
+        class="mt-10 rounded-full px-8 font-medium"
+      >
+        Create your link
+      </UButton>
     </div>
-  </GridSection>
+  </section>
 </template>

@@ -24,5 +24,13 @@ export default defineNuxtConfig({
         braceStyle: '1tbs'
       }
     }
+  },
+
+  // Declared explicitly: nuxt-fonts resolves families from `font-family`
+  // declarations, and does not pick this one up from the Tailwind theme token.
+  fonts: {
+    families: [
+      { name: 'Instrument Serif', provider: 'google' }
+    ]
   }
 })

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-const title = 'Schedra — open-source scheduling you run yourself'
-const description = 'An open-source, self-hostable scheduling platform. One container, one Postgres, ten environment variables. Your calendar data never leaves your infrastructure.'
+const title = 'Schedra — share a link, get booked'
+const description = 'Schedra shows people when you\'re free so they can pick a time that suits you both. Meetings land in your calendar with reminders sent — no back-and-forth emails. Free, and open source.'
 
 useHead({
   htmlAttrs: { lang: 'en' },
@@ -22,12 +22,8 @@ useSeoMeta({
 
 <template>
   <UApp>
-    <SiteHeader />
-
-    <main>
+    <NuxtLayout>
       <NuxtPage />
-    </main>
-
-    <SiteFooter />
+    </NuxtLayout>
   </UApp>
 </template>
