@@ -33,6 +33,28 @@ pnpm db:generate   # generate a migration from schema changes
 pnpm db:studio     # browse the database
 ```
 
+## Deploying
+
+Migrations do **not** run automatically at boot. `railway.toml` sets them as a
+pre-deploy command, so a failed migration aborts the deploy rather than
+crashlooping the running version.
+
+Set these in the host's environment: `DATABASE_URL`, `SCHEDRA_URL`,
+`AUTH_SECRET`, and optionally `DIRECT_URL`, `GOOGLE_*`, `RESEND_API_KEY`,
+`EMAIL_FROM`.
+
+`SCHEDRA_URL` must match the public origin exactly — OAuth callbacks,
+verification and reset links are all built from it.
+
+**Neon** hands out two connection strings. Point `DATABASE_URL` at the pooled
+host (it contains `-pooler`) and `DIRECT_URL` at the direct one. Migrations use
+the direct endpoint because DDL through PgBouncer is unreliable, and the app
+disables prepared statements automatically when it detects a pooled host.
+
+`GET /api/healthz` returns 503 if the double-booking constraint is missing,
+which is the failure mode worth alerting on — the app would otherwise serve
+traffic happily while accepting overlapping bookings.
+
 ## Layout
 
 ```
