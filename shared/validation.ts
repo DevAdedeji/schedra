@@ -21,6 +21,7 @@ export const emailSchema = z
   .string()
   .trim()
   .min(1, 'Required')
+  .max(320, 'At most 320 characters')
   .pipe(z.email('That does not look like an email address'))
   .transform(value => value.toLowerCase())
 
@@ -35,12 +36,29 @@ export const passwordSchema = z
   .min(10, 'At least 10 characters')
   .max(200, 'At most 200 characters')
 
-export const signUpSchema = z.object({
+export const timeZoneSchema = z
+  .string()
+  .trim()
+  .min(1, 'Required')
+  .max(64, 'At most 64 characters')
+  .refine((value) => {
+    try {
+      new Intl.DateTimeFormat('en', { timeZone: value }).format()
+      return true
+    } catch {
+      return false
+    }
+  }, 'That is not a valid time zone')
+
+export const accountProfileSchema = z.object({
   name: nameSchema,
   username: usernameSchema,
   email: emailSchema,
-  password: passwordSchema,
-  timeZone: z.string().trim().min(1).max(64).optional()
+  timeZone: timeZoneSchema.optional()
+})
+
+export const signUpSchema = accountProfileSchema.extend({
+  password: passwordSchema
 })
 
 export const signUpFormSchema = signUpSchema.omit({ timeZone: true })

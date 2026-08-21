@@ -15,7 +15,7 @@ describe.skipIf(!url)('authentication', () => {
   }
 
   async function auth() {
-    process.env.SCHEDRA_URL ||= 'http://localhost:3000'
+    process.env.SCHEDRA_URL ||= 'http://localhost:3002'
     process.env.AUTH_SECRET ||= 'x'.repeat(32)
     const { resetEnv } = await import('../utils/env')
     resetEnv()
@@ -112,6 +112,72 @@ describe.skipIf(!url)('authentication', () => {
 
     const rows = await sql`select id from users`
     expect(rows).toHaveLength(0)
+  })
+
+  it.each([
+    ['an oversized name', { name: 'a'.repeat(81) }],
+    ['an invalid time zone', { timeZone: 'Somewhere/Imaginary' }]
+  ])('rejects %s posted straight to the endpoint', async (_label, override) => {
+    const instance = await auth()
+
+    await expect(
+      instance.api.signUpEmail({ body: { ...credentials, ...override } })
+    ).rejects.toThrow()
+
+    const rows = await sql`select id from users`
+    expect(rows).toHaveLength(0)
+  })
+
+  it('accepts passwords up to the shared 200-character limit', async () => {
+    const password = 'a'.repeat(200)
+    const instance = await auth()
+
+    await instance.api.signUpEmail({ body: { ...credentials, password } })
+    await confirmEmail(credentials.email)
+
+    const signedIn = await instance.api.signInEmail({
+      body: { email: credentials.email, password }
+    })
+    expect(signedIn.user.email).toBe(credentials.email)
+  })
+
+  it('revokes existing sessions after a password reset', async () => {
+    const instance = await auth()
+    await instance.api.signUpEmail({ body: credentials })
+    await confirmEmail(credentials.email)
+    await instance.api.signInEmail({
+      body: { email: credentials.email, password: credentials.password }
+    })
+    await instance.api.signInEmail({
+      body: { email: credentials.email, password: credentials.password }
+    })
+
+    const sessionsBefore = await sql`select id from sessions`
+    expect(sessionsBefore).toHaveLength(2)
+
+    await instance.api.requestPasswordReset({
+      body: { email: credentials.email, redirectTo: '/reset-password' }
+    })
+    const [verification] = await sql<{ identifier: string }[]>`
+      select identifier from verifications where identifier like 'reset-password:%'
+    `
+    const token = verification!.identifier.replace('reset-password:', '')
+    const newPassword = 'a-new-long-enough-passphrase'
+
+    await instance.api.resetPassword({ body: { token, newPassword } })
+
+    const sessionsAfter = await sql`select id from sessions`
+    expect(sessionsAfter).toHaveLength(0)
+    await expect(
+      instance.api.signInEmail({
+        body: { email: credentials.email, password: credentials.password }
+      })
+    ).rejects.toThrow()
+
+    const signedIn = await instance.api.signInEmail({
+      body: { email: credentials.email, password: newPassword }
+    })
+    expect(signedIn.user.email).toBe(credentials.email)
   })
 
   it('derives a valid username when none is supplied', async () => {

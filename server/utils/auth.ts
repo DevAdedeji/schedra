@@ -1,7 +1,7 @@
 import { betterAuth } from 'better-auth'
 import { APIError } from 'better-auth/api'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { usernameSchema } from '../../shared/validation'
+import { accountProfileSchema } from '../../shared/validation'
 import * as schema from '../database/schema'
 import { useDatabase } from './database'
 import { sendEmail } from './email'
@@ -23,7 +23,9 @@ function createAuth() {
     emailAndPassword: {
       enabled: true,
       minPasswordLength: 10,
+      maxPasswordLength: 200,
       requireEmailVerification: true,
+      revokeSessionsOnPasswordReset: true,
       sendResetPassword: async ({ user, url }) => {
         await sendEmail({
           to: user.email,
@@ -74,24 +76,31 @@ function createAuth() {
         create: {
           /**
            * The only choke point every sign-up passes through, whichever
-           * provider it came from — so username rules are enforced here rather
-           * than in the form, which a direct POST would skip.
+           * provider it came from — so profile rules are enforced here rather
+           * than only in the form, which a direct POST would skip.
            */
           before: async (user) => {
-            const record = user as typeof user & { username?: string | null }
-
-            if (!record.username) {
-              return { data: { ...user, username: await deriveUsername(record.name ?? record.email) } }
+            const record = user as typeof user & {
+              username?: string | null
+              timeZone?: string | null
             }
+            const username = record.username
+              || await deriveUsername(record.name ?? record.email)
+            const parsed = accountProfileSchema.safeParse({
+              name: record.name,
+              email: record.email,
+              username,
+              ...(record.timeZone ? { timeZone: record.timeZone } : {})
+            })
 
-            const parsed = usernameSchema.safeParse(record.username)
             if (!parsed.success) {
               throw new APIError('BAD_REQUEST', {
-                message: parsed.error.issues[0]?.message ?? 'That link is not valid.'
+                code: 'INVALID_USER_PROFILE',
+                message: parsed.error.issues[0]?.message ?? 'Those account details are not valid.'
               })
             }
 
-            return { data: { ...user, username: parsed.data } }
+            return { data: { ...user, ...parsed.data } }
           }
         }
       }

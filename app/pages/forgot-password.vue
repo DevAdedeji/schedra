@@ -10,19 +10,31 @@ const { requestPasswordReset } = useAuthClient()
 const state = reactive({ email: '' })
 const pending = ref(false)
 const sent = ref(false)
+const error = ref('')
 
 async function onSubmit(event: FormSubmitEvent<RequestResetInput>) {
   pending.value = true
+  error.value = ''
 
-  await requestPasswordReset({
-    email: event.data.email,
-    redirectTo: '/reset-password'
-  })
+  try {
+    const { error: failure } = await requestPasswordReset({
+      email: event.data.email,
+      redirectTo: '/reset-password'
+    })
 
-  pending.value = false
-  // Always report success. Saying "no such account" would let anyone check
-  // which addresses are registered here.
-  sent.value = true
+    if (failure) {
+      error.value = 'Could not send the link just now. Try again in a moment.'
+      return
+    }
+
+    // Always report success. Saying "no such account" would let anyone check
+    // which addresses are registered here.
+    sent.value = true
+  } catch {
+    error.value = 'Could not send the link just now. Check your connection and try again.'
+  } finally {
+    pending.value = false
+  }
 }
 </script>
 
@@ -80,6 +92,14 @@ async function onSubmit(event: FormSubmitEvent<RequestResetInput>) {
           class="w-full"
         />
       </UFormField>
+
+      <p
+        v-if="error"
+        class="rounded-lg border border-error/30 bg-error/10 px-3.5 py-2.5 text-[13px] text-error"
+        role="alert"
+      >
+        {{ error }}
+      </p>
 
       <UButton
         type="submit"

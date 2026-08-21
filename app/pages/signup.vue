@@ -38,27 +38,42 @@ interface Availability { available: boolean, reason: 'invalid' | 'taken' | null,
 const checking = ref(false)
 const availability = ref<Availability | null>(null)
 let debounce: ReturnType<typeof setTimeout> | undefined
+let availabilityRequest = 0
+let availabilityController: AbortController | undefined
 
 watch(() => state.username, (value) => {
+  const request = ++availabilityRequest
   availability.value = null
   clearTimeout(debounce)
+  availabilityController?.abort()
+  checking.value = false
   if (value.length < 2) return
 
   checking.value = true
   debounce = setTimeout(async () => {
+    availabilityController = new AbortController()
+
     try {
-      availability.value = await $fetch<Availability>('/api/username-available', {
-        query: { username: value }
+      const result = await $fetch<Availability>('/api/username-available', {
+        query: { username: value },
+        signal: availabilityController.signal
       })
+
+      if (request === availabilityRequest && value === state.username) {
+        availability.value = result
+      }
     } catch {
-      availability.value = null
+      if (request === availabilityRequest) availability.value = null
     } finally {
-      checking.value = false
+      if (request === availabilityRequest) checking.value = false
     }
   }, 350)
 })
 
-onBeforeUnmount(() => clearTimeout(debounce))
+onBeforeUnmount(() => {
+  clearTimeout(debounce)
+  availabilityController?.abort()
+})
 
 const linkState = computed<'ok' | 'bad' | 'busy' | null>(() => {
   if (state.username.length < 2) return null
@@ -88,22 +103,26 @@ async function onSubmit(event: FormSubmitEvent<SignUpFormInput>) {
   error.value = ''
 
   const { email } = event.data
+  const callbackURL = `/verify-email?verified=1&email=${encodeURIComponent(email)}`
 
-  const { error: failure } = await signUp.email({
-    ...event.data,
-    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
-  })
+  try {
+    const { error: failure } = await signUp.email({
+      ...event.data,
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      callbackURL
+    })
 
-  pending.value = false
+    if (failure) {
+      error.value = 'Could not create your account. Check the details and try again.'
+      return
+    }
 
-  if (failure) {
-    error.value = failure.message?.toLowerCase().includes('exist')
-      ? 'An account with that email already exists.'
-      : failure.message || 'Something went wrong. Please try again.'
-    return
+    await navigateTo(`/verify-email?email=${encodeURIComponent(email)}`)
+  } catch {
+    error.value = 'Could not create your account just now. Check your connection and try again.'
+  } finally {
+    pending.value = false
   }
-
-  await navigateTo(`/verify-email?email=${encodeURIComponent(email)}`)
 }
 </script>
 

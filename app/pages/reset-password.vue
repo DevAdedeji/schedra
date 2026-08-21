@@ -9,7 +9,7 @@ const route = useRoute()
 const { resetPassword } = useAuthClient()
 
 const token = computed(() => String(route.query.token ?? ''))
-const invalid = computed(() => !token.value || route.query.error === 'invalid_token')
+const invalid = computed(() => !token.value || Boolean(route.query.error))
 
 const state = reactive({ password: '', confirm: '' })
 const pending = ref(false)
@@ -21,19 +21,25 @@ async function onSubmit(event: FormSubmitEvent<ResetPasswordInput>) {
   pending.value = true
   error.value = ''
 
-  const { error: failure } = await resetPassword({
-    newPassword: event.data.password,
-    token: token.value
-  })
+  try {
+    const { error: failure } = await resetPassword({
+      newPassword: event.data.password,
+      token: token.value
+    })
 
-  pending.value = false
+    if (failure) {
+      error.value = failure.code === 'INVALID_TOKEN'
+        ? 'That link has expired or was already used. Request a new one.'
+        : 'Could not update the password. Check it and try again.'
+      return
+    }
 
-  if (failure) {
-    error.value = 'That link has expired or was already used. Request a new one.'
-    return
+    await navigateTo('/login?reset=1')
+  } catch {
+    error.value = 'Could not update the password just now. Check your connection and try again.'
+  } finally {
+    pending.value = false
   }
-
-  await navigateTo('/login?reset=1')
 }
 </script>
 
@@ -132,7 +138,7 @@ async function onSubmit(event: FormSubmitEvent<ResetPasswordInput>) {
         :loading="pending"
         class="rounded-full font-medium"
       >
-        Save and sign in
+        Save password
       </UButton>
     </UForm>
   </div>

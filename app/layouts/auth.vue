@@ -1,7 +1,7 @@
 <script setup lang="ts">
 const promises = [
   'Free forever, no card needed',
-  'Works with Google, Outlook and Apple',
+  'One link for every meeting',
   'No ads, no tracking, ever'
 ]
 </script>

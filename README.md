@@ -3,9 +3,10 @@
 An open-source, self-hostable scheduling platform. One container, one Postgres, no vendor in the middle.
 
 > **Status: early.** The landing page, the availability engine and the database
-> schema exist. There is no authentication, no calendar sync and no booking API
-> yet, so nothing is wired end to end. The slot picker on the homepage is a demo
-> backed by generated availability, not real data.
+> schema exist. Email/password authentication, email verification, password
+> resets and optional Google sign-in are wired end to end. There is no calendar
+> sync or booking API yet. The slot picker on the homepage is a demo backed by
+> generated availability, not real data.
 
 ## Stack
 
@@ -21,7 +22,7 @@ pnpm db:migrate
 pnpm dev
 ```
 
-The dev server runs on `http://localhost:3000`.
+The dev server runs on `http://localhost:3002`.
 
 ```bash
 pnpm build         # production build (the landing page is prerendered)
@@ -65,10 +66,13 @@ app/
     BookingDemo.vue   Interactive slot picker in the hero
     SchedraMark.vue   Logo — `tile` (default) and `line` variants
   assets/css/main.css Design tokens: fonts, vermillion palette, grid rhythm
+  pages/login.vue    Email/password and optional Google sign-in
+  pages/signup.vue   Account creation and booking-link selection
   pages/index.vue
 server/
   domain/             Availability engine — pure, no I/O, no clock
   database/           Drizzle schema, migrations, client
+  utils/auth.ts       Better Auth configuration and server-side profile checks
 ```
 
 Overlapping bookings are prevented by a Postgres `EXCLUDE USING gist`

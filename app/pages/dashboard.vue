@@ -9,6 +9,8 @@ const user = computed(() => data.value?.user)
 const link = computed(() => `schedra.com/${user.value?.username ?? ''}`)
 
 const copied = ref(false)
+const leaving = ref(false)
+const signOutError = ref('')
 let timer: ReturnType<typeof setTimeout> | undefined
 
 async function copy() {
@@ -25,8 +27,23 @@ async function copy() {
 onBeforeUnmount(() => clearTimeout(timer))
 
 async function leave() {
-  await signOut()
-  await navigateTo('/login')
+  leaving.value = true
+  signOutError.value = ''
+
+  try {
+    const { error } = await signOut()
+    if (error) {
+      signOutError.value = 'Could not sign out just now. Try again.'
+      return
+    }
+
+    clearNuxtData('current-user')
+    await navigateTo('/login')
+  } catch {
+    signOutError.value = 'Could not sign out just now. Check your connection and try again.'
+  } finally {
+    leaving.value = false
+  }
 }
 </script>
 
@@ -89,10 +106,19 @@ async function leave() {
       color="neutral"
       variant="ghost"
       size="lg"
+      :loading="leaving"
       class="mt-8 rounded-full font-medium"
       @click="leave"
     >
       Sign out
     </UButton>
+
+    <p
+      v-if="signOutError"
+      class="mt-3 text-[13px] text-error"
+      role="alert"
+    >
+      {{ signOutError }}
+    </p>
   </div>
 </template>

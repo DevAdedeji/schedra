@@ -1,7 +1,14 @@
 <script setup lang="ts">
+import { useFormField } from '@nuxt/ui/composables'
+
+defineOptions({ inheritAttrs: false })
+
 const model = defineModel<string>({ required: true })
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
+  id?: string
+  name?: string
+  disabled?: boolean
   prefix?: string
   placeholder?: string
   state?: 'ok' | 'bad' | 'busy' | null
@@ -12,30 +19,48 @@ withDefaults(defineProps<{
 })
 
 const focused = ref(false)
+const {
+  id,
+  name,
+  disabled,
+  color,
+  ariaAttrs,
+  emitFormBlur,
+  emitFormChange,
+  emitFormFocus,
+  emitFormInput
+} = useFormField(props, { deferInputValidation: true })
 </script>
 
 <template>
   <div
     class="flex w-full items-stretch overflow-hidden rounded-lg border transition-colors"
-    :class="focused
-      ? 'border-primary ring-2 ring-primary/20'
-      : 'border-accented hover:border-inverted/20'"
+    :class="color === 'error'
+      ? 'border-error ring-2 ring-error/20'
+      : focused
+        ? 'border-primary ring-2 ring-primary/20'
+        : 'border-accented hover:border-inverted/20'"
   >
     <span class="flex shrink-0 select-none items-center border-r border-accented bg-muted px-3 text-[14px] leading-none text-muted">
       {{ prefix }}
     </span>
 
     <input
+      :id="id"
       v-model="model"
       type="text"
+      :name="name"
+      :disabled="disabled"
       autocomplete="off"
       autocapitalize="none"
       spellcheck="false"
       :placeholder="placeholder"
       class="min-w-0 flex-1 bg-default px-3 py-3 text-[15px] text-highlighted outline-none placeholder:text-dimmed"
-      v-bind="$attrs"
-      @focus="focused = true"
-      @blur="focused = false"
+      v-bind="{ ...ariaAttrs, ...$attrs }"
+      @input="emitFormInput"
+      @change="emitFormChange"
+      @focus="focused = true; emitFormFocus()"
+      @blur="focused = false; emitFormBlur()"
     >
 
     <span

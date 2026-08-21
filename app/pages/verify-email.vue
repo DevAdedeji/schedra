@@ -3,7 +3,16 @@ definePageMeta({ layout: 'auth' })
 useHead({ title: 'Confirm your email' })
 
 const route = useRoute()
+const { data: currentUser } = await useCurrentUser()
 const email = computed(() => String(route.query.email ?? ''))
+const verificationError = computed(() => String(route.query.error ?? ''))
+const isResult = computed(() => route.query.verified === '1')
+const confirmed = computed(() => isResult.value && !verificationError.value && Boolean(currentUser.value?.user))
+const failed = computed(() => Boolean(verificationError.value) || (isResult.value && !currentUser.value?.user))
+const callbackURL = computed(() => {
+  const query = email.value ? `&email=${encodeURIComponent(email.value)}` : ''
+  return `/verify-email?verified=1${query}`
+})
 
 const sending = ref(false)
 const sent = ref(false)
@@ -17,7 +26,7 @@ async function resend() {
   try {
     await $fetch('/api/auth/send-verification-email', {
       method: 'POST',
-      body: { email: email.value, callbackURL: '/dashboard' }
+      body: { email: email.value, callbackURL: callbackURL.value }
     })
     sent.value = true
   } catch {
@@ -29,7 +38,81 @@ async function resend() {
 </script>
 
 <template>
-  <div>
+  <div v-if="confirmed">
+    <span class="flex size-12 items-center justify-center rounded-2xl bg-success/10">
+      <UIcon
+        name="i-lucide-check"
+        class="size-5 text-success"
+      />
+    </span>
+
+    <h1 class="mt-7 font-editorial text-[2.75rem] leading-[1.02] tracking-[-0.02em] text-highlighted">
+      Email confirmed.
+    </h1>
+    <p class="mt-4 text-[15px] leading-relaxed text-muted">
+      Your account is ready and your booking link is yours.
+    </p>
+
+    <UButton
+      to="/dashboard"
+      size="xl"
+      block
+      class="mt-8 rounded-full font-medium"
+    >
+      Continue to Schedra
+    </UButton>
+  </div>
+
+  <div v-else-if="failed">
+    <span class="flex size-12 items-center justify-center rounded-2xl bg-error/10">
+      <UIcon
+        name="i-lucide-link-2-off"
+        class="size-5 text-error"
+      />
+    </span>
+
+    <h1 class="mt-7 font-editorial text-[2.75rem] leading-[1.02] tracking-[-0.02em] text-highlighted">
+      That link did not work.
+    </h1>
+    <p class="mt-4 text-[15px] leading-relaxed text-muted">
+      It may have expired or already been used. Send a fresh confirmation email
+      and try the newest link.
+    </p>
+
+    <div class="mt-8 space-y-3">
+      <UButton
+        v-if="email"
+        size="xl"
+        block
+        :loading="sending"
+        :disabled="sent"
+        class="rounded-full font-medium"
+        @click="resend"
+      >
+        {{ sent ? 'Sent again — check your inbox' : 'Send a new link' }}
+      </UButton>
+
+      <UButton
+        v-else
+        to="/login"
+        size="xl"
+        block
+        class="rounded-full font-medium"
+      >
+        Back to sign in
+      </UButton>
+
+      <p
+        v-if="error"
+        class="text-[13px] text-error"
+        role="alert"
+      >
+        {{ error }}
+      </p>
+    </div>
+  </div>
+
+  <div v-else>
     <span class="flex size-12 items-center justify-center rounded-2xl bg-primary/10">
       <UIcon
         name="i-lucide-mail"

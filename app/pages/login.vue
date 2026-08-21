@@ -14,32 +14,43 @@ const remember = ref(true)
 const pending = ref(false)
 const error = ref('')
 const unverified = ref(false)
+const resetComplete = computed(() => route.query.reset === '1')
+
+function safeNext(value: unknown) {
+  return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//')
+    ? value
+    : '/dashboard'
+}
 
 async function onSubmit(event: FormSubmitEvent<SignInInput>) {
   pending.value = true
   error.value = ''
   unverified.value = false
 
-  const { error: failure } = await signIn.email({
-    ...event.data,
-    rememberMe: remember.value
-  })
+  try {
+    const { error: failure } = await signIn.email({
+      ...event.data,
+      rememberMe: remember.value
+    })
 
-  pending.value = false
+    if (failure) {
+      if (failure.code === 'EMAIL_NOT_VERIFIED') {
+        unverified.value = true
+        return
+      }
 
-  if (failure) {
-    if (failure.status === 403) {
-      unverified.value = true
+      // Deliberately vague: naming which half was wrong tells an attacker.
+      error.value = 'That email and password do not match.'
       return
     }
 
-    // Deliberately vague: naming which half was wrong tells an attacker
-    error.value = 'That email and password do not match.'
-    return
+    clearNuxtData('current-user')
+    await navigateTo(safeNext(route.query.next))
+  } catch {
+    error.value = 'Could not sign in just now. Check your connection and try again.'
+  } finally {
+    pending.value = false
   }
-
-  const next = typeof route.query.next === 'string' ? route.query.next : '/dashboard'
-  await navigateTo(next)
 }
 </script>
 
@@ -50,6 +61,14 @@ async function onSubmit(event: FormSubmitEvent<SignInInput>) {
     </h1>
     <p class="mt-3 text-[15px] leading-relaxed text-muted">
       Manage your hours, your links and everything booked.
+    </p>
+
+    <p
+      v-if="resetComplete"
+      class="mt-6 rounded-lg border border-success/30 bg-success/10 px-3.5 py-2.5 text-[13px] text-success"
+      role="status"
+    >
+      Your password has been updated. Sign in with the new one.
     </p>
 
     <template v-if="methods?.google">
