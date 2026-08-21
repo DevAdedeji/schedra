@@ -3,7 +3,7 @@ import type { FormSubmitEvent } from '@nuxt/ui'
 import { resetPasswordSchema, type ResetPasswordInput } from '#shared/validation'
 
 definePageMeta({ layout: 'auth' })
-useHead({ title: 'Choose a new password' })
+useSeoMeta({ title: 'Choose a new password', robots: 'noindex, nofollow' })
 
 const route = useRoute()
 const { resetPassword } = useAuthClient()

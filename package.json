@@ -14,7 +14,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "typecheck": "nuxt typecheck"
+    "typecheck": "nuxt typecheck",
+    "og": "node scripts/generate-og.mjs"
   },
   "dependencies": {
     "@iconify-json/lucide": "^1.2.122",
@@ -30,10 +31,12 @@
   },
   "devDependencies": {
     "@nuxt/eslint": "^1.17.0",
+    "@resvg/resvg-js": "^2.6.2",
     "@types/node": "^26.2.0",
     "@vitest/coverage-v8": "^4.1.10",
     "drizzle-kit": "^0.31.10",
     "eslint": "^10.8.1",
+    "satori": "^0.33.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.10",
     "vue-tsc": "^3.3.9"

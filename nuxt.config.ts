@@ -10,8 +10,14 @@ export default defineNuxtConfig({
 
   css: ['~/assets/css/main.css'],
 
+  runtimeConfig: {
+    public: {
+      siteUrl: ''
+    }
+  },
+
   routeRules: {
-    '/': { prerender: true },
+    '/': { swr: 3600 },
     '/signup': { prerender: false },
     '/login': { prerender: false },
     '/forgot-password': { prerender: false },
@@ -39,7 +45,8 @@ export default defineNuxtConfig({
 
   fonts: {
     families: [
-      { name: 'Instrument Serif', provider: 'google' }
+      { name: 'Instrument Serif', provider: 'google' },
+      { name: 'Figtree', provider: 'google' }
     ]
   }
 })

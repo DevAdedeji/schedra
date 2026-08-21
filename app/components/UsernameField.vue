@@ -13,10 +13,12 @@ const props = withDefaults(defineProps<{
   placeholder?: string
   state?: 'ok' | 'bad' | 'busy' | null
 }>(), {
-  prefix: 'schedra.com/',
   placeholder: 'ada',
   state: null
 })
+
+const { host } = useSiteUrl()
+const prefix = computed(() => props.prefix ?? `${host.value}/`)
 
 const focused = ref(false)
 const {

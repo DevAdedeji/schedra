@@ -1,6 +1,6 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'auth' })
-useHead({ title: 'Confirm your email' })
+useSeoMeta({ title: 'Confirm your email', robots: 'noindex, nofollow' })
 
 const route = useRoute()
 const { data: currentUser } = await useCurrentUser()

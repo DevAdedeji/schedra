@@ -3,10 +3,10 @@ import type { FormSubmitEvent } from '@nuxt/ui'
 import { signUpFormSchema, type SignUpFormInput } from '#shared/validation'
 
 definePageMeta({ layout: 'auth', middleware: 'guest' })
-useHead({ title: 'Create your Schedra link' })
+useSeoMeta({ title: 'Create your Schedra link', robots: 'noindex, nofollow' })
 
 const { signUp } = useAuthClient()
-const { data: methods } = await useFetch('/api/auth-methods', { key: 'auth-methods' })
+const { data: methods } = useCurrentUser()
 
 const state = reactive({ name: '', username: '', email: '', password: '' })
 const touched = ref(false)

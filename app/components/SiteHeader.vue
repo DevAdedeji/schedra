@@ -32,6 +32,7 @@ const open = ref(false)
           <UColorModeButton size="sm" />
           <UButton
             to="/signup"
+            prefetch
             size="sm"
             class="hidden rounded-full px-4 font-medium sm:inline-flex"
           >

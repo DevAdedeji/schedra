@@ -13,6 +13,7 @@
       </p>
       <UButton
         to="/signup"
+        prefetch
         size="xl"
         class="mt-10 rounded-full px-8 font-medium"
       >

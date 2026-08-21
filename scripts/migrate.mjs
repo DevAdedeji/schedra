@@ -1,16 +1,10 @@
-/**
- * Applies pending migrations. Uses drizzle-orm's migrator rather than
- * drizzle-kit so it runs in a production image, where devDependencies are
- * pruned away.
- */
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { migrate } from 'drizzle-orm/postgres-js/migrator'
 import postgres from 'postgres'
+import { existsSync } from 'node:fs'
 
-try {
+if (existsSync('.env')) {
   process.loadEnvFile()
-} catch {
-  // No .env — the platform supplies real environment variables.
 }
 
 // DDL through a connection pooler is unreliable, so prefer the direct endpoint.

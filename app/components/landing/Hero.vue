@@ -21,6 +21,7 @@
           <div class="mt-10 flex flex-wrap items-center gap-3">
             <UButton
               to="/signup"
+              prefetch
               size="xl"
               class="rounded-full px-7 font-medium"
             >

@@ -1,7 +1,11 @@
 import { useEnv } from '../utils/env'
 
-export default defineNitroPlugin(() => {
+export default defineNitroPlugin((nitro) => {
   if (import.meta.prerender) return
 
-  useEnv()
+  const env = useEnv()
+
+  nitro.hooks.hook('request', (event) => {
+    event.context.siteUrl = env.schedraUrl
+  })
 })

@@ -44,8 +44,18 @@ Set these in the host's environment: `DATABASE_URL`, `SCHEDRA_URL`,
 `AUTH_SECRET`, and optionally `DIRECT_URL`, `GOOGLE_*`, `RESEND_API_KEY`,
 `EMAIL_FROM`.
 
-`SCHEDRA_URL` must match the public origin exactly — OAuth callbacks,
-verification and reset links are all built from it.
+`SCHEDRA_URL` must match the public origin exactly. OAuth callbacks,
+verification and reset links, booking links, canonical tags and `og:image` URLs
+are all derived from it.
+
+| Environment | `SCHEDRA_URL` |
+|---|---|
+| Production | `https://schedra.xyz` |
+| Staging | `https://staging.schedra.xyz` |
+| Local | `http://localhost:3002` |
+
+Each needs its own Google authorised redirect URI, at
+`${SCHEDRA_URL}/api/auth/callback/google`.
 
 **Neon** hands out two connection strings. Point `DATABASE_URL` at the pooled
 host (it contains `-pooler`) and `DIRECT_URL` at the direct one. Migrations use

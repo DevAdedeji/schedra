@@ -3,7 +3,7 @@ import type { FormSubmitEvent } from '@nuxt/ui'
 import { requestResetSchema, type RequestResetInput } from '#shared/validation'
 
 definePageMeta({ layout: 'auth', middleware: 'guest' })
-useHead({ title: 'Reset your password' })
+useSeoMeta({ title: 'Reset your password', robots: 'noindex, nofollow' })
 
 const { requestPasswordReset } = useAuthClient()
 

@@ -20,6 +20,10 @@ function createAuth() {
       usePlural: true
     }),
 
+    session: {
+      cookieCache: { enabled: true, maxAge: 5 * 60 }
+    },
+
     emailAndPassword: {
       enabled: true,
       minPasswordLength: 10,
@@ -74,11 +78,6 @@ function createAuth() {
     databaseHooks: {
       user: {
         create: {
-          /**
-           * The only choke point every sign-up passes through, whichever
-           * provider it came from — so profile rules are enforced here rather
-           * than only in the form, which a direct POST would skip.
-           */
           before: async (user) => {
             const record = user as typeof user & {
               username?: string | null

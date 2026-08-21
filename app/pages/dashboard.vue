@@ -1,30 +1,17 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'app', middleware: 'auth' })
-useHead({ title: 'Your Schedra' })
+useSeoMeta({ title: 'Your Schedra', robots: 'noindex, nofollow' })
 
 const { data } = await useCurrentUser()
 const { signOut } = useAuthClient()
 
 const user = computed(() => data.value?.user)
-const link = computed(() => `schedra.com/${user.value?.username ?? ''}`)
+const { url, host } = useSiteUrl()
+const link = computed(() => `${host.value}/${user.value?.username ?? ''}`)
 
-const copied = ref(false)
+const { copied, copy } = useCopy()
 const leaving = ref(false)
 const signOutError = ref('')
-let timer: ReturnType<typeof setTimeout> | undefined
-
-async function copy() {
-  try {
-    await navigator.clipboard.writeText(`https://${link.value}`)
-    copied.value = true
-    clearTimeout(timer)
-    timer = setTimeout(() => (copied.value = false), 1600)
-  } catch {
-    // Clipboard unavailable — the link is still selectable by hand.
-  }
-}
-
-onBeforeUnmount(() => clearTimeout(timer))
 
 async function leave() {
   leaving.value = true
@@ -60,7 +47,7 @@ async function leave() {
       type="button"
       class="mt-8 flex w-full items-center gap-3 rounded-xl border border-default bg-default px-4 py-3.5 text-left transition-colors hover:border-accented"
       :aria-label="`Copy ${link}`"
-      @click="copy"
+      @click="copy(`${url}/${user?.username ?? ''}`)"
     >
       <UIcon
         name="i-lucide-link"
