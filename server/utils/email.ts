@@ -39,14 +39,21 @@ export async function sendEmail(email: Email) {
     return
   }
 
-  await $fetch('https://api.resend.com/emails', {
+  const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${env.resendApiKey}` },
-    body: {
+    headers: {
+      'Authorization': `Bearer ${env.resendApiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
       from: env.emailFrom,
       to: email.to,
       subject: email.subject,
       html: render(email)
-    }
+    })
   })
+
+  if (!response.ok) {
+    throw new Error(`Resend refused the message: ${response.status} ${await response.text()}`)
+  }
 }

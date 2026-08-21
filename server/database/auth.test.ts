@@ -27,7 +27,10 @@ describe.skipIf(!url)('authentication', () => {
     await sql`update users set email_verified = true where email = ${email}`
   }
 
-  afterAll(() => sql.end())
+  afterAll(async () => {
+    await sql`truncate table sessions, accounts, verifications, bookings, event_types, date_overrides, availability_rules, schedules, users, organizations restart identity cascade`
+    await sql.end()
+  })
 
   beforeEach(async () => {
     await sql`truncate table sessions, accounts, verifications, bookings, event_types, schedules, users, organizations restart identity cascade`

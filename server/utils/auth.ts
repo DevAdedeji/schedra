@@ -4,6 +4,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { accountProfileSchema } from '../../shared/validation'
 import * as schema from '../database/schema'
 import { useDatabase } from './database'
+import { createStarterSetup } from './onboarding'
 import { sendEmail } from './email'
 import { useEnv } from './env'
 
@@ -100,6 +101,13 @@ function createAuth() {
             }
 
             return { data: { ...user, ...parsed.data } }
+          },
+          after: async (user) => {
+            const record = user as typeof user & { timeZone?: string | null }
+
+            // A booking link that resolves to nothing is worse than no link, so
+            // every account starts with hours and something to book.
+            await createStarterSetup(user.id, record.timeZone || 'UTC')
           }
         }
       }

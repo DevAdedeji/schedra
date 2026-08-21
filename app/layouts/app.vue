@@ -1,7 +1,7 @@
 <template>
   <div class="min-h-screen bg-muted">
     <header class="border-b border-default bg-default">
-      <div class="mx-auto flex h-16 max-w-[52rem] items-center justify-between px-6">
+      <div class="mx-auto flex h-16 max-w-[52rem] items-center justify-between px-5 sm:px-6">
         <NuxtLink
           to="/dashboard"
           aria-label="Schedra"
@@ -12,7 +12,7 @@
       </div>
     </header>
 
-    <main class="mx-auto max-w-[52rem] px-6 py-12">
+    <main class="mx-auto max-w-[52rem] px-5 py-10 sm:px-6 sm:py-12">
       <slot />
     </main>
   </div>

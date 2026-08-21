@@ -85,3 +85,23 @@ export type SignUpFormInput = z.infer<typeof signUpFormSchema>
 export type SignInInput = z.infer<typeof signInSchema>
 export type RequestResetInput = z.infer<typeof requestResetSchema>
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>
+
+export const createBookingSchema = z.object({
+  username: z.string().min(1),
+  slug: z.string().min(1),
+  start: z.iso.datetime(),
+  name: z.string().trim().min(1, 'Please give a name').max(80),
+  email: emailSchema,
+  timeZone: z.string().trim().min(1).max(64),
+  notes: z.string().trim().max(2000).optional()
+})
+
+export type CreateBookingInput = z.infer<typeof createBookingSchema>
+
+export const updateProfileSchema = z.object({
+  name: nameSchema,
+  bio: z.string().trim().max(280, 'Keep it under 280 characters').optional(),
+  timeZone: z.string().trim().min(1).max(64).optional()
+})
+
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>
