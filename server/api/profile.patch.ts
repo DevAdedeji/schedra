@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { updateProfileSchema } from '#shared/validation'
 import { users } from '../database/schema'
 import { useDatabase } from '../utils/database'
@@ -23,7 +23,7 @@ export default defineEventHandler(async (event) => {
       name,
       bio: bio || null,
       ...(timeZone ? { timeZone } : {}),
-      updatedAt: new Date()
+      updatedAt: sql`now()`
     })
     .where(eq(users.id, session.user.id))
 

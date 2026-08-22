@@ -12,7 +12,8 @@ const links = [
   { label: 'Overview', to: '/dashboard', icon: 'i-lucide-layout-dashboard' },
   { label: 'Event types', to: '/event-types', icon: 'i-lucide-link-2' },
   { label: 'Bookings', to: '/bookings', icon: 'i-lucide-calendar-days' },
-  { label: 'Availability', to: '/availability', icon: 'i-lucide-clock' }
+  { label: 'Availability', to: '/availability', icon: 'i-lucide-clock' },
+  { label: 'Integrations', to: '/integrations', icon: 'i-lucide-blocks' }
 ]
 
 const leaving = ref(false)
@@ -37,7 +38,7 @@ const menu = computed(() => [
   }],
   [
     { label: 'Settings', icon: 'i-lucide-settings', to: '/settings' },
-    { label: 'View your page', icon: 'i-lucide-external-link', to: `/${user.value?.username}`, target: '_blank' }
+    { label: 'View your page', icon: 'i-lucide-eye', slot: 'view-page', to: `/${user.value?.username}`, target: '_blank' }
   ],
   [{
     label: colorMode.value === 'dark' ? 'Light mode' : 'Dark mode',
@@ -58,8 +59,6 @@ const menuUi = {
   label: 'px-2.5 py-2 text-[13px]',
   item: 'items-center gap-2 px-2.5 py-2 text-[13px]',
   itemLeadingIcon: 'size-3.5',
-  itemLabel: 'flex w-full min-w-0 items-center gap-2',
-  itemLabelExternalIcon: 'ml-auto size-3.5 shrink-0 text-dimmed',
   itemTrailingIcon: 'size-3.5',
   itemDescription: 'text-[11px]'
 }
@@ -105,6 +104,7 @@ const mobileMenuUi = {
         <UDropdownMenu
           :items="menu"
           :ui="menuUi"
+          :external-icon="false"
           :content="{ side: 'top', align: 'start' }"
         >
           <button
@@ -124,6 +124,12 @@ const mobileMenuUi = {
               class="size-4 shrink-0 text-dimmed"
             />
           </button>
+          <template #view-page-trailing>
+            <UIcon
+              name="i-lucide-external-link"
+              class="size-3.5 text-dimmed"
+            />
+          </template>
         </UDropdownMenu>
       </div>
     </aside>
@@ -139,6 +145,7 @@ const mobileMenuUi = {
         <UDropdownMenu
           :items="mobileMenu"
           :ui="mobileMenuUi"
+          :external-icon="false"
           :content="{ align: 'end', side: 'bottom', sideOffset: 8 }"
         >
           <button
@@ -156,6 +163,12 @@ const mobileMenuUi = {
               class="mr-1 size-4.5 text-muted"
             />
           </button>
+          <template #view-page-trailing>
+            <UIcon
+              name="i-lucide-external-link"
+              class="size-3.5 text-dimmed"
+            />
+          </template>
         </UDropdownMenu>
       </div>
     </header>

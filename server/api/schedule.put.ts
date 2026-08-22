@@ -1,4 +1,4 @@
-import { asc, desc, eq } from 'drizzle-orm'
+import { asc, desc, eq, sql } from 'drizzle-orm'
 import { scheduleSchema } from '#shared/validation'
 import { availabilityRules, dateOverrides, schedules } from '../database/schema'
 import { useDatabase } from '../utils/database'
@@ -32,7 +32,7 @@ export default defineEventHandler(async (event) => {
 
   await db.transaction(async (tx) => {
     await tx.update(schedules)
-      .set({ timeZone, updatedAt: new Date() })
+      .set({ timeZone, updatedAt: sql`now()` })
       .where(eq(schedules.id, schedule.id))
 
     await tx.delete(availabilityRules).where(eq(availabilityRules.scheduleId, schedule.id))

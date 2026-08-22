@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 export const RESERVED_USERNAMES = new Set([
   'admin', 'api', 'app', 'auth', 'billing', 'blog', 'dashboard', 'designs',
-  'docs', 'help', 'login', 'logout', 'me', 'new', 'pricing', 'privacy',
+  'docs', 'help', 'integrations', 'login', 'logout', 'me', 'new', 'pricing', 'privacy',
   'schedra', 'settings', 'signin', 'signup', 'support', 'team', 'terms', 'www'
 ])
 

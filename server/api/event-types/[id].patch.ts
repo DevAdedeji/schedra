@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { eventTypeSchema } from '#shared/validation'
 import { eventTypes, schedules } from '../../database/schema'
@@ -35,7 +35,7 @@ export default defineEventHandler(async (event) => {
         incrementMinutes: parsed.data.incrementMinutes ?? null,
         bookingWindowDays: parsed.data.bookingWindowDays ?? null,
         maxPerDay: parsed.data.maxPerDay ?? null,
-        updatedAt: new Date()
+        updatedAt: sql`now()`
       })
       .where(and(eq(eventTypes.id, id.data), eq(eventTypes.userId, session.user.id)))
       .returning({ id: eventTypes.id })

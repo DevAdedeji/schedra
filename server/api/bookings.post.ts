@@ -1,11 +1,13 @@
 import { createBookingSchema } from '#shared/validation'
-import { and, eq, gt, inArray } from 'drizzle-orm'
+import { and, eq, gt, inArray, sql } from 'drizzle-orm'
 import { bookings } from '../database/schema'
 import { useDatabase } from '../utils/database'
 import { findPublicEventType, slotsFor } from '../utils/booking-page'
 import { findBookingByUid } from '../utils/booking-manage'
 import { queueBookingEmails } from '../utils/booking-emails'
 import { enforceRateLimit } from '../utils/rate-limit'
+import { enqueueCalendarSync } from '../utils/calendar-sync'
+import { CalendarUnavailableError } from '../utils/google-calendar'
 
 const SLOT_TAKEN = '23P01'
 
@@ -38,7 +40,18 @@ export default defineEventHandler(async (event) => {
   // Re-derive the slot rather than trusting the posted time: without this, a
   // crafted request could book outside the host's hours entirely. Compare
   // instants, not strings — the engine emits no milliseconds, Date does.
-  const offered = await slotsFor(eventType, day(-1), day(1), now)
+  let offered
+  try {
+    offered = await slotsFor(eventType, day(-1), day(1), now)
+  } catch (error) {
+    if (error instanceof CalendarUnavailableError) {
+      throw createError({
+        statusCode: 503,
+        statusMessage: 'Booking times are temporarily unavailable. Please try again shortly.'
+      })
+    }
+    throw error
+  }
   const slot = offered.find(candidate => new Date(candidate.start).getTime() === wanted)
 
   if (!slot) {
@@ -71,7 +84,7 @@ export default defineEventHandler(async (event) => {
       if (previous && previous.status !== 'cancelled') {
         const [moved] = await tx
           .update(bookings)
-          .set({ status: 'cancelled', cancellationReason: 'Moved to another time', updatedAt: new Date() })
+          .set({ status: 'cancelled', cancellationReason: 'Moved to another time', updatedAt: sql`now()` })
           .where(and(
             eq(bookings.id, previous.id),
             inArray(bookings.status, ['pending', 'confirmed']),
@@ -82,9 +95,11 @@ export default defineEventHandler(async (event) => {
         if (!moved) {
           throw createError({ statusCode: 409, statusMessage: 'That booking was already moved or cancelled.' })
         }
+
+        await enqueueCalendarSync(previous.id, 'delete', tx)
       }
 
-      await tx.insert(bookings).values({
+      const [created] = await tx.insert(bookings).values({
         eventTypeId: eventType.id,
         hostId: eventType.hostId,
         uid,
@@ -95,7 +110,10 @@ export default defineEventHandler(async (event) => {
         attendeeTimeZone: timeZone,
         answers: notes ? { notes } : null,
         rescheduledFromId: previous?.id ?? null
-      })
+      }).returning({ id: bookings.id })
+
+      if (!created) throw new Error('Booking insert did not return a record.')
+      await enqueueCalendarSync(created.id, 'upsert', tx)
 
       await queueBookingEmails({
         uid,

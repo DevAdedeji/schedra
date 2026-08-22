@@ -153,7 +153,7 @@ useSeoMeta({
 
 <template>
   <div class="flex min-h-screen flex-col bg-muted">
-    <main class="flex-1 px-5">
+    <div class="flex-1 px-5">
       <div class="mx-auto max-w-4xl">
         <div class="pt-6 pb-12">
           <NuxtLink to="/">
@@ -184,7 +184,7 @@ useSeoMeta({
             >
               <UIcon
                 name="i-lucide-check"
-                class="size-7 text-white"
+                class="size-7 text-inverted"
               />
             </div>
           </div>
@@ -239,7 +239,7 @@ useSeoMeta({
                   :search-input="{ placeholder: 'Search timezones…' }"
                   aria-label="Timezone"
                   size="sm"
-                  class="min-w-0 flex-1"
+                  class="min-h-11 min-w-0 flex-1 sm:min-h-9"
                 />
               </div>
             </div>
@@ -288,11 +288,13 @@ useSeoMeta({
                 type="button"
                 class="rounded-lg py-2 text-center transition-colors"
                 :class="selectedDate === isoDate(day)
-                  ? 'bg-primary text-white'
+                  ? 'bg-primary text-inverted'
                   : slotsByDate.has(isoDate(day))
                     ? 'text-highlighted hover:bg-muted'
                     : 'cursor-not-allowed text-dimmed opacity-40'"
                 :disabled="!slotsByDate.has(isoDate(day))"
+                :aria-label="new Intl.DateTimeFormat('en', { dateStyle: 'full' }).format(day)"
+                :aria-pressed="selectedDate === isoDate(day)"
                 @click="selectedDate = isoDate(day); selectedSlot = null"
               >
                 <span class="block text-[10px] font-semibold uppercase tracking-wide opacity-70">
@@ -303,12 +305,22 @@ useSeoMeta({
             </div>
 
             <div class="mt-6">
-              <p
+              <div
                 v-if="status === 'pending'"
-                class="py-16 text-center text-sm text-dimmed"
+                class="space-y-3"
+                aria-label="Loading available times"
+                aria-busy="true"
+                role="status"
               >
-                Loading times…
-              </p>
+                <USkeleton class="h-3 w-36" />
+                <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  <USkeleton
+                    v-for="slot in 6"
+                    :key="slot"
+                    class="h-11 w-full rounded-lg"
+                  />
+                </div>
+              </div>
 
               <p
                 v-else-if="!hasAnything"
@@ -328,8 +340,9 @@ useSeoMeta({
                     type="button"
                     class="min-h-11 rounded-lg border py-2 text-[13px] font-medium transition-colors"
                     :class="selectedSlot === slot
-                      ? 'border-primary bg-primary text-white'
+                      ? 'border-primary bg-primary text-inverted'
                       : 'border-default text-toned hover:border-primary'"
+                    :aria-pressed="selectedSlot === slot"
                     @click="selectedSlot = slot"
                   >
                     {{ timeLabel(slot) }}
@@ -363,7 +376,8 @@ useSeoMeta({
                   v-model="booking.name"
                   autocomplete="name"
                   required
-                  class="w-full"
+                  size="lg"
+                  class="min-h-11 w-full"
                 />
               </UFormField>
               <UFormField
@@ -375,7 +389,8 @@ useSeoMeta({
                   type="email"
                   autocomplete="email"
                   required
-                  class="w-full"
+                  size="lg"
+                  class="min-h-11 w-full"
                 />
               </UFormField>
               <UFormField
@@ -405,7 +420,7 @@ useSeoMeta({
                 size="lg"
                 block
                 :loading="submitting"
-                class="rounded-full font-medium"
+                class="min-h-11 rounded-full font-medium"
               >
                 Confirm booking
               </UButton>
@@ -413,13 +428,13 @@ useSeoMeta({
           </div>
         </div>
       </div>
-    </main>
+    </div>
 
-    <footer class="px-5 pb-10 pt-6 text-center text-xs text-dimmed">
+    <footer class="px-5 pb-10 pt-6 text-center text-xs text-muted">
       Scheduling by
       <NuxtLink
         to="/"
-        class="underline underline-offset-4 transition-colors hover:text-muted"
+        class="underline underline-offset-4 transition-colors hover:text-highlighted"
       >Schedra</NuxtLink>
     </footer>
   </div>

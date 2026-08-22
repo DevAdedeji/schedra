@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { findPublicEventType, slotsFor } from '../utils/booking-page'
 import { enforceRateLimit } from '../utils/rate-limit'
+import { CalendarUnavailableError } from '../utils/google-calendar'
 
 const query = z.object({
   username: z.string().min(1),
@@ -33,7 +34,18 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'No such booking page' })
   }
 
-  const slots = await slotsFor(eventType, from, to, new Date().toISOString())
+  let slots
+  try {
+    slots = await slotsFor(eventType, from, to, new Date().toISOString())
+  } catch (error) {
+    if (error instanceof CalendarUnavailableError) {
+      throw createError({
+        statusCode: 503,
+        statusMessage: 'Booking times are temporarily unavailable. Please try again shortly.'
+      })
+    }
+    throw error
+  }
 
   return {
     timeZone: eventType.scheduleTimeZone ?? eventType.hostTimeZone,
