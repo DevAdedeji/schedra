@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { cancelBookingSchema } from '#shared/validation'
 import { bookings } from '../../../database/schema'
 import { useDatabase } from '../../../utils/database'
@@ -6,6 +6,7 @@ import { findBookingByUid } from '../../../utils/booking-manage'
 import { queueCancellationEmails } from '../../../utils/booking-emails'
 import { getAuthSession } from '../../../utils/session'
 import { enforceRateLimit } from '../../../utils/rate-limit'
+import { enqueueCalendarSync } from '../../../utils/calendar-sync'
 
 export default defineEventHandler(async (event) => {
   const uid = getRouterParam(event, 'uid')
@@ -43,7 +44,7 @@ export default defineEventHandler(async (event) => {
       .set({
         status: 'cancelled',
         cancellationReason: parsed.data.reason || null,
-        updatedAt: new Date()
+        updatedAt: sql`now()`
       })
       .where(and(
         eq(bookings.id, booking.id),
@@ -53,6 +54,7 @@ export default defineEventHandler(async (event) => {
 
     if (!updated) return false
 
+    await enqueueCalendarSync(booking.id, 'delete', tx)
     await queueCancellationEmails(booking, parsed.data.reason, actor, tx)
     return true
   })

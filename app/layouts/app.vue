@@ -12,7 +12,8 @@ const links = [
   { label: 'Overview', to: '/dashboard', icon: 'i-lucide-layout-dashboard' },
   { label: 'Event types', to: '/event-types', icon: 'i-lucide-link-2' },
   { label: 'Bookings', to: '/bookings', icon: 'i-lucide-calendar-days' },
-  { label: 'Availability', to: '/availability', icon: 'i-lucide-clock' }
+  { label: 'Availability', to: '/availability', icon: 'i-lucide-clock' },
+  { label: 'Integrations', to: '/integrations', icon: 'i-lucide-blocks' }
 ]
 
 const open = ref(false)
@@ -37,7 +38,7 @@ const menu = computed(() => [
   }],
   [
     { label: 'Settings', icon: 'i-lucide-settings', to: '/settings' },
-    { label: 'View your page', icon: 'i-lucide-external-link', to: `/${user.value?.username}`, target: '_blank' }
+    { label: 'View your page', icon: 'i-lucide-eye', slot: 'view-page', to: `/${user.value?.username}`, target: '_blank' }
   ],
   [{
     label: colorMode.value === 'dark' ? 'Light mode' : 'Dark mode',
@@ -46,6 +47,15 @@ const menu = computed(() => [
   }],
   [{ label: 'Sign out', icon: 'i-lucide-log-out', onSelect: leave }]
 ])
+
+const menuUi = {
+  content: 'w-56',
+  label: 'px-2.5 py-2 text-[13px]',
+  item: 'px-2.5 py-2 text-[13px] gap-2',
+  itemLeadingIcon: 'size-3.5',
+  itemTrailingIcon: 'size-3.5',
+  itemDescription: 'text-[11px]'
+}
 </script>
 
 <template>
@@ -82,7 +92,8 @@ const menu = computed(() => [
       <div class="p-3">
         <UDropdownMenu
           :items="menu"
-          :ui="{ content: 'w-56' }"
+          :ui="menuUi"
+          :external-icon="false"
           :content="{ side: 'top', align: 'start' }"
         >
           <button
@@ -90,7 +101,7 @@ const menu = computed(() => [
             class="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-muted"
             :disabled="leaving"
           >
-            <span class="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-[12px] font-semibold text-white">
+            <span class="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-[12px] font-semibold text-inverted">
               {{ initials }}
             </span>
             <span class="min-w-0 flex-1">
@@ -102,6 +113,12 @@ const menu = computed(() => [
               class="size-4 shrink-0 text-dimmed"
             />
           </button>
+          <template #view-page-trailing>
+            <UIcon
+              name="i-lucide-external-link"
+              class="size-3.5 text-dimmed"
+            />
+          </template>
         </UDropdownMenu>
       </div>
     </aside>
@@ -117,15 +134,22 @@ const menu = computed(() => [
         <div class="flex items-center gap-2">
           <UDropdownMenu
             :items="menu"
-            :ui="{ content: 'w-56' }"
+            :ui="menuUi"
+            :external-icon="false"
           >
             <button
               type="button"
-              class="flex size-11 items-center justify-center rounded-full bg-primary text-[12px] font-semibold text-white"
+              class="flex size-11 items-center justify-center rounded-full bg-primary text-[12px] font-semibold text-inverted"
               aria-label="Account"
             >
               {{ initials }}
             </button>
+            <template #view-page-trailing>
+              <UIcon
+                name="i-lucide-external-link"
+                class="size-3.5 text-dimmed"
+              />
+            </template>
           </UDropdownMenu>
           <UButton
             color="neutral"

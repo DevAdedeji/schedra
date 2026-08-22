@@ -3,6 +3,7 @@ import { getAvailableSlots } from '../domain/availability'
 import type { AvailabilityRule, DateOverride, Slot, Weekday } from '../domain/types'
 import { availabilityRules, bookings, dateOverrides, eventTypes, schedules, users } from '../database/schema'
 import { useDatabase } from './database'
+import { googleBusyTimes } from './google-calendar'
 
 export interface PublicEventType {
   id: string
@@ -65,8 +66,12 @@ type EventTypeRow = NonNullable<Awaited<ReturnType<typeof findPublicEventType>>>
 export async function slotsFor(event: EventTypeRow, from: string, to: string, now: string): Promise<Slot[]> {
   const db = useDatabase()
   const timeZone = event.scheduleTimeZone ?? event.hostTimeZone
+  // Expand beyond the requested local dates because the schedule's timezone
+  // can put its boundary on a different UTC day.
+  const busyFrom = new Date(Date.parse(`${from}T00:00:00Z`) - 86_400_000).toISOString()
+  const busyTo = new Date(Date.parse(`${to}T00:00:00Z`) + 2 * 86_400_000).toISOString()
 
-  const [rules, overrides, taken] = await Promise.all([
+  const [rules, overrides, taken, externalBusy] = await Promise.all([
     event.scheduleId
       ? db.select({
           weekday: availabilityRules.weekday,
@@ -92,8 +97,11 @@ export async function slotsFor(event: EventTypeRow, from: string, to: string, no
       .where(and(
         eq(bookings.hostId, event.hostId),
         sql`${bookings.status} in ('pending', 'confirmed')`,
-        gte(bookings.endsAt, new Date(now))
-      ))
+        gte(bookings.endsAt, new Date(now)),
+        lte(bookings.startsAt, new Date(busyTo))
+      )),
+
+    googleBusyTimes(event.hostId, busyFrom, busyTo)
   ])
 
   const grouped = new Map<string, DateOverride>()
@@ -128,6 +136,7 @@ export async function slotsFor(event: EventTypeRow, from: string, to: string, no
       start: row.start.toISOString(),
       end: row.end.toISOString()
     })),
+    externalBusy,
     from,
     to,
     now

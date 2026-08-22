@@ -43,6 +43,13 @@
       "when": 1787362545315,
       "tag": "0005_rapid_earthquake",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787394394015,
+      "tag": "0006_loving_frightful_four",
+      "breakpoints": true
     }
   ]
 }

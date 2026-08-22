@@ -4,9 +4,9 @@ A source-available, self-hostable scheduling platform built around one app conta
 
 > **Status: prelaunch.** Personal booking pages, race-safe booking, weekly
 > availability, timezone conversion, host booking management, cancellation,
-> rescheduling and durable email delivery are implemented. External calendar
-> sync, reminders, teams, webhooks and embeds are not implemented yet. The
-> homepage slot picker is an explicitly labelled interactive preview.
+> rescheduling, durable email delivery and Google Calendar conflict/event sync
+> are implemented. Reminders, teams, webhooks and embeds are not implemented
+> yet. The homepage slot picker is an explicitly labelled interactive preview.
 
 ## Stack
 
@@ -49,8 +49,8 @@ the deploy before traffic moves. The Compose app service runs the same
 migrations before starting the server.
 
 Set these in the host's environment: `DATABASE_URL`, `SCHEDRA_URL`,
-`AUTH_SECRET`, and optionally `DIRECT_URL`, `GOOGLE_*`, `RESEND_API_KEY`,
-`EMAIL_FROM`.
+`AUTH_SECRET`, and optionally `DIRECT_URL`, `GOOGLE_*`,
+`INTEGRATION_ENCRYPTION_KEY`, `RESEND_API_KEY`, `EMAIL_FROM`.
 
 `SCHEDRA_URL` must match the public origin exactly. OAuth callbacks,
 verification and reset links, booking links, canonical tags and `og:image` URLs
@@ -63,7 +63,9 @@ are all derived from it.
 | Local | `http://localhost:3002` |
 
 Each needs its own Google authorised redirect URI, at
-`${SCHEDRA_URL}/api/auth/callback/google`.
+`${SCHEDRA_URL}/api/auth/callback/google` and
+`${SCHEDRA_URL}/api/integrations/google-calendar/callback`. The Google Calendar
+API must be enabled for the OAuth project before users connect calendars.
 
 **Neon** hands out two connection strings. Point `DATABASE_URL` at the pooled
 host (it contains `-pooler`) and `DIRECT_URL` at the direct one. Migrations use

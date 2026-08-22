@@ -39,19 +39,17 @@ export async function enqueueEmails(
 
 export async function processEmailOutbox(batchSize = 10) {
   const db = useDatabase()
-  const now = new Date()
-  const staleBefore = new Date(now.getTime() - 10 * 60_000)
 
   const jobs = await db.transaction(async (tx) => {
     await tx
       .update(emailOutbox)
-      .set({ status: 'pending', lockedAt: null, availableAt: now, updatedAt: now })
-      .where(and(eq(emailOutbox.status, 'sending'), lt(emailOutbox.lockedAt, staleBefore)))
+      .set({ status: 'pending', lockedAt: null, availableAt: sql`now()`, updatedAt: sql`now()` })
+      .where(and(eq(emailOutbox.status, 'sending'), lt(emailOutbox.lockedAt, sql`now() - interval '10 minutes'`)))
 
     const pending = await tx
       .select()
       .from(emailOutbox)
-      .where(and(eq(emailOutbox.status, 'pending'), lte(emailOutbox.availableAt, now)))
+      .where(and(eq(emailOutbox.status, 'pending'), lte(emailOutbox.availableAt, sql`now()`)))
       .orderBy(asc(emailOutbox.availableAt))
       .limit(batchSize)
       .for('update', { skipLocked: true })
@@ -60,7 +58,7 @@ export async function processEmailOutbox(batchSize = 10) {
 
     return tx
       .update(emailOutbox)
-      .set({ status: 'sending', lockedAt: now, attempts: sql`${emailOutbox.attempts} + 1`, updatedAt: now })
+      .set({ status: 'sending', lockedAt: sql`now()`, attempts: sql`${emailOutbox.attempts} + 1`, updatedAt: sql`now()` })
       .where(inArray(emailOutbox.id, pending.map(job => job.id)))
       .returning()
   })
@@ -78,7 +76,7 @@ export async function processEmailOutbox(batchSize = 10) {
 
       await db
         .update(emailOutbox)
-        .set({ status: 'sent', sentAt: new Date(), lockedAt: null, lastError: null, updatedAt: new Date() })
+        .set({ status: 'sent', sentAt: sql`now()`, lockedAt: null, lastError: null, updatedAt: sql`now()` })
         .where(eq(emailOutbox.id, job.id))
     } catch (error) {
       const failed = job.attempts >= 8
@@ -90,7 +88,7 @@ export async function processEmailOutbox(batchSize = 10) {
           availableAt: new Date(Date.now() + delaySeconds * 1000),
           lockedAt: null,
           lastError: String(error instanceof Error ? error.message : error).slice(0, 1000),
-          updatedAt: new Date()
+          updatedAt: sql`now()`
         })
         .where(eq(emailOutbox.id, job.id))
 

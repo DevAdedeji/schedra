@@ -2,6 +2,7 @@ export interface Env {
   databaseUrl: string
   schedraUrl: string
   authSecret: string
+  integrationEncryptionKey?: string
 
   googleClientId?: string
   googleClientSecret?: string
@@ -51,10 +52,14 @@ export function useEnv(): Env {
 
   const googleClientId = optional('GOOGLE_CLIENT_ID')
   const googleClientSecret = optional('GOOGLE_CLIENT_SECRET')
+  const integrationEncryptionKey = optional('INTEGRATION_ENCRYPTION_KEY')
   const resendApiKey = optional('RESEND_API_KEY')
 
   if (Boolean(googleClientId) !== Boolean(googleClientSecret)) {
     throw new Error('GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set together.')
+  }
+  if (integrationEncryptionKey && integrationEncryptionKey.length < 32) {
+    throw new Error('INTEGRATION_ENCRYPTION_KEY must be at least 32 characters.')
   }
 
   const schedraUrl = parseUrl('SCHEDRA_URL', process.env.SCHEDRA_URL!, ['http:', 'https:'])
@@ -66,6 +71,7 @@ export function useEnv(): Env {
     databaseUrl: parseUrl('DATABASE_URL', process.env.DATABASE_URL!, ['postgres:', 'postgresql:']),
     schedraUrl,
     authSecret,
+    integrationEncryptionKey,
     googleClientId,
     googleClientSecret,
     resendApiKey,

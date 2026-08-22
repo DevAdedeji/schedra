@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { savedScheduleSchema } from '#shared/validation'
 import { availabilityRules, dateOverrides, schedules } from '../../database/schema'
@@ -27,7 +27,7 @@ export default defineEventHandler(async (event) => {
       name,
       timeZone,
       ...(isDefault ? { isDefault: true } : {}),
-      updatedAt: new Date()
+      updatedAt: sql`now()`
     })
       .where(and(eq(schedules.id, id.data), eq(schedules.userId, session.user.id)))
     await tx.delete(availabilityRules).where(eq(availabilityRules.scheduleId, id.data))
