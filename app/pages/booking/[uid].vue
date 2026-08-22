@@ -4,6 +4,12 @@ definePageMeta({ layout: 'bare' })
 const route = useRoute()
 const uid = String(route.params.uid)
 
+// The same page serves a guest arriving from an email and a host arriving from
+// their bookings list. Only the signed-in one should get the app shell.
+const { data: viewer } = await useCurrentUser()
+const signedIn = computed(() => Boolean(viewer.value?.user))
+if (signedIn.value) setPageLayout('app')
+
 const { data: booking, error, refresh } = await useFetch(`/api/booking/${uid}`)
 
 const viewerTimeZone = ref('UTC')
@@ -53,12 +59,32 @@ useSeoMeta({
 </script>
 
 <template>
-  <div class="flex min-h-screen flex-col bg-muted">
-    <main class="flex-1 px-5 py-12 sm:py-16">
+  <div
+    class="flex flex-col"
+    :class="signedIn ? '' : 'min-h-screen bg-muted'"
+  >
+    <main
+      class="flex-1"
+      :class="signedIn ? '' : 'px-5 py-12 sm:py-16'"
+    >
       <div class="mx-auto max-w-xl">
         <div class="mb-8">
-          <NuxtLink to="/">
+          <NuxtLink
+            v-if="!signedIn"
+            to="/"
+          >
             <SchedraMark />
+          </NuxtLink>
+          <NuxtLink
+            v-else
+            to="/bookings"
+            class="inline-flex items-center gap-1.5 text-[13px] font-medium text-muted transition-colors hover:text-highlighted"
+          >
+            <UIcon
+              name="i-lucide-arrow-left"
+              class="size-3.5"
+            />
+            All bookings
           </NuxtLink>
         </div>
 
@@ -232,7 +258,10 @@ useSeoMeta({
       </div>
     </main>
 
-    <footer class="px-5 pb-10 pt-6 text-center text-xs text-dimmed">
+    <footer
+      v-if="!signedIn"
+      class="px-5 pb-10 pt-6 text-center text-xs text-dimmed"
+    >
       Scheduling by
       <NuxtLink
         to="/"

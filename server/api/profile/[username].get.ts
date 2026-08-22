@@ -1,8 +1,10 @@
 import { and, asc, eq, sql } from 'drizzle-orm'
 import { eventTypes, users } from '../../database/schema'
 import { useDatabase } from '../../utils/database'
+import { enforceRateLimit } from '../../utils/rate-limit'
 
 export default defineEventHandler(async (event) => {
+  await enforceRateLimit(event, { namespace: 'public-profile', limit: 180, windowSeconds: 60 })
   const username = getRouterParam(event, 'username')
 
   if (!username) {
@@ -20,7 +22,10 @@ export default defineEventHandler(async (event) => {
       avatarUrl: users.avatarUrl
     })
     .from(users)
-    .where(sql`lower(${users.username}) = ${username.toLowerCase()}`)
+    .where(and(
+      sql`lower(${users.username}) = ${username.toLowerCase()}`,
+      eq(users.emailVerified, true)
+    ))
     .limit(1)
 
   if (!host) {

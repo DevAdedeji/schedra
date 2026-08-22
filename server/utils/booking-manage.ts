@@ -6,6 +6,8 @@ export async function findBookingByUid(uid: string) {
   const [row] = await useDatabase()
     .select({
       id: bookings.id,
+      hostId: bookings.hostId,
+      eventTypeId: bookings.eventTypeId,
       uid: bookings.uid,
       status: bookings.status,
       startsAt: bookings.startsAt,
@@ -14,6 +16,7 @@ export async function findBookingByUid(uid: string) {
       attendeeEmail: bookings.attendeeEmail,
       attendeeTimeZone: bookings.attendeeTimeZone,
       cancellationReason: bookings.cancellationReason,
+      answers: bookings.answers,
       eventTitle: eventTypes.title,
       eventSlug: eventTypes.slug,
       durationMinutes: eventTypes.durationMinutes,

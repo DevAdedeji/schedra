@@ -1,14 +1,16 @@
 import { createBookingSchema } from '#shared/validation'
-import { eq } from 'drizzle-orm'
+import { and, eq, gt, inArray } from 'drizzle-orm'
 import { bookings } from '../database/schema'
 import { useDatabase } from '../utils/database'
 import { findPublicEventType, slotsFor } from '../utils/booking-page'
 import { findBookingByUid } from '../utils/booking-manage'
-import { sendBookingEmails } from '../utils/booking-emails'
+import { queueBookingEmails } from '../utils/booking-emails'
+import { enforceRateLimit } from '../utils/rate-limit'
 
 const SLOT_TAKEN = '23P01'
 
 export default defineEventHandler(async (event) => {
+  await enforceRateLimit(event, { namespace: 'create-booking', limit: 12, windowSeconds: 600 })
   const parsed = await readValidatedBody(event, createBookingSchema.safeParse)
 
   if (!parsed.success) {
@@ -49,6 +51,16 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'No such booking to move' })
   }
 
+  if (previous) {
+    if (previous.hostId !== eventType.hostId || previous.eventTypeId !== eventType.id) {
+      throw createError({ statusCode: 409, statusMessage: 'That booking cannot be moved to this event.' })
+    }
+
+    if (!['pending', 'confirmed'].includes(previous.status) || previous.endsAt <= new Date()) {
+      throw createError({ statusCode: 409, statusMessage: 'That booking can no longer be moved.' })
+    }
+  }
+
   const uid = crypto.randomUUID()
 
   try {
@@ -57,10 +69,19 @@ export default defineEventHandler(async (event) => {
     // nothing back.
     await useDatabase().transaction(async (tx) => {
       if (previous && previous.status !== 'cancelled') {
-        await tx
+        const [moved] = await tx
           .update(bookings)
           .set({ status: 'cancelled', cancellationReason: 'Moved to another time', updatedAt: new Date() })
-          .where(eq(bookings.id, previous.id))
+          .where(and(
+            eq(bookings.id, previous.id),
+            inArray(bookings.status, ['pending', 'confirmed']),
+            gt(bookings.endsAt, new Date())
+          ))
+          .returning({ id: bookings.id })
+
+        if (!moved) {
+          throw createError({ statusCode: 409, statusMessage: 'That booking was already moved or cancelled.' })
+        }
       }
 
       await tx.insert(bookings).values({
@@ -75,6 +96,19 @@ export default defineEventHandler(async (event) => {
         answers: notes ? { notes } : null,
         rescheduledFromId: previous?.id ?? null
       })
+
+      await queueBookingEmails({
+        uid,
+        eventTitle: eventType.title,
+        hostName: eventType.hostName,
+        hostEmail: eventType.hostEmail,
+        hostTimeZone: eventType.scheduleTimeZone ?? eventType.hostTimeZone,
+        attendeeName: name,
+        attendeeEmail: email,
+        attendeeTimeZone: timeZone,
+        startsAt: slot.start,
+        endsAt: slot.end
+      }, tx)
     })
   } catch (error) {
     // Postgres rejected an overlap, which means someone else won the race.
@@ -83,19 +117,6 @@ export default defineEventHandler(async (event) => {
     }
     throw error
   }
-
-  await sendBookingEmails({
-    uid,
-    eventTitle: eventType.title,
-    hostName: eventType.hostName,
-    hostEmail: eventType.hostEmail,
-    hostTimeZone: eventType.scheduleTimeZone ?? eventType.hostTimeZone,
-    attendeeName: name,
-    attendeeEmail: email,
-    attendeeTimeZone: timeZone,
-    startsAt: slot.start,
-    endsAt: slot.end
-  })
 
   return { uid, start: slot.start, end: slot.end, moved: Boolean(previous) }
 })

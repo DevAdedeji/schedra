@@ -10,13 +10,21 @@ const rescheduleOf = computed(() => {
 })
 
 const viewerTimeZone = ref('UTC')
+const zones = Intl.supportedValuesOf('timeZone')
 const weekOffset = ref(0)
+const maxWeekOffset = 8
 const selectedDate = ref<string | null>(null)
 const selectedSlot = ref<string | null>(null)
 const jumped = ref(false)
 
 onMounted(() => {
   viewerTimeZone.value = Intl.DateTimeFormat().resolvedOptions().timeZone
+})
+
+watch(viewerTimeZone, () => {
+  selectedDate.value = null
+  selectedSlot.value = null
+  jumped.value = false
 })
 
 function isoDate(date: Date) {
@@ -33,10 +41,8 @@ const firstMonday = addDays(today, -((today.getDay() + 6) % 7))
 const weekStart = computed(() => addDays(firstMonday, weekOffset.value * 7))
 const days = computed(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart.value, i)))
 
-// One request covering five weeks: paging is then instant, and the page can
-// open on the first week that actually has time rather than an empty one.
 const { data, status, error, refresh } = await useFetch('/api/availability', {
-  query: { username, slug, from: isoDate(firstMonday), to: isoDate(addDays(firstMonday, 34)) }
+  query: { username, slug, from: isoDate(firstMonday), to: isoDate(addDays(firstMonday, 62)) }
 })
 
 const { data: page } = await useFetch(`/api/booking-page/${username}/${slug}`)
@@ -59,7 +65,8 @@ watchEffect(() => {
   const first = [...slotsByDate.value.keys()].sort()[0]!
   const target = new Date(`${first}T12:00:00`)
   const monday = addDays(target, -((target.getDay() + 6) % 7))
-  weekOffset.value = Math.round((monday.getTime() - firstMonday.getTime()) / 6048e5)
+  weekOffset.value = Math.min(maxWeekOffset, Math.max(0,
+    Math.round((monday.getTime() - firstMonday.getTime()) / 6048e5)))
   selectedDate.value = first
   jumped.value = true
 })
@@ -89,7 +96,19 @@ const longSelected = computed(() => selectedDate.value
 const booking = reactive({ name: '', email: '', notes: '' })
 const submitting = ref(false)
 const bookingError = ref('')
-const confirmed = ref<{ start: string } | null>(null)
+const confirmed = ref<{ start: string, uid: string } | null>(null)
+
+const confirmedWhen = computed(() => confirmed.value
+  ? new Intl.DateTimeFormat('en', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZoneName: 'short',
+      timeZone: viewerTimeZone.value
+    }).format(new Date(confirmed.value.start))
+  : '')
 
 async function confirm() {
   if (!selectedSlot.value) return
@@ -111,7 +130,7 @@ async function confirm() {
         rescheduleOf: rescheduleOf.value
       }
     })
-    confirmed.value = { start: result.start }
+    confirmed.value = { start: result.start, uid: result.uid }
   } catch (failure) {
     const code = (failure as { statusCode?: number }).statusCode
     bookingError.value = code === 409
@@ -173,11 +192,20 @@ useSeoMeta({
             You're booked.
           </h1>
           <p class="mx-auto mt-4 max-w-sm text-base leading-relaxed text-muted">
-            {{ timeLabel(confirmed.start) }} on {{ longSelected }}, with {{ page?.hostName }}.
+            {{ confirmedWhen }}, with {{ page?.hostName }}.
           </p>
           <p class="mt-2 text-sm text-dimmed">
-            A confirmation is on its way to {{ booking.email }}.
+            A confirmation will be sent to {{ booking.email }}.
           </p>
+          <UButton
+            :to="`/booking/${confirmed.uid}`"
+            color="neutral"
+            variant="outline"
+            size="lg"
+            class="mt-7 font-medium"
+          >
+            View or change booking
+          </UButton>
         </div>
 
         <div
@@ -200,13 +228,20 @@ useSeoMeta({
                 />
                 {{ page?.durationMinutes }} minutes
               </p>
-              <p class="flex items-center gap-2.5">
+              <div class="flex items-start gap-2.5">
                 <UIcon
                   name="i-lucide-globe"
-                  class="size-4 shrink-0 text-dimmed"
+                  class="mt-2.5 size-4 shrink-0 text-dimmed"
                 />
-                {{ viewerTimeZone.replace(/_/g, ' ') }}
-              </p>
+                <USelectMenu
+                  v-model="viewerTimeZone"
+                  :items="zones"
+                  :search-input="{ placeholder: 'Search timezones…' }"
+                  aria-label="Timezone"
+                  size="sm"
+                  class="min-w-0 flex-1"
+                />
+              </div>
             </div>
 
             <p
@@ -227,7 +262,8 @@ useSeoMeta({
                   icon="i-lucide-chevron-left"
                   color="neutral"
                   variant="ghost"
-                  size="xs"
+                  size="sm"
+                  class="size-11 justify-center"
                   :disabled="weekOffset <= 0"
                   aria-label="Previous week"
                   @click="weekOffset--"
@@ -236,7 +272,9 @@ useSeoMeta({
                   icon="i-lucide-chevron-right"
                   color="neutral"
                   variant="ghost"
-                  size="xs"
+                  size="sm"
+                  class="size-11 justify-center"
+                  :disabled="weekOffset >= maxWeekOffset"
                   aria-label="Next week"
                   @click="weekOffset++"
                 />
@@ -276,7 +314,7 @@ useSeoMeta({
                 v-else-if="!hasAnything"
                 class="py-16 text-center text-sm text-dimmed"
               >
-                No free times in the next five weeks.
+                No free times in the next nine weeks.
               </p>
 
               <template v-else-if="daySlots.length">
@@ -288,7 +326,7 @@ useSeoMeta({
                     v-for="slot in daySlots"
                     :key="slot"
                     type="button"
-                    class="rounded-lg border py-2 text-[13px] font-medium transition-colors"
+                    class="min-h-11 rounded-lg border py-2 text-[13px] font-medium transition-colors"
                     :class="selectedSlot === slot
                       ? 'border-primary bg-primary text-white'
                       : 'border-default text-toned hover:border-primary'"
@@ -317,27 +355,42 @@ useSeoMeta({
                 on {{ longSelected }}
               </p>
 
-              <UInput
-                v-model="booking.name"
-                placeholder="Your name"
-                autocomplete="name"
-                required
-                class="w-full"
-              />
-              <UInput
-                v-model="booking.email"
-                type="email"
-                placeholder="Your email"
-                autocomplete="email"
-                required
-                class="w-full"
-              />
-              <UTextarea
-                v-model="booking.notes"
-                :rows="2"
-                placeholder="Anything useful to know? (optional)"
-                class="w-full"
-              />
+              <UFormField
+                label="Your name"
+                name="name"
+              >
+                <UInput
+                  v-model="booking.name"
+                  autocomplete="name"
+                  required
+                  class="w-full"
+                />
+              </UFormField>
+              <UFormField
+                label="Email"
+                name="email"
+              >
+                <UInput
+                  v-model="booking.email"
+                  type="email"
+                  autocomplete="email"
+                  required
+                  class="w-full"
+                />
+              </UFormField>
+              <UFormField
+                label="Notes"
+                name="notes"
+                hint="Optional"
+              >
+                <UTextarea
+                  v-model="booking.notes"
+                  :rows="3"
+                  :maxlength="2000"
+                  placeholder="Anything useful to know?"
+                  class="w-full"
+                />
+              </UFormField>
 
               <p
                 v-if="bookingError"

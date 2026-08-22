@@ -7,6 +7,7 @@ export interface Env {
   googleClientSecret?: string
 
   resendApiKey?: string
+  emailDeliveryMode: 'resend' | 'log'
   emailFrom: string
 }
 
@@ -50,18 +51,25 @@ export function useEnv(): Env {
 
   const googleClientId = optional('GOOGLE_CLIENT_ID')
   const googleClientSecret = optional('GOOGLE_CLIENT_SECRET')
+  const resendApiKey = optional('RESEND_API_KEY')
 
   if (Boolean(googleClientId) !== Boolean(googleClientSecret)) {
     throw new Error('GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set together.')
   }
 
+  const schedraUrl = parseUrl('SCHEDRA_URL', process.env.SCHEDRA_URL!, ['http:', 'https:'])
+  if (!resendApiKey && !['localhost', '127.0.0.1', '::1'].includes(new URL(schedraUrl).hostname)) {
+    throw new Error('RESEND_API_KEY is required outside local development so account and booking emails are not lost.')
+  }
+
   cached = {
     databaseUrl: parseUrl('DATABASE_URL', process.env.DATABASE_URL!, ['postgres:', 'postgresql:']),
-    schedraUrl: parseUrl('SCHEDRA_URL', process.env.SCHEDRA_URL!, ['http:', 'https:']),
+    schedraUrl,
     authSecret,
     googleClientId,
     googleClientSecret,
-    resendApiKey: optional('RESEND_API_KEY'),
+    resendApiKey,
+    emailDeliveryMode: resendApiKey ? 'resend' : 'log',
     emailFrom: optional('EMAIL_FROM') ?? 'Schedra <onboarding@resend.dev>'
   }
 

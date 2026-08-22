@@ -1,12 +1,12 @@
 # Schedra
 
-An open-source, self-hostable scheduling platform. One container, one Postgres, no vendor in the middle.
+A source-available, self-hostable scheduling platform built around one app container and Postgres. A public-use license has not been selected yet.
 
-> **Status: early.** The landing page, the availability engine and the database
-> schema exist. Email/password authentication, email verification, password
-> resets and optional Google sign-in are wired end to end. There is no calendar
-> sync or booking API yet. The slot picker on the homepage is a demo backed by
-> generated availability, not real data.
+> **Status: prelaunch.** Personal booking pages, race-safe booking, weekly
+> availability, timezone conversion, host booking management, cancellation,
+> rescheduling and durable email delivery are implemented. External calendar
+> sync, reminders, teams, webhooks and embeds are not implemented yet. The
+> homepage slot picker is an explicitly labelled interactive preview.
 
 ## Stack
 
@@ -17,7 +17,7 @@ Nuxt 4 · Nuxt UI 4 · Tailwind CSS v4 · TypeScript · Postgres · Drizzle
 ```bash
 pnpm install
 cp .env.example .env
-docker compose up -d   # Postgres on port 5442
+docker compose up -d db   # Postgres on port 5442
 pnpm db:migrate
 pnpm dev
 ```
@@ -29,16 +29,24 @@ pnpm build         # production build (the landing page is prerendered)
 pnpm preview       # preview that build locally
 pnpm lint          # eslint
 pnpm typecheck     # vue-tsc
-pnpm test          # vitest — skips database tests if DATABASE_URL is unset
+pnpm test          # vitest — database tests use TEST_DATABASE_URL only
 pnpm db:generate   # generate a migration from schema changes
 pnpm db:studio     # browse the database
 ```
 
+Database tests are destructive by design and refuse to use the normal
+`DATABASE_URL`. Put an isolated database whose name contains `test` in
+`.env.test`:
+
+```dotenv
+TEST_DATABASE_URL=postgres://schedra:schedra@localhost:5442/schedra_test
+```
+
 ## Deploying
 
-Migrations do **not** run automatically at boot. `railway.toml` sets them as a
-pre-deploy command, so a failed migration aborts the deploy rather than
-crashlooping the running version.
+Railway runs migrations as a pre-deploy command, so a failed migration aborts
+the deploy before traffic moves. The Compose app service runs the same
+migrations before starting the server.
 
 Set these in the host's environment: `DATABASE_URL`, `SCHEDRA_URL`,
 `AUTH_SECRET`, and optionally `DIRECT_URL`, `GOOGLE_*`, `RESEND_API_KEY`,
@@ -72,12 +80,12 @@ traffic happily while accepting overlapping bookings.
 app/
   components/
     landing/          Landing page sections
-    GridSection.vue   The calendar grid every section is drawn on
     BookingDemo.vue   Interactive slot picker in the hero
     SchedraMark.vue   Logo — `tile` (default) and `line` variants
   assets/css/main.css Design tokens: fonts, vermillion palette, grid rhythm
-  pages/login.vue    Email/password and optional Google sign-in
-  pages/signup.vue   Account creation and booking-link selection
+  pages/login.vue     Email/password and optional Google sign-in
+  pages/signup.vue    Account creation and booking-link selection
+  pages/[username]/   Public profile and booking pages
   pages/index.vue
 server/
   domain/             Availability engine — pure, no I/O, no clock
@@ -97,9 +105,9 @@ no matter how content reflows.
 
 ## Design
 
-Near-monochrome with a single vermillion accent (`#FF3D00`), Inter Tight for
-display and JetBrains Mono for anything showing a time. Fonts are downloaded and
-self-hosted at build time, so the site makes no third-party requests.
+Near-monochrome with a single vermillion accent (`#FF3D00`), Instrument Serif
+for editorial display type and Figtree for the interface. Fonts are downloaded
+and self-hosted at build time, so the site makes no third-party font requests.
 
 ## License
 

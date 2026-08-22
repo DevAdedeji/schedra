@@ -10,7 +10,7 @@ const steps = [
   },
   {
     title: 'You\'re booked',
-    body: 'They pick a time. It lands in both calendars, and you both get a reminder.'
+    body: 'They pick a time. You both get the details, plus one link to cancel or choose another time.'
   }
 ]
 </script>

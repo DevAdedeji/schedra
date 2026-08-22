@@ -5,7 +5,7 @@ import { accountProfileSchema } from '../../shared/validation'
 import * as schema from '../database/schema'
 import { useDatabase } from './database'
 import { createStarterSetup } from './onboarding'
-import { sendEmail } from './email'
+import { emailDedupeKey, enqueueEmails } from './email-outbox'
 import { useEnv } from './env'
 
 function createAuth() {
@@ -14,6 +14,14 @@ function createAuth() {
   return betterAuth({
     baseURL: env.schedraUrl,
     secret: env.authSecret,
+    trustedOrigins: [env.schedraUrl],
+
+    rateLimit: {
+      enabled: true,
+      storage: 'database',
+      window: 60,
+      max: 100
+    },
 
     database: drizzleAdapter(useDatabase(), {
       provider: 'pg',
@@ -32,14 +40,17 @@ function createAuth() {
       requireEmailVerification: true,
       revokeSessionsOnPasswordReset: true,
       sendResetPassword: async ({ user, url }) => {
-        await sendEmail({
-          to: user.email,
-          subject: 'Reset your Schedra password',
-          heading: 'Reset your password',
-          body: 'Click below to choose a new one. The link works once and expires in an hour.',
-          action: { label: 'Choose a new password', url },
-          footer: 'If you did not ask for this, you can ignore it — nothing has changed.'
-        })
+        await enqueueEmails([{
+          dedupeKey: emailDedupeKey('password-reset', url),
+          email: {
+            to: user.email,
+            subject: 'Reset your Schedra password',
+            heading: 'Reset your password',
+            body: 'Click below to choose a new one. The link works once and expires in an hour.',
+            action: { label: 'Choose a new password', url },
+            footer: 'If you did not ask for this, you can ignore it — nothing has changed.'
+          }
+        }])
       }
     },
 
@@ -48,14 +59,17 @@ function createAuth() {
       autoSignInAfterVerification: true,
       expiresIn: 60 * 60 * 24,
       sendVerificationEmail: async ({ user, url }) => {
-        await sendEmail({
-          to: user.email,
-          subject: 'Confirm your email for Schedra',
-          heading: 'Confirm your email',
-          body: 'One click and your booking link is live.',
-          action: { label: 'Confirm my email', url },
-          footer: 'If you did not sign up for Schedra, you can ignore this.'
-        })
+        await enqueueEmails([{
+          dedupeKey: emailDedupeKey('email-verification', url),
+          email: {
+            to: user.email,
+            subject: 'Confirm your email for Schedra',
+            heading: 'Confirm your email',
+            body: 'One click and your booking link is live.',
+            action: { label: 'Confirm my email', url },
+            footer: 'If you did not sign up for Schedra, you can ignore this.'
+          }
+        }])
       }
     },
 
@@ -114,6 +128,9 @@ function createAuth() {
     },
 
     advanced: {
+      ipAddress: {
+        ipAddressHeaders: ['x-real-ip']
+      },
       database: {
         generateId: () => crypto.randomUUID()
       }

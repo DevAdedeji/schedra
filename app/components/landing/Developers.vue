@@ -3,20 +3,20 @@ const compose: { c?: string, k?: string, v?: string }[] = [
   { c: '# docker-compose.yml' },
   { k: 'services:' },
   { k: '  schedra:' },
-  { k: '    image:', v: 'ghcr.io/schedra/schedra:latest' },
-  { k: '    ports:', v: '[\'3000:3000\']' },
+  { k: '    build:', v: '.' },
+  { k: '    ports:', v: '[\'3002:3000\']' },
   { k: '    environment:' },
-  { k: '      DATABASE_URL:', v: 'postgres://schedra@db:5432/schedra' },
-  { k: '      SCHEDRA_URL:', v: 'https://cal.yourdomain.com' },
+  { k: '      DATABASE_URL:', v: 'postgres://schedra:schedra@db:5432/schedra' },
+  { k: '      SCHEDRA_URL:', v: 'http://localhost:3002' },
   { c: '' },
   { k: '  db:' },
   { k: '    image:', v: 'postgres:18-alpine' }
 ]
 
 const points = [
-  ['Postgres and nothing else', 'No Redis, no queue broker, no object store. Jobs live in the database you already back up.'],
-  ['REST API and webhooks', 'An OpenAPI spec, signed webhooks with retries, and an embeddable booking widget.'],
-  ['Your data stays yours', 'Calendar tokens encrypted at rest on your disk. No phone-home, no analytics beacon.']
+  ['Postgres and nothing else', 'No Redis, queue broker or object store. Bookings and durable email jobs live in the database you already back up.'],
+  ['A real container build', 'The repository includes a multi-stage Dockerfile and a Compose setup that builds the app from source.'],
+  ['No analytics beacon', 'The application does not ship a third-party analytics or advertising tracker. Licensing is being finalized before public launch.']
 ]
 </script>
 
@@ -35,8 +35,8 @@ const points = [
         </h2>
         <p class="mt-6 text-[16px] leading-relaxed text-muted">
           Most people never need this part — skip it and just use your link. But
-          Schedra is open source, and if you would rather keep every booking on
-          your own server, that is two services and a handful of settings.
+          The source is public, and if you would rather keep every booking on
+          your own server, the repository includes the app and Postgres setup.
         </p>
       </div>
 

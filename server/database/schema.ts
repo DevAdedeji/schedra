@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import {
+  bigint,
   boolean,
   check,
   date,
@@ -94,6 +95,56 @@ export const verifications = pgTable('verifications', {
   ...timestamps
 }, table => [
   index('verifications_identifier_idx').on(table.identifier)
+])
+
+export const rateLimits = pgTable('rate_limits', {
+  id: text('id').primaryKey(),
+  key: text('key').notNull(),
+  count: integer('count').notNull(),
+  lastRequest: bigint('last_request', { mode: 'number' }).notNull()
+}, table => [
+  uniqueIndex('rate_limits_key_key').on(table.key),
+  index('rate_limits_last_request_idx').on(table.lastRequest)
+])
+
+export const apiRateLimits = pgTable('api_rate_limits', {
+  key: text('key').primaryKey(),
+  windowStart: timestamp('window_start', { withTimezone: true }).notNull(),
+  requestCount: integer('request_count').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull()
+}, table => [
+  index('api_rate_limits_expires_at_idx').on(table.expiresAt),
+  check('api_rate_limits_request_count_positive', sql`${table.requestCount} > 0`)
+])
+
+export const emailDeliveryStatus = pgEnum('email_delivery_status', [
+  'pending',
+  'sending',
+  'sent',
+  'failed'
+])
+
+export const emailOutbox = pgTable('email_outbox', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  dedupeKey: text('dedupe_key').notNull(),
+  recipient: text('recipient').notNull(),
+  subject: text('subject').notNull(),
+  heading: text('heading').notNull(),
+  body: text('body').notNull(),
+  actionLabel: text('action_label').notNull(),
+  actionUrl: text('action_url').notNull(),
+  footer: text('footer'),
+  status: emailDeliveryStatus('status').notNull().default('pending'),
+  attempts: integer('attempts').notNull().default(0),
+  availableAt: timestamp('available_at', { withTimezone: true }).notNull().defaultNow(),
+  lockedAt: timestamp('locked_at', { withTimezone: true }),
+  sentAt: timestamp('sent_at', { withTimezone: true }),
+  lastError: text('last_error'),
+  ...timestamps
+}, table => [
+  uniqueIndex('email_outbox_dedupe_key_key').on(table.dedupeKey),
+  index('email_outbox_claim_idx').on(table.status, table.availableAt),
+  check('email_outbox_attempts_non_negative', sql`${table.attempts} >= 0`)
 ])
 
 export const schedules = pgTable('schedules', {

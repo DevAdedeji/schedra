@@ -1,7 +1,8 @@
 import postgres from 'postgres'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
+import { configureAppTestEnvironment, getTestDatabaseUrl } from '../../test/helpers/database'
 
-const url = process.env.DATABASE_URL
+const url = getTestDatabaseUrl()
 
 describe.skipIf(!url)('authentication', () => {
   const sql = postgres(url!, { max: 3, onnotice: () => {} })
@@ -15,8 +16,7 @@ describe.skipIf(!url)('authentication', () => {
   }
 
   async function auth() {
-    process.env.SCHEDRA_URL ||= 'http://localhost:3002'
-    process.env.AUTH_SECRET ||= 'x'.repeat(32)
+    configureAppTestEnvironment(url!)
     const { resetEnv } = await import('../utils/env')
     resetEnv()
     const { useAuth } = await import('../utils/auth')
@@ -28,12 +28,12 @@ describe.skipIf(!url)('authentication', () => {
   }
 
   afterAll(async () => {
-    await sql`truncate table sessions, accounts, verifications, bookings, event_types, date_overrides, availability_rules, schedules, users, organizations restart identity cascade`
+    await sql`truncate table email_outbox, api_rate_limits, rate_limits, sessions, accounts, verifications, bookings, event_types, date_overrides, availability_rules, schedules, users, organizations restart identity cascade`
     await sql.end()
   })
 
   beforeEach(async () => {
-    await sql`truncate table sessions, accounts, verifications, bookings, event_types, schedules, users, organizations restart identity cascade`
+    await sql`truncate table email_outbox, api_rate_limits, rate_limits, sessions, accounts, verifications, bookings, event_types, schedules, users, organizations restart identity cascade`
   })
 
   it('creates an unverified user and a hashed credentials account', async () => {

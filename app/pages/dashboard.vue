@@ -1,208 +1,297 @@
 <script setup lang="ts">
+import type { EventTypeRecord } from '~/types/event-type'
+import type { ScheduleRecord } from '~/types/schedule'
+
 definePageMeta({ layout: 'app', middleware: 'auth' })
-useSeoMeta({ title: 'Your Schedra', robots: 'noindex, nofollow' })
+useSeoMeta({ title: 'Overview', robots: 'noindex, nofollow' })
 
+interface BookingRecord {
+  uid: string
+  status: string
+  startsAt: string
+  endsAt: string
+  attendeeName: string
+  attendeeEmail: string
+  eventTitle: string
+}
+interface BookingsResponse {
+  items: BookingRecord[]
+  counts: { all: number, upcoming: number, past: number, cancelled: number, nextWeek: number }
+}
+interface EventTypesResponse { items: EventTypeRecord[], counts: { all: number, active: number, hidden: number } }
+interface SchedulesResponse { items: ScheduleRecord[] }
 const { data } = await useCurrentUser()
-const { signOut } = useAuthClient()
-
-const user = computed(() => data.value?.user)
+const { data: bookings } = await useFetch<BookingsResponse>('/api/bookings', {
+  query: { filter: 'upcoming', pageSize: 3 }
+})
+const { data: eventTypes } = await useFetch<EventTypesResponse>('/api/event-types', { query: { pageSize: 1 } })
+const { data: schedules } = await useFetch<SchedulesResponse>('/api/schedules', { query: { pageSize: 10 } })
 const { url, host } = useSiteUrl()
-const link = computed(() => `${host.value}/${user.value?.username ?? ''}`)
-
 const { copied, copy } = useCopy()
 
-const profile = reactive({ name: '', bio: '' })
-const savingProfile = ref(false)
-const savedProfile = ref(false)
-const profileError = ref('')
+const user = computed(() => data.value?.user)
+const link = computed(() => `${host.value}/${user.value?.username ?? ''}`)
+const nextBookings = computed(() => bookings.value?.items ?? [])
+const activeEventTypeCount = computed(() => eventTypes.value?.counts.active ?? 0)
+const schedule = computed(() => schedules.value?.items.find(item => item.isDefault) ?? schedules.value?.items[0])
 
-watchEffect(() => {
-  profile.name = user.value?.name ?? ''
-  profile.bio = user.value?.bio ?? ''
+const stats = computed(() => [
+  { label: 'Upcoming', value: bookings.value?.counts.upcoming ?? 0, icon: 'i-lucide-calendar-clock', hint: 'Scheduled meetings' },
+  { label: 'Next 7 days', value: bookings.value?.counts.nextWeek ?? 0, icon: 'i-lucide-calendar-range', hint: 'On your near-term calendar' },
+  { label: 'Active links', value: activeEventTypeCount.value, icon: 'i-lucide-link-2', hint: 'Ready to share' },
+  { label: 'Cancelled', value: bookings.value?.counts.cancelled ?? 0, icon: 'i-lucide-calendar-x-2', hint: 'Across your history' }
+])
+
+const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const scheduleDays = computed(() => weekdays.map((label, index) => {
+  const rules = schedule.value?.rules.filter(rule => rule.weekday === index + 1) ?? []
+  return { label, rules }
+}))
+const viewerTimeZone = ref('UTC')
+onMounted(() => {
+  viewerTimeZone.value = Intl.DateTimeFormat().resolvedOptions().timeZone
 })
 
-async function saveProfile() {
-  savingProfile.value = true
-  savedProfile.value = false
-  profileError.value = ''
-
-  try {
-    await $fetch('/api/profile', {
-      method: 'PATCH',
-      body: { name: profile.name, bio: profile.bio || undefined }
-    })
-    savedProfile.value = true
-    await refreshNuxtData('current-user')
-  } catch (failure) {
-    profileError.value = (failure as { statusMessage?: string }).statusMessage
-      ?? 'Could not save that just now.'
-  } finally {
-    savingProfile.value = false
-  }
+function when(iso: string) {
+  return new Intl.DateTimeFormat('en-GB', {
+    weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: viewerTimeZone.value
+  }).format(new Date(iso))
 }
 
-const leaving = ref(false)
-const signOutError = ref('')
-
-async function leave() {
-  leaving.value = true
-  signOutError.value = ''
-
-  try {
-    const { error } = await signOut()
-    if (error) {
-      signOutError.value = 'Could not sign out just now. Try again.'
-      return
-    }
-
-    clearNuxtData('current-user')
-    await navigateTo('/login')
-  } catch {
-    signOutError.value = 'Could not sign out just now. Check your connection and try again.'
-  } finally {
-    leaving.value = false
-  }
+function initials(name: string) {
+  return name.split(' ').map(part => part[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
 }
 </script>
 
 <template>
-  <div>
-    <h1 class="font-editorial text-4xl leading-[1.05] tracking-[-0.02em] text-highlighted sm:text-[2.5rem]">
-      Hello, {{ user?.name?.split(' ')[0] }}.
-    </h1>
-    <p class="mt-3 text-[15px] leading-relaxed text-muted">
-      Your account is live. Here is the link people will book you with.
-    </p>
-
-    <button
-      type="button"
-      class="mt-8 flex w-full items-center gap-3 rounded-xl border border-default bg-default px-4 py-3.5 text-left transition-colors hover:border-accented"
-      :aria-label="`Copy ${link}`"
-      @click="copy(`${url}/${user?.username ?? ''}`)"
+  <div class="space-y-7">
+    <PageHeader
+      :title="`Hello, ${user?.name?.split(' ')[0] ?? ''}`"
+      description="Your scheduling workspace at a glance."
     >
-      <UIcon
-        name="i-lucide-link"
-        class="size-4 shrink-0 text-primary"
-      />
-      <span class="truncate text-[14px] text-highlighted">{{ link }}</span>
-      <UIcon
-        :name="copied ? 'i-lucide-check' : 'i-lucide-copy'"
-        class="ml-auto size-4 shrink-0"
-        :class="copied ? 'text-primary' : 'text-dimmed'"
-      />
-    </button>
-
-    <section class="mt-10 rounded-2xl border border-default bg-default p-6 sm:p-7">
-      <h2 class="text-[15px] font-semibold text-highlighted">
-        Your profile
-      </h2>
-      <p class="mt-1 text-[13px] text-muted">
-        This is what people see on your booking page.
-      </p>
-
-      <form
-        class="mt-6 space-y-4"
-        @submit.prevent="saveProfile"
-      >
-        <UFormField
-          label="Name"
-          name="name"
+      <template #actions>
+        <UButton
+          :to="`/${user?.username}`"
+          target="_blank"
+          color="neutral"
+          variant="outline"
+          trailing-icon="i-lucide-external-link"
+          class="font-medium"
         >
-          <UInput
-            v-model="profile.name"
-            size="lg"
-            class="w-full"
-          />
-        </UFormField>
+          View booking page
+        </UButton>
+      </template>
+    </PageHeader>
 
-        <UFormField
-          label="Bio"
-          name="bio"
-          hint="Optional"
-        >
-          <UTextarea
-            v-model="profile.bio"
-            :rows="3"
-            :maxlength="280"
-            placeholder="A sentence about what people can book you for."
-            size="lg"
-            class="w-full"
-          />
-          <template #help>
-            <span class="tnum">{{ profile.bio.length }}/280</span>
-          </template>
-        </UFormField>
-
-        <p
-          v-if="profileError"
-          class="rounded-lg border border-error/30 bg-error/10 px-3.5 py-2.5 text-[13px] text-error"
-          role="alert"
-        >
-          {{ profileError }}
+    <section class="grid overflow-hidden rounded-xl border border-default bg-default lg:grid-cols-[minmax(0,1fr)_18rem]">
+      <div class="px-5 py-6 sm:px-6">
+        <p class="text-[11px] font-semibold uppercase tracking-[0.1em] text-dimmed">
+          Your booking link
         </p>
-
-        <div class="flex items-center gap-3">
-          <UButton
-            type="submit"
-            size="lg"
-            :loading="savingProfile"
-            class="rounded-full px-6 font-medium"
-          >
-            Save
-          </UButton>
+        <h2 class="mt-2 text-[18px] font-semibold text-highlighted">
+          Ready when you are.
+        </h2>
+        <p class="mt-1 max-w-xl text-[13px] leading-relaxed text-muted">
+          Share one link and let guests choose from every active event type.
+        </p>
+        <button
+          type="button"
+          class="mt-5 flex w-full max-w-2xl items-center gap-3 rounded-xl border border-default bg-muted px-4 py-3.5 text-left transition-colors hover:border-primary"
+          :aria-label="`Copy ${link}`"
+          @click="copy(`${url}/${user?.username ?? ''}`)"
+        >
+          <span class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><UIcon
+            name="i-lucide-link"
+            class="size-4"
+          /></span>
+          <span class="min-w-0 flex-1 truncate text-[14px] font-medium text-highlighted">{{ link }}</span>
           <span
-            v-if="savedProfile"
-            class="text-[13px] text-primary"
-          >Saved</span>
-        </div>
-      </form>
+            class="flex items-center gap-1.5 text-[12px]"
+            :class="copied ? 'text-primary' : 'text-muted'"
+          ><UIcon
+            :name="copied ? 'i-lucide-check' : 'i-lucide-copy'"
+            class="size-4"
+          />{{ copied ? 'Copied' : 'Copy' }}</span>
+        </button>
+      </div>
+      <div class="border-t border-default bg-muted px-5 py-5 lg:border-l lg:border-t-0">
+        <span
+          class="flex size-9 items-center justify-center rounded-lg"
+          :class="activeEventTypeCount ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'"
+        ><UIcon
+          :name="activeEventTypeCount ? 'i-lucide-circle-check' : 'i-lucide-circle-alert'"
+          class="size-4.5"
+        /></span>
+        <p class="mt-3 text-[13px] font-semibold text-highlighted">
+          {{ activeEventTypeCount ? 'Booking page is live' : 'No active booking links' }}
+        </p>
+        <p class="mt-1 text-[11px] leading-relaxed text-muted">
+          {{ activeEventTypeCount
+            ? `${activeEventTypeCount} active ${activeEventTypeCount === 1 ? 'event type is' : 'event types are'} ready to share.`
+            : 'Create an event type or make a hidden one active before sharing your page.' }}
+        </p>
+        <UButton
+          to="/event-types"
+          color="neutral"
+          variant="outline"
+          size="sm"
+          trailing-icon="i-lucide-arrow-right"
+          class="mt-4"
+        >
+          Manage event types
+        </UButton>
+      </div>
     </section>
 
-    <div class="mt-8 rounded-xl border border-dashed border-default px-4 py-6 text-center">
-      <p class="text-[14px] text-muted">
-        Setting your hours and creating event types comes next.
-      </p>
-      <p class="mt-1 text-[13px] text-dimmed">
-        The link above will not take bookings until then.
-      </p>
+    <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div
+        v-for="stat in stats"
+        :key="stat.label"
+        class="rounded-xl border border-default bg-default px-4 py-4 sm:px-5"
+      >
+        <div class="flex items-center justify-between gap-3">
+          <p class="text-[12px] font-medium text-muted">
+            {{ stat.label }}
+          </p><UIcon
+            :name="stat.icon"
+            class="size-4 text-dimmed"
+          />
+        </div>
+        <p class="tnum mt-3 text-[27px] font-semibold leading-none text-highlighted">
+          {{ stat.value }}
+        </p>
+        <p class="mt-2 hidden text-[11px] text-dimmed sm:block">
+          {{ stat.hint }}
+        </p>
+      </div>
     </div>
 
-    <dl class="mt-8 divide-y divide-default border-y border-default text-[14px]">
-      <div class="flex items-center justify-between py-3">
-        <dt class="text-muted">
-          Email
-        </dt>
-        <dd class="text-highlighted">
-          {{ user?.email }}
-        </dd>
-      </div>
-      <div class="flex items-center justify-between py-3">
-        <dt class="text-muted">
-          Timezone
-        </dt>
-        <dd class="text-highlighted">
-          {{ user?.timeZone }}
-        </dd>
-      </div>
-    </dl>
+    <div class="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
+      <section class="overflow-hidden rounded-xl border border-default bg-default">
+        <div class="flex items-center justify-between gap-4 border-b border-default px-5 py-4">
+          <div>
+            <h2 class="text-[15px] font-semibold text-highlighted">
+              Next up
+            </h2><p class="mt-0.5 text-[12px] text-muted">
+              The meetings that need your attention first.
+            </p>
+          </div>
+          <UButton
+            to="/bookings"
+            color="neutral"
+            variant="ghost"
+            size="sm"
+            trailing-icon="i-lucide-arrow-right"
+          >
+            All bookings
+          </UButton>
+        </div>
+        <ul
+          v-if="nextBookings.length"
+          class="divide-y divide-default"
+        >
+          <li
+            v-for="booking in nextBookings"
+            :key="booking.uid"
+          >
+            <NuxtLink
+              :to="`/booking/${booking.uid}`"
+              class="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-muted"
+            >
+              <span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[12px] font-semibold text-primary">{{ initials(booking.attendeeName) }}</span>
+              <div class="min-w-0 flex-1"><p class="truncate text-[14px] font-semibold text-highlighted">{{ booking.eventTitle }}</p><p class="mt-0.5 truncate text-[12px] text-muted">{{ booking.attendeeName }} · {{ when(booking.startsAt) }}</p></div>
+              <UIcon
+                name="i-lucide-chevron-right"
+                class="size-4 shrink-0 text-dimmed"
+              />
+            </NuxtLink>
+          </li>
+        </ul>
+        <ListEmptyState
+          v-else
+          icon="i-lucide-calendar-plus"
+          title="Your calendar is clear"
+          description="Share your booking link or preview the guest experience before you send it."
+        >
+          <template #action>
+            <UButton
+              :to="`/${user?.username}`"
+              target="_blank"
+              color="neutral"
+              variant="outline"
+              trailing-icon="i-lucide-external-link"
+            >
+              Preview your page
+            </UButton>
+          </template>
+        </ListEmptyState>
+      </section>
 
-    <UButton
-      color="neutral"
-      variant="ghost"
-      size="lg"
-      :loading="leaving"
-      class="mt-8 rounded-full font-medium"
-      @click="leave"
-    >
-      Sign out
-    </UButton>
+      <div class="space-y-5">
+        <section class="overflow-hidden rounded-xl border border-default bg-default">
+          <div class="flex items-center justify-between border-b border-default px-5 py-4">
+            <div>
+              <h2 class="text-[14px] font-semibold text-highlighted">
+                Weekly availability
+              </h2><p class="mt-0.5 text-[11px] text-muted">
+                {{ schedule?.name }} · {{ schedule?.timeZone?.replace(/_/g, ' ') }}
+              </p>
+            </div><UButton
+              to="/availability"
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              icon="i-lucide-pencil"
+              class="size-7 justify-center p-0"
+              :ui="{ leadingIcon: 'size-4' }"
+              aria-label="Edit availability"
+            />
+          </div>
+          <div class="grid grid-cols-7 gap-1 px-4 py-5">
+            <div
+              v-for="day in scheduleDays"
+              :key="day.label"
+              class="text-center"
+            >
+              <span class="text-[9px] font-semibold uppercase tracking-wide text-dimmed">{{ day.label }}</span><span
+                class="mx-auto mt-2 flex size-8 items-center justify-center rounded-lg text-[10px] font-medium"
+                :class="day.rules.length ? 'bg-primary/10 text-primary' : 'bg-muted text-dimmed'"
+              >{{ day.rules.length ? day.rules.length : '—' }}</span>
+            </div>
+          </div>
+          <p class="border-t border-default bg-muted px-4 py-3 text-[11px] leading-relaxed text-muted">
+            Numbers show how many availability windows are open each day.
+          </p>
+        </section>
 
-    <p
-      v-if="signOutError"
-      class="mt-3 text-[13px] text-error"
-      role="alert"
-    >
-      {{ signOutError }}
-    </p>
+        <section class="rounded-xl border border-default bg-default p-5">
+          <h2 class="text-[14px] font-semibold text-highlighted">
+            Quick actions
+          </h2>
+          <div class="mt-3 grid gap-2">
+            <NuxtLink
+              to="/event-types?create=1"
+              class="flex items-center gap-3 rounded-lg border border-default px-3.5 py-3 text-[13px] font-medium text-highlighted transition-colors hover:border-primary/40 hover:bg-muted"
+            ><UIcon
+              name="i-lucide-plus"
+              class="size-4 text-primary"
+            />New event type<UIcon
+              name="i-lucide-chevron-right"
+              class="ml-auto size-4 text-dimmed"
+            /></NuxtLink>
+            <NuxtLink
+              to="/availability"
+              class="flex items-center gap-3 rounded-lg border border-default px-3.5 py-3 text-[13px] font-medium text-highlighted transition-colors hover:border-primary/40 hover:bg-muted"
+            ><UIcon
+              name="i-lucide-calendar-range"
+              class="size-4 text-primary"
+            />Adjust availability<UIcon
+              name="i-lucide-chevron-right"
+              class="ml-auto size-4 text-dimmed"
+            /></NuxtLink>
+          </div>
+        </section>
+      </div>
+    </div>
   </div>
 </template>

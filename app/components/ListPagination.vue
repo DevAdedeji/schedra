@@ -1,0 +1,39 @@
+<script setup lang="ts">
+defineProps<{ page: number, totalPages: number, total: number }>()
+const emit = defineEmits<{ change: [page: number] }>()
+</script>
+
+<template>
+  <div
+    v-if="totalPages > 1"
+    class="flex items-center justify-between gap-3 border-t border-default bg-muted px-4 py-3 sm:px-5"
+  >
+    <p class="text-[11px] text-muted">
+      {{ total }} results · Page {{ page }} of {{ totalPages }}
+    </p>
+    <div class="flex items-center gap-1">
+      <UButton
+        color="neutral"
+        variant="ghost"
+        size="xs"
+        icon="i-lucide-chevron-left"
+        class="size-7 justify-center p-0"
+        :ui="{ leadingIcon: 'size-4' }"
+        :disabled="page <= 1"
+        aria-label="Previous page"
+        @click="emit('change', page - 1)"
+      />
+      <UButton
+        color="neutral"
+        variant="ghost"
+        size="xs"
+        icon="i-lucide-chevron-right"
+        class="size-7 justify-center p-0"
+        :ui="{ leadingIcon: 'size-4' }"
+        :disabled="page >= totalPages"
+        aria-label="Next page"
+        @click="emit('change', page + 1)"
+      />
+    </div>
+  </div>
+</template>

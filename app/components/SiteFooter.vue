@@ -1,16 +1,34 @@
 <script setup lang="ts">
-const columns = [
+interface FooterLink {
+  label: string
+  to: string
+  external?: boolean
+}
+
+const columns: { title: string, links: FooterLink[] }[] = [
   {
-    title: 'Schedra',
-    links: ['How it works', 'What you get', 'Timezones', 'Teams', 'Help']
+    title: 'Product',
+    links: [
+      { label: 'How it works', to: '/#how' },
+      { label: 'What you get', to: '/#features' },
+      { label: 'Timezones', to: '/#timezones' },
+      { label: 'Self-hosting', to: '/#developers' }
+    ]
   },
   {
-    title: 'Developers',
-    links: ['Documentation', 'REST API', 'Webhooks', 'Self-hosting', 'Changelog']
+    title: 'Account',
+    links: [
+      { label: 'Create your link', to: '/signup' },
+      { label: 'Sign in', to: '/login' }
+    ]
   },
   {
     title: 'Project',
-    links: ['GitHub', 'Roadmap', 'Contributing', 'Security']
+    links: [
+      { label: 'Source on GitHub', to: 'https://github.com/DevAdedeji/schedra', external: true },
+      { label: 'Feature plan', to: 'https://github.com/DevAdedeji/schedra/blob/staging/FEATURES.md', external: true },
+      { label: 'Readme', to: 'https://github.com/DevAdedeji/schedra#readme', external: true }
+    ]
   }
 ]
 
@@ -24,8 +42,8 @@ const year = new Date().getFullYear()
         <div>
           <SchedraMark />
           <p class="mt-5 max-w-[28ch] text-[15px] leading-relaxed text-muted">
-            Share a link, get booked. Free scheduling that respects your calendar
-            and your privacy.
+            Share a link, get booked. Focused scheduling with clear timezone
+            handling and no third-party tracking.
           </p>
         </div>
 
@@ -39,12 +57,14 @@ const year = new Date().getFullYear()
           <ul class="mt-5 space-y-3">
             <li
               v-for="link in column.links"
-              :key="link"
+              :key="link.label"
             >
-              <a
-                href="#"
+              <NuxtLink
+                :to="link.to"
+                :target="link.external ? '_blank' : undefined"
+                :rel="link.external ? 'noopener noreferrer' : undefined"
                 class="text-[14px] text-muted transition-colors hover:text-highlighted"
-              >{{ link }}</a>
+              >{{ link.label }}</NuxtLink>
             </li>
           </ul>
         </div>

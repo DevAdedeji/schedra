@@ -14,8 +14,8 @@
 
           <p class="mt-8 max-w-[44ch] text-[17px] leading-[1.65] text-toned">
             Schedra shows people when you're free so they can pick a time that
-            suits you both — then puts it in your calendar and reminds everyone.
-            No more asking what time works.
+            suits you both. Confirmations, cancellations and rescheduling stay
+            in one clear flow. No more asking what time works.
           </p>
 
           <div class="mt-10 flex flex-wrap items-center gap-3">
@@ -46,9 +46,9 @@
           </p>
         </div>
 
-        <div class="relative">
+        <div class="relative min-w-0">
           <div
-            class="absolute -inset-6 -rotate-2 rounded-4xl bg-primary/10"
+            class="absolute inset-0 rounded-4xl bg-primary/10 sm:-inset-6 sm:-rotate-2"
             aria-hidden="true"
           />
           <div class="relative rounded-2xl bg-default p-2 shadow-2xl ring-1 ring-black/5">

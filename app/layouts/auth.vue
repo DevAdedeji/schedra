@@ -8,7 +8,7 @@ const promises = [
 
 <template>
   <div class="min-h-screen lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
-    <aside class="relative flex flex-col justify-between overflow-hidden bg-primary px-8 py-10 text-white lg:px-14 lg:py-14">
+    <aside class="relative flex flex-col justify-between overflow-hidden bg-primary px-6 py-5 text-white lg:px-14 lg:py-14">
       <div
         class="pointer-events-none absolute -right-24 -top-24 size-80 rounded-full bg-white/10 blur-3xl"
         aria-hidden="true"
@@ -25,7 +25,7 @@ const promises = [
         />
       </NuxtLink>
 
-      <div class="relative mt-12 lg:mt-0">
+      <div class="relative mt-12 hidden lg:mt-0 lg:block">
         <p class="font-editorial text-[clamp(2rem,3.4vw,3.25rem)] leading-[1.08] tracking-[-0.02em]">
           Never ask
           <em class="not-italic opacity-70">“what time<br class="hidden sm:block"> works?”</em>
@@ -45,14 +45,14 @@ const promises = [
                 Tuesday, 10:30
               </p>
               <p class="mt-1 text-[12px] leading-tight text-white/70">
-                Added to both calendars · reminder set
+                Booking confirmed · email queued
               </p>
             </div>
           </div>
         </div>
       </div>
 
-      <ul class="relative mt-12 space-y-2.5 lg:mt-0">
+      <ul class="relative mt-12 hidden space-y-2.5 lg:mt-0 lg:block">
         <li
           v-for="promise in promises"
           :key="promise"

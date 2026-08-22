@@ -8,8 +8,8 @@
         Get your booking link.
       </h2>
       <p class="mx-auto mt-7 max-w-[42ch] text-[16px] leading-[1.65] text-muted">
-        Free, takes about two minutes, and your calendar comes along. No card,
-        no trial that quietly ends.
+        Free, takes about two minutes, and you can change your hours whenever
+        you need to. No card and no trial that quietly ends.
       </p>
       <UButton
         to="/signup"

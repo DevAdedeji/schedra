@@ -1,7 +1,8 @@
 import postgres from 'postgres'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
+import { configureAppTestEnvironment, getTestDatabaseUrl } from '../../test/helpers/database'
 
-const url = process.env.DATABASE_URL
+const url = getTestDatabaseUrl()
 
 describe.skipIf(!url)('public booking page', () => {
   const sql = postgres(url!, { max: 3, onnotice: () => {} })
@@ -15,8 +16,7 @@ describe.skipIf(!url)('public booking page', () => {
   }
 
   async function auth() {
-    process.env.SCHEDRA_URL ||= 'http://localhost:3002'
-    process.env.AUTH_SECRET ||= 'x'.repeat(32)
+    configureAppTestEnvironment(url!)
     const { resetEnv } = await import('../utils/env')
     resetEnv()
     const { useAuth } = await import('../utils/auth')
@@ -25,15 +25,16 @@ describe.skipIf(!url)('public booking page', () => {
 
   async function signUp() {
     await (await auth()).api.signUpEmail({ body: credentials })
+    await sql`update users set email_verified = true where email = ${credentials.email}`
   }
 
   afterAll(async () => {
-    await sql`truncate table sessions, accounts, verifications, bookings, event_types, date_overrides, availability_rules, schedules, users, organizations restart identity cascade`
+    await sql`truncate table email_outbox, api_rate_limits, rate_limits, sessions, accounts, verifications, bookings, event_types, date_overrides, availability_rules, schedules, users, organizations restart identity cascade`
     await sql.end()
   })
 
   beforeEach(async () => {
-    await sql`truncate table sessions, accounts, verifications, bookings, event_types, date_overrides, availability_rules, schedules, users, organizations restart identity cascade`
+    await sql`truncate table email_outbox, api_rate_limits, rate_limits, sessions, accounts, verifications, bookings, event_types, date_overrides, availability_rules, schedules, users, organizations restart identity cascade`
   })
 
   it('gives a new account working hours and something to book', async () => {
@@ -55,6 +56,13 @@ describe.skipIf(!url)('public booking page', () => {
     `
     expect(type?.slug).toBe('30min')
     expect(type?.duration_minutes).toBe(30)
+  })
+
+  it('keeps an unverified account off public booking pages', async () => {
+    await (await auth()).api.signUpEmail({ body: credentials })
+    const { findPublicEventType } = await import('../utils/booking-page')
+
+    expect(await findPublicEventType('ada', '30min')).toBeNull()
   })
 
   it('resolves the booking page and offers real slots', async () => {

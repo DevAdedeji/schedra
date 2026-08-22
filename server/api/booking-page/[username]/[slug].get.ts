@@ -1,6 +1,8 @@
 import { findPublicEventType } from '../../../utils/booking-page'
+import { enforceRateLimit } from '../../../utils/rate-limit'
 
 export default defineEventHandler(async (event) => {
+  await enforceRateLimit(event, { namespace: 'booking-page', limit: 180, windowSeconds: 60 })
   const username = getRouterParam(event, 'username')
   const slug = getRouterParam(event, 'slug')
 

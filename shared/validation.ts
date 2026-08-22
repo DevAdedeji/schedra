@@ -92,7 +92,7 @@ export const createBookingSchema = z.object({
   start: z.iso.datetime(),
   name: z.string().trim().min(1, 'Please give a name').max(80),
   email: emailSchema,
-  timeZone: z.string().trim().min(1).max(64),
+  timeZone: timeZoneSchema,
   notes: z.string().trim().max(2000).optional(),
   rescheduleOf: z.string().trim().max(64).optional()
 })
@@ -102,7 +102,7 @@ export type CreateBookingInput = z.infer<typeof createBookingSchema>
 export const updateProfileSchema = z.object({
   name: nameSchema,
   bio: z.string().trim().max(280, 'Keep it under 280 characters').optional(),
-  timeZone: z.string().trim().min(1).max(64).optional()
+  timeZone: timeZoneSchema.optional()
 })
 
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>
@@ -112,3 +112,68 @@ export const cancelBookingSchema = z.object({
 })
 
 export type CancelBookingInput = z.infer<typeof cancelBookingSchema>
+
+const wallTimeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use a time like 09:00')
+
+export const availabilityRuleSchema = z.object({
+  weekday: z.number().int().min(1).max(7),
+  start: wallTimeSchema,
+  end: wallTimeSchema
+}).refine(rule => rule.end > rule.start, {
+  message: 'The end must come after the start',
+  path: ['end']
+})
+
+export const dateOverrideSchema = z.object({
+  date: z.iso.date(),
+  start: wallTimeSchema.nullable(),
+  end: wallTimeSchema.nullable()
+}).refine(rule => (rule.start === null) === (rule.end === null), {
+  message: 'Choose both a start and finish time, or mark the day unavailable.',
+  path: ['end']
+}).refine(rule => rule.start === null || rule.end! > rule.start, {
+  message: 'The finish must come after the start.',
+  path: ['end']
+})
+
+export const scheduleSchema = z.object({
+  timeZone: timeZoneSchema,
+  rules: z.array(availabilityRuleSchema).max(21),
+  overrides: z.array(dateOverrideSchema).max(100).optional()
+})
+
+export const savedScheduleSchema = scheduleSchema.extend({
+  name: z.string().trim().min(1, 'Give this schedule a name.').max(60, 'Keep the schedule name under 60 characters.'),
+  isDefault: z.boolean().optional()
+})
+
+export type ScheduleInput = z.infer<typeof scheduleSchema>
+export type AvailabilityRuleInput = z.infer<typeof availabilityRuleSchema>
+export type DateOverrideInput = z.infer<typeof dateOverrideSchema>
+
+export const eventTypeSlugSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(1, 'Required')
+  .max(64, 'At most 64 characters')
+  .regex(/^[a-z0-9][a-z0-9-]*$/, 'Letters, numbers and hyphens only')
+  .refine(value => !value.endsWith('-'), 'Cannot end with a hyphen')
+  .refine(value => !value.includes('--'), 'Cannot contain two hyphens in a row')
+
+export const eventTypeSchema = z.object({
+  title: z.string().trim().min(1, 'Required').max(100, 'At most 100 characters'),
+  slug: eventTypeSlugSchema,
+  description: z.string().trim().max(1000, 'At most 1000 characters').optional(),
+  durationMinutes: z.number().int().min(5).max(720),
+  incrementMinutes: z.number().int().min(5).max(720).nullable().optional(),
+  bufferBeforeMinutes: z.number().int().min(0).max(1440),
+  bufferAfterMinutes: z.number().int().min(0).max(1440),
+  minimumNoticeMinutes: z.number().int().min(0).max(525_600),
+  bookingWindowDays: z.number().int().min(1).max(730).nullable().optional(),
+  maxPerDay: z.number().int().min(1).max(100).nullable().optional(),
+  scheduleId: z.uuid().optional(),
+  hidden: z.boolean()
+})
+
+export type EventTypeInput = z.infer<typeof eventTypeSchema>

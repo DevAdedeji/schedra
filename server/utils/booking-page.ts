@@ -52,6 +52,7 @@ export async function findPublicEventType(username: string, slug: string) {
     .where(and(
       sql`lower(${users.username}) = ${username.toLowerCase()}`,
       sql`lower(${eventTypes.slug}) = ${slug.toLowerCase()}`,
+      eq(users.emailVerified, true),
       eq(eventTypes.hidden, false)
     ))
     .limit(1)
