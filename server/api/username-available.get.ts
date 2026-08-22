@@ -2,8 +2,10 @@ import { sql } from 'drizzle-orm'
 import { usernameSchema } from '../../shared/validation'
 import { users } from '../database/schema'
 import { useDatabase } from '../utils/database'
+import { enforceRateLimit } from '../utils/rate-limit'
 
 export default defineEventHandler(async (event) => {
+  await enforceRateLimit(event, { namespace: 'username-available', limit: 60, windowSeconds: 60 })
   const parsed = usernameSchema.safeParse(getQuery(event).username ?? '')
 
   if (!parsed.success) {

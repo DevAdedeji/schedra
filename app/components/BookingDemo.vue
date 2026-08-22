@@ -131,7 +131,7 @@ function reset() {
       </div>
       <span class="ml-auto flex shrink-0 items-center gap-1.5 eyebrow text-[9px] text-dimmed">
         <span class="size-1.5 bg-primary" />
-        Live
+        Interactive preview
       </span>
     </div>
 
@@ -142,7 +142,7 @@ function reset() {
       <div class="flex items-center gap-1">
         <button
           type="button"
-          class="flex size-6 items-center justify-center text-muted transition-colors hover:text-highlighted disabled:opacity-25 disabled:hover:text-muted"
+          class="flex size-11 items-center justify-center text-muted transition-colors hover:text-highlighted disabled:opacity-25 disabled:hover:text-muted"
           :disabled="!canGoBack"
           aria-label="Previous week"
           @click="weekOffset--"
@@ -154,7 +154,7 @@ function reset() {
         </button>
         <button
           type="button"
-          class="flex size-6 items-center justify-center text-muted transition-colors hover:text-highlighted disabled:opacity-25 disabled:hover:text-muted"
+          class="flex size-11 items-center justify-center text-muted transition-colors hover:text-highlighted disabled:opacity-25 disabled:hover:text-muted"
           :disabled="!canGoForward"
           aria-label="Next week"
           @click="weekOffset++"
@@ -233,7 +233,7 @@ function reset() {
       <div class="flex items-center gap-3 border-t border-default px-4 py-3">
         <p class="min-w-0 flex-1 truncate text-[11px] text-dimmed">
           <template v-if="conflicts">
-            {{ conflicts }} hidden by calendar conflicts
+            {{ conflicts }} times unavailable in this preview
           </template>
           <template v-else>
             {{ timezone }}
@@ -269,7 +269,7 @@ function reset() {
             {{ longDate.format(selected) }} · {{ HOST.duration }} min with {{ HOST.name }}
           </p>
           <p class="mt-3 text-[11px] leading-relaxed text-dimmed">
-            Calendar event created · invite sent · reminder queued
+            Preview complete · no real booking was created
           </p>
           <button
             type="button"

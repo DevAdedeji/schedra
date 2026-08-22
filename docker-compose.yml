@@ -1,5 +1,21 @@
 # Port 5442 rather than 5432 so this never fights another Postgres on the host.
 services:
+  app:
+    build: .
+    container_name: schedra-app
+    restart: unless-stopped
+    command: ['sh', '-c', 'node scripts/migrate.mjs && node .output/server/index.mjs']
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://schedra:schedra@db:5432/schedra
+      SCHEDRA_URL: http://localhost:3002
+      AUTH_SECRET: local-compose-secret-change-before-production
+      PORT: 3000
+    ports:
+      - '3002:3000'
+
   db:
     image: postgres:18-alpine
     container_name: schedra-db

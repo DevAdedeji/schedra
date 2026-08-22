@@ -1,7 +1,8 @@
 import postgres from 'postgres'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
+import { getTestDatabaseUrl } from '../../test/helpers/database'
 
-const url = process.env.DATABASE_URL
+const url = getTestDatabaseUrl()
 
 describe.skipIf(!url)('bookings_no_overlap_per_host', () => {
   const sql = postgres(url!, { max: 5, onnotice: () => {} })
@@ -10,7 +11,10 @@ describe.skipIf(!url)('bookings_no_overlap_per_host', () => {
   let otherHostId: string
   let eventTypeId: string
 
-  afterAll(() => sql.end())
+  afterAll(async () => {
+    await sql`truncate table email_outbox, api_rate_limits, rate_limits, sessions, accounts, verifications, bookings, event_types, date_overrides, availability_rules, schedules, users, organizations restart identity cascade`
+    await sql.end()
+  })
 
   beforeEach(async () => {
     await sql`truncate table bookings, event_types, schedules, users, organizations restart identity cascade`

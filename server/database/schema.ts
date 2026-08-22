@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import {
+  bigint,
   boolean,
   check,
   date,
@@ -95,6 +96,85 @@ export const verifications = pgTable('verifications', {
 }, table => [
   index('verifications_identifier_idx').on(table.identifier)
 ])
+
+export const rateLimits = pgTable('rate_limits', {
+  id: text('id').primaryKey(),
+  key: text('key').notNull(),
+  count: integer('count').notNull(),
+  lastRequest: bigint('last_request', { mode: 'number' }).notNull()
+}, table => [
+  uniqueIndex('rate_limits_key_key').on(table.key),
+  index('rate_limits_last_request_idx').on(table.lastRequest)
+])
+
+export const apiRateLimits = pgTable('api_rate_limits', {
+  key: text('key').primaryKey(),
+  windowStart: timestamp('window_start', { withTimezone: true }).notNull(),
+  requestCount: integer('request_count').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull()
+}, table => [
+  index('api_rate_limits_expires_at_idx').on(table.expiresAt),
+  check('api_rate_limits_request_count_positive', sql`${table.requestCount} > 0`)
+])
+
+export const emailDeliveryStatus = pgEnum('email_delivery_status', [
+  'pending',
+  'sending',
+  'sent',
+  'failed'
+])
+
+export const emailOutbox = pgTable('email_outbox', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  dedupeKey: text('dedupe_key').notNull(),
+  recipient: text('recipient').notNull(),
+  subject: text('subject').notNull(),
+  heading: text('heading').notNull(),
+  body: text('body').notNull(),
+  actionLabel: text('action_label').notNull(),
+  actionUrl: text('action_url').notNull(),
+  footer: text('footer'),
+  status: emailDeliveryStatus('status').notNull().default('pending'),
+  attempts: integer('attempts').notNull().default(0),
+  availableAt: timestamp('available_at', { withTimezone: true }).notNull().defaultNow(),
+  lockedAt: timestamp('locked_at', { withTimezone: true }),
+  sentAt: timestamp('sent_at', { withTimezone: true }),
+  lastError: text('last_error'),
+  ...timestamps
+}, table => [
+  uniqueIndex('email_outbox_dedupe_key_key').on(table.dedupeKey),
+  index('email_outbox_claim_idx').on(table.status, table.availableAt),
+  check('email_outbox_attempts_non_negative', sql`${table.attempts} >= 0`)
+])
+
+export const calendarConnectionStatus = pgEnum('calendar_connection_status', [
+  'active',
+  'needs_reauthorization',
+  'disconnected'
+])
+
+export const calendarConnections = pgTable('calendar_connections', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  provider: text('provider').notNull().default('google'),
+  accountLabel: text('account_label'),
+  accessTokenEncrypted: text('access_token_encrypted').notNull(),
+  refreshTokenEncrypted: text('refresh_token_encrypted').notNull(),
+  accessTokenExpiresAt: timestamp('access_token_expires_at', { withTimezone: true }).notNull(),
+  scope: text('scope').notNull(),
+  conflictCalendarIds: jsonb('conflict_calendar_ids').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  writeCalendarId: text('write_calendar_id'),
+  status: calendarConnectionStatus('status').notNull().default('active'),
+  lastError: text('last_error'),
+  lastCheckedAt: timestamp('last_checked_at', { withTimezone: true }),
+  ...timestamps
+}, table => [
+  uniqueIndex('calendar_connections_user_provider_key').on(table.userId, table.provider),
+  index('calendar_connections_user_id_idx').on(table.userId)
+])
+
+export const calendarSyncAction = pgEnum('calendar_sync_action', ['upsert', 'delete'])
+export const calendarSyncStatus = pgEnum('calendar_sync_status', ['pending', 'processing', 'completed', 'failed'])
 
 export const schedules = pgTable('schedules', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -215,4 +295,35 @@ export const bookings = pgTable('bookings', {
   index('bookings_host_id_starts_at_idx').on(table.hostId, table.startsAt),
   index('bookings_event_type_id_idx').on(table.eventTypeId),
   check('bookings_ends_after_starts', sql`${table.endsAt} > ${table.startsAt}`)
+])
+
+export const bookingCalendarEvents = pgTable('booking_calendar_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  bookingId: uuid('booking_id').notNull().references(() => bookings.id, { onDelete: 'cascade' }),
+  connectionId: uuid('connection_id').references(() => calendarConnections.id, { onDelete: 'set null' }),
+  calendarId: text('calendar_id').notNull(),
+  eventId: text('event_id').notNull(),
+  syncedAt: timestamp('synced_at', { withTimezone: true }).notNull().defaultNow(),
+  ...timestamps
+}, table => [
+  uniqueIndex('booking_calendar_events_booking_key').on(table.bookingId),
+  uniqueIndex('booking_calendar_events_remote_key').on(table.calendarId, table.eventId)
+])
+
+export const calendarSyncJobs = pgTable('calendar_sync_jobs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  bookingId: uuid('booking_id').notNull().references(() => bookings.id, { onDelete: 'cascade' }),
+  action: calendarSyncAction('action').notNull(),
+  dedupeKey: text('dedupe_key').notNull(),
+  status: calendarSyncStatus('status').notNull().default('pending'),
+  attempts: integer('attempts').notNull().default(0),
+  availableAt: timestamp('available_at', { withTimezone: true }).notNull().defaultNow(),
+  lockedAt: timestamp('locked_at', { withTimezone: true }),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  lastError: text('last_error'),
+  ...timestamps
+}, table => [
+  uniqueIndex('calendar_sync_jobs_dedupe_key_key').on(table.dedupeKey),
+  index('calendar_sync_jobs_claim_idx').on(table.status, table.availableAt),
+  check('calendar_sync_jobs_attempts_non_negative', sql`${table.attempts} >= 0`)
 ])

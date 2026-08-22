@@ -6,6 +6,11 @@ const links = [
 ]
 
 const open = ref(false)
+const colorMode = useColorMode()
+
+function toggleColorMode() {
+  colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark'
+}
 </script>
 
 <template>
@@ -29,7 +34,15 @@ const open = ref(false)
         </nav>
 
         <div class="flex items-center gap-2">
-          <UColorModeButton size="sm" />
+          <UButton
+            color="neutral"
+            variant="ghost"
+            size="sm"
+            class="size-11 justify-center"
+            :icon="colorMode.value === 'dark' ? 'i-lucide-sun' : 'i-lucide-moon'"
+            :aria-label="colorMode.value === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
+            @click="toggleColorMode"
+          />
           <UButton
             to="/signup"
             prefetch
@@ -42,7 +55,7 @@ const open = ref(false)
             color="neutral"
             variant="ghost"
             size="sm"
-            class="md:hidden"
+            class="size-11 justify-center md:hidden"
             :icon="open ? 'i-lucide-x' : 'i-lucide-menu'"
             :aria-expanded="open"
             aria-label="Toggle navigation"

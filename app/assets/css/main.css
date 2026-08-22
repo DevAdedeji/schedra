@@ -5,6 +5,11 @@ html {
   scroll-behavior: smooth;
 }
 
+body {
+  min-width: 320px;
+  overflow-x: clip;
+}
+
 @theme static {
   --font-sans: 'Figtree', ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;

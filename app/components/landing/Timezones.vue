@@ -73,7 +73,7 @@ const zones = [
 
           <p class="border-t border-default px-5 py-4 text-[13px] leading-relaxed text-muted">
             It is already tomorrow in Tokyo. Everyone still sees the right time
-            on their own calendar.
+            on the booking page before they confirm.
           </p>
         </div>
       </div>

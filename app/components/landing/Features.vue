@@ -1,11 +1,11 @@
 <script setup lang="ts">
 const features = [
-  ['Works with your calendar', 'Google, Outlook and Apple. If you are already busy there, that time is not offered.'],
-  ['Timezones sorted', 'Someone in Tokyo sees Tokyo time. Nobody does the maths, and nobody joins an hour late.'],
-  ['Every kind of meeting', 'A quick chat, a long review, a group session. Each one gets its own link and its own rules.'],
-  ['Your hours, your rules', 'Finish early on Fridays, block a holiday, keep a gap between calls, cap how many you take.'],
-  ['Nobody forgets', 'A confirmation when it is booked, a reminder before it starts, an email if plans change.'],
-  ['Book the whole team', 'One link for everyone, take enquiries in turns, or get several people in the same room.']
+  ['A page of your own', 'Share one memorable link. Guests see what they are booking, how long it takes and when you are free.'],
+  ['Timezones sorted', 'Schedra detects each guest’s timezone and lets them change it. Every slot is recalculated for that view.'],
+  ['Hours you control', 'Choose the working days, exact hours and timezone that should power your booking page.'],
+  ['Race-safe booking', 'Availability is checked again at confirmation and Postgres prevents two people taking the same slot.'],
+  ['Changes stay simple', 'Guests can return to one private link to cancel or move a future booking.'],
+  ['Durable email delivery', 'Confirmations and cancellations retry safely if the email provider is temporarily unavailable.']
 ]
 </script>
 
@@ -24,7 +24,8 @@ const features = [
             Everything you need. Nothing you don't.
           </h2>
           <p class="mt-6 max-w-[38ch] text-[16px] leading-relaxed text-muted">
-            Nothing locked behind a paid tier. If it exists, you can use it.
+            The launch foundation is deliberately focused: personal scheduling,
+            done reliably and without hidden workflow.
           </p>
         </div>
 

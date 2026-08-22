@@ -11,7 +11,7 @@ useHead({
       'url': origin,
       'applicationCategory': 'BusinessApplication',
       'operatingSystem': 'Web',
-      'description': 'Share one link and let people pick a time that suits you both. Meetings land in your calendar with reminders sent, timezones handled.',
+      'description': 'Share one link and let people pick a time that suits you both. Timezones, confirmations, cancellations and rescheduling stay clear.',
       'offers': {
         '@type': 'Offer',
         'price': '0',
@@ -19,10 +19,10 @@ useHead({
       },
       'featureList': [
         'Booking pages',
-        'Calendar sync',
         'Timezone-correct scheduling',
-        'Automatic reminders',
-        'Team scheduling'
+        'Weekly availability',
+        'Booking confirmation emails',
+        'Cancellation and rescheduling'
       ]
     })
   }]
