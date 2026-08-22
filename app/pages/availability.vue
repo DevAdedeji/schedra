@@ -16,7 +16,7 @@ const search = ref('')
 const filter = ref<'all' | 'default'>('all')
 const page = ref(1)
 const apiQuery = computed(() => ({ filter: filter.value, search: search.value, page: page.value, pageSize: 10 }))
-const { data, refresh, status } = await useFetch<SchedulesResponse>('/api/schedules', { query: apiQuery })
+const { data, refresh, status, error: loadFailure } = useLazyFetch<SchedulesResponse>('/api/schedules', { query: apiQuery })
 const zones = Intl.supportedValuesOf('timeZone')
 const editorOpen = ref(false)
 const selected = ref<ScheduleRecord | null>(null)
@@ -36,6 +36,9 @@ const filterOptions = computed(() => [
 ])
 const filtered = computed(() => [...(data.value?.items ?? [])]
   .sort((a, b) => Number(b.isDefault) - Number(a.isDefault) || a.name.localeCompare(b.name)))
+const initialLoading = computed(() => status.value === 'pending' && !data.value)
+const refreshing = computed(() => status.value === 'pending' && Boolean(data.value))
+const blockingFailure = computed(() => Boolean(loadFailure.value && !data.value))
 
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 watch(query, (value) => {
@@ -185,6 +188,7 @@ function timeMinutes(value: string) {
         <ListFilter
           v-model="filter"
           :options="filterOptions"
+          :disabled="initialLoading || refreshing"
         />
         <UInput
           v-model="query"
@@ -192,6 +196,7 @@ function timeMinutes(value: string) {
           placeholder="Search schedules"
           aria-label="Search schedules"
           class="w-full sm:w-64"
+          :disabled="initialLoading"
         >
           <template
             v-if="query"
@@ -209,153 +214,182 @@ function timeMinutes(value: string) {
         </UInput>
       </div>
 
-      <div
-        v-if="status === 'pending'"
-        class="space-y-3 p-5"
-      >
-        <USkeleton
-          v-for="index in 3"
-          :key="index"
-          class="h-28 w-full rounded-xl"
-        />
-      </div>
+      <ListLoadingSkeleton
+        v-if="initialLoading"
+        :rows="4"
+        label="Loading availability schedules"
+      />
 
-      <ul
-        v-else-if="filtered.length"
-        class="divide-y divide-default"
-      >
-        <li
-          v-for="schedule in filtered"
-          :key="schedule.id"
-          class="group relative transition-colors hover:bg-muted/60"
+      <AsyncErrorState
+        v-else-if="blockingFailure"
+        title="Could not load availability"
+        description="Your schedules are safe. Check your connection and try loading them again."
+        :retrying="status === 'pending'"
+        @retry="refresh"
+      />
+
+      <template v-else>
+        <AsyncErrorState
+          v-if="loadFailure"
+          compact
+          class="border-b border-default bg-error/5"
+          title="Could not refresh availability"
+          description="The last loaded schedules are still shown below."
+          :retrying="refreshing"
+          @retry="refresh"
+        />
+
+        <div
+          v-else-if="refreshing"
+          class="flex items-center gap-2 border-b border-default bg-muted/50 px-4 py-2 text-[11px] text-muted sm:px-5"
+          role="status"
+          aria-live="polite"
         >
-          <button
-            type="button"
-            class="w-full px-4 py-5 text-left sm:px-5"
-            @click="edit(schedule)"
+          <UIcon
+            name="i-lucide-loader-circle"
+            class="size-3.5 animate-spin text-primary"
+          />
+          Updating availability…
+        </div>
+
+        <ul
+          v-if="filtered.length"
+          class="divide-y divide-default"
+        >
+          <li
+            v-for="schedule in filtered"
+            :key="schedule.id"
+            class="group relative transition-colors hover:bg-muted/60"
           >
-            <div class="flex items-start gap-4 sm:gap-5">
-              <span class="mt-0.5 flex size-11 shrink-0 items-center justify-center rounded-xl border border-primary/15 bg-primary/10 text-primary">
-                <UIcon
-                  name="i-lucide-calendar-range"
-                  class="size-5"
-                />
-              </span>
-              <div class="min-w-0 flex-1 pr-16 sm:pr-28">
-                <div class="flex flex-wrap items-center gap-2">
-                  <h2 class="text-[15px] font-semibold text-highlighted sm:text-[16px]">
-                    {{ schedule.name }}
-                  </h2>
-                  <span
-                    v-if="schedule.isDefault"
-                    class="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-medium text-success"
-                  >
-                    <span class="size-1.5 rounded-full bg-success" />Default
-                  </span>
-                </div>
-                <p class="mt-1.5 text-[13px] text-muted">
-                  {{ schedule.timeZone.replace(/_/g, ' ') }}
-                </p>
-                <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] text-toned">
-                  <span class="flex items-center gap-1.5"><UIcon
-                    name="i-lucide-calendar-days"
-                    class="size-3.5 text-dimmed"
-                  />{{ scheduleStats(schedule).days }}</span>
-                  <span class="flex items-center gap-1.5"><UIcon
-                    name="i-lucide-clock-3"
-                    class="size-3.5 text-dimmed"
-                  />{{ scheduleStats(schedule).hours }}</span>
-                  <span class="flex items-center gap-1.5"><UIcon
-                    name="i-lucide-link-2"
-                    class="size-3.5 text-dimmed"
-                  />{{ schedule.eventTypeCount }} {{ schedule.eventTypeCount === 1 ? 'event type' : 'event types' }}</span>
-                  <span
-                    v-if="schedule.overrides.length"
-                    class="flex items-center gap-1.5"
-                  ><UIcon
-                    name="i-lucide-calendar-cog"
-                    class="size-3.5 text-dimmed"
-                  />{{ schedule.overrides.length }} {{ schedule.overrides.length === 1 ? 'override' : 'overrides' }}</span>
+            <button
+              type="button"
+              class="w-full px-4 py-5 text-left sm:px-5"
+              @click="edit(schedule)"
+            >
+              <div class="flex items-start gap-4 sm:gap-5">
+                <span class="mt-0.5 flex size-11 shrink-0 items-center justify-center rounded-xl border border-primary/15 bg-primary/10 text-primary">
+                  <UIcon
+                    name="i-lucide-calendar-range"
+                    class="size-5"
+                  />
+                </span>
+                <div class="min-w-0 flex-1 pr-16 sm:pr-28">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <h2 class="text-[15px] font-semibold text-highlighted sm:text-[16px]">
+                      {{ schedule.name }}
+                    </h2>
+                    <span
+                      v-if="schedule.isDefault"
+                      class="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-medium text-success"
+                    >
+                      <span class="size-1.5 rounded-full bg-success" />Default
+                    </span>
+                  </div>
+                  <p class="mt-1.5 text-[13px] text-muted">
+                    {{ schedule.timeZone.replace(/_/g, ' ') }}
+                  </p>
+                  <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] text-toned">
+                    <span class="flex items-center gap-1.5"><UIcon
+                      name="i-lucide-calendar-days"
+                      class="size-3.5 text-dimmed"
+                    />{{ scheduleStats(schedule).days }}</span>
+                    <span class="flex items-center gap-1.5"><UIcon
+                      name="i-lucide-clock-3"
+                      class="size-3.5 text-dimmed"
+                    />{{ scheduleStats(schedule).hours }}</span>
+                    <span class="flex items-center gap-1.5"><UIcon
+                      name="i-lucide-link-2"
+                      class="size-3.5 text-dimmed"
+                    />{{ schedule.eventTypeCount }} {{ schedule.eventTypeCount === 1 ? 'event type' : 'event types' }}</span>
+                    <span
+                      v-if="schedule.overrides.length"
+                      class="flex items-center gap-1.5"
+                    ><UIcon
+                      name="i-lucide-calendar-cog"
+                      class="size-3.5 text-dimmed"
+                    />{{ schedule.overrides.length }} {{ schedule.overrides.length === 1 ? 'override' : 'overrides' }}</span>
+                  </div>
                 </div>
               </div>
+            </button>
+
+            <div class="absolute right-3 top-4 flex items-center gap-0.5 sm:right-5 sm:top-5">
+              <UButton
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                icon="i-lucide-copy"
+                class="hidden size-7 justify-center p-0 sm:inline-flex"
+                :ui="{ leadingIcon: 'size-4' }"
+                aria-label="Duplicate schedule"
+                @click.stop="duplicate(schedule)"
+              />
+              <UButton
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                icon="i-lucide-pencil"
+                class="size-7 justify-center p-0"
+                :ui="{ leadingIcon: 'size-4' }"
+                aria-label="Edit schedule"
+                @click.stop="edit(schedule)"
+              />
+              <UButton
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                icon="i-lucide-trash-2"
+                class="size-7 justify-center p-0 hover:text-error"
+                :ui="{ leadingIcon: 'size-4' }"
+                aria-label="Delete schedule"
+                @click.stop="requestDelete(schedule)"
+              />
             </div>
-          </button>
+          </li>
+        </ul>
 
-          <div class="absolute right-3 top-4 flex items-center gap-0.5 sm:right-5 sm:top-5">
+        <ListEmptyState
+          v-else-if="data?.counts.all"
+          icon="i-lucide-search-x"
+          title="No matching schedules"
+          description="Try another search or change the filter."
+        >
+          <template #action>
             <UButton
               color="neutral"
-              variant="ghost"
-              size="xs"
-              icon="i-lucide-copy"
-              class="hidden size-7 justify-center p-0 sm:inline-flex"
-              :ui="{ leadingIcon: 'size-4' }"
-              aria-label="Duplicate schedule"
-              @click.stop="duplicate(schedule)"
-            />
+              variant="outline"
+              size="sm"
+              @click="query = ''; filter = 'all'"
+            >
+              Clear filters
+            </UButton>
+          </template>
+        </ListEmptyState>
+        <ListEmptyState
+          v-else
+          icon="i-lucide-calendar-plus"
+          title="Create your availability"
+          description="Add a reusable weekly schedule and connect it to your event types."
+        >
+          <template #action>
             <UButton
-              color="neutral"
-              variant="ghost"
-              size="xs"
-              icon="i-lucide-pencil"
-              class="size-7 justify-center p-0"
-              :ui="{ leadingIcon: 'size-4' }"
-              aria-label="Edit schedule"
-              @click.stop="edit(schedule)"
-            />
-            <UButton
-              color="neutral"
-              variant="ghost"
-              size="xs"
-              icon="i-lucide-trash-2"
-              class="size-7 justify-center p-0 hover:text-error"
-              :ui="{ leadingIcon: 'size-4' }"
-              aria-label="Delete schedule"
-              @click.stop="requestDelete(schedule)"
-            />
-          </div>
-        </li>
-      </ul>
+              icon="i-lucide-plus"
+              @click="openCreate"
+            >
+              New schedule
+            </UButton>
+          </template>
+        </ListEmptyState>
 
-      <ListEmptyState
-        v-else-if="data?.counts.all"
-        icon="i-lucide-search-x"
-        title="No matching schedules"
-        description="Try another search or change the filter."
-      >
-        <template #action>
-          <UButton
-            color="neutral"
-            variant="outline"
-            size="sm"
-            @click="query = ''; filter = 'all'"
-          >
-            Clear filters
-          </UButton>
-        </template>
-      </ListEmptyState>
-      <ListEmptyState
-        v-else
-        icon="i-lucide-calendar-plus"
-        title="Create your availability"
-        description="Add a reusable weekly schedule and connect it to your event types."
-      >
-        <template #action>
-          <UButton
-            icon="i-lucide-plus"
-            @click="openCreate"
-          >
-            New schedule
-          </UButton>
-        </template>
-      </ListEmptyState>
-
-      <ListPagination
-        v-if="status !== 'pending' && data"
-        :page="data.pagination.page"
-        :total-pages="data.pagination.totalPages"
-        :total="data.pagination.total"
-        @change="page = $event"
-      />
+        <ListPagination
+          v-if="data"
+          :page="data.pagination.page"
+          :total-pages="data.pagination.totalPages"
+          :total="data.pagination.total"
+          :disabled="refreshing"
+          @change="page = $event"
+        />
+      </template>
     </section>
 
     <ScheduleEditorModal

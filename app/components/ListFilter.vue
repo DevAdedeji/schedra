@@ -5,7 +5,9 @@ interface FilterOption {
   count: number
 }
 
-defineProps<{ options: FilterOption[] }>()
+withDefaults(defineProps<{ options: FilterOption[], disabled?: boolean }>(), {
+  disabled: false
+})
 const model = defineModel<string>({ required: true })
 </script>
 
@@ -21,10 +23,14 @@ const model = defineModel<string>({ required: true })
       type="button"
       role="tab"
       :aria-selected="model === option.value"
+      :disabled="disabled"
       class="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-2 text-[12px] font-medium transition-colors sm:gap-2 sm:px-3 sm:text-[13px]"
-      :class="model === option.value
-        ? 'bg-elevated text-highlighted'
-        : 'text-muted hover:bg-muted hover:text-highlighted'"
+      :class="[
+        model === option.value
+          ? 'bg-elevated text-highlighted'
+          : 'text-muted hover:bg-muted hover:text-highlighted',
+        disabled && 'cursor-wait opacity-60'
+      ]"
       @click="model = option.value"
     >
       {{ option.label }}

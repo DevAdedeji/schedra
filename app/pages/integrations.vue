@@ -28,7 +28,7 @@ interface CalendarsResponse {
 }
 
 const route = useRoute()
-const { data: connection, refresh: refreshConnection, status, error: connectionFailure } = await useFetch<Connection>('/api/integrations/google-calendar')
+const { data: connection, refresh: refreshConnection, status, error: connectionFailure } = useLazyFetch<Connection>('/api/integrations/google-calendar')
 const calendars = ref<CalendarItem[]>([])
 const selectedConflictIds = ref<string[]>([])
 const writeCalendarId = ref('')
@@ -37,8 +37,10 @@ const loadingCalendars = ref(false)
 const saving = ref(false)
 const saved = ref(false)
 const pageError = ref('')
+const calendarFailure = ref('')
 const disconnectOpen = ref(false)
 const disconnecting = ref(false)
+const connectionRetrying = computed(() => status.value === 'pending')
 
 const callbackNotice = computed(() => {
   if (route.query.calendar === 'connected') return { tone: 'success', text: 'Google Calendar is connected. Review which calendars Schedra should use.' }
@@ -93,7 +95,7 @@ function errorMessage(failure: unknown, fallback: string) {
 async function loadCalendars() {
   if (!connection.value?.connected) return
   loadingCalendars.value = true
-  pageError.value = ''
+  calendarFailure.value = ''
   try {
     const data = await $fetch<CalendarsResponse>('/api/integrations/google-calendar/calendars')
     calendars.value = data.items
@@ -101,7 +103,7 @@ async function loadCalendars() {
     writeCalendarId.value = data.writeCalendarId ?? ''
     baseline.value = currentSnapshot.value
   } catch (failure) {
-    pageError.value = errorMessage(failure, 'Could not load calendars from Google just now.')
+    calendarFailure.value = errorMessage(failure, 'Could not load calendars from Google just now.')
   } finally {
     loadingCalendars.value = false
   }
@@ -238,78 +240,16 @@ onMounted(loadCalendars)
         </div>
       </div>
 
-      <div
-        v-if="status === 'pending'"
-        class="divide-y divide-default"
-        aria-label="Loading Google Calendar integration"
-        aria-busy="true"
-        role="status"
-      >
-        <div class="grid gap-6 px-5 py-6 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] sm:px-7">
-          <div class="space-y-2">
-            <USkeleton class="h-4 w-48" />
-            <USkeleton class="h-3 w-full max-w-xs" />
-            <USkeleton class="h-3 w-4/5 max-w-xs" />
-          </div>
-          <div class="overflow-hidden rounded-lg border border-default">
-            <div
-              v-for="row in 4"
-              :key="row"
-              class="flex items-center gap-3 border-b border-default px-4 py-3 last:border-b-0"
-            >
-              <USkeleton class="size-4 shrink-0 rounded" />
-              <USkeleton class="size-2.5 shrink-0 rounded-full" />
-              <div class="min-w-0 flex-1 space-y-2">
-                <USkeleton class="h-3 w-2/3" />
-                <USkeleton class="h-2.5 w-1/2" />
-              </div>
-            </div>
-          </div>
-        </div>
+      <IntegrationPreferencesSkeleton v-if="status === 'pending'" />
 
-        <div class="grid gap-6 px-5 py-6 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] sm:px-7">
-          <div class="space-y-2">
-            <USkeleton class="h-4 w-40" />
-            <USkeleton class="h-3 w-full max-w-xs" />
-            <USkeleton class="h-3 w-3/4 max-w-xs" />
-          </div>
-          <USkeleton class="h-10 w-full rounded-lg" />
-        </div>
-
-        <div class="flex items-center justify-between gap-4 bg-muted/30 px-5 py-5 sm:px-7">
-          <USkeleton class="h-3 w-52" />
-          <USkeleton class="h-9 w-36 rounded-lg" />
-        </div>
-      </div>
-
-      <div
+      <AsyncErrorState
         v-else-if="connectionFailure"
-        class="flex flex-col items-start gap-4 px-6 py-6 sm:flex-row sm:items-center sm:justify-between sm:px-7"
-      >
-        <div class="flex items-start gap-3">
-          <UIcon
-            name="i-lucide-circle-alert"
-            class="mt-0.5 size-4 shrink-0 text-error"
-          />
-          <div>
-            <p class="text-[14px] font-medium text-highlighted">
-              Could not load this integration
-            </p>
-            <p class="mt-1 text-[13px] text-muted">
-              Check the connection and try again.
-            </p>
-          </div>
-        </div>
-        <UButton
-          color="neutral"
-          variant="outline"
-          size="sm"
-          icon="i-lucide-refresh-cw"
-          @click="retryConnection"
-        >
-          Try again
-        </UButton>
-      </div>
+        compact
+        title="Could not load this integration"
+        description="Check your connection and try loading Google Calendar again."
+        :retrying="connectionRetrying"
+        @retry="retryConnection"
+      />
 
       <div
         v-else-if="!connection?.configured"
@@ -367,12 +307,45 @@ onMounted(loadCalendars)
         </div>
       </div>
 
+      <IntegrationPreferencesSkeleton
+        v-else-if="loadingCalendars && !calendars.length"
+      />
+
+      <AsyncErrorState
+        v-else-if="calendarFailure && !calendars.length"
+        title="Could not load your calendars"
+        :description="calendarFailure"
+        :retrying="loadingCalendars"
+        @retry="loadCalendars"
+      />
+
       <div
         v-else
         class="divide-y divide-default"
       >
+        <AsyncErrorState
+          v-if="calendarFailure"
+          compact
+          class="bg-error/5"
+          title="Could not refresh your calendars"
+          description="The last loaded calendar preferences are still shown below."
+          :retrying="loadingCalendars"
+          @retry="loadCalendars"
+        />
         <div
-          v-if="connection.lastError && !pageError"
+          v-else-if="loadingCalendars"
+          class="flex items-center gap-2 bg-muted/50 px-5 py-2 text-[11px] text-muted sm:px-7"
+          role="status"
+          aria-live="polite"
+        >
+          <UIcon
+            name="i-lucide-loader-circle"
+            class="size-3.5 animate-spin text-primary"
+          />
+          Refreshing calendars…
+        </div>
+        <div
+          v-else-if="connection.lastError && !pageError"
           class="flex items-start gap-3 bg-warning/5 px-5 py-4 text-[13px] text-warning sm:px-7"
         >
           <UIcon
@@ -391,30 +364,7 @@ onMounted(loadCalendars)
             </p>
           </div>
           <div>
-            <div
-              v-if="loadingCalendars"
-              class="overflow-hidden rounded-lg border border-default"
-              aria-label="Loading calendars"
-              aria-busy="true"
-              role="status"
-            >
-              <div
-                v-for="row in 4"
-                :key="row"
-                class="flex items-center gap-3 border-b border-default px-4 py-3 last:border-b-0"
-              >
-                <USkeleton class="size-4 shrink-0 rounded" />
-                <USkeleton class="size-2.5 shrink-0 rounded-full" />
-                <div class="min-w-0 flex-1 space-y-2">
-                  <USkeleton class="h-3 w-2/3" />
-                  <USkeleton class="h-2.5 w-1/2" />
-                </div>
-              </div>
-            </div>
-            <div
-              v-else
-              class="overflow-hidden rounded-lg border border-default"
-            >
+            <div class="overflow-hidden rounded-lg border border-default">
               <label
                 v-for="calendar in conflictCalendars"
                 :key="calendar.id"
@@ -444,13 +394,13 @@ onMounted(loadCalendars)
               </label>
             </div>
             <p
-              v-if="!loadingCalendars && !selectedConflictIds.length"
+              v-if="!selectedConflictIds.length"
               class="mt-2 text-[12px] text-error"
             >
               Choose at least one calendar so Schedra can prevent conflicts.
             </p>
             <p
-              v-else-if="!loadingCalendars"
+              v-else
               class="mt-2 text-[11px] text-dimmed"
             >
               {{ selectedConflictIds.length }} {{ selectedConflictIds.length === 1 ? 'calendar' : 'calendars' }} will be checked before showing available times.
@@ -479,7 +429,7 @@ onMounted(loadCalendars)
               @update:model-value="saved = false"
             />
             <p
-              v-if="!loadingCalendars && (!writableCalendars.length || writeCalendarMissing)"
+              v-if="!writableCalendars.length || writeCalendarMissing"
               class="mt-2 text-[12px] text-error"
             >
               {{ writeCalendarMissing ? 'The previously selected calendar is unavailable. Choose another.' : 'This Google account has no calendar Schedra is allowed to edit.' }}

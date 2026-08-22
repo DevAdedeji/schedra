@@ -28,8 +28,11 @@ const query = ref('')
 const search = ref('')
 const page = ref(1)
 const apiQuery = computed(() => ({ filter: filter.value, search: search.value, page: page.value, pageSize: 10 }))
-const { data, refresh, status } = await useFetch<BookingsResponse>('/api/bookings', { query: apiQuery })
+const { data, refresh, status, error: loadFailure } = useLazyFetch<BookingsResponse>('/api/bookings', { query: apiQuery })
 const list = computed(() => data.value?.items ?? [])
+const initialLoading = computed(() => status.value === 'pending' && !data.value)
+const refreshing = computed(() => status.value === 'pending' && Boolean(data.value))
+const blockingFailure = computed(() => Boolean(loadFailure.value && !data.value))
 
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 watch(query, (value) => {
@@ -105,12 +108,18 @@ function isUpcoming(item: BookingRecord) {
 }
 
 const cancelling = ref<string | null>(null)
+const actionError = ref('')
 
 async function cancel(uid: string) {
   cancelling.value = uid
+  actionError.value = ''
   try {
     await $fetch(`/api/booking/${uid}/cancel`, { method: 'POST', body: {} })
     await refresh()
+  } catch (failure) {
+    actionError.value = (failure as { data?: { statusMessage?: string }, statusMessage?: string }).data?.statusMessage
+      ?? (failure as { statusMessage?: string }).statusMessage
+      ?? 'Could not cancel this booking just now. Please try again.'
   } finally {
     cancelling.value = null
   }
@@ -124,11 +133,23 @@ async function cancel(uid: string) {
       description="Everything people have booked with you."
     />
 
-    <section class="mt-7 overflow-hidden rounded-xl border border-default bg-default">
+    <p
+      v-if="actionError"
+      class="mt-7 rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-[13px] text-error"
+      role="alert"
+    >
+      {{ actionError }}
+    </p>
+
+    <section
+      class="overflow-hidden rounded-xl border border-default bg-default"
+      :class="actionError ? 'mt-4' : 'mt-7'"
+    >
       <div class="flex flex-col gap-3 border-b border-default px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <ListFilter
           v-model="filter"
           :options="filterOptions"
+          :disabled="initialLoading || refreshing"
         />
         <UInput
           v-model="query"
@@ -136,6 +157,7 @@ async function cancel(uid: string) {
           placeholder="Search bookings"
           aria-label="Search bookings"
           class="w-full sm:w-64"
+          :disabled="initialLoading"
         >
           <template
             v-if="query"
@@ -153,123 +175,153 @@ async function cancel(uid: string) {
         </UInput>
       </div>
 
-      <div
-        v-if="status === 'pending'"
-        class="space-y-3 p-5"
-      >
-        <USkeleton
-          v-for="index in 3"
-          :key="index"
-          class="h-28 w-full rounded-xl"
+      <ListLoadingSkeleton
+        v-if="initialLoading"
+        variant="bookings"
+        :rows="3"
+        label="Loading bookings"
+      />
+
+      <AsyncErrorState
+        v-else-if="blockingFailure"
+        title="Could not load bookings"
+        description="Your bookings are safe. Check your connection and try loading them again."
+        :retrying="status === 'pending'"
+        @retry="refresh"
+      />
+
+      <template v-else>
+        <AsyncErrorState
+          v-if="loadFailure"
+          compact
+          class="border-b border-default bg-error/5"
+          title="Could not refresh bookings"
+          description="The last loaded results are still shown below."
+          :retrying="refreshing"
+          @retry="refresh"
         />
-      </div>
 
-      <div
-        v-else-if="grouped.length"
-        class="space-y-7 p-5 sm:p-6"
-      >
-        <section
-          v-for="group in grouped"
-          :key="group.heading"
+        <div
+          v-else-if="refreshing"
+          class="flex items-center gap-2 border-b border-default bg-muted/50 px-4 py-2 text-[11px] text-muted sm:px-5"
+          role="status"
+          aria-live="polite"
         >
-          <h2 class="text-[12px] font-semibold uppercase tracking-[0.1em] text-dimmed">
-            {{ group.heading }}
-          </h2>
+          <UIcon
+            name="i-lucide-loader-circle"
+            class="size-3.5 animate-spin text-primary"
+          />
+          Updating bookings…
+        </div>
 
-          <ul class="mt-3 space-y-2.5">
-            <li
-              v-for="item in group.items"
-              :key="item.uid"
-              class="rounded-xl border border-default bg-default p-5"
-              :class="item.status === 'cancelled' && 'opacity-60'"
-            >
-              <div class="flex flex-wrap items-start gap-4">
-                <span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[13px] font-semibold text-primary">
-                  {{ initials(item.attendeeName) }}
-                </span>
+        <div
+          v-if="grouped.length"
+          class="space-y-7 p-5 sm:p-6"
+        >
+          <section
+            v-for="group in grouped"
+            :key="group.heading"
+          >
+            <h2 class="text-[12px] font-semibold uppercase tracking-[0.1em] text-dimmed">
+              {{ group.heading }}
+            </h2>
 
-                <div class="min-w-0 flex-1">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <span class="tnum text-[15px] font-semibold text-highlighted">
-                      {{ time(item.startsAt) }}–{{ time(item.endsAt) }}
-                    </span>
-                    <span
-                      v-if="item.status === 'cancelled'"
-                      class="rounded-full bg-elevated px-2.5 py-0.5 text-[11px] font-medium text-muted"
+            <ul class="mt-3 space-y-2.5">
+              <li
+                v-for="item in group.items"
+                :key="item.uid"
+                class="rounded-xl border border-default bg-default p-5"
+                :class="item.status === 'cancelled' && 'opacity-60'"
+              >
+                <div class="flex flex-wrap items-start gap-4">
+                  <span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[13px] font-semibold text-primary">
+                    {{ initials(item.attendeeName) }}
+                  </span>
+
+                  <div class="min-w-0 flex-1">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <span class="tnum text-[15px] font-semibold text-highlighted">
+                        {{ time(item.startsAt) }}–{{ time(item.endsAt) }}
+                      </span>
+                      <span
+                        v-if="item.status === 'cancelled'"
+                        class="rounded-full bg-elevated px-2.5 py-0.5 text-[11px] font-medium text-muted"
+                      >
+                        Cancelled
+                      </span>
+                    </div>
+
+                    <p class="mt-1 text-[14px] text-toned">
+                      {{ item.eventTitle }}
+                    </p>
+                    <p class="mt-0.5 truncate text-[13px] text-muted">
+                      {{ item.attendeeName }} · {{ item.attendeeEmail }}
+                    </p>
+
+                    <p
+                      v-if="item.notes"
+                      class="mt-3 rounded-lg border border-default bg-muted px-3.5 py-2.5 text-[13px] leading-relaxed text-muted"
                     >
-                      Cancelled
-                    </span>
+                      {{ item.notes }}
+                    </p>
                   </div>
 
-                  <p class="mt-1 text-[14px] text-toned">
-                    {{ item.eventTitle }}
-                  </p>
-                  <p class="mt-0.5 truncate text-[13px] text-muted">
-                    {{ item.attendeeName }} · {{ item.attendeeEmail }}
-                  </p>
-
-                  <p
-                    v-if="item.notes"
-                    class="mt-3 rounded-lg border border-default bg-muted px-3.5 py-2.5 text-[13px] leading-relaxed text-muted"
-                  >
-                    {{ item.notes }}
-                  </p>
+                  <div class="flex shrink-0 gap-2">
+                    <UButton
+                      :to="`/booking/${item.uid}`"
+                      color="neutral"
+                      variant="outline"
+                      size="sm"
+                      class="font-medium"
+                    >
+                      Open
+                    </UButton>
+                    <UButton
+                      v-if="isUpcoming(item) && item.status !== 'cancelled'"
+                      color="neutral"
+                      variant="ghost"
+                      size="sm"
+                      :loading="cancelling === item.uid"
+                      class="font-medium"
+                      @click="cancel(item.uid)"
+                    >
+                      Cancel
+                    </UButton>
+                  </div>
                 </div>
+              </li>
+            </ul>
+          </section>
+        </div>
 
-                <div class="flex shrink-0 gap-2">
-                  <UButton
-                    :to="`/booking/${item.uid}`"
-                    color="neutral"
-                    variant="outline"
-                    size="sm"
-                    class="font-medium"
-                  >
-                    Open
-                  </UButton>
-                  <UButton
-                    v-if="isUpcoming(item) && item.status !== 'cancelled'"
-                    color="neutral"
-                    variant="ghost"
-                    size="sm"
-                    :loading="cancelling === item.uid"
-                    class="font-medium"
-                    @click="cancel(item.uid)"
-                  >
-                    Cancel
-                  </UButton>
-                </div>
-              </div>
-            </li>
-          </ul>
-        </section>
-      </div>
-
-      <ListEmptyState
-        v-else
-        icon="i-lucide-calendar-days"
-        :title="emptyTitle"
-        :description="emptyDescription"
-      >
-        <template
-          v-if="filter === 'upcoming' && !query"
-          #action
+        <ListEmptyState
+          v-else
+          icon="i-lucide-calendar-days"
+          :title="emptyTitle"
+          :description="emptyDescription"
         >
-          <UButton
-            to="/dashboard"
-            class="font-medium"
+          <template
+            v-if="filter === 'upcoming' && !query"
+            #action
           >
-            Get your link
-          </UButton>
-        </template>
-      </ListEmptyState>
+            <UButton
+              to="/dashboard"
+              class="font-medium"
+            >
+              Get your link
+            </UButton>
+          </template>
+        </ListEmptyState>
 
-      <ListPagination
-        v-if="status !== 'pending' && data"
-        :page="data.pagination.page"
-        :total-pages="data.pagination.totalPages"
-        :total="data.pagination.total"
-        @change="page = $event"
-      />
+        <ListPagination
+          v-if="data"
+          :page="data.pagination.page"
+          :total-pages="data.pagination.totalPages"
+          :total="data.pagination.total"
+          :disabled="refreshing"
+          @change="page = $event"
+        />
+      </template>
     </section>
   </div>
 </template>

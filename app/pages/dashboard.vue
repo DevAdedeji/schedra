@@ -21,11 +21,11 @@ interface BookingsResponse {
 interface EventTypesResponse { items: EventTypeRecord[], counts: { all: number, active: number, hidden: number } }
 interface SchedulesResponse { items: ScheduleRecord[] }
 const { data } = await useCurrentUser()
-const { data: bookings } = await useFetch<BookingsResponse>('/api/bookings', {
+const { data: bookings, status: bookingsStatus, error: bookingsFailure, refresh: refreshBookings } = useLazyFetch<BookingsResponse>('/api/bookings', {
   query: { filter: 'upcoming', pageSize: 3 }
 })
-const { data: eventTypes } = await useFetch<EventTypesResponse>('/api/event-types', { query: { pageSize: 1 } })
-const { data: schedules } = await useFetch<SchedulesResponse>('/api/schedules', { query: { pageSize: 10 } })
+const { data: eventTypes, status: eventTypesStatus, error: eventTypesFailure, refresh: refreshEventTypes } = useLazyFetch<EventTypesResponse>('/api/event-types', { query: { pageSize: 1 } })
+const { data: schedules, status: schedulesStatus, error: schedulesFailure, refresh: refreshSchedules } = useLazyFetch<SchedulesResponse>('/api/schedules', { query: { pageSize: 10 } })
 const { url, host } = useSiteUrl()
 const { copied, copy } = useCopy()
 
@@ -34,6 +34,15 @@ const link = computed(() => `${host.value}/${user.value?.username ?? ''}`)
 const nextBookings = computed(() => bookings.value?.items ?? [])
 const activeEventTypeCount = computed(() => eventTypes.value?.counts.active ?? 0)
 const schedule = computed(() => schedules.value?.items.find(item => item.isDefault) ?? schedules.value?.items[0])
+const overviewReady = computed(() => Boolean(bookings.value && eventTypes.value && schedules.value))
+const overviewFailure = computed(() => bookingsFailure.value ?? eventTypesFailure.value ?? schedulesFailure.value)
+const overviewLoading = computed(() => !overviewReady.value && !overviewFailure.value)
+const overviewRefreshing = computed(() => overviewReady.value && [bookingsStatus.value, eventTypesStatus.value, schedulesStatus.value].includes('pending'))
+const overviewRetrying = computed(() => [bookingsStatus.value, eventTypesStatus.value, schedulesStatus.value].includes('pending'))
+
+async function retryOverview() {
+  await Promise.allSettled([refreshBookings(), refreshEventTypes(), refreshSchedules()])
+}
 
 const stats = computed(() => [
   { label: 'Upcoming', value: bookings.value?.counts.upcoming ?? 0, icon: 'i-lucide-calendar-clock', hint: 'Scheduled meetings' },
@@ -83,215 +92,254 @@ function initials(name: string) {
       </template>
     </PageHeader>
 
-    <section class="grid overflow-hidden rounded-xl border border-default bg-default lg:grid-cols-[minmax(0,1fr)_18rem]">
-      <div class="px-5 py-6 sm:px-6">
-        <p class="text-[11px] font-semibold uppercase tracking-[0.1em] text-dimmed">
-          Your booking link
-        </p>
-        <h2 class="mt-2 text-[18px] font-semibold text-highlighted">
-          Ready when you are.
-        </h2>
-        <p class="mt-1 max-w-xl text-[13px] leading-relaxed text-muted">
-          Share one link and let guests choose from every active event type.
-        </p>
-        <button
-          type="button"
-          class="mt-5 flex w-full max-w-2xl items-center gap-3 rounded-xl border border-default bg-muted px-4 py-3.5 text-left transition-colors hover:border-primary"
-          :aria-label="`Copy ${link}`"
-          @click="copy(`${url}/${user?.username ?? ''}`)"
-        >
-          <span class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><UIcon
-            name="i-lucide-link"
-            class="size-4"
-          /></span>
-          <span class="min-w-0 flex-1 truncate text-[14px] font-medium text-highlighted">{{ link }}</span>
-          <span
-            class="flex items-center gap-1.5 text-[12px]"
-            :class="copied ? 'text-primary' : 'text-muted'"
-          ><UIcon
-            :name="copied ? 'i-lucide-check' : 'i-lucide-copy'"
-            class="size-4"
-          />{{ copied ? 'Copied' : 'Copy' }}</span>
-        </button>
-      </div>
-      <div class="border-t border-default bg-muted px-5 py-5 lg:border-l lg:border-t-0">
-        <span
-          class="flex size-9 items-center justify-center rounded-lg"
-          :class="activeEventTypeCount ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'"
-        ><UIcon
-          :name="activeEventTypeCount ? 'i-lucide-circle-check' : 'i-lucide-circle-alert'"
-          class="size-4.5"
-        /></span>
-        <p class="mt-3 text-[13px] font-semibold text-highlighted">
-          {{ activeEventTypeCount ? 'Booking page is live' : 'No active booking links' }}
-        </p>
-        <p class="mt-1 text-[11px] leading-relaxed text-muted">
-          {{ activeEventTypeCount
-            ? `${activeEventTypeCount} active ${activeEventTypeCount === 1 ? 'event type is' : 'event types are'} ready to share.`
-            : 'Create an event type or make a hidden one active before sharing your page.' }}
-        </p>
-        <UButton
-          to="/event-types"
-          color="neutral"
-          variant="outline"
-          size="sm"
-          trailing-icon="i-lucide-arrow-right"
-          class="mt-4"
-        >
-          Manage event types
-        </UButton>
-      </div>
+    <OverviewLoadingSkeleton v-if="overviewLoading" />
+
+    <section
+      v-else-if="overviewFailure && !overviewReady"
+      class="overflow-hidden rounded-xl border border-default bg-default"
+    >
+      <AsyncErrorState
+        title="Could not load your overview"
+        description="Your scheduling data is safe. Check your connection and try loading the workspace again."
+        :retrying="overviewRetrying"
+        @retry="retryOverview"
+      />
     </section>
 
-    <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      <div
-        v-for="stat in stats"
-        :key="stat.label"
-        class="rounded-xl border border-default bg-default px-4 py-4 sm:px-5"
-      >
-        <div class="flex items-center justify-between gap-3">
-          <p class="text-[12px] font-medium text-muted">
-            {{ stat.label }}
-          </p><UIcon
-            :name="stat.icon"
-            class="size-4 text-dimmed"
-          />
-        </div>
-        <p class="tnum mt-3 text-[27px] font-semibold leading-none text-highlighted">
-          {{ stat.value }}
-        </p>
-        <p class="mt-2 hidden text-[11px] text-dimmed sm:block">
-          {{ stat.hint }}
-        </p>
-      </div>
-    </div>
+    <template v-else>
+      <AsyncErrorState
+        v-if="overviewFailure"
+        compact
+        class="rounded-xl border border-error/20 bg-error/5"
+        title="Could not refresh the overview"
+        description="The last loaded information is still shown below."
+        :retrying="overviewRetrying"
+        @retry="retryOverview"
+      />
 
-    <div class="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
-      <section class="overflow-hidden rounded-xl border border-default bg-default">
-        <div class="flex items-center justify-between gap-4 border-b border-default px-5 py-4">
-          <div>
-            <h2 class="text-[15px] font-semibold text-highlighted">
-              Next up
-            </h2><p class="mt-0.5 text-[12px] text-muted">
-              The meetings that need your attention first.
-            </p>
-          </div>
+      <div
+        v-else-if="overviewRefreshing"
+        class="flex items-center gap-2 rounded-lg border border-default bg-default px-4 py-2 text-[11px] text-muted"
+        role="status"
+        aria-live="polite"
+      >
+        <UIcon
+          name="i-lucide-loader-circle"
+          class="size-3.5 animate-spin text-primary"
+        />
+        Refreshing your overview…
+      </div>
+
+      <section class="grid overflow-hidden rounded-xl border border-default bg-default lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <div class="px-5 py-6 sm:px-6">
+          <p class="text-[11px] font-semibold uppercase tracking-[0.1em] text-dimmed">
+            Your booking link
+          </p>
+          <h2 class="mt-2 text-[18px] font-semibold text-highlighted">
+            Ready when you are.
+          </h2>
+          <p class="mt-1 max-w-xl text-[13px] leading-relaxed text-muted">
+            Share one link and let guests choose from every active event type.
+          </p>
+          <button
+            type="button"
+            class="mt-5 flex w-full max-w-2xl items-center gap-3 rounded-xl border border-default bg-muted px-4 py-3.5 text-left transition-colors hover:border-primary"
+            :aria-label="`Copy ${link}`"
+            @click="copy(`${url}/${user?.username ?? ''}`)"
+          >
+            <span class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><UIcon
+              name="i-lucide-link"
+              class="size-4"
+            /></span>
+            <span class="min-w-0 flex-1 truncate text-[14px] font-medium text-highlighted">{{ link }}</span>
+            <span
+              class="flex items-center gap-1.5 text-[12px]"
+              :class="copied ? 'text-primary' : 'text-muted'"
+            ><UIcon
+              :name="copied ? 'i-lucide-check' : 'i-lucide-copy'"
+              class="size-4"
+            />{{ copied ? 'Copied' : 'Copy' }}</span>
+          </button>
+        </div>
+        <div class="border-t border-default bg-muted px-5 py-5 lg:border-l lg:border-t-0">
+          <span
+            class="flex size-9 items-center justify-center rounded-lg"
+            :class="activeEventTypeCount ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'"
+          ><UIcon
+            :name="activeEventTypeCount ? 'i-lucide-circle-check' : 'i-lucide-circle-alert'"
+            class="size-4.5"
+          /></span>
+          <p class="mt-3 text-[13px] font-semibold text-highlighted">
+            {{ activeEventTypeCount ? 'Booking page is live' : 'No active booking links' }}
+          </p>
+          <p class="mt-1 text-[11px] leading-relaxed text-muted">
+            {{ activeEventTypeCount
+              ? `${activeEventTypeCount} active ${activeEventTypeCount === 1 ? 'event type is' : 'event types are'} ready to share.`
+              : 'Create an event type or make a hidden one active before sharing your page.' }}
+          </p>
           <UButton
-            to="/bookings"
+            to="/event-types"
             color="neutral"
-            variant="ghost"
+            variant="outline"
             size="sm"
             trailing-icon="i-lucide-arrow-right"
+            class="mt-4"
           >
-            All bookings
+            Manage event types
           </UButton>
         </div>
-        <ul
-          v-if="nextBookings.length"
-          class="divide-y divide-default"
-        >
-          <li
-            v-for="booking in nextBookings"
-            :key="booking.uid"
-          >
-            <NuxtLink
-              :to="`/booking/${booking.uid}`"
-              class="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-muted"
-            >
-              <span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[12px] font-semibold text-primary">{{ initials(booking.attendeeName) }}</span>
-              <div class="min-w-0 flex-1"><p class="truncate text-[14px] font-semibold text-highlighted">{{ booking.eventTitle }}</p><p class="mt-0.5 truncate text-[12px] text-muted">{{ booking.attendeeName }} · {{ when(booking.startsAt) }}</p></div>
-              <UIcon
-                name="i-lucide-chevron-right"
-                class="size-4 shrink-0 text-dimmed"
-              />
-            </NuxtLink>
-          </li>
-        </ul>
-        <ListEmptyState
-          v-else
-          icon="i-lucide-calendar-plus"
-          title="Your calendar is clear"
-          description="Share your booking link or preview the guest experience before you send it."
-        >
-          <template #action>
-            <UButton
-              :to="`/${user?.username}`"
-              target="_blank"
-              color="neutral"
-              variant="outline"
-              trailing-icon="i-lucide-external-link"
-            >
-              Preview your page
-            </UButton>
-          </template>
-        </ListEmptyState>
       </section>
 
-      <div class="space-y-5">
-        <section class="overflow-hidden rounded-xl border border-default bg-default">
-          <div class="flex items-center justify-between border-b border-default px-5 py-4">
-            <div>
-              <h2 class="text-[14px] font-semibold text-highlighted">
-                Weekly availability
-              </h2><p class="mt-0.5 text-[11px] text-muted">
-                {{ schedule?.name }} · {{ schedule?.timeZone?.replace(/_/g, ' ') }}
-              </p>
-            </div><UButton
-              to="/availability"
-              color="neutral"
-              variant="ghost"
-              size="xs"
-              icon="i-lucide-pencil"
-              class="size-7 justify-center p-0"
-              :ui="{ leadingIcon: 'size-4' }"
-              aria-label="Edit availability"
+      <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div
+          v-for="stat in stats"
+          :key="stat.label"
+          class="rounded-xl border border-default bg-default px-4 py-4 sm:px-5"
+        >
+          <div class="flex items-center justify-between gap-3">
+            <p class="text-[12px] font-medium text-muted">
+              {{ stat.label }}
+            </p><UIcon
+              :name="stat.icon"
+              class="size-4 text-dimmed"
             />
           </div>
-          <div class="grid grid-cols-7 gap-1 px-4 py-5">
-            <div
-              v-for="day in scheduleDays"
-              :key="day.label"
-              class="text-center"
-            >
-              <span class="text-[9px] font-semibold uppercase tracking-wide text-dimmed">{{ day.label }}</span><span
-                class="mx-auto mt-2 flex size-8 items-center justify-center rounded-lg text-[10px] font-medium"
-                :class="day.rules.length ? 'bg-primary/10 text-primary' : 'bg-muted text-dimmed'"
-              >{{ day.rules.length ? day.rules.length : '—' }}</span>
-            </div>
-          </div>
-          <p class="border-t border-default bg-muted px-4 py-3 text-[11px] leading-relaxed text-muted">
-            Numbers show how many availability windows are open each day.
+          <p class="tnum mt-3 text-[27px] font-semibold leading-none text-highlighted">
+            {{ stat.value }}
           </p>
+          <p class="mt-2 hidden text-[11px] text-dimmed sm:block">
+            {{ stat.hint }}
+          </p>
+        </div>
+      </div>
+
+      <div class="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <section class="overflow-hidden rounded-xl border border-default bg-default">
+          <div class="flex items-center justify-between gap-4 border-b border-default px-5 py-4">
+            <div>
+              <h2 class="text-[15px] font-semibold text-highlighted">
+                Next up
+              </h2><p class="mt-0.5 text-[12px] text-muted">
+                The meetings that need your attention first.
+              </p>
+            </div>
+            <UButton
+              to="/bookings"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              trailing-icon="i-lucide-arrow-right"
+            >
+              All bookings
+            </UButton>
+          </div>
+          <ul
+            v-if="nextBookings.length"
+            class="divide-y divide-default"
+          >
+            <li
+              v-for="booking in nextBookings"
+              :key="booking.uid"
+            >
+              <NuxtLink
+                :to="`/booking/${booking.uid}`"
+                class="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-muted"
+              >
+                <span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[12px] font-semibold text-primary">{{ initials(booking.attendeeName) }}</span>
+                <div class="min-w-0 flex-1"><p class="truncate text-[14px] font-semibold text-highlighted">{{ booking.eventTitle }}</p><p class="mt-0.5 truncate text-[12px] text-muted">{{ booking.attendeeName }} · {{ when(booking.startsAt) }}</p></div>
+                <UIcon
+                  name="i-lucide-chevron-right"
+                  class="size-4 shrink-0 text-dimmed"
+                />
+              </NuxtLink>
+            </li>
+          </ul>
+          <ListEmptyState
+            v-else
+            icon="i-lucide-calendar-plus"
+            title="Your calendar is clear"
+            description="Share your booking link or preview the guest experience before you send it."
+          >
+            <template #action>
+              <UButton
+                :to="`/${user?.username}`"
+                target="_blank"
+                color="neutral"
+                variant="outline"
+                trailing-icon="i-lucide-external-link"
+              >
+                Preview your page
+              </UButton>
+            </template>
+          </ListEmptyState>
         </section>
 
-        <section class="rounded-xl border border-default bg-default p-5">
-          <h2 class="text-[14px] font-semibold text-highlighted">
-            Quick actions
-          </h2>
-          <div class="mt-3 grid gap-2">
-            <NuxtLink
-              to="/event-types?create=1"
-              class="flex items-center gap-3 rounded-lg border border-default px-3.5 py-3 text-[13px] font-medium text-highlighted transition-colors hover:border-primary/40 hover:bg-muted"
-            ><UIcon
-              name="i-lucide-plus"
-              class="size-4 text-primary"
-            />New event type<UIcon
-              name="i-lucide-chevron-right"
-              class="ml-auto size-4 text-dimmed"
-            /></NuxtLink>
-            <NuxtLink
-              to="/availability"
-              class="flex items-center gap-3 rounded-lg border border-default px-3.5 py-3 text-[13px] font-medium text-highlighted transition-colors hover:border-primary/40 hover:bg-muted"
-            ><UIcon
-              name="i-lucide-calendar-range"
-              class="size-4 text-primary"
-            />Adjust availability<UIcon
-              name="i-lucide-chevron-right"
-              class="ml-auto size-4 text-dimmed"
-            /></NuxtLink>
-          </div>
-        </section>
+        <div class="space-y-5">
+          <section class="overflow-hidden rounded-xl border border-default bg-default">
+            <div class="flex items-center justify-between border-b border-default px-5 py-4">
+              <div>
+                <h2 class="text-[14px] font-semibold text-highlighted">
+                  Weekly availability
+                </h2><p class="mt-0.5 text-[11px] text-muted">
+                  {{ schedule?.name }} · {{ schedule?.timeZone?.replace(/_/g, ' ') }}
+                </p>
+              </div><UButton
+                to="/availability"
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                icon="i-lucide-pencil"
+                class="size-7 justify-center p-0"
+                :ui="{ leadingIcon: 'size-4' }"
+                aria-label="Edit availability"
+              />
+            </div>
+            <div class="grid grid-cols-7 gap-1 px-4 py-5">
+              <div
+                v-for="day in scheduleDays"
+                :key="day.label"
+                class="text-center"
+              >
+                <span class="text-[9px] font-semibold uppercase tracking-wide text-dimmed">{{ day.label }}</span><span
+                  class="mx-auto mt-2 flex size-8 items-center justify-center rounded-lg text-[10px] font-medium"
+                  :class="day.rules.length ? 'bg-primary/10 text-primary' : 'bg-muted text-dimmed'"
+                >{{ day.rules.length ? day.rules.length : '—' }}</span>
+              </div>
+            </div>
+            <p class="border-t border-default bg-muted px-4 py-3 text-[11px] leading-relaxed text-muted">
+              Numbers show how many availability windows are open each day.
+            </p>
+          </section>
+
+          <section class="rounded-xl border border-default bg-default p-5">
+            <h2 class="text-[14px] font-semibold text-highlighted">
+              Quick actions
+            </h2>
+            <div class="mt-3 grid gap-2">
+              <NuxtLink
+                to="/event-types?create=1"
+                class="flex items-center gap-3 rounded-lg border border-default px-3.5 py-3 text-[13px] font-medium text-highlighted transition-colors hover:border-primary/40 hover:bg-muted"
+              ><UIcon
+                name="i-lucide-plus"
+                class="size-4 text-primary"
+              />New event type<UIcon
+                name="i-lucide-chevron-right"
+                class="ml-auto size-4 text-dimmed"
+              /></NuxtLink>
+              <NuxtLink
+                to="/availability"
+                class="flex items-center gap-3 rounded-lg border border-default px-3.5 py-3 text-[13px] font-medium text-highlighted transition-colors hover:border-primary/40 hover:bg-muted"
+              ><UIcon
+                name="i-lucide-calendar-range"
+                class="size-4 text-primary"
+              />Adjust availability<UIcon
+                name="i-lucide-chevron-right"
+                class="ml-auto size-4 text-dimmed"
+              /></NuxtLink>
+            </div>
+          </section>
+        </div>
       </div>
-    </div>
+    </template>
   </div>
 </template>
