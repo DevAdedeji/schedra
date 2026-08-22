@@ -93,7 +93,8 @@ export const createBookingSchema = z.object({
   name: z.string().trim().min(1, 'Please give a name').max(80),
   email: emailSchema,
   timeZone: z.string().trim().min(1).max(64),
-  notes: z.string().trim().max(2000).optional()
+  notes: z.string().trim().max(2000).optional(),
+  rescheduleOf: z.string().trim().max(64).optional()
 })
 
 export type CreateBookingInput = z.infer<typeof createBookingSchema>
@@ -105,3 +106,9 @@ export const updateProfileSchema = z.object({
 })
 
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>
+
+export const cancelBookingSchema = z.object({
+  reason: z.string().trim().max(500).optional()
+})
+
+export type CancelBookingInput = z.infer<typeof cancelBookingSchema>

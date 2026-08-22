@@ -1,3 +1,4 @@
+import type { ManagedBooking } from './booking-manage'
 import { sendEmail } from './email'
 import { useEnv } from './env'
 
@@ -57,6 +58,35 @@ export async function sendBookingEmails(booking: BookingNotice) {
   for (const result of results) {
     if (result.status === 'rejected') {
       console.error(`[booking ${booking.uid}] email failed:`, result.reason)
+    }
+  }
+}
+
+export async function sendCancellationEmails(booking: ManagedBooking, reason?: string) {
+  const because = reason ? ` Reason given: ${reason}` : ''
+
+  const results = await Promise.allSettled([
+    sendEmail({
+      to: booking.attendeeEmail,
+      subject: `Cancelled: ${booking.eventTitle} with ${booking.hostName}`,
+      heading: 'That meeting is cancelled',
+      body: `${when(booking.startsAt.toISOString(), booking.attendeeTimeZone)} is no longer happening.${because}`,
+      action: { label: `Book another time`, url: `${useEnv().schedraUrl}/${booking.hostUsername}` },
+      footer: 'Nothing further is needed from you.'
+    }),
+    sendEmail({
+      to: booking.hostEmail,
+      subject: `Cancelled: ${booking.eventTitle}`,
+      heading: `${booking.attendeeName} cancelled`,
+      body: `${when(booking.startsAt.toISOString(), booking.hostTimeZone)} is free again.${because}`,
+      action: { label: 'See your bookings', url: `${useEnv().schedraUrl}/dashboard` },
+      footer: `Guest email: ${booking.attendeeEmail}`
+    })
+  ])
+
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      console.error(`[booking ${booking.uid}] cancellation email failed:`, result.reason)
     }
   }
 }

@@ -1,7 +1,9 @@
 import { createBookingSchema } from '#shared/validation'
+import { eq } from 'drizzle-orm'
 import { bookings } from '../database/schema'
 import { useDatabase } from '../utils/database'
 import { findPublicEventType, slotsFor } from '../utils/booking-page'
+import { findBookingByUid } from '../utils/booking-manage'
 import { sendBookingEmails } from '../utils/booking-emails'
 
 const SLOT_TAKEN = '23P01'
@@ -16,7 +18,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const { username, slug, start, name, email, timeZone, notes } = parsed.data
+  const { username, slug, start, name, email, timeZone, notes, rescheduleOf } = parsed.data
   const eventType = await findPublicEventType(username, slug)
 
   if (!eventType) {
@@ -41,19 +43,38 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 409, statusMessage: 'That time is no longer available.' })
   }
 
+  const previous = rescheduleOf ? await findBookingByUid(rescheduleOf) : null
+
+  if (rescheduleOf && !previous) {
+    throw createError({ statusCode: 404, statusMessage: 'No such booking to move' })
+  }
+
   const uid = crypto.randomUUID()
 
   try {
-    await useDatabase().insert(bookings).values({
-      eventTypeId: eventType.id,
-      hostId: eventType.hostId,
-      uid,
-      startsAt: new Date(slot.start),
-      endsAt: new Date(slot.end),
-      attendeeName: name,
-      attendeeEmail: email,
-      attendeeTimeZone: timeZone,
-      answers: notes ? { notes } : null
+    // One transaction: cancelling the old slot and taking the new one must
+    // either both happen or neither, or a guest can lose their time and get
+    // nothing back.
+    await useDatabase().transaction(async (tx) => {
+      if (previous && previous.status !== 'cancelled') {
+        await tx
+          .update(bookings)
+          .set({ status: 'cancelled', cancellationReason: 'Moved to another time', updatedAt: new Date() })
+          .where(eq(bookings.id, previous.id))
+      }
+
+      await tx.insert(bookings).values({
+        eventTypeId: eventType.id,
+        hostId: eventType.hostId,
+        uid,
+        startsAt: new Date(slot.start),
+        endsAt: new Date(slot.end),
+        attendeeName: name,
+        attendeeEmail: email,
+        attendeeTimeZone: timeZone,
+        answers: notes ? { notes } : null,
+        rescheduledFromId: previous?.id ?? null
+      })
     })
   } catch (error) {
     // Postgres rejected an overlap, which means someone else won the race.
@@ -76,5 +97,5 @@ export default defineEventHandler(async (event) => {
     endsAt: slot.end
   })
 
-  return { uid, start: slot.start, end: slot.end }
+  return { uid, start: slot.start, end: slot.end, moved: Boolean(previous) }
 })

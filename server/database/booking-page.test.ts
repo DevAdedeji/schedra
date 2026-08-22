@@ -139,4 +139,50 @@ describe.skipIf(!url)('public booking page', () => {
     expect(after).toHaveLength(before.length - 1)
     expect(after.map(s => s.start)).not.toContain(before[0]!.start)
   })
+
+  it('offers a slot again once its booking is cancelled', async () => {
+    await signUp()
+    const { findPublicEventType, slotsFor } = await import('../utils/booking-page')
+    const event = (await findPublicEventType('ada', '30min'))!
+
+    const before = await slotsFor(event, '2026-09-07', '2026-09-07', '2026-09-01T00:00:00Z')
+
+    await sql`
+      insert into bookings (event_type_id, host_id, uid, starts_at, ends_at,
+                            attendee_name, attendee_email, attendee_time_zone)
+      values (${event.id}, ${event.hostId}, 'cancel-me',
+              ${before[0]!.start}, ${before[0]!.end},
+              'Grace', 'grace@example.com', 'Europe/London')
+    `
+    const taken = await slotsFor(event, '2026-09-07', '2026-09-07', '2026-09-01T00:00:00Z')
+    expect(taken).toHaveLength(before.length - 1)
+
+    await sql`update bookings set status = 'cancelled' where uid = 'cancel-me'`
+
+    const freed = await slotsFor(event, '2026-09-07', '2026-09-07', '2026-09-01T00:00:00Z')
+    expect(freed).toHaveLength(before.length)
+    expect(freed.map(s => s.start)).toContain(before[0]!.start)
+  })
+
+  it('finds a booking by its opaque uid, and nothing by a wrong one', async () => {
+    await signUp()
+    const { findPublicEventType } = await import('../utils/booking-page')
+    const { findBookingByUid } = await import('../utils/booking-manage')
+    const event = (await findPublicEventType('ada', '30min'))!
+
+    await sql`
+      insert into bookings (event_type_id, host_id, uid, starts_at, ends_at,
+                            attendee_name, attendee_email, attendee_time_zone)
+      values (${event.id}, ${event.hostId}, 'known-uid',
+              '2026-09-07T09:00:00Z', '2026-09-07T09:30:00Z',
+              'Grace', 'grace@example.com', 'Europe/London')
+    `
+
+    const found = await findBookingByUid('known-uid')
+    expect(found?.attendeeName).toBe('Grace')
+    expect(found?.hostUsername).toBe('ada')
+    expect(found?.eventTitle).toBe('30 Minute Meeting')
+
+    expect(await findBookingByUid('not-a-real-uid')).toBeNull()
+  })
 })

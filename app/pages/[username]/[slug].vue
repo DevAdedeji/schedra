@@ -4,6 +4,10 @@ definePageMeta({ layout: 'bare' })
 const route = useRoute()
 const username = String(route.params.username)
 const slug = String(route.params.slug)
+const rescheduleOf = computed(() => {
+  const value = route.query.reschedule
+  return typeof value === 'string' && value ? value : undefined
+})
 
 const viewerTimeZone = ref('UTC')
 const weekOffset = ref(0)
@@ -103,7 +107,8 @@ async function confirm() {
         name: booking.name,
         email: booking.email,
         timeZone: viewerTimeZone.value,
-        notes: booking.notes || undefined
+        notes: booking.notes || undefined,
+        rescheduleOf: rescheduleOf.value
       }
     })
     confirmed.value = { start: result.start }
