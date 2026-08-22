@@ -15,8 +15,8 @@ const links = [
   { label: 'Availability', to: '/availability', icon: 'i-lucide-clock' }
 ]
 
-const open = ref(false)
 const leaving = ref(false)
+const route = useRoute()
 
 async function leave() {
   leaving.value = true
@@ -46,6 +46,28 @@ const menu = computed(() => [
   }],
   [{ label: 'Sign out', icon: 'i-lucide-log-out', onSelect: leave }]
 ])
+
+const mobileMenu = computed(() => [
+  menu.value[0]!,
+  links.map(link => ({ ...link, active: route.path === link.to })),
+  ...menu.value.slice(1)
+])
+
+const menuUi = {
+  content: 'w-56',
+  label: 'px-2.5 py-2 text-[13px]',
+  item: 'items-center gap-2 px-2.5 py-2 text-[13px]',
+  itemLeadingIcon: 'size-3.5',
+  itemLabel: 'flex w-full min-w-0 items-center gap-2',
+  itemLabelExternalIcon: 'ml-auto size-3.5 shrink-0 text-dimmed',
+  itemTrailingIcon: 'size-3.5',
+  itemDescription: 'text-[11px]'
+}
+
+const mobileMenuUi = {
+  ...menuUi,
+  content: 'w-72 max-w-[calc(100vw-2rem)]'
+}
 </script>
 
 <template>
@@ -82,7 +104,7 @@ const menu = computed(() => [
       <div class="p-3">
         <UDropdownMenu
           :items="menu"
-          :ui="{ content: 'w-56' }"
+          :ui="menuUi"
           :content="{ side: 'top', align: 'start' }"
         >
           <button
@@ -90,7 +112,7 @@ const menu = computed(() => [
             class="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-muted"
             :disabled="leaving"
           >
-            <span class="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-[12px] font-semibold text-white">
+            <span class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-[11px] font-semibold text-primary">
               {{ initials }}
             </span>
             <span class="min-w-0 flex-1">
@@ -106,58 +128,36 @@ const menu = computed(() => [
       </div>
     </aside>
 
-    <header class="sticky top-0 z-40 border-b border-default bg-default lg:hidden">
-      <div class="flex h-14 items-center justify-between px-5">
+    <header class="sticky top-0 z-40 border-b border-default bg-default/95 backdrop-blur lg:hidden">
+      <div class="flex h-16 items-center justify-between px-4 sm:px-5">
         <NuxtLink
           to="/dashboard"
           aria-label="Schedra"
         >
           <SchedraMark />
         </NuxtLink>
-        <div class="flex items-center gap-2">
-          <UDropdownMenu
-            :items="menu"
-            :ui="{ content: 'w-56' }"
-          >
-            <button
-              type="button"
-              class="flex size-11 items-center justify-center rounded-full bg-primary text-[12px] font-semibold text-white"
-              aria-label="Account"
-            >
-              {{ initials }}
-            </button>
-          </UDropdownMenu>
-          <UButton
-            color="neutral"
-            variant="ghost"
-            size="sm"
-            class="size-11 justify-center"
-            :icon="open ? 'i-lucide-x' : 'i-lucide-menu'"
-            aria-label="Menu"
-            @click="open = !open"
-          />
-        </div>
-      </div>
-
-      <nav
-        v-if="open"
-        class="border-t border-default px-3 py-2"
-      >
-        <NuxtLink
-          v-for="link in links"
-          :key="link.to"
-          :to="link.to"
-          class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] font-medium"
-          :class="$route.path === link.to ? 'bg-elevated text-highlighted' : 'text-muted'"
-          @click="open = false"
+        <UDropdownMenu
+          :items="mobileMenu"
+          :ui="mobileMenuUi"
+          :content="{ align: 'end', side: 'bottom', sideOffset: 8 }"
         >
-          <UIcon
-            :name="link.icon"
-            class="size-4 shrink-0"
-          />
-          {{ link.label }}
-        </NuxtLink>
-      </nav>
+          <button
+            type="button"
+            class="flex h-11 items-center rounded-xl border border-default bg-muted/60 p-1 shadow-sm transition-colors hover:bg-elevated focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            aria-label="Open navigation and account menu"
+            :disabled="leaving"
+          >
+            <span class="flex size-8 items-center justify-center rounded-lg bg-primary/15 text-[11px] font-semibold text-primary">
+              {{ initials }}
+            </span>
+            <span class="mx-1.5 h-5 w-px bg-border" />
+            <UIcon
+              name="i-lucide-menu"
+              class="mr-1 size-4.5 text-muted"
+            />
+          </button>
+        </UDropdownMenu>
+      </div>
     </header>
 
     <main class="px-5 py-8 sm:px-8 sm:py-10">

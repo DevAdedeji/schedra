@@ -24,19 +24,20 @@ function clientAddress(event: H3Event) {
 
 export async function enforceRateLimit(event: H3Event, options: RateLimitOptions) {
   const now = new Date()
-  const expiresAt = new Date(now.getTime() + options.windowSeconds * 1000)
   const source = [options.namespace, options.identity ?? '', clientAddress(event)].join(':')
   const key = createHmac('sha256', useEnv().authSecret).update(source).digest('hex')
+  const databaseNow = sql`now()`
+  const databaseExpiry = sql`now() + (${options.windowSeconds} * interval '1 second')`
 
   const [bucket] = await useDatabase()
     .insert(apiRateLimits)
-    .values({ key, windowStart: now, requestCount: 1, expiresAt })
+    .values({ key, windowStart: databaseNow, requestCount: 1, expiresAt: databaseExpiry })
     .onConflictDoUpdate({
       target: apiRateLimits.key,
       set: {
-        requestCount: sql`case when ${apiRateLimits.expiresAt} <= ${now} then 1 else ${apiRateLimits.requestCount} + 1 end`,
-        windowStart: sql`case when ${apiRateLimits.expiresAt} <= ${now} then ${now} else ${apiRateLimits.windowStart} end`,
-        expiresAt: sql`case when ${apiRateLimits.expiresAt} <= ${now} then ${expiresAt} else ${apiRateLimits.expiresAt} end`
+        requestCount: sql`case when ${apiRateLimits.expiresAt} <= ${databaseNow} then 1 else ${apiRateLimits.requestCount} + 1 end`,
+        windowStart: sql`case when ${apiRateLimits.expiresAt} <= ${databaseNow} then ${databaseNow} else ${apiRateLimits.windowStart} end`,
+        expiresAt: sql`case when ${apiRateLimits.expiresAt} <= ${databaseNow} then ${databaseExpiry} else ${apiRateLimits.expiresAt} end`
       }
     })
     .returning({ requestCount: apiRateLimits.requestCount, expiresAt: apiRateLimits.expiresAt })
