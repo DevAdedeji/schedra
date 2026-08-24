@@ -46,6 +46,14 @@ const { data, status, error, refresh } = await useFetch('/api/availability', {
 })
 
 const { data: page } = await useFetch(`/api/booking-page/${username}/${slug}`)
+const rescheduleBooking = ref<{
+  attendeeName: string
+  attendeeEmail: string
+} | null>(null)
+if (rescheduleOf.value) {
+  rescheduleBooking.value = await $fetch(`/api/booking/${rescheduleOf.value}`)
+    .catch(() => null)
+}
 
 const slotsByDate = computed(() => {
   const grouped = new Map<string, string[]>()
@@ -94,9 +102,19 @@ const longSelected = computed(() => selectedDate.value
   : '')
 
 const booking = reactive({ name: '', email: '', notes: '' })
+if (rescheduleBooking.value) {
+  booking.name = rescheduleBooking.value.attendeeName
+  booking.email = rescheduleBooking.value.attendeeEmail
+}
 const submitting = ref(false)
 const bookingError = ref('')
-const confirmed = ref<{ start: string, uid: string } | null>(null)
+const confirmed = ref<{
+  start: string
+  uid: string
+  locationType: string
+  locationDetails: string
+  meetingUrl: string | null
+} | null>(null)
 
 const confirmedWhen = computed(() => confirmed.value
   ? new Intl.DateTimeFormat('en', {
@@ -109,6 +127,26 @@ const confirmedWhen = computed(() => confirmed.value
       timeZone: viewerTimeZone.value
     }).format(new Date(confirmed.value.start))
   : '')
+
+function locationLabel(type?: string) {
+  return ({
+    google_meet: 'Google Meet',
+    video_link: 'Video call',
+    phone: 'Phone call',
+    in_person: 'In person',
+    custom: 'Meeting details'
+  } as Record<string, string>)[type ?? ''] ?? 'Meeting details'
+}
+
+function locationIcon(type?: string) {
+  return ({
+    google_meet: 'i-simple-icons-googlemeet',
+    video_link: 'i-lucide-video',
+    phone: 'i-lucide-phone',
+    in_person: 'i-lucide-map-pin',
+    custom: 'i-lucide-message-square-text'
+  } as Record<string, string>)[type ?? ''] ?? 'i-lucide-map-pin'
+}
 
 async function confirm() {
   if (!selectedSlot.value) return
@@ -130,7 +168,13 @@ async function confirm() {
         rescheduleOf: rescheduleOf.value
       }
     })
-    confirmed.value = { start: result.start, uid: result.uid }
+    confirmed.value = {
+      start: result.start,
+      uid: result.uid,
+      locationType: result.locationType,
+      locationDetails: result.locationDetails,
+      meetingUrl: result.meetingUrl
+    }
   } catch (failure) {
     const code = (failure as { statusCode?: number }).statusCode
     bookingError.value = code === 409
@@ -175,6 +219,7 @@ useSeoMeta({
 
         <div
           v-else-if="confirmed"
+          data-testid="booking-confirmation"
           class="rounded-2xl border border-default bg-default px-8 py-16 text-center"
         >
           <div class="mb-6 flex justify-center">
@@ -194,6 +239,30 @@ useSeoMeta({
           <p class="mx-auto mt-4 max-w-sm text-base leading-relaxed text-muted">
             {{ confirmedWhen }}, with {{ page?.hostName }}.
           </p>
+          <div class="mx-auto mt-5 flex max-w-md items-start gap-3 rounded-xl border border-default bg-muted px-4 py-3 text-left">
+            <UIcon
+              :name="locationIcon(confirmed.locationType)"
+              class="mt-0.5 size-4 shrink-0 text-primary"
+            />
+            <div class="min-w-0">
+              <p class="text-[13px] font-medium text-highlighted">
+                {{ locationLabel(confirmed.locationType) }}
+              </p>
+              <a
+                v-if="confirmed.meetingUrl"
+                :href="confirmed.meetingUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="mt-0.5 block truncate text-[12px] text-primary hover:underline"
+              >Join meeting</a>
+              <p
+                v-else
+                class="mt-0.5 text-[12px] leading-relaxed text-muted"
+              >
+                {{ confirmed.locationType === 'google_meet' ? 'Your private join link is being prepared and will appear in the booking details.' : confirmed.locationDetails }}
+              </p>
+            </div>
+          </div>
           <p class="mt-2 text-sm text-dimmed">
             A confirmation will be sent to {{ booking.email }}.
           </p>
@@ -213,6 +282,16 @@ useSeoMeta({
           class="overflow-hidden rounded-2xl border border-default bg-default lg:grid lg:grid-cols-[17rem_1fr]"
         >
           <aside class="border-b border-default px-6 py-7 sm:px-7 lg:border-b-0 lg:border-r">
+            <div
+              v-if="rescheduleOf"
+              class="mb-5 flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2.5 text-[12px] leading-relaxed text-toned"
+            >
+              <UIcon
+                name="i-lucide-calendar-sync"
+                class="mt-0.5 size-3.5 shrink-0 text-primary"
+              />
+              Choose a new time. Your name and email are already filled in.
+            </div>
             <p class="text-sm text-muted">
               {{ page?.hostName }}
             </p>
@@ -228,6 +307,20 @@ useSeoMeta({
                 />
                 {{ page?.durationMinutes }} minutes
               </p>
+              <div class="flex items-start gap-2.5">
+                <UIcon
+                  :name="locationIcon(page?.locationType)"
+                  class="mt-0.5 size-4 shrink-0 text-dimmed"
+                />
+                <div class="min-w-0">
+                  <p class="text-toned">
+                    {{ locationLabel(page?.locationType) }}
+                  </p>
+                  <p class="mt-0.5 text-[12px] leading-relaxed text-muted">
+                    {{ page?.locationDetails }}
+                  </p>
+                </div>
+              </div>
               <div class="flex items-start gap-2.5">
                 <UIcon
                   name="i-lucide-globe"
@@ -285,6 +378,7 @@ useSeoMeta({
               <button
                 v-for="day in days"
                 :key="isoDate(day)"
+                data-testid="booking-day"
                 type="button"
                 class="rounded-lg py-2 text-center transition-colors"
                 :class="selectedDate === isoDate(day)
@@ -337,6 +431,7 @@ useSeoMeta({
                   <button
                     v-for="slot in daySlots"
                     :key="slot"
+                    data-testid="booking-slot"
                     type="button"
                     class="min-h-11 rounded-lg border py-2 text-[13px] font-medium transition-colors"
                     :class="selectedSlot === slot
@@ -360,6 +455,7 @@ useSeoMeta({
 
             <form
               v-if="selectedSlot"
+              data-testid="booking-form"
               class="mt-6 space-y-3 border-t border-default pt-6"
               @submit.prevent="confirm"
             >
@@ -422,7 +518,7 @@ useSeoMeta({
                 :loading="submitting"
                 class="min-h-11 rounded-full font-medium"
               >
-                Confirm booking
+                {{ rescheduleOf ? 'Confirm new time' : 'Confirm booking' }}
               </UButton>
             </form>
           </div>

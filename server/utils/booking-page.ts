@@ -16,6 +16,9 @@ export interface PublicEventType {
   description: string | null
   durationMinutes: number
   scheduleTimeZone: string
+  locationType: 'google_meet' | 'video_link' | 'phone' | 'in_person' | 'custom'
+  locationDetails: string
+  reminderMinutes: number[]
 }
 
 /** `HH:MM:SS` from Postgres `time`, trimmed to what the engine expects. */
@@ -44,6 +47,9 @@ export async function findPublicEventType(username: string, slug: string) {
       minimumNoticeMinutes: eventTypes.minimumNoticeMinutes,
       bookingWindowDays: eventTypes.bookingWindowDays,
       maxPerDay: eventTypes.maxPerDay,
+      locationType: eventTypes.locationType,
+      locationDetails: eventTypes.locationDetails,
+      reminderMinutes: eventTypes.reminderMinutes,
       scheduleId: eventTypes.scheduleId,
       scheduleTimeZone: schedules.timeZone
     })

@@ -161,6 +161,24 @@ export const eventTypeSlugSchema = z
   .refine(value => !value.endsWith('-'), 'Cannot end with a hyphen')
   .refine(value => !value.includes('--'), 'Cannot contain two hyphens in a row')
 
+export const meetingLocationTypeSchema = z.enum([
+  'google_meet',
+  'video_link',
+  'phone',
+  'in_person',
+  'custom'
+])
+
+export type MeetingLocationType = z.infer<typeof meetingLocationTypeSchema>
+
+function isHttpUrl(value: string) {
+  try {
+    return ['http:', 'https:'].includes(new URL(value).protocol)
+  } catch {
+    return false
+  }
+}
+
 export const eventTypeSchema = z.object({
   title: z.string().trim().min(1, 'Required').max(100, 'At most 100 characters'),
   slug: eventTypeSlugSchema,
@@ -172,8 +190,29 @@ export const eventTypeSchema = z.object({
   minimumNoticeMinutes: z.number().int().min(0).max(525_600),
   bookingWindowDays: z.number().int().min(1).max(730).nullable().optional(),
   maxPerDay: z.number().int().min(1).max(100).nullable().optional(),
+  locationType: meetingLocationTypeSchema,
+  locationDetails: z.string().trim().max(500, 'Keep meeting details under 500 characters.'),
+  reminderMinutes: z.array(z.number().int().min(15).max(20_160)).max(5)
+    .transform(values => [...new Set(values)].sort((a, b) => b - a)),
   scheduleId: z.uuid().optional(),
   hidden: z.boolean()
+}).superRefine((value, context) => {
+  if (value.locationType === 'google_meet') return
+  if (!value.locationDetails) {
+    context.addIssue({
+      code: 'custom',
+      path: ['locationDetails'],
+      message: 'Add the meeting link, address or instructions.'
+    })
+    return
+  }
+  if (value.locationType === 'video_link' && !isHttpUrl(value.locationDetails)) {
+    context.addIssue({
+      code: 'custom',
+      path: ['locationDetails'],
+      message: 'Enter a complete link beginning with https:// or http://.'
+    })
+  }
 })
 
 export type EventTypeInput = z.infer<typeof eventTypeSchema>

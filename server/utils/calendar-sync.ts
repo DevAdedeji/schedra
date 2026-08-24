@@ -10,6 +10,7 @@ import { useDatabase } from './database'
 import {
   deleteGoogleCalendarEvent,
   googleConnectionFor,
+  googleEventId,
   upsertGoogleCalendarEvent
 } from './google-calendar'
 
@@ -62,6 +63,9 @@ async function syncBooking(bookingId: string, action: CalendarSyncAction) {
     attendeeName: bookings.attendeeName,
     attendeeEmail: bookings.attendeeEmail,
     answers: bookings.answers,
+    locationType: bookings.locationType,
+    locationDetails: bookings.locationDetails,
+    meetingUrl: bookings.meetingUrl,
     eventTitle: eventTypes.title,
     eventDescription: eventTypes.description
   }).from(bookings)
@@ -80,7 +84,16 @@ async function syncBooking(bookingId: string, action: CalendarSyncAction) {
   if (!connection) return
 
   if (action === 'delete' || booking.status === 'cancelled' || booking.status === 'rejected') {
-    if (!mapping) return
+    if (!mapping) {
+      if (connection.writeCalendarId) {
+        await deleteGoogleCalendarEvent(
+          booking.hostId,
+          connection.writeCalendarId,
+          googleEventId(booking.uid)
+        )
+      }
+      return
+    }
     await deleteGoogleCalendarEvent(booking.hostId, mapping.calendarId, mapping.eventId)
     await db.delete(bookingCalendarEvents).where(eq(bookingCalendarEvents.id, mapping.id))
     return
@@ -107,11 +120,25 @@ async function syncBooking(bookingId: string, action: CalendarSyncAction) {
       endsAt: booking.endsAt,
       attendeeName: booking.attendeeName,
       attendeeEmail: booking.attendeeEmail,
+      locationType: booking.locationType,
+      locationDetails: booking.locationDetails,
+      meetingUrl: booking.meetingUrl,
       notes: typeof booking.answers === 'object' && booking.answers && 'notes' in booking.answers
         ? String(booking.answers.notes)
         : null
     }
   )
+
+  if (booking.locationType === 'google_meet' && !remote.meetingUrl) {
+    throw new Error('Google Meet is still preparing the join link.')
+  }
+
+  if (remote.meetingUrl && remote.meetingUrl !== booking.meetingUrl) {
+    await db.update(bookings).set({
+      meetingUrl: remote.meetingUrl,
+      updatedAt: sql`now()`
+    }).where(eq(bookings.id, booking.id))
+  }
 
   await db.insert(bookingCalendarEvents).values({
     bookingId: booking.id,

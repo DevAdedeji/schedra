@@ -12,6 +12,9 @@ interface BookingRecord {
   attendeeName: string
   attendeeEmail: string
   attendeeTimeZone: string
+  locationType: 'google_meet' | 'video_link' | 'phone' | 'in_person' | 'custom'
+  locationDetails: string
+  meetingUrl: string | null
   eventTitle: string
   notes: string | null
   cancellationReason: string | null
@@ -105,6 +108,14 @@ function time(iso: string) {
 
 function isUpcoming(item: BookingRecord) {
   return item.status !== 'cancelled' && new Date(item.endsAt) >= new Date()
+}
+
+function locationLabel(item: BookingRecord) {
+  if (item.locationType === 'google_meet') return 'Google Meet'
+  if (item.locationType === 'video_link') return 'Video call'
+  if (item.locationType === 'phone') return 'Phone call'
+  if (item.locationType === 'in_person') return 'In person'
+  return 'Meeting details'
 }
 
 const cancelling = ref<string | null>(null)
@@ -257,6 +268,13 @@ async function cancel(uid: string) {
                     <p class="mt-0.5 truncate text-[13px] text-muted">
                       {{ item.attendeeName }} · {{ item.attendeeEmail }}
                     </p>
+                    <p class="mt-1.5 flex items-center gap-1.5 text-[12px] text-muted">
+                      <UIcon
+                        :name="item.locationType === 'in_person' ? 'i-lucide-map-pin' : item.locationType === 'phone' ? 'i-lucide-phone' : 'i-lucide-video'"
+                        class="size-3.5 shrink-0 text-dimmed"
+                      />
+                      <span class="truncate">{{ locationLabel(item) }}<template v-if="item.locationType === 'in_person'"> · {{ item.locationDetails }}</template></span>
+                    </p>
 
                     <p
                       v-if="item.notes"
@@ -267,6 +285,18 @@ async function cancel(uid: string) {
                   </div>
 
                   <div class="flex shrink-0 gap-2">
+                    <UButton
+                      v-if="isUpcoming(item) && item.meetingUrl"
+                      :to="item.meetingUrl"
+                      target="_blank"
+                      color="neutral"
+                      variant="outline"
+                      size="sm"
+                      trailing-icon="i-lucide-external-link"
+                      class="font-medium"
+                    >
+                      Join
+                    </UButton>
                     <UButton
                       :to="`/booking/${item.uid}`"
                       color="neutral"

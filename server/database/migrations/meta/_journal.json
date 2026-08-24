@@ -50,6 +50,13 @@
       "when": 1787394394015,
       "tag": "0006_loving_frightful_four",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787587348374,
+      "tag": "0007_meeting_delivery",
+      "breakpoints": true
     }
   ]
 }
