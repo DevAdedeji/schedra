@@ -22,6 +22,7 @@ const deleteOpen = ref(false)
 const deletingItem = ref<EventTypeRecord | null>(null)
 const deleting = ref(false)
 const deleteError = ref('')
+const duplicating = ref<string | null>(null)
 
 const filters = [
   { value: 'all', label: 'All' },
@@ -94,6 +95,22 @@ async function confirmDelete() {
 async function saved(action: 'created' | 'updated') {
   await refresh()
   feedback.success({ title: action === 'created' ? 'Event type created' : 'Event type updated' })
+}
+
+async function duplicate(item: EventTypeRecord) {
+  duplicating.value = item.id
+  try {
+    await eventTypesApi.duplicate(item.id)
+    await refresh()
+    feedback.success({
+      title: 'Event type duplicated',
+      description: 'The copy is hidden until you review and publish it.'
+    })
+  } catch (failure) {
+    feedback.error({ title: 'Could not duplicate event type', description: apiErrorMessage(failure, 'Try again shortly.') })
+  } finally {
+    duplicating.value = null
+  }
 }
 
 function bookingPath(item: EventTypeRecord) {
@@ -277,6 +294,13 @@ function locationLabel(item: EventTypeRecord) {
                       name="i-lucide-bell"
                       class="size-3.5 text-dimmed"
                     />{{ item.reminderMinutes.length }} reminder{{ item.reminderMinutes.length === 1 ? '' : 's' }}</span>
+                    <span
+                      v-if="item.requiresConfirmation"
+                      class="flex items-center gap-1.5"
+                    ><UIcon
+                      name="i-lucide-shield-question"
+                      class="size-3.5 text-dimmed"
+                    />Approval required</span>
                   </div>
                   <p class="mt-3 truncate font-mono text-[11px] text-dimmed">
                     {{ host }}{{ bookingPath(item) }}
@@ -298,6 +322,17 @@ function locationLabel(item: EventTypeRecord) {
                 :ui="{ leadingIcon: 'size-4' }"
                 aria-label="Preview booking page"
                 @click.stop
+              />
+              <UButton
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                icon="i-lucide-copy"
+                class="size-7 justify-center p-0"
+                :loading="duplicating === item.id"
+                :ui="{ leadingIcon: 'size-4' }"
+                aria-label="Duplicate event type"
+                @click.stop="duplicate(item)"
               />
               <UButton
                 color="neutral"

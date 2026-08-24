@@ -1,16 +1,19 @@
 import type { ManagedBooking } from './booking-manage'
-import { enqueueEmails, type EmailInsertExecutor } from './email-outbox'
+import { emailDedupeKey, enqueueEmails, type EmailInsertExecutor } from './email-outbox'
 import { useEnv } from './env'
 import type { BookingAnswer, MeetingLocationType } from '#shared/validation'
+import { readBookingAnswers } from './booking-answers'
 
 export interface BookingNotice {
   uid: string
   eventTitle: string
   hostName: string
   hostEmail: string
+  hostUsername: string
   hostTimeZone: string
   attendeeName: string
   attendeeEmail: string
+  additionalGuestEmails: string[]
   attendeeTimeZone: string
   startsAt: string
   endsAt: string
@@ -20,6 +23,30 @@ export interface BookingNotice {
   reminderMinutes: number[]
   answers?: BookingAnswer[]
   notes?: string | null
+}
+
+export function bookingNoticeFromManaged(booking: ManagedBooking): BookingNotice {
+  const answers = readBookingAnswers(booking.answers)
+  return {
+    uid: booking.uid,
+    eventTitle: booking.eventTitle,
+    hostName: booking.hostName,
+    hostEmail: booking.hostEmail,
+    hostUsername: booking.hostUsername,
+    hostTimeZone: booking.hostTimeZone,
+    attendeeName: booking.attendeeName,
+    attendeeEmail: booking.attendeeEmail,
+    additionalGuestEmails: booking.additionalGuestEmails,
+    attendeeTimeZone: booking.attendeeTimeZone,
+    startsAt: booking.startsAt.toISOString(),
+    endsAt: booking.endsAt.toISOString(),
+    locationType: booking.locationType,
+    locationDetails: booking.locationDetails,
+    meetingUrl: booking.meetingUrl,
+    reminderMinutes: booking.reminderMinutes,
+    answers: answers.responses,
+    notes: answers.notes
+  }
 }
 
 function whenRange(startsAt: string, endsAt: string, timeZone: string) {
@@ -56,12 +83,16 @@ export function meetingLocationText(
 
 export async function queueBookingEmails(booking: BookingNotice, executor?: EmailInsertExecutor) {
   const manage = `${useEnv().schedraUrl}/booking/${booking.uid}`
+  const hostPage = `${useEnv().schedraUrl}/${booking.hostUsername}`
+  const recipients = [booking.attendeeEmail, ...booking.additionalGuestEmails]
 
   await enqueueEmails([
-    {
-      dedupeKey: `booking:${booking.uid}:created:guest`,
+    ...recipients.map((recipient, index) => ({
+      dedupeKey: index === 0
+        ? `booking:${booking.uid}:created:guest`
+        : emailDedupeKey(`booking:${booking.uid}:created:additional`, recipient),
       email: {
-        to: booking.attendeeEmail,
+        to: recipient,
         subject: `Confirmed: ${booking.eventTitle} with ${booking.hostName}`,
         preheader: `${booking.eventTitle} is confirmed with ${booking.hostName}.`,
         heading: 'You are booked',
@@ -76,10 +107,14 @@ export async function queueBookingEmails(booking: BookingNotice, executor?: Emai
             url: locationUrl(booking.locationType, booking.locationDetails, booking.meetingUrl)
           }
         ],
-        action: { label: 'View details or add to calendar', url: manage },
-        footer: 'Plans change. You can reschedule or cancel from the booking page without contacting the host.'
+        action: index === 0
+          ? { label: 'View details or add to calendar', url: manage }
+          : { label: 'View the host’s booking page', url: hostPage },
+        footer: index === 0
+          ? 'Plans change. You can reschedule or cancel from the booking page without contacting the host.'
+          : 'The person who made the booking can reschedule or cancel it. You will receive any updates automatically.'
       }
-    },
+    })),
     {
       dedupeKey: `booking:${booking.uid}:created:host`,
       email: {
@@ -93,6 +128,9 @@ export async function queueBookingEmails(booking: BookingNotice, executor?: Emai
           { label: 'When', value: whenRange(booking.startsAt, booking.endsAt, booking.hostTimeZone) },
           { label: 'Guest', value: booking.attendeeName },
           { label: 'Guest email', value: booking.attendeeEmail },
+          ...(booking.additionalGuestEmails.length
+            ? [{ label: 'Additional guests', value: booking.additionalGuestEmails.join(', ') }]
+            : []),
           ...(booking.answers ?? []).map(answer => ({ label: answer.label, value: answer.value })),
           ...(booking.notes ? [{ label: 'Notes', value: booking.notes }] : []),
           {
@@ -113,13 +151,15 @@ export async function queueBookingEmails(booking: BookingNotice, executor?: Emai
         : minutes === 1440
           ? 'tomorrow'
           : `in ${Math.round(minutes / 60)} hours`
-      return [{
-        dedupeKey: `booking:${booking.uid}:reminder:${minutes}:guest`,
+      return recipients.map((recipient, index) => ({
+        dedupeKey: index === 0
+          ? `booking:${booking.uid}:reminder:${minutes}:guest`
+          : emailDedupeKey(`booking:${booking.uid}:reminder:${minutes}:additional`, recipient),
         bookingUid: booking.uid,
         category: 'booking_reminder' as const,
         availableAt,
         email: {
-          to: booking.attendeeEmail,
+          to: recipient,
           subject: `Reminder: ${booking.eventTitle} is ${timing}`,
           preheader: `${booking.eventTitle} with ${booking.hostName} is ${timing}.`,
           heading: `Your meeting is ${timing}`,
@@ -134,12 +174,94 @@ export async function queueBookingEmails(booking: BookingNotice, executor?: Emai
               url: locationUrl(booking.locationType, booking.locationDetails, booking.meetingUrl)
             }
           ],
-          action: { label: 'View or join the meeting', url: manage },
-          footer: 'Need a different time? You can reschedule or cancel from the booking page.'
+          action: index === 0
+            ? { label: 'View or join the meeting', url: manage }
+            : { label: 'View the host’s booking page', url: hostPage },
+          footer: index === 0
+            ? 'Need a different time? You can reschedule or cancel from the booking page.'
+            : 'The person who made the booking manages changes for everyone invited.'
         }
-      }]
+      }))
     })
   ], executor)
+}
+
+export async function queueBookingRequestEmails(booking: BookingNotice, executor?: EmailInsertExecutor) {
+  const manage = `${useEnv().schedraUrl}/booking/${booking.uid}`
+  const recipients = [booking.attendeeEmail, ...booking.additionalGuestEmails]
+  const guestDetails = [
+    { label: 'Meeting', value: booking.eventTitle },
+    { label: 'Requested time', value: whenRange(booking.startsAt, booking.endsAt, booking.attendeeTimeZone) },
+    { label: 'With', value: booking.hostName }
+  ]
+
+  await enqueueEmails([
+    ...recipients.map((recipient, index) => ({
+      dedupeKey: index === 0
+        ? `booking:${booking.uid}:requested:guest`
+        : emailDedupeKey(`booking:${booking.uid}:requested:additional`, recipient),
+      email: {
+        to: recipient,
+        subject: `Request sent: ${booking.eventTitle} with ${booking.hostName}`,
+        preheader: `${booking.hostName} will review this booking request.`,
+        heading: 'Your request is with the host',
+        body: `${booking.hostName} will review the requested time. It is being held so nobody else can take it while you wait.`,
+        details: guestDetails,
+        action: index === 0
+          ? { label: 'View or change the request', url: manage }
+          : { label: 'View the host’s booking page', url: `${useEnv().schedraUrl}/${booking.hostUsername}` },
+        footer: 'You will receive another email as soon as the host approves or declines the request.'
+      }
+    })),
+    {
+      dedupeKey: `booking:${booking.uid}:requested:host`,
+      email: {
+        to: booking.hostEmail,
+        subject: `Approval needed: ${booking.eventTitle}`,
+        preheader: `${booking.attendeeName} requested ${booking.eventTitle}.`,
+        heading: `${booking.attendeeName} requested a meeting`,
+        body: 'The requested time is reserved until you approve or decline it. Review the guest details below before responding.',
+        details: [
+          { label: 'Meeting', value: booking.eventTitle },
+          { label: 'When', value: whenRange(booking.startsAt, booking.endsAt, booking.hostTimeZone) },
+          { label: 'Guest', value: booking.attendeeName },
+          { label: 'Guest email', value: booking.attendeeEmail },
+          ...(booking.additionalGuestEmails.length ? [{ label: 'Additional guests', value: booking.additionalGuestEmails.join(', ') }] : []),
+          ...(booking.answers ?? []).map(answer => ({ label: answer.label, value: answer.value })),
+          ...(booking.notes ? [{ label: 'Notes', value: booking.notes }] : [])
+        ],
+        action: { label: 'Review booking request', url: manage },
+        footer: 'Declining the request releases the time immediately.'
+      }
+    }
+  ], executor)
+}
+
+export async function queueBookingRejectedEmails(
+  booking: ManagedBooking,
+  reason?: string,
+  executor?: EmailInsertExecutor
+) {
+  const recipients = [booking.attendeeEmail, ...booking.additionalGuestEmails]
+  await enqueueEmails(recipients.map((recipient, index) => ({
+    dedupeKey: index === 0
+      ? `booking:${booking.uid}:rejected:guest`
+      : emailDedupeKey(`booking:${booking.uid}:rejected:additional`, recipient),
+    email: {
+      to: recipient,
+      subject: `Booking request declined: ${booking.eventTitle}`,
+      preheader: `${booking.hostName} could not confirm the requested time.`,
+      heading: 'That time was not confirmed',
+      body: `${booking.hostName} could not confirm this booking request. The time has been released and you can choose another available slot.`,
+      details: [
+        { label: 'Meeting', value: booking.eventTitle },
+        { label: 'Requested time', value: whenRange(booking.startsAt.toISOString(), booking.endsAt.toISOString(), booking.attendeeTimeZone) },
+        ...(reason ? [{ label: 'Host’s note', value: reason }] : [])
+      ],
+      action: { label: 'Choose another time', url: `${useEnv().schedraUrl}/${booking.hostUsername}/${booking.eventSlug}` },
+      footer: 'No calendar event was created for this request.'
+    }
+  })), executor)
 }
 
 export async function queueCancellationEmails(
@@ -174,6 +296,24 @@ export async function queueCancellationEmails(
         footer: 'If you still need to meet, choose a new time from the host’s booking page.'
       }
     },
+    ...booking.additionalGuestEmails.map(recipient => ({
+      dedupeKey: emailDedupeKey(`booking:${booking.uid}:cancelled:additional`, recipient),
+      email: {
+        to: recipient,
+        subject: `Cancelled: ${booking.eventTitle} with ${booking.hostName}`,
+        preheader: `${booking.eventTitle} with ${booking.hostName} has been cancelled.`,
+        heading: `${booking.eventTitle} is cancelled`,
+        body: 'This meeting is no longer taking place and no further action is required.',
+        details: [
+          { label: 'Meeting', value: booking.eventTitle },
+          { label: 'Was scheduled', value: whenRange(booking.startsAt.toISOString(), booking.endsAt.toISOString(), booking.attendeeTimeZone) },
+          { label: 'With', value: booking.hostName },
+          ...(reason ? [{ label: 'Reason', value: reason }] : [])
+        ],
+        action: { label: 'View the host’s booking page', url: `${useEnv().schedraUrl}/${booking.hostUsername}` },
+        footer: 'You were included as an additional guest on this booking.'
+      }
+    })),
     {
       dedupeKey: `booking:${booking.uid}:cancelled:host`,
       email: {

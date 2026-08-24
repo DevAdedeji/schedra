@@ -4,8 +4,9 @@ A source-available, self-hostable scheduling platform built around one app conta
 
 > **Status: prelaunch.** Personal booking pages, race-safe booking, weekly
 > availability, timezone conversion, host booking management, cancellation,
-> rescheduling, custom guest questions, meeting locations, calendar-file downloads, configurable
-> reminders, durable email delivery and Google Calendar conflict/event/Meet sync
+> rescheduling, additional guests, host approval, custom guest questions,
+> meeting locations, calendar-file downloads, configurable reminders, durable
+> SMTP/Resend email delivery and Google Calendar conflict/event/Meet sync
 > are implemented. Teams, webhooks and embeds are not implemented yet. The
 > homepage slot picker is an explicitly labelled interactive preview.
 
@@ -52,7 +53,11 @@ migrations before starting the server.
 
 Set these in the host's environment: `DATABASE_URL`, `SCHEDRA_URL`,
 `AUTH_SECRET`, and optionally `DIRECT_URL`, `GOOGLE_*`,
-`INTEGRATION_ENCRYPTION_KEY`, `RESEND_API_KEY`, `EMAIL_FROM`.
+`INTEGRATION_ENCRYPTION_KEY`, `SMTP_URL` or `RESEND_API_KEY`, and `EMAIL_FROM`.
+
+`SMTP_URL` takes precedence when both email transports are configured. Staging
+and production require one transport plus an authorized `EMAIL_FROM`; local
+development logs skipped delivery when neither transport is set.
 
 `SCHEDRA_URL` must match the public origin exactly. OAuth callbacks,
 verification and reset links, booking links, canonical tags and `og:image` URLs

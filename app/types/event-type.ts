@@ -16,6 +16,7 @@ export interface EventTypeRecord {
   locationDetails: string
   reminderMinutes: number[]
   bookingQuestions: BookingQuestion[]
+  requiresConfirmation: boolean
   scheduleId: string | null
   scheduleName: string | null
   hidden: boolean

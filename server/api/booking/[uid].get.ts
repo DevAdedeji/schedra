@@ -1,5 +1,6 @@
 import { findBookingByUid } from '../../utils/booking-manage'
 import { readBookingAnswers } from '../../utils/booking-answers'
+import { getAuthSession } from '../../utils/session'
 
 export default defineEventHandler(async (event) => {
   const uid = getRouterParam(event, 'uid')
@@ -15,6 +16,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const answers = readBookingAnswers(booking.answers)
+  const session = await getAuthSession(event)
   return {
     uid: booking.uid,
     status: booking.status,
@@ -23,6 +25,7 @@ export default defineEventHandler(async (event) => {
     attendeeName: booking.attendeeName,
     attendeeEmail: booking.attendeeEmail,
     attendeeTimeZone: booking.attendeeTimeZone,
+    additionalGuestEmails: booking.additionalGuestEmails,
     locationType: booking.locationType,
     locationDetails: booking.locationDetails,
     meetingUrl: booking.meetingUrl,
@@ -33,6 +36,7 @@ export default defineEventHandler(async (event) => {
     hostName: booking.hostName,
     hostUsername: booking.hostUsername,
     notes: answers.notes ?? null,
-    answers: answers.responses
+    answers: answers.responses,
+    canHostManage: session?.user.id === booking.hostId
   }
 })

@@ -107,7 +107,17 @@ useSeoMeta({
               class="flex shrink-0 items-center justify-center rounded-full bg-primary text-xl font-semibold text-white"
               style="width: 64px; height: 64px"
             >
-              {{ initials }}
+              <img
+                v-if="profile?.avatarUrl"
+                :src="profile.avatarUrl"
+                :alt="`${profile.name} profile photo`"
+                width="64"
+                height="64"
+                class="size-full rounded-full object-cover"
+              >
+              <template v-else>
+                {{ initials }}
+              </template>
             </div>
 
             <div class="min-w-0 flex-1 pt-1">

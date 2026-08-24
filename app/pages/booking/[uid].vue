@@ -24,13 +24,17 @@ onMounted(() => {
 
 const cancelling = ref(false)
 const confirming = ref(false)
+const handlingRequest = ref<'approve' | 'reject' | null>(null)
 const reason = ref('')
 const cancelError = ref('')
 
 const cancelled = computed(() => booking.value?.status === 'cancelled')
+const pendingApproval = computed(() => booking.value?.status === 'pending')
+const rejected = computed(() => booking.value?.status === 'rejected')
 const past = computed(() => booking.value ? new Date(booking.value.endsAt) < new Date() : false)
-const joinUrl = computed(() => booking.value?.meetingUrl
-  ?? (booking.value?.locationType === 'video_link' ? booking.value.locationDetails : null))
+const joinUrl = computed(() => booking.value?.status === 'confirmed'
+  ? booking.value.meetingUrl ?? (booking.value.locationType === 'video_link' ? booking.value.locationDetails : null)
+  : null)
 
 const locationPresentation = computed(() => ({
   google_meet: { label: 'Google Meet', icon: 'i-simple-icons-googlemeet' },
@@ -61,6 +65,24 @@ async function cancel() {
     cancelError.value = apiErrorMessage(failure, 'Could not cancel that just now. Please try again.')
   } finally {
     cancelling.value = false
+  }
+}
+
+async function handleRequest(action: 'approve' | 'reject') {
+  handlingRequest.value = action
+  cancelError.value = ''
+  try {
+    if (action === 'approve') await bookingsApi.approve(uid)
+    else await bookingsApi.reject(uid, reason.value || undefined)
+    await refresh()
+    feedback.success({
+      title: action === 'approve' ? 'Booking approved' : 'Request declined',
+      description: action === 'approve' ? 'The guests have been notified.' : 'The guests have been notified and the time is free again.'
+    })
+  } catch (failure) {
+    cancelError.value = apiErrorMessage(failure, `Could not ${action} this request. Please try again.`)
+  } finally {
+    handlingRequest.value = null
   }
 }
 
@@ -155,17 +177,19 @@ useSeoMeta({
           <div class="px-6 py-7 sm:px-8">
             <span
               class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
-              :class="cancelled
+              :class="cancelled || rejected
                 ? 'bg-elevated text-muted'
-                : past
-                  ? 'bg-elevated text-muted'
-                  : 'bg-primary/10 text-primary'"
+                : pendingApproval
+                  ? 'bg-warning/10 text-warning'
+                  : past
+                    ? 'bg-elevated text-muted'
+                    : 'bg-primary/10 text-primary'"
             >
               <span
                 class="size-1.5 rounded-full"
-                :class="cancelled || past ? 'bg-dimmed' : 'bg-primary'"
+                :class="cancelled || rejected || past ? 'bg-dimmed' : pendingApproval ? 'bg-warning' : 'bg-primary'"
               />
-              {{ cancelled ? 'Cancelled' : past ? 'Finished' : 'Confirmed' }}
+              {{ cancelled ? 'Cancelled' : rejected ? 'Declined' : pendingApproval ? 'Awaiting approval' : past ? 'Finished' : 'Confirmed' }}
             </span>
 
             <h1 class="mt-4 font-editorial text-3xl leading-tight text-highlighted">
@@ -225,9 +249,31 @@ useSeoMeta({
                 <dd class="min-w-0 text-toned">
                   <span class="block">{{ booking?.attendeeName }}</span>
                   <span class="block truncate text-[13px] text-muted">{{ booking?.attendeeEmail }}</span>
+                  <span
+                    v-if="booking?.additionalGuestEmails.length"
+                    class="mt-1 block text-[12px] text-muted"
+                  >+ {{ booking.additionalGuestEmails.length }} additional guest{{ booking.additionalGuestEmails.length === 1 ? '' : 's' }}</span>
                 </dd>
               </div>
             </dl>
+
+            <div
+              v-if="booking?.additionalGuestEmails.length"
+              class="mt-5 rounded-lg border border-default bg-muted px-4 py-3"
+            >
+              <p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-dimmed">
+                Additional guests
+              </p>
+              <ul class="mt-2 space-y-1 text-[13px] text-toned">
+                <li
+                  v-for="guestEmail in booking.additionalGuestEmails"
+                  :key="guestEmail"
+                  class="break-all"
+                >
+                  {{ guestEmail }}
+                </li>
+              </ul>
+            </div>
 
             <div
               v-if="booking?.answers.length || booking?.notes"
@@ -272,13 +318,46 @@ useSeoMeta({
           </div>
 
           <div
-            v-if="!cancelled && !past"
+            v-if="!cancelled && !rejected && !past"
             class="border-t border-default px-6 py-6 sm:px-8"
           >
             <template v-if="!confirming">
+              <div
+                v-if="pendingApproval && booking?.canHostManage"
+                class="mb-4 rounded-xl border border-warning/30 bg-warning/5 p-4"
+              >
+                <p class="text-[14px] font-semibold text-highlighted">
+                  This booking needs your approval
+                </p>
+                <p class="mt-1 text-[13px] text-muted">
+                  Approve it to notify the guests and add it to your connected calendar.
+                </p>
+                <div class="mt-4 flex gap-2">
+                  <UButton
+                    :loading="handlingRequest === 'approve'"
+                    @click="handleRequest('approve')"
+                  >
+                    Approve booking
+                  </UButton>
+                  <UButton
+                    color="error"
+                    variant="outline"
+                    :loading="handlingRequest === 'reject'"
+                    @click="handleRequest('reject')"
+                  >
+                    Decline
+                  </UButton>
+                </div>
+              </div>
+              <p
+                v-else-if="pendingApproval"
+                class="mb-4 rounded-xl border border-warning/30 bg-warning/5 px-4 py-3 text-[13px] text-toned"
+              >
+                The host is reviewing this request. You will receive an email when it is approved or declined.
+              </p>
               <div class="mb-3 grid gap-3 sm:grid-cols-2">
                 <UButton
-                  v-if="joinUrl"
+                  v-if="joinUrl && !pendingApproval"
                   :to="joinUrl"
                   target="_blank"
                   trailing-icon="i-lucide-external-link"
@@ -288,6 +367,7 @@ useSeoMeta({
                   Join {{ booking?.locationType === 'google_meet' ? 'Google Meet' : 'meeting' }}
                 </UButton>
                 <UButton
+                  v-if="!pendingApproval"
                   :to="`/api/booking/${uid}/calendar.ics`"
                   external
                   color="neutral"
@@ -301,6 +381,7 @@ useSeoMeta({
               </div>
               <div class="flex flex-col gap-3 sm:flex-row">
                 <UButton
+                  v-if="!pendingApproval"
                   :to="`/${booking?.hostUsername}/${booking?.eventSlug}?reschedule=${uid}`"
                   size="lg"
                   class="justify-center rounded-full font-medium sm:flex-1"
@@ -367,7 +448,7 @@ useSeoMeta({
           </div>
 
           <div
-            v-else-if="cancelled"
+            v-else-if="cancelled || rejected"
             class="border-t border-default px-6 py-6 sm:px-8"
           >
             <UButton

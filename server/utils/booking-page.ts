@@ -3,7 +3,7 @@ import { getAvailableSlots } from '../domain/availability'
 import type { AvailabilityRule, DateOverride, Slot, Weekday } from '../domain/types'
 import { availabilityRules, bookings, dateOverrides, eventTypes, schedules, users } from '../database/schema'
 import { useDatabase } from './database'
-import { googleBusyTimes } from './google-calendar'
+import { calendarBusyTimes } from './calendar-providers'
 import type { BookingQuestion } from '#shared/validation'
 
 export interface PublicEventType {
@@ -21,6 +21,7 @@ export interface PublicEventType {
   locationDetails: string
   reminderMinutes: number[]
   bookingQuestions: BookingQuestion[]
+  requiresConfirmation: boolean
 }
 
 /** `HH:MM:SS` from Postgres `time`, trimmed to what the engine expects. */
@@ -53,6 +54,7 @@ export async function findPublicEventType(username: string, slug: string) {
       locationDetails: eventTypes.locationDetails,
       reminderMinutes: eventTypes.reminderMinutes,
       bookingQuestions: eventTypes.bookingQuestions,
+      requiresConfirmation: eventTypes.requiresConfirmation,
       scheduleId: eventTypes.scheduleId,
       scheduleTimeZone: schedules.timeZone
     })
@@ -110,7 +112,7 @@ export async function slotsFor(event: EventTypeRow, from: string, to: string, no
         lte(bookings.startsAt, new Date(busyTo))
       )),
 
-    googleBusyTimes(event.hostId, busyFrom, busyTo)
+    calendarBusyTimes(event.hostId, busyFrom, busyTo)
   ])
 
   const grouped = new Map<string, DateOverride>()

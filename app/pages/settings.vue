@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { apiErrorMessage, profileApi } from '~/services/schedra-api'
+import { accountApi, apiErrorMessage, profileApi } from '~/services/schedra-api'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 useSeoMeta({ title: 'Settings', robots: 'noindex, nofollow' })
@@ -7,11 +7,19 @@ useSeoMeta({ title: 'Settings', robots: 'noindex, nofollow' })
 const { data } = await useCurrentUser()
 const { host } = useSiteUrl()
 const feedback = useFeedback()
+const { signOut } = useAuthClient()
 const user = computed(() => data.value?.user)
 
 const profile = reactive({ name: '', bio: '' })
 const saving = ref(false)
 const error = ref('')
+const avatarInput = ref<HTMLInputElement | null>(null)
+const uploadingAvatar = ref(false)
+const removingAvatar = ref(false)
+const deleteOpen = ref(false)
+const deletingAccount = ref(false)
+const deleteForm = reactive({ email: '', confirmation: '' })
+const deleteError = ref('')
 
 watchEffect(() => {
   profile.name = user.value?.name ?? ''
@@ -31,6 +39,53 @@ async function save() {
     error.value = apiErrorMessage(failure, 'Could not save that just now.')
   } finally {
     saving.value = false
+  }
+}
+
+async function chooseAvatar(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  uploadingAvatar.value = true
+  error.value = ''
+  try {
+    const result = await profileApi.uploadAvatar(file)
+    if (data.value?.user) data.value = { ...data.value, user: { ...data.value.user, avatarUrl: result.avatarUrl } }
+    feedback.success({ title: 'Photo updated', description: 'Your new photo is visible on your booking page.' })
+  } catch (failure) {
+    error.value = apiErrorMessage(failure, 'Could not upload that photo.')
+  } finally {
+    uploadingAvatar.value = false
+  }
+}
+
+async function removeAvatar() {
+  removingAvatar.value = true
+  error.value = ''
+  try {
+    await profileApi.removeAvatar()
+    if (data.value?.user) data.value = { ...data.value, user: { ...data.value.user, avatarUrl: null } }
+    feedback.success({ title: 'Photo removed' })
+  } catch (failure) {
+    error.value = apiErrorMessage(failure, 'Could not remove your photo.')
+  } finally {
+    removingAvatar.value = false
+  }
+}
+
+async function deleteAccount() {
+  deletingAccount.value = true
+  deleteError.value = ''
+  try {
+    await accountApi.remove({ email: deleteForm.email, confirmation: 'DELETE' })
+    await signOut().catch(() => undefined)
+    clearNuxtData()
+    await navigateTo('/')
+  } catch (failure) {
+    deleteError.value = apiErrorMessage(failure, 'Could not delete your account. Please try again.')
+  } finally {
+    deletingAccount.value = false
   }
 }
 
@@ -59,14 +114,46 @@ const initials = computed(() => (profile.name || '')
         class="space-y-5 px-6 py-6 sm:px-7"
         @submit.prevent="save"
       >
-        <div class="flex items-center gap-4">
-          <span class="flex size-14 shrink-0 items-center justify-center rounded-full bg-primary text-[16px] font-semibold text-white">
-            {{ initials }}
+        <div class="flex flex-wrap items-center gap-4">
+          <span class="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-[16px] font-semibold text-white">
+            <img
+              v-if="user?.avatarUrl"
+              :src="user.avatarUrl"
+              alt=""
+              class="size-full object-cover"
+            >
+            <template v-else>{{ initials }}</template>
           </span>
-          <p class="text-[13px] leading-relaxed text-muted">
-            Your initials stand in for a photo.<br>
-            Avatar uploads are not built yet.
-          </p>
+          <div class="flex flex-wrap gap-2">
+            <input
+              ref="avatarInput"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              class="hidden"
+              @change="chooseAvatar"
+            >
+            <UButton
+              color="neutral"
+              variant="outline"
+              icon="i-lucide-upload"
+              :loading="uploadingAvatar"
+              @click="avatarInput?.click()"
+            >
+              {{ user?.avatarUrl ? 'Replace photo' : 'Upload photo' }}
+            </UButton>
+            <UButton
+              v-if="user?.avatarUrl"
+              color="neutral"
+              variant="ghost"
+              :loading="removingAvatar"
+              @click="removeAvatar"
+            >
+              Remove
+            </UButton>
+            <p class="w-full text-[12px] text-muted">
+              JPG, PNG or WebP. Up to 2 MB.
+            </p>
+          </div>
         </div>
 
         <UFormField
@@ -157,5 +244,103 @@ const initials = computed(() => (profile.name || '')
         </div>
       </dl>
     </section>
+
+    <section class="overflow-hidden rounded-xl border border-default bg-default">
+      <div class="border-b border-default px-6 py-5 sm:px-7">
+        <h2 class="text-[15px] font-semibold text-highlighted">
+          Your data
+        </h2>
+        <p class="mt-1 text-[13px] text-muted">
+          Download a portable copy of your profile, schedules, event types and bookings.
+        </p>
+      </div>
+      <div class="px-6 py-5 sm:px-7">
+        <UButton
+          :to="accountApi.exportUrl"
+          external
+          color="neutral"
+          variant="outline"
+          icon="i-lucide-download"
+        >
+          Download my data
+        </UButton>
+      </div>
+    </section>
+
+    <section class="overflow-hidden rounded-xl border border-error/30 bg-default">
+      <div class="px-6 py-5 sm:px-7 sm:flex sm:items-center sm:justify-between sm:gap-6">
+        <div>
+          <h2 class="text-[15px] font-semibold text-highlighted">
+            Delete account
+          </h2>
+          <p class="mt-1 max-w-xl text-[13px] leading-relaxed text-muted">
+            Permanently removes your booking links, schedules, bookings and connected calendar credentials.
+          </p>
+        </div>
+        <UButton
+          color="error"
+          variant="outline"
+          class="mt-4 shrink-0 sm:mt-0"
+          @click="deleteOpen = true"
+        >
+          Delete account
+        </UButton>
+      </div>
+    </section>
+
+    <UModal
+      v-model:open="deleteOpen"
+      title="Permanently delete your account?"
+      description="This cannot be undone."
+    >
+      <template #body>
+        <div class="space-y-4">
+          <p class="text-[13px] leading-relaxed text-muted">
+            Download your data first if you want to keep a copy. To confirm, enter your email and type DELETE.
+          </p>
+          <UFormField label="Account email">
+            <UInput
+              v-model="deleteForm.email"
+              type="email"
+              class="w-full"
+            />
+          </UFormField>
+          <UFormField label="Type DELETE">
+            <UInput
+              v-model="deleteForm.confirmation"
+              autocomplete="off"
+              class="w-full"
+            />
+          </UFormField>
+          <p
+            v-if="deleteError"
+            role="alert"
+            class="rounded-lg border border-error/30 bg-error/10 px-3.5 py-3 text-[13px] text-error"
+          >
+            {{ deleteError }}
+          </p>
+        </div>
+      </template>
+      <template #footer>
+        <div class="flex w-full justify-end gap-2">
+          <UButton
+            color="neutral"
+            variant="ghost"
+            :disabled="deletingAccount"
+            @click="deleteOpen = false"
+          >
+            Keep account
+          </UButton>
+          <UButton
+            color="error"
+            :disabled="deleteForm.email.toLowerCase() !== user?.email?.toLowerCase() || deleteForm.confirmation !== 'DELETE'"
+            :loading="deletingAccount"
+            @click="deleteAccount"
+          >
+            Delete permanently
+          </UButton>
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>

@@ -83,6 +83,7 @@ function emptyForm(): EventTypeForm {
     locationType: 'custom', locationDetails: 'The host will share meeting details before the meeting.',
     reminderMinutes: [1440, 60],
     bookingQuestions: [],
+    requiresConfirmation: false,
     scheduleId: schedules.value?.items.find(schedule => schedule.isDefault)?.id ?? schedules.value?.items[0]?.id,
     hidden: false
   }
@@ -109,6 +110,7 @@ function loadForm() {
           ...question,
           options: [...question.options]
         })),
+        requiresConfirmation: item.requiresConfirmation,
         scheduleId: item.scheduleId ?? schedules.value?.items.find(schedule => schedule.isDefault)?.id ?? schedules.value?.items[0]?.id,
         hidden: item.hidden
       }
@@ -748,6 +750,19 @@ async function save() {
           </section>
 
           <section class="overflow-hidden rounded-xl border border-default bg-default">
+            <label class="flex cursor-pointer items-start justify-between gap-5 border-b border-default px-5 py-5">
+              <span>
+                <span class="flex items-center gap-2 text-[14px] font-semibold text-highlighted"><UIcon
+                  name="i-lucide-shield-question"
+                  class="size-4 text-muted"
+                />Approve bookings first</span>
+                <span class="mt-1.5 block max-w-xl text-[12px] leading-relaxed text-muted">Hold each requested time until you approve or decline it. Guests are told that their booking is awaiting confirmation.</span>
+              </span>
+              <USwitch
+                v-model="form.requiresConfirmation"
+                aria-label="Require approval before confirming bookings"
+              />
+            </label>
             <label class="flex cursor-pointer items-start justify-between gap-5 px-5 py-5">
               <span>
                 <span class="flex items-center gap-2 text-[14px] font-semibold text-highlighted"><UIcon

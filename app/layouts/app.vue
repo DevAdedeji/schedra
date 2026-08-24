@@ -112,8 +112,16 @@ const mobileMenuUi = {
             class="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-muted"
             :disabled="leaving"
           >
-            <span class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-[11px] font-semibold text-primary">
-              {{ initials }}
+            <span class="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary/15 text-[11px] font-semibold text-primary">
+              <img
+                v-if="user?.avatarUrl"
+                :src="user.avatarUrl"
+                alt=""
+                class="size-full object-cover"
+              >
+              <template v-else>
+                {{ initials }}
+              </template>
             </span>
             <span class="min-w-0 flex-1">
               <span class="block truncate text-[13px] font-medium text-highlighted">{{ user?.name }}</span>
@@ -154,8 +162,16 @@ const mobileMenuUi = {
             aria-label="Open navigation and account menu"
             :disabled="leaving"
           >
-            <span class="flex size-8 items-center justify-center rounded-lg bg-primary/15 text-[11px] font-semibold text-primary">
-              {{ initials }}
+            <span class="flex size-8 items-center justify-center overflow-hidden rounded-lg bg-primary/15 text-[11px] font-semibold text-primary">
+              <img
+                v-if="user?.avatarUrl"
+                :src="user.avatarUrl"
+                alt=""
+                class="size-full object-cover"
+              >
+              <template v-else>
+                {{ initials }}
+              </template>
             </span>
             <span class="mx-1.5 h-5 w-px bg-border" />
             <UIcon

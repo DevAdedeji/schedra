@@ -118,10 +118,12 @@ const longSelected = computed(() => selectedDate.value
 
 const booking = reactive({ name: '', email: '', notes: '' })
 const bookingAnswers = reactive<Record<string, string>>({})
+const guestEmails = ref<string[]>([])
 if (rescheduleBooking.value) {
   booking.name = rescheduleBooking.value.attendeeName
   booking.email = rescheduleBooking.value.attendeeEmail
   booking.notes = rescheduleBooking.value.notes ?? ''
+  guestEmails.value = [...rescheduleBooking.value.additionalGuestEmails]
   for (const answer of rescheduleBooking.value.answers) {
     if (page.value?.bookingQuestions.some(question => question.id === answer.questionId)) {
       bookingAnswers[answer.questionId] = answer.value
@@ -136,6 +138,7 @@ const confirmed = ref<{
   locationType: string
   locationDetails: string
   meetingUrl: string | null
+  status: 'pending' | 'confirmed' | 'cancelled' | 'rejected'
 } | null>(null)
 
 const confirmedWhen = computed(() => confirmed.value
@@ -170,6 +173,14 @@ function locationIcon(type?: string) {
   } as Record<string, string>)[type ?? ''] ?? 'i-lucide-map-pin'
 }
 
+function addGuest() {
+  if (guestEmails.value.length < 10) guestEmails.value.push('')
+}
+
+function removeGuest(index: number) {
+  guestEmails.value.splice(index, 1)
+}
+
 async function confirm() {
   if (!selectedSlot.value) return
 
@@ -177,6 +188,16 @@ async function confirm() {
     question.required && !bookingAnswers[question.id]?.trim())
   if (unanswered) {
     bookingError.value = `Answer “${unanswered.label}” before booking.`
+    return
+  }
+
+  const normalizedGuests = guestEmails.value.map(value => value.trim().toLowerCase()).filter(Boolean)
+  if (new Set(normalizedGuests).size !== normalizedGuests.length) {
+    bookingError.value = 'Each additional guest should be included once.'
+    return
+  }
+  if (normalizedGuests.includes(booking.email.trim().toLowerCase())) {
+    bookingError.value = 'Your email is already included as the main guest.'
     return
   }
 
@@ -190,6 +211,7 @@ async function confirm() {
       start: selectedSlot.value,
       name: booking.name,
       email: booking.email,
+      guestEmails: normalizedGuests,
       timeZone: viewerTimeZone.value,
       notes: booking.notes || undefined,
       answers: Object.fromEntries(
@@ -202,7 +224,8 @@ async function confirm() {
       uid: result.uid,
       locationType: result.locationType,
       locationDetails: result.locationDetails,
-      meetingUrl: result.meetingUrl
+      meetingUrl: result.meetingUrl,
+      status: result.status
     }
   } catch (failure) {
     const code = (failure as { statusCode?: number }).statusCode
@@ -310,47 +333,67 @@ useSeoMeta({
         >
           <div class="mb-6 flex justify-center">
             <div
-              class="flex items-center justify-center rounded-full bg-primary"
+              class="flex items-center justify-center rounded-full"
+              :class="confirmed.status === 'pending' ? 'bg-warning/15' : 'bg-primary'"
               style="width: 64px; height: 64px"
             >
               <UIcon
-                name="i-lucide-check"
-                class="size-7 text-inverted"
+                :name="confirmed.status === 'pending' ? 'i-lucide-clock-3' : 'i-lucide-check'"
+                class="size-7"
+                :class="confirmed.status === 'pending' ? 'text-warning' : 'text-inverted'"
               />
             </div>
           </div>
           <h1 class="font-editorial text-4xl text-highlighted">
-            You're booked.
+            {{ confirmed.status === 'pending' ? 'Request sent.' : "You're booked." }}
           </h1>
           <p class="mx-auto mt-4 max-w-sm text-base leading-relaxed text-muted">
-            {{ confirmedWhen }}, with {{ page?.hostName }}.
+            {{ confirmedWhen }}, with {{ page?.hostName }}.<template v-if="confirmed.status === 'pending'">
+              The time is held while the host reviews your request.
+            </template>
           </p>
           <div class="mx-auto mt-5 flex max-w-md items-start gap-3 rounded-xl border border-default bg-muted px-4 py-3 text-left">
-            <UIcon
-              :name="locationIcon(confirmed.locationType)"
-              class="mt-0.5 size-4 shrink-0 text-primary"
-            />
-            <div class="min-w-0">
-              <p class="text-[13px] font-medium text-highlighted">
-                {{ locationLabel(confirmed.locationType) }}
-              </p>
-              <a
-                v-if="confirmed.meetingUrl"
-                :href="confirmed.meetingUrl"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="mt-0.5 block truncate text-[12px] text-primary hover:underline"
-              >Join meeting</a>
-              <p
-                v-else
-                class="mt-0.5 text-[12px] leading-relaxed text-muted"
-              >
-                {{ confirmed.locationType === 'google_meet' ? 'Your private join link is being prepared and will appear in the booking details.' : confirmed.locationDetails }}
-              </p>
-            </div>
+            <template v-if="confirmed.status === 'pending'">
+              <UIcon
+                name="i-lucide-shield-check"
+                class="mt-0.5 size-4 shrink-0 text-warning"
+              />
+              <div>
+                <p class="text-[13px] font-medium text-highlighted">
+                  No calendar event yet
+                </p>
+                <p class="mt-0.5 text-[12px] leading-relaxed text-muted">
+                  Schedra will send the final meeting details after the host approves your request.
+                </p>
+              </div>
+            </template>
+            <template v-else>
+              <UIcon
+                :name="locationIcon(confirmed.locationType)"
+                class="mt-0.5 size-4 shrink-0 text-primary"
+              />
+              <div class="min-w-0">
+                <p class="text-[13px] font-medium text-highlighted">
+                  {{ locationLabel(confirmed.locationType) }}
+                </p>
+                <a
+                  v-if="confirmed.meetingUrl"
+                  :href="confirmed.meetingUrl"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="mt-0.5 block truncate text-[12px] text-primary hover:underline"
+                >Join meeting</a>
+                <p
+                  v-else
+                  class="mt-0.5 text-[12px] leading-relaxed text-muted"
+                >
+                  {{ confirmed.locationType === 'google_meet' ? 'Your private join link is being prepared and will appear in the booking details.' : confirmed.locationDetails }}
+                </p>
+              </div>
+            </template>
           </div>
           <p class="mt-2 text-sm text-dimmed">
-            A confirmation will be sent to {{ booking.email }}.
+            {{ confirmed.status === 'pending' ? 'We will email you when the host responds.' : `A confirmation will be sent to ${booking.email}.` }}
           </p>
           <UButton
             :to="`/booking/${confirmed.uid}`"
@@ -575,6 +618,59 @@ useSeoMeta({
                   class="min-h-11 w-full"
                 />
               </UFormField>
+
+              <div class="rounded-xl border border-default bg-muted px-4 py-3.5">
+                <div class="flex items-center justify-between gap-3">
+                  <div>
+                    <p class="text-[13px] font-medium text-highlighted">
+                      Additional guests
+                    </p>
+                    <p class="mt-0.5 text-[11px] leading-relaxed text-muted">
+                      Invite up to 10 people who should receive meeting updates.
+                    </p>
+                  </div>
+                  <UButton
+                    type="button"
+                    color="neutral"
+                    variant="outline"
+                    size="xs"
+                    icon="i-lucide-user-plus"
+                    :disabled="guestEmails.length >= 10"
+                    @click="addGuest"
+                  >
+                    Add guest
+                  </UButton>
+                </div>
+                <div
+                  v-if="guestEmails.length"
+                  class="mt-3 space-y-2"
+                >
+                  <div
+                    v-for="(_guest, guestIndex) in guestEmails"
+                    :key="guestIndex"
+                    class="flex items-center gap-2"
+                  >
+                    <UInput
+                      v-model="guestEmails[guestIndex]"
+                      type="email"
+                      autocomplete="off"
+                      :aria-label="`Additional guest ${guestIndex + 1} email`"
+                      placeholder="guest@example.com"
+                      class="min-w-0 flex-1"
+                    />
+                    <UButton
+                      type="button"
+                      color="neutral"
+                      variant="ghost"
+                      size="xs"
+                      icon="i-lucide-x"
+                      class="size-8 justify-center p-0"
+                      :aria-label="`Remove additional guest ${guestIndex + 1}`"
+                      @click="removeGuest(guestIndex)"
+                    />
+                  </div>
+                </div>
+              </div>
 
               <UFormField
                 v-for="question in page?.bookingQuestions"

@@ -1,5 +1,8 @@
 import { useEnv } from './env'
 import { fetchWithTimeout } from './fetch'
+import nodemailer from 'nodemailer'
+
+let smtpTransport: ReturnType<typeof nodemailer.createTransport> | null = null
 
 export interface EmailDetail {
   label: string
@@ -129,12 +132,28 @@ export function renderEmailText(email: Email) {
 export async function sendEmail(email: Email, idempotencyKey?: string) {
   const env = useEnv()
 
-  if (!env.resendApiKey) {
+  if (env.emailDeliveryMode === 'log') {
     console.info(JSON.stringify({
       level: 'info',
       event: 'email_delivery_skipped',
-      reason: 'RESEND_API_KEY is not configured'
+      reason: 'No transactional email transport is configured'
     }))
+    return
+  }
+
+  const html = renderEmailHtml(email)
+  const text = renderEmailText(email)
+
+  if (env.emailDeliveryMode === 'smtp') {
+    smtpTransport ??= nodemailer.createTransport(env.smtpUrl!)
+    await smtpTransport.sendMail({
+      from: env.emailFrom,
+      to: email.to,
+      subject: email.subject,
+      html,
+      text,
+      headers: idempotencyKey ? { 'X-Schedra-Idempotency-Key': idempotencyKey } : undefined
+    })
     return
   }
 
@@ -149,8 +168,8 @@ export async function sendEmail(email: Email, idempotencyKey?: string) {
       from: env.emailFrom,
       to: email.to,
       subject: email.subject,
-      html: renderEmailHtml(email),
-      text: renderEmailText(email)
+      html,
+      text
     })
   })
 

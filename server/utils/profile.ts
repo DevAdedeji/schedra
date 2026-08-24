@@ -9,7 +9,8 @@ export async function profileForUser(userId: string) {
     email: users.email,
     username: users.username,
     timeZone: users.timeZone,
-    bio: users.bio
+    bio: users.bio,
+    avatarUrl: users.avatarUrl
   }).from(users).where(eq(users.id, userId)).limit(1)
 
   return profile ?? null

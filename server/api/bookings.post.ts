@@ -4,7 +4,7 @@ import { bookings } from '../database/schema'
 import { useDatabase } from '../utils/database'
 import { findPublicEventType, slotsFor } from '../utils/booking-page'
 import { findBookingByUid } from '../utils/booking-manage'
-import { queueBookingEmails } from '../utils/booking-emails'
+import { queueBookingEmails, queueBookingRequestEmails } from '../utils/booking-emails'
 import { cancelBookingReminders } from '../utils/email-outbox'
 import { enforceRateLimit } from '../utils/rate-limit'
 import { enqueueCalendarSync } from '../utils/calendar-sync'
@@ -24,11 +24,19 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const { username, slug, start, name, email, timeZone, notes, answers, rescheduleOf } = parsed.data
+  const { username, slug, start, name, email, guestEmails: submittedGuestEmails, timeZone, notes, answers, rescheduleOf } = parsed.data
   const eventType = await findPublicEventType(username, slug)
 
   if (!eventType) {
     throw createError({ statusCode: 404, statusMessage: 'No such booking page' })
+  }
+
+  const additionalGuestEmails = submittedGuestEmails ?? []
+  if (additionalGuestEmails.includes(email)) {
+    throw createError({ statusCode: 400, statusMessage: 'Your email is already included as the main guest.' })
+  }
+  if (additionalGuestEmails.includes(eventType.hostEmail.toLowerCase())) {
+    throw createError({ statusCode: 400, statusMessage: 'The host is already part of this meeting.' })
   }
 
   let answerSnapshot
@@ -121,6 +129,8 @@ export default defineEventHandler(async (event) => {
         attendeeName: name,
         attendeeEmail: email,
         attendeeTimeZone: timeZone,
+        additionalGuestEmails,
+        status: eventType.requiresConfirmation ? 'pending' : 'confirmed',
         locationType: eventType.locationType,
         locationDetails: eventType.locationDetails,
         meetingUrl: eventType.locationType === 'video_link' ? eventType.locationDetails : null,
@@ -129,16 +139,18 @@ export default defineEventHandler(async (event) => {
       }).returning({ id: bookings.id })
 
       if (!created) throw new Error('Booking insert did not return a record.')
-      await enqueueCalendarSync(created.id, 'upsert', tx)
+      if (!eventType.requiresConfirmation) await enqueueCalendarSync(created.id, 'upsert', tx)
 
-      await queueBookingEmails({
+      const notice = {
         uid,
         eventTitle: eventType.title,
         hostName: eventType.hostName,
         hostEmail: eventType.hostEmail,
+        hostUsername: eventType.username,
         hostTimeZone: eventType.scheduleTimeZone ?? eventType.hostTimeZone,
         attendeeName: name,
         attendeeEmail: email,
+        additionalGuestEmails,
         attendeeTimeZone: timeZone,
         startsAt: slot.start,
         endsAt: slot.end,
@@ -148,7 +160,9 @@ export default defineEventHandler(async (event) => {
         reminderMinutes: eventType.reminderMinutes,
         answers: answerSnapshot?.responses ?? [],
         notes: answerSnapshot?.notes ?? null
-      }, tx)
+      }
+      if (eventType.requiresConfirmation) await queueBookingRequestEmails(notice, tx)
+      else await queueBookingEmails(notice, tx)
     })
   } catch (error) {
     // Postgres rejected an overlap, which means someone else won the race.
@@ -163,6 +177,7 @@ export default defineEventHandler(async (event) => {
     start: slot.start,
     end: slot.end,
     moved: Boolean(previous),
+    status: eventType.requiresConfirmation ? 'pending' : 'confirmed',
     locationType: eventType.locationType,
     locationDetails: eventType.locationDetails,
     meetingUrl: eventType.locationType === 'video_link' ? eventType.locationDetails : null
