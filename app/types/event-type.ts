@@ -1,3 +1,5 @@
+import type { MeetingLocationType } from '#shared/validation'
+
 export interface EventTypeRecord {
   id: string
   title: string
@@ -10,6 +12,9 @@ export interface EventTypeRecord {
   minimumNoticeMinutes: number
   bookingWindowDays: number | null
   maxPerDay: number | null
+  locationType: MeetingLocationType
+  locationDetails: string
+  reminderMinutes: number[]
   scheduleId: string | null
   scheduleName: string | null
   hidden: boolean

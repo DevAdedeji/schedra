@@ -40,6 +40,7 @@ const pageError = ref('')
 const calendarFailure = ref('')
 const disconnectOpen = ref(false)
 const disconnecting = ref(false)
+const calendarsLoaded = ref(false)
 const connectionRetrying = computed(() => status.value === 'pending')
 
 const callbackNotice = computed(() => {
@@ -92,8 +93,9 @@ function errorMessage(failure: unknown, fallback: string) {
     ?? fallback
 }
 
-async function loadCalendars() {
+async function loadCalendars(force = false) {
   if (!connection.value?.connected) return
+  if (loadingCalendars.value || (calendarsLoaded.value && !force)) return
   loadingCalendars.value = true
   calendarFailure.value = ''
   try {
@@ -102,6 +104,7 @@ async function loadCalendars() {
     selectedConflictIds.value = [...data.conflictCalendarIds]
     writeCalendarId.value = data.writeCalendarId ?? ''
     baseline.value = currentSnapshot.value
+    calendarsLoaded.value = true
   } catch (failure) {
     calendarFailure.value = errorMessage(failure, 'Could not load calendars from Google just now.')
   } finally {
@@ -111,7 +114,7 @@ async function loadCalendars() {
 
 async function retryConnection() {
   await refreshConnection()
-  await loadCalendars()
+  await loadCalendars(true)
 }
 
 function toggleConflict(id: string, selected: boolean) {
@@ -151,6 +154,7 @@ async function disconnect() {
     await $fetch('/api/integrations/google-calendar', { method: 'DELETE' })
     disconnectOpen.value = false
     calendars.value = []
+    calendarsLoaded.value = false
     selectedConflictIds.value = []
     writeCalendarId.value = ''
     await refreshConnection()
@@ -161,7 +165,16 @@ async function disconnect() {
   }
 }
 
-onMounted(loadCalendars)
+watch(() => connection.value?.connected, (connected) => {
+  if (connected) {
+    void loadCalendars()
+    return
+  }
+  calendarsLoaded.value = false
+  calendars.value = []
+  selectedConflictIds.value = []
+  writeCalendarId.value = ''
+}, { immediate: true })
 </script>
 
 <template>
@@ -316,7 +329,7 @@ onMounted(loadCalendars)
         title="Could not load your calendars"
         :description="calendarFailure"
         :retrying="loadingCalendars"
-        @retry="loadCalendars"
+        @retry="loadCalendars(true)"
       />
 
       <div
@@ -330,7 +343,7 @@ onMounted(loadCalendars)
           title="Could not refresh your calendars"
           description="The last loaded calendar preferences are still shown below."
           :retrying="loadingCalendars"
-          @retry="loadCalendars"
+          @retry="loadCalendars(true)"
         />
         <div
           v-else-if="loadingCalendars"

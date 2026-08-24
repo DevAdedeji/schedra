@@ -35,10 +35,18 @@ interface GoogleEventInput {
   attendeeName: string
   attendeeEmail: string
   notes?: string | null
+  locationType: 'google_meet' | 'video_link' | 'phone' | 'in_person' | 'custom'
+  locationDetails: string
+  meetingUrl?: string | null
 }
 
 interface GoogleEventResponse {
   id: string
+  hangoutLink?: string
+  conferenceData?: {
+    entryPoints?: { entryPointType?: string, uri?: string }[]
+    createRequest?: { status?: { statusCode?: string } }
+  }
 }
 
 export class CalendarUnavailableError extends Error {}
@@ -263,20 +271,41 @@ export async function updateGoogleCalendarSelection(userId: string, conflictCale
 
 function eventBody(input: GoogleEventInput) {
   const manageUrl = `${useEnv().schedraUrl}/booking/${input.uid}`
+  const location = input.locationType === 'google_meet'
+    ? 'Google Meet'
+    : input.locationDetails
   const description = [
     input.description,
     `Guest: ${input.attendeeName} (${input.attendeeEmail})`,
+    `Where: ${location}`,
     input.notes ? `Guest notes:\n${input.notes}` : null,
     `Manage this booking: ${manageUrl}`
   ].filter(Boolean).join('\n\n')
   return {
     summary: `${input.title} with ${input.attendeeName}`,
     description,
+    location: input.locationType === 'google_meet' ? undefined : input.locationDetails,
     start: { dateTime: input.startsAt.toISOString() },
     end: { dateTime: input.endsAt.toISOString() },
     attendees: [{ email: input.attendeeEmail, displayName: input.attendeeName }],
+    ...input.locationType === 'google_meet' && !input.meetingUrl
+      ? {
+          conferenceData: {
+            createRequest: {
+              requestId: `schedra-${createHash('sha256').update(input.uid).digest('hex').slice(0, 32)}`,
+              conferenceSolutionKey: { type: 'hangoutsMeet' }
+            }
+          }
+        }
+      : {},
     extendedProperties: { private: { schedraBookingUid: input.uid } }
   }
+}
+
+function meetingUrl(event: GoogleEventResponse) {
+  return event.hangoutLink
+    ?? event.conferenceData?.entryPoints?.find(point => point.entryPointType === 'video')?.uri
+    ?? null
 }
 
 export function googleEventId(uid: string) {
@@ -290,7 +319,7 @@ export async function upsertGoogleCalendarEvent(
   input: GoogleEventInput
 ) {
   const calendar = encodeURIComponent(calendarId)
-  const query = new URLSearchParams({ sendUpdates: 'none' })
+  const query = new URLSearchParams({ sendUpdates: 'all', conferenceDataVersion: '1' })
   // A deterministic, Google-compatible event id makes creation idempotent if
   // the process stops after Google accepts the event but before the mapping is saved.
   const candidateId = eventId ?? googleEventId(input.uid)
@@ -300,19 +329,23 @@ export async function upsertGoogleCalendarEvent(
     `/calendars/${calendar}/events/${encodeURIComponent(candidateId)}?${query}`,
     { method: 'PATCH', body: JSON.stringify(eventBody(input)) }
   )
-  if (response.ok) return response.json() as Promise<GoogleEventResponse>
+  if (response.ok) {
+    const event = await response.json() as GoogleEventResponse
+    return { ...event, meetingUrl: meetingUrl(event) }
+  }
   if (response.status !== 404) throw new CalendarUnavailableError(`Google Calendar request failed (${response.status}).`)
 
-  return googleRequest<GoogleEventResponse>(userId, `/calendars/${calendar}/events?${query}`, {
+  const event = await googleRequest<GoogleEventResponse>(userId, `/calendars/${calendar}/events?${query}`, {
     method: 'POST',
     body: JSON.stringify({ id: candidateId, ...eventBody(input) })
   })
+  return { ...event, meetingUrl: meetingUrl(event) }
 }
 
 export async function deleteGoogleCalendarEvent(userId: string, calendarId: string, eventId: string) {
   const response = await googleResponse(
     userId,
-    `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?${new URLSearchParams({ sendUpdates: 'none' })}`,
+    `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?${new URLSearchParams({ sendUpdates: 'all' })}`,
     { method: 'DELETE' }
   )
   if (![404, 410].includes(response.status) && !response.ok) {

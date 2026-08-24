@@ -106,6 +106,14 @@ function noticeLabel(minutes: number) {
   if (minutes % 60 === 0) return `${minutes / 60}h notice`
   return `${minutes}m notice`
 }
+
+function locationLabel(item: EventTypeRecord) {
+  if (item.locationType === 'google_meet') return 'Google Meet'
+  if (item.locationType === 'video_link') return 'Video call'
+  if (item.locationType === 'phone') return 'Phone call'
+  if (item.locationType === 'in_person') return 'In person'
+  return 'Custom location'
+}
 </script>
 
 <template>
@@ -258,6 +266,17 @@ function noticeLabel(minutes: number) {
                       name="i-lucide-calendar-range"
                       class="size-3.5 text-dimmed"
                     />{{ item.scheduleName ?? 'Default schedule' }}</span>
+                    <span class="flex items-center gap-1.5"><UIcon
+                      :name="item.locationType === 'in_person' ? 'i-lucide-map-pin' : item.locationType === 'phone' ? 'i-lucide-phone' : 'i-lucide-video'"
+                      class="size-3.5 text-dimmed"
+                    />{{ locationLabel(item) }}</span>
+                    <span
+                      v-if="item.reminderMinutes.length"
+                      class="flex items-center gap-1.5"
+                    ><UIcon
+                      name="i-lucide-bell"
+                      class="size-3.5 text-dimmed"
+                    />{{ item.reminderMinutes.length }} reminder{{ item.reminderMinutes.length === 1 ? '' : 's' }}</span>
                   </div>
                   <p class="mt-3 truncate font-mono text-[11px] text-dimmed">
                     {{ host }}{{ bookingPath(item) }}

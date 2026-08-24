@@ -6,6 +6,7 @@ import type { ScheduleRecord } from '~/types/schedule'
 const props = defineProps<{ open: boolean, eventType?: EventTypeRecord | null }>()
 const emit = defineEmits<{ 'update:open': [value: boolean], 'saved': [] }>()
 interface SchedulesResponse { items: ScheduleRecord[] }
+interface CalendarConnection { connected: boolean, writeCalendarId?: string | null }
 
 type EventTypeForm = Omit<EventTypeInput, 'bookingWindowDays' | 'maxPerDay'> & {
   bookingWindowDays?: number
@@ -16,6 +17,7 @@ const { data: currentUser } = await useCurrentUser()
 const { data: schedules, refresh: refreshSchedules } = await useFetch<SchedulesResponse>('/api/schedules', {
   query: { pageSize: 10 }
 })
+const { data: calendarConnection, refresh: refreshCalendarConnection } = await useFetch<CalendarConnection>('/api/integrations/google-calendar')
 const { host } = useSiteUrl()
 const form = reactive<EventTypeForm>(emptyForm())
 const initial = ref('')
@@ -35,6 +37,20 @@ const scheduleOptions = computed(() => (schedules.value?.items ?? []).map(schedu
 const selectedSchedule = computed(() => schedules.value?.items.find(schedule => schedule.id === form.scheduleId))
 const valid = computed(() => eventTypeSchema.safeParse(form).success && Boolean(form.scheduleId))
 const dirty = computed(() => JSON.stringify(form) !== initial.value)
+const googleMeetReady = computed(() => Boolean(calendarConnection.value?.connected && calendarConnection.value.writeCalendarId))
+const locationOptions = computed(() => [
+  { label: 'Google Meet', value: 'google_meet', icon: 'i-simple-icons-googlemeet', disabled: !googleMeetReady.value },
+  { label: 'Video link', value: 'video_link', icon: 'i-lucide-video' },
+  { label: 'Phone call', value: 'phone', icon: 'i-lucide-phone' },
+  { label: 'In person', value: 'in_person', icon: 'i-lucide-map-pin' },
+  { label: 'Custom instructions', value: 'custom', icon: 'i-lucide-message-square-text' }
+])
+const locationField = computed(() => ({
+  video_link: { label: 'Meeting link', help: 'Guests receive this link after booking.', placeholder: 'https://zoom.us/j/…' },
+  phone: { label: 'Call instructions', help: 'Explain who calls whom and which number to use.', placeholder: 'I will call you on the number we have on file.' },
+  in_person: { label: 'Address', help: 'Include enough detail for guests to find you.', placeholder: '12 Marina Road, Lagos · Reception, 2nd floor' },
+  custom: { label: 'Meeting instructions', help: 'Tell guests exactly how or where you will meet.', placeholder: 'I will share the meeting details before the call.' }
+}[form.locationType === 'google_meet' ? 'custom' : form.locationType]))
 
 const previewDays = [
   { day: 'MON', date: '24', active: true },
@@ -49,6 +65,8 @@ function emptyForm(): EventTypeForm {
     title: '', slug: '', description: '', durationMinutes: 30, incrementMinutes: null,
     bufferBeforeMinutes: 0, bufferAfterMinutes: 0, minimumNoticeMinutes: 120,
     bookingWindowDays: 60, maxPerDay: undefined,
+    locationType: 'custom', locationDetails: 'The host will share meeting details before the meeting.',
+    reminderMinutes: [1440, 60],
     scheduleId: schedules.value?.items.find(schedule => schedule.isDefault)?.id ?? schedules.value?.items[0]?.id,
     hidden: false
   }
@@ -68,6 +86,9 @@ function loadForm() {
         minimumNoticeMinutes: item.minimumNoticeMinutes,
         bookingWindowDays: item.bookingWindowDays ?? undefined,
         maxPerDay: item.maxPerDay ?? undefined,
+        locationType: item.locationType,
+        locationDetails: item.locationDetails,
+        reminderMinutes: [...item.reminderMinutes],
         scheduleId: item.scheduleId ?? schedules.value?.items.find(schedule => schedule.isDefault)?.id ?? schedules.value?.items[0]?.id,
         hidden: item.hidden
       }
@@ -81,9 +102,19 @@ function slugify(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-{2,}/g, '-').replace(/^-|-$/g, '').slice(0, 64)
 }
 
+function reminderEnabled(minutes: number) {
+  return form.reminderMinutes.includes(minutes)
+}
+
+function toggleReminder(minutes: number, enabled: boolean) {
+  form.reminderMinutes = enabled
+    ? [...new Set([...form.reminderMinutes, minutes])].sort((a, b) => b - a)
+    : form.reminderMinutes.filter(value => value !== minutes)
+}
+
 watch(() => props.open, (open) => {
   if (open) {
-    refreshSchedules().then(loadForm)
+    Promise.allSettled([refreshSchedules(), refreshCalendarConnection()]).then(loadForm)
   }
 })
 watch(() => props.eventType, () => {
@@ -210,11 +241,133 @@ async function save() {
                   <UsernameField
                     v-model="form.slug"
                     :prefix="`/${username}/`"
+                    size="lg"
                     placeholder="event-name"
                     :maxlength="64"
                     @input="slugTouched = true; form.slug = slugify(form.slug)"
                   />
                 </UFormField>
+              </div>
+            </div>
+          </section>
+
+          <section class="overflow-hidden rounded-xl border border-default bg-default">
+            <div class="flex gap-3 border-b border-default px-5 py-4">
+              <span class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><UIcon
+                name="i-lucide-map-pinned"
+                class="size-4"
+              /></span>
+              <div>
+                <h3 class="text-[14px] font-semibold text-highlighted">
+                  Meeting location
+                </h3>
+                <p class="mt-0.5 text-[12px] text-muted">
+                  Make it obvious how guests should join or find you.
+                </p>
+              </div>
+            </div>
+            <div class="space-y-5 px-5 py-5">
+              <UFormField
+                label="Where will you meet?"
+                name="locationType"
+                required
+              >
+                <USelectMenu
+                  v-model="form.locationType"
+                  :items="locationOptions"
+                  value-key="value"
+                  label-key="label"
+                  class="w-full"
+                />
+              </UFormField>
+
+              <div
+                v-if="form.locationType === 'google_meet'"
+                class="flex items-start gap-3 rounded-lg border border-success/20 bg-success/5 px-4 py-3"
+              >
+                <UIcon
+                  name="i-simple-icons-googlemeet"
+                  class="mt-0.5 size-4 shrink-0 text-success"
+                />
+                <div>
+                  <p class="text-[13px] font-medium text-highlighted">
+                    A private Meet link will be created for every booking.
+                  </p>
+                  <p class="mt-1 text-[12px] leading-relaxed text-muted">
+                    It will be added to the calendar event, confirmation and booking details automatically.
+                  </p>
+                </div>
+              </div>
+
+              <div
+                v-else-if="!googleMeetReady"
+                class="flex items-center justify-between gap-3 rounded-lg border border-default bg-muted px-4 py-3"
+              >
+                <p class="text-[12px] leading-relaxed text-muted">
+                  Want automatic Google Meet links? Connect a writable Google Calendar first.
+                </p>
+                <UButton
+                  to="/integrations"
+                  target="_blank"
+                  color="neutral"
+                  variant="outline"
+                  size="xs"
+                  class="shrink-0"
+                >
+                  Connect
+                </UButton>
+              </div>
+
+              <UFormField
+                v-if="form.locationType !== 'google_meet'"
+                :label="locationField?.label"
+                name="locationDetails"
+                :help="locationField?.help"
+                required
+              >
+                <UInput
+                  v-if="form.locationType === 'video_link'"
+                  v-model="form.locationDetails"
+                  type="url"
+                  :maxlength="500"
+                  :placeholder="locationField?.placeholder"
+                  class="w-full"
+                />
+                <UTextarea
+                  v-else
+                  v-model="form.locationDetails"
+                  :rows="2"
+                  :maxlength="500"
+                  :placeholder="locationField?.placeholder"
+                  class="w-full"
+                />
+              </UFormField>
+            </div>
+
+            <div class="border-t border-default bg-muted px-5 py-4">
+              <p class="text-[13px] font-semibold text-highlighted">
+                Email reminders
+              </p>
+              <p class="mt-0.5 text-[12px] text-muted">
+                Guests can reschedule or cancel from every reminder.
+              </p>
+              <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                <label class="flex cursor-pointer items-center gap-3 rounded-lg border border-default bg-default px-3.5 py-3">
+                  <UCheckbox
+                    :model-value="reminderEnabled(1440)"
+                    aria-label="Send a reminder one day before"
+                    @update:model-value="toggleReminder(1440, Boolean($event))"
+                  />
+                  <span class="text-[13px] text-toned">1 day before</span>
+                </label>
+                <label class="flex cursor-pointer items-center gap-3 rounded-lg border border-default bg-default px-3.5 py-3">
+                  <UCheckbox
+                    :model-value="reminderEnabled(60)"
+                    aria-label="Send a reminder one hour before"
+                    @update:model-value="toggleReminder(60, Boolean($event))"
+                  />
+                  <span class="text-[13px] text-toned">1 hour before</span>
+                </label>
               </div>
             </div>
           </section>

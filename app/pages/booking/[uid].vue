@@ -24,6 +24,16 @@ const cancelError = ref('')
 
 const cancelled = computed(() => booking.value?.status === 'cancelled')
 const past = computed(() => booking.value ? new Date(booking.value.endsAt) < new Date() : false)
+const joinUrl = computed(() => booking.value?.meetingUrl
+  ?? (booking.value?.locationType === 'video_link' ? booking.value.locationDetails : null))
+
+const locationPresentation = computed(() => ({
+  google_meet: { label: 'Google Meet', icon: 'i-simple-icons-googlemeet' },
+  video_link: { label: 'Video call', icon: 'i-lucide-video' },
+  phone: { label: 'Phone call', icon: 'i-lucide-phone' },
+  in_person: { label: 'In person', icon: 'i-lucide-map-pin' },
+  custom: { label: 'Meeting details', icon: 'i-lucide-message-square-text' }
+}[booking.value?.locationType ?? 'custom']))
 
 const longWhen = computed(() => {
   if (!booking.value) return ''
@@ -142,6 +152,26 @@ useSeoMeta({
               </div>
               <div class="flex items-start gap-3">
                 <UIcon
+                  :name="locationPresentation?.icon"
+                  class="mt-0.5 size-4 shrink-0 text-dimmed"
+                />
+                <dd class="min-w-0 text-toned">
+                  <span class="block">{{ locationPresentation?.label }}</span>
+                  <a
+                    v-if="joinUrl && !cancelled"
+                    :href="joinUrl"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="mt-0.5 block truncate text-[13px] font-medium text-primary hover:underline"
+                  >Join meeting</a>
+                  <span
+                    v-else
+                    class="mt-0.5 block text-[13px] leading-relaxed text-muted"
+                  >{{ booking?.locationType === 'google_meet' ? 'The private join link is being prepared. Refresh this page shortly.' : booking?.locationDetails }}</span>
+                </dd>
+              </div>
+              <div class="flex items-start gap-3">
+                <UIcon
                   name="i-lucide-clock"
                   class="mt-0.5 size-4 shrink-0 text-dimmed"
                 />
@@ -174,6 +204,29 @@ useSeoMeta({
             class="border-t border-default px-6 py-6 sm:px-8"
           >
             <template v-if="!confirming">
+              <div class="mb-3 grid gap-3 sm:grid-cols-2">
+                <UButton
+                  v-if="joinUrl"
+                  :to="joinUrl"
+                  target="_blank"
+                  trailing-icon="i-lucide-external-link"
+                  size="lg"
+                  class="justify-center rounded-full font-medium"
+                >
+                  Join {{ booking?.locationType === 'google_meet' ? 'Google Meet' : 'meeting' }}
+                </UButton>
+                <UButton
+                  :to="`/api/booking/${uid}/calendar.ics`"
+                  external
+                  color="neutral"
+                  variant="outline"
+                  icon="i-lucide-calendar-plus"
+                  size="lg"
+                  class="justify-center rounded-full font-medium"
+                >
+                  Add to calendar
+                </UButton>
+              </div>
               <div class="flex flex-col gap-3 sm:flex-row">
                 <UButton
                   :to="`/${booking?.hostUsername}/${booking?.eventSlug}?reschedule=${uid}`"

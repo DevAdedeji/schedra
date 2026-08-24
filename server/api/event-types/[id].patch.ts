@@ -4,6 +4,7 @@ import { eventTypeSchema } from '#shared/validation'
 import { eventTypes, schedules } from '../../database/schema'
 import { useDatabase } from '../../utils/database'
 import { requireAuthSession } from '../../utils/session'
+import { requireLocationIntegration } from '../../utils/event-location'
 
 export default defineEventHandler(async (event) => {
   const session = await requireAuthSession(event)
@@ -25,6 +26,7 @@ export default defineEventHandler(async (event) => {
       .where(and(eq(schedules.id, parsed.data.scheduleId), eq(schedules.userId, session.user.id))).limit(1)
     if (!schedule) throw createError({ statusCode: 400, statusMessage: 'Choose one of your availability schedules.' })
   }
+  await requireLocationIntegration(session.user.id, parsed.data.locationType)
 
   try {
     const [updated] = await db

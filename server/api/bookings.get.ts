@@ -44,6 +44,9 @@ export default defineEventHandler(async (event) => {
     attendeeName: bookings.attendeeName,
     attendeeEmail: bookings.attendeeEmail,
     attendeeTimeZone: bookings.attendeeTimeZone,
+    locationType: bookings.locationType,
+    locationDetails: bookings.locationDetails,
+    meetingUrl: bookings.meetingUrl,
     answers: bookings.answers,
     cancellationReason: bookings.cancellationReason,
     eventTitle: eventTypes.title

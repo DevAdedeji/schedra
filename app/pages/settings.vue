@@ -22,10 +22,11 @@ async function save() {
   error.value = ''
 
   try {
-    await $fetch('/api/profile', {
+    const result = await $fetch('/api/profile', {
       method: 'PATCH',
       body: { name: profile.name, bio: profile.bio || undefined }
     })
+    if (data.value?.user) data.value.user = result.user
     saved.value = true
     await refreshNuxtData('current-user')
   } catch (failure) {

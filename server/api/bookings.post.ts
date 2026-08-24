@@ -5,6 +5,7 @@ import { useDatabase } from '../utils/database'
 import { findPublicEventType, slotsFor } from '../utils/booking-page'
 import { findBookingByUid } from '../utils/booking-manage'
 import { queueBookingEmails } from '../utils/booking-emails'
+import { cancelBookingReminders } from '../utils/email-outbox'
 import { enforceRateLimit } from '../utils/rate-limit'
 import { enqueueCalendarSync } from '../utils/calendar-sync'
 import { CalendarUnavailableError } from '../utils/google-calendar'
@@ -97,6 +98,7 @@ export default defineEventHandler(async (event) => {
         }
 
         await enqueueCalendarSync(previous.id, 'delete', tx)
+        await cancelBookingReminders(previous.uid, tx)
       }
 
       const [created] = await tx.insert(bookings).values({
@@ -108,6 +110,9 @@ export default defineEventHandler(async (event) => {
         attendeeName: name,
         attendeeEmail: email,
         attendeeTimeZone: timeZone,
+        locationType: eventType.locationType,
+        locationDetails: eventType.locationDetails,
+        meetingUrl: eventType.locationType === 'video_link' ? eventType.locationDetails : null,
         answers: notes ? { notes } : null,
         rescheduledFromId: previous?.id ?? null
       }).returning({ id: bookings.id })
@@ -125,7 +130,11 @@ export default defineEventHandler(async (event) => {
         attendeeEmail: email,
         attendeeTimeZone: timeZone,
         startsAt: slot.start,
-        endsAt: slot.end
+        endsAt: slot.end,
+        locationType: eventType.locationType,
+        locationDetails: eventType.locationDetails,
+        meetingUrl: eventType.locationType === 'video_link' ? eventType.locationDetails : null,
+        reminderMinutes: eventType.reminderMinutes
       }, tx)
     })
   } catch (error) {
@@ -136,5 +145,13 @@ export default defineEventHandler(async (event) => {
     throw error
   }
 
-  return { uid, start: slot.start, end: slot.end, moved: Boolean(previous) }
+  return {
+    uid,
+    start: slot.start,
+    end: slot.end,
+    moved: Boolean(previous),
+    locationType: eventType.locationType,
+    locationDetails: eventType.locationDetails,
+    meetingUrl: eventType.locationType === 'video_link' ? eventType.locationDetails : null
+  }
 })
