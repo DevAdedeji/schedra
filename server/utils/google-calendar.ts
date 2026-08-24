@@ -5,6 +5,7 @@ import { useDatabase } from './database'
 import { decryptCredential, encryptCredential } from './credential-crypto'
 import { useEnv } from './env'
 import { fetchWithTimeout } from './fetch'
+import type { CalendarEventInput } from './calendar-provider'
 
 export const GOOGLE_CALENDAR_SCOPES = [
   'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
@@ -25,20 +26,6 @@ interface GoogleTokens {
   refresh_token?: string
   expires_in: number
   scope?: string
-}
-
-interface GoogleEventInput {
-  uid: string
-  title: string
-  description?: string | null
-  startsAt: Date
-  endsAt: Date
-  attendeeName: string
-  attendeeEmail: string
-  notes?: string | null
-  locationType: 'google_meet' | 'video_link' | 'phone' | 'in_person' | 'custom'
-  locationDetails: string
-  meetingUrl?: string | null
 }
 
 interface GoogleEventResponse {
@@ -308,7 +295,7 @@ export async function updateGoogleCalendarSelection(userId: string, conflictCale
   }).where(and(eq(calendarConnections.userId, userId), eq(calendarConnections.provider, 'google')))
 }
 
-function eventBody(input: GoogleEventInput) {
+function eventBody(input: CalendarEventInput) {
   const manageUrl = `${useEnv().schedraUrl}/booking/${input.uid}`
   const location = input.locationType === 'google_meet'
     ? 'Google Meet'
@@ -326,7 +313,10 @@ function eventBody(input: GoogleEventInput) {
     location: input.locationType === 'google_meet' ? undefined : input.locationDetails,
     start: { dateTime: input.startsAt.toISOString() },
     end: { dateTime: input.endsAt.toISOString() },
-    attendees: [{ email: input.attendeeEmail, displayName: input.attendeeName }],
+    attendees: [
+      { email: input.attendeeEmail, displayName: input.attendeeName },
+      ...input.additionalGuestEmails.map(email => ({ email }))
+    ],
     ...input.locationType === 'google_meet' && !input.meetingUrl
       ? {
           conferenceData: {
@@ -355,7 +345,7 @@ export async function upsertGoogleCalendarEvent(
   userId: string,
   calendarId: string,
   eventId: string | null,
-  input: GoogleEventInput
+  input: CalendarEventInput
 ) {
   const calendar = encodeURIComponent(calendarId)
   const query = new URLSearchParams({ sendUpdates: 'all', conferenceDataVersion: '1' })

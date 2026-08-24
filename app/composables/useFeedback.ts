@@ -16,5 +16,15 @@ export function useFeedback() {
     })
   }
 
-  return { success }
+  function error({ title, description }: FeedbackOptions) {
+    toast.add({
+      title,
+      description,
+      color: 'error',
+      icon: 'i-lucide-circle-alert',
+      duration: 5000
+    })
+  }
+
+  return { success, error }
 }

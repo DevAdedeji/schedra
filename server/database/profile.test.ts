@@ -41,4 +41,30 @@ describe.skipIf(!url)('profile persistence', () => {
       timeZone: 'Africa/Lagos'
     })
   })
+
+  it('stores verified avatar bytes and removes them with the owning account', async () => {
+    const [user] = await sql<{ id: string }[]>`
+      insert into users (email, name, username, time_zone)
+      values ('avatar@example.com', 'Avatar User', 'avatar-user', 'Africa/Lagos')
+      returning id
+    `
+    const { eq } = await import('drizzle-orm')
+    const { userAvatars, users } = await import('./schema')
+    const { useDatabase } = await import('../utils/database')
+    const bytes = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
+
+    await useDatabase().insert(userAvatars).values({
+      userId: user!.id,
+      contentType: 'image/png',
+      bytes,
+      size: bytes.length,
+      hash: 'test-hash'
+    })
+    const [stored] = await useDatabase().select().from(userAvatars).where(eq(userAvatars.userId, user!.id))
+    expect(Buffer.from(stored!.bytes)).toEqual(bytes)
+
+    await useDatabase().delete(users).where(eq(users.id, user!.id))
+    const remaining = await useDatabase().select().from(userAvatars).where(eq(userAvatars.userId, user!.id))
+    expect(remaining).toEqual([])
+  })
 })

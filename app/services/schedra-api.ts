@@ -11,6 +11,7 @@ export interface BookingRecord {
   attendeeName: string
   attendeeEmail: string
   attendeeTimeZone: string
+  additionalGuestEmails: string[]
   locationType: MeetingLocationType
   locationDetails: string
   meetingUrl: string | null
@@ -27,6 +28,7 @@ export interface BookingDetail {
   attendeeName: string
   attendeeEmail: string
   attendeeTimeZone: string
+  additionalGuestEmails: string[]
   locationType: MeetingLocationType
   locationDetails: string
   meetingUrl: string | null
@@ -38,6 +40,7 @@ export interface BookingDetail {
   hostUsername: string
   notes: string | null
   answers: BookingAnswer[]
+  canHostManage: boolean
 }
 
 export interface CreateBookingResult {
@@ -46,12 +49,13 @@ export interface CreateBookingResult {
   locationType: MeetingLocationType
   locationDetails: string
   meetingUrl: string | null
+  status: BookingRecord['status']
 }
 
 export interface BookingsResponse {
   items: BookingRecord[]
   pagination: PaginationMeta
-  counts: { all: number, upcoming: number, past: number, cancelled: number, nextWeek: number }
+  counts: { all: number, upcoming: number, pending: number, past: number, cancelled: number, nextWeek: number }
 }
 
 export interface EventTypesResponse {
@@ -104,6 +108,16 @@ export interface PublicProfile {
   }>
 }
 
+export interface CurrentProfile {
+  id: string
+  name: string
+  email: string
+  username: string
+  bio: string | null
+  avatarUrl: string | null
+  timeZone: string
+}
+
 export interface PublicBookingPage {
   hostName: string
   title: string
@@ -112,6 +126,7 @@ export interface PublicBookingPage {
   locationType: MeetingLocationType
   locationDetails: string
   bookingQuestions: BookingQuestion[]
+  requiresConfirmation: boolean
 }
 
 export interface AvailabilityResponse {
@@ -129,6 +144,7 @@ export interface CreateBookingInput {
   timeZone: string
   notes?: string
   answers?: Record<string, string>
+  guestEmails?: string[]
   rescheduleOf?: string
 }
 
@@ -161,12 +177,18 @@ export const bookingsApi = {
   cancel: (uid: string, reason?: string) => $fetch(resource('/api/booking', uid, '/cancel'), {
     method: 'POST',
     body: { reason }
+  }),
+  approve: (uid: string) => $fetch(resource('/api/booking', uid, '/approve'), { method: 'POST' }),
+  reject: (uid: string, reason?: string) => $fetch(resource('/api/booking', uid, '/reject'), {
+    method: 'POST',
+    body: { reason }
   })
 }
 
 export const eventTypesApi = {
   listEndpoint: '/api/event-types' as const,
   create: (body: EventTypeInput) => $fetch('/api/event-types', { method: 'POST', body }),
+  duplicate: (id: string) => $fetch<{ id: string }>(resource('/api/event-types', id, '/duplicate'), { method: 'POST' }),
   update: (id: string, body: EventTypeInput) => $fetch(resource('/api/event-types', id), { method: 'PATCH', body }),
   remove: (id: string) => $fetch(resource('/api/event-types', id), { method: 'DELETE' })
 }
@@ -180,7 +202,18 @@ export const schedulesApi = {
 }
 
 export const profileApi = {
-  update: (body: { name: string, bio?: string }) => $fetch('/api/profile', { method: 'PATCH', body })
+  update: (body: { name: string, bio?: string }) => $fetch<{ user: CurrentProfile }>('/api/profile', { method: 'PATCH', body }),
+  uploadAvatar: (file: File) => {
+    const body = new FormData()
+    body.append('avatar', file)
+    return $fetch<{ avatarUrl: string }>('/api/profile/avatar', { method: 'PUT', body })
+  },
+  removeAvatar: () => $fetch('/api/profile/avatar', { method: 'DELETE' })
+}
+
+export const accountApi = {
+  exportUrl: '/api/account/export' as const,
+  remove: (body: { email: string, confirmation: 'DELETE' }) => $fetch('/api/account', { method: 'DELETE', body })
 }
 
 export const calendarApi = {

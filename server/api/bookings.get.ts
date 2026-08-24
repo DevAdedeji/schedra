@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gte, ilike, lt, lte, ne, or, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, ilike, inArray, lt, lte, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { paginationMeta, paginationQuerySchema } from '#shared/pagination'
 import { bookings, eventTypes } from '../database/schema'
@@ -7,7 +7,7 @@ import { requireAuthSession } from '../utils/session'
 import { readBookingAnswers } from '../utils/booking-answers'
 
 const querySchema = paginationQuerySchema.extend({
-  filter: z.enum(['all', 'upcoming', 'past', 'cancelled']).default('upcoming')
+  filter: z.enum(['all', 'upcoming', 'pending', 'past', 'cancelled']).default('upcoming')
 })
 
 export default defineEventHandler(async (event) => {
@@ -20,14 +20,16 @@ export default defineEventHandler(async (event) => {
   const nextWeek = new Date(now.getTime() + 7 * 86_400_000)
   const db = useDatabase()
   const mine = eq(bookings.hostId, session.user.id)
-  const active = ne(bookings.status, 'cancelled')
+  const active = inArray(bookings.status, ['pending', 'confirmed'])
   const scope = filter === 'upcoming'
     ? and(gte(bookings.endsAt, now), active)
-    : filter === 'past'
-      ? and(lt(bookings.endsAt, now), active)
-      : filter === 'cancelled'
-        ? eq(bookings.status, 'cancelled')
-        : undefined
+    : filter === 'pending'
+      ? and(eq(bookings.status, 'pending'), gte(bookings.endsAt, now))
+      : filter === 'past'
+        ? and(lt(bookings.endsAt, now), active)
+        : filter === 'cancelled'
+          ? eq(bookings.status, 'cancelled')
+          : undefined
   const matchesSearch = search
     ? or(
         ilike(bookings.attendeeName, `%${search}%`),
@@ -37,6 +39,7 @@ export default defineEventHandler(async (event) => {
     : undefined
   const where = and(mine, scope, matchesSearch)
   const upcomingCount = and(active, gte(bookings.endsAt, now))
+  const pendingCount = and(eq(bookings.status, 'pending'), gte(bookings.endsAt, now))
   const pastCount = and(active, lt(bookings.endsAt, now))
   const nextWeekCount = and(active, gte(bookings.startsAt, now), lte(bookings.startsAt, nextWeek))
 
@@ -48,6 +51,7 @@ export default defineEventHandler(async (event) => {
     attendeeName: bookings.attendeeName,
     attendeeEmail: bookings.attendeeEmail,
     attendeeTimeZone: bookings.attendeeTimeZone,
+    additionalGuestEmails: bookings.additionalGuestEmails,
     locationType: bookings.locationType,
     locationDetails: bookings.locationDetails,
     meetingUrl: bookings.meetingUrl,
@@ -63,6 +67,7 @@ export default defineEventHandler(async (event) => {
       upcoming: sql<number>`count(*) filter (where ${upcomingCount})`.mapWith(Number),
       past: sql<number>`count(*) filter (where ${pastCount})`.mapWith(Number),
       cancelled: sql<number>`count(*) filter (where ${bookings.status} = 'cancelled')`.mapWith(Number),
+      pending: sql<number>`count(*) filter (where ${pendingCount})`.mapWith(Number),
       nextWeek: sql<number>`count(*) filter (where ${nextWeekCount})`.mapWith(Number)
     }).from(bookings).where(mine),
     db.select(columns).from(bookings)
@@ -92,6 +97,7 @@ export default defineEventHandler(async (event) => {
       upcoming: countRow?.upcoming ?? 0,
       past: countRow?.past ?? 0,
       cancelled: countRow?.cancelled ?? 0,
+      pending: countRow?.pending ?? 0,
       nextWeek: countRow?.nextWeek ?? 0
     }
   }

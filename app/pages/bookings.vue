@@ -4,7 +4,7 @@ import { apiErrorMessage, bookingsApi, type BookingRecord, type BookingsResponse
 definePageMeta({ layout: 'app', middleware: 'auth' })
 useSeoMeta({ title: 'Your bookings', robots: 'noindex, nofollow' })
 
-const filter = ref<'all' | 'upcoming' | 'past' | 'cancelled'>('upcoming')
+const filter = ref<'all' | 'upcoming' | 'pending' | 'past' | 'cancelled'>('upcoming')
 const query = ref('')
 const search = ref('')
 const page = ref(1)
@@ -32,6 +32,7 @@ onBeforeUnmount(() => clearTimeout(searchTimer))
 const filterOptions = computed(() => [
   { value: 'all', label: 'All', count: data.value?.counts.all ?? 0 },
   { value: 'upcoming', label: 'Upcoming', count: data.value?.counts.upcoming ?? 0 },
+  { value: 'pending', label: 'Requests', count: data.value?.counts.pending ?? 0 },
   { value: 'past', label: 'Past', count: data.value?.counts.past ?? 0 },
   { value: 'cancelled', label: 'Cancelled', count: data.value?.counts.cancelled ?? 0 }
 ])
@@ -40,9 +41,11 @@ const emptyTitle = computed(() => query.value
   ? 'No matching bookings'
   : filter.value === 'upcoming'
     ? 'Nothing booked yet'
-    : filter.value === 'cancelled'
-      ? 'No cancelled bookings'
-      : 'Nothing here yet')
+    : filter.value === 'pending'
+      ? 'No booking requests'
+      : filter.value === 'cancelled'
+        ? 'No cancelled bookings'
+        : 'Nothing here yet')
 const emptyDescription = computed(() => query.value
   ? 'Try another search or change the filter.'
   : filter.value === 'upcoming'
@@ -98,6 +101,8 @@ function locationLabel(item: BookingRecord) {
 }
 
 const cancelling = ref<string | null>(null)
+const approving = ref<string | null>(null)
+const rejecting = ref<string | null>(null)
 const actionError = ref('')
 
 async function cancel(uid: string) {
@@ -111,6 +116,34 @@ async function cancel(uid: string) {
     actionError.value = apiErrorMessage(failure, 'Could not cancel this booking just now. Please try again.')
   } finally {
     cancelling.value = null
+  }
+}
+
+async function approve(uid: string) {
+  approving.value = uid
+  actionError.value = ''
+  try {
+    await bookingsApi.approve(uid)
+    await refresh()
+    feedback.success({ title: 'Booking approved', description: 'The guests have been notified and your calendar will be updated.' })
+  } catch (failure) {
+    actionError.value = apiErrorMessage(failure, 'Could not approve this request. Please try again.')
+  } finally {
+    approving.value = null
+  }
+}
+
+async function reject(uid: string) {
+  rejecting.value = uid
+  actionError.value = ''
+  try {
+    await bookingsApi.reject(uid)
+    await refresh()
+    feedback.success({ title: 'Request declined', description: 'The guests have been notified and the time is available again.' })
+  } catch (failure) {
+    actionError.value = apiErrorMessage(failure, 'Could not decline this request. Please try again.')
+  } finally {
+    rejecting.value = null
   }
 }
 </script>
@@ -238,6 +271,18 @@ async function cancel(uid: string) {
                       >
                         Cancelled
                       </span>
+                      <span
+                        v-else-if="item.status === 'pending'"
+                        class="rounded-full bg-warning/10 px-2.5 py-0.5 text-[11px] font-medium text-warning"
+                      >
+                        Needs approval
+                      </span>
+                      <span
+                        v-else-if="item.status === 'rejected'"
+                        class="rounded-full bg-elevated px-2.5 py-0.5 text-[11px] font-medium text-muted"
+                      >
+                        Declined
+                      </span>
                     </div>
 
                     <p class="mt-1 text-[14px] text-toned">
@@ -245,6 +290,12 @@ async function cancel(uid: string) {
                     </p>
                     <p class="mt-0.5 truncate text-[13px] text-muted">
                       {{ item.attendeeName }} · {{ item.attendeeEmail }}
+                    </p>
+                    <p
+                      v-if="item.additionalGuestEmails.length"
+                      class="mt-0.5 text-[12px] text-dimmed"
+                    >
+                      + {{ item.additionalGuestEmails.length }} additional guest{{ item.additionalGuestEmails.length === 1 ? '' : 's' }}
                     </p>
                     <p class="mt-1.5 flex items-center gap-1.5 text-[12px] text-muted">
                       <UIcon
@@ -264,7 +315,27 @@ async function cancel(uid: string) {
 
                   <div class="flex shrink-0 gap-2">
                     <UButton
-                      v-if="isUpcoming(item) && item.meetingUrl"
+                      v-if="item.status === 'pending' && isUpcoming(item)"
+                      size="sm"
+                      :loading="approving === item.uid"
+                      class="font-medium"
+                      @click="approve(item.uid)"
+                    >
+                      Approve
+                    </UButton>
+                    <UButton
+                      v-if="item.status === 'pending' && isUpcoming(item)"
+                      color="error"
+                      variant="ghost"
+                      size="sm"
+                      :loading="rejecting === item.uid"
+                      class="font-medium"
+                      @click="reject(item.uid)"
+                    >
+                      Decline
+                    </UButton>
+                    <UButton
+                      v-if="isUpcoming(item) && item.status === 'confirmed' && item.meetingUrl"
                       :to="item.meetingUrl"
                       target="_blank"
                       color="neutral"
@@ -285,7 +356,7 @@ async function cancel(uid: string) {
                       Open
                     </UButton>
                     <UButton
-                      v-if="isUpcoming(item) && item.status !== 'cancelled'"
+                      v-if="isUpcoming(item) && !['cancelled', 'rejected'].includes(item.status)"
                       color="neutral"
                       variant="ghost"
                       size="sm"

@@ -92,6 +92,8 @@ export const createBookingSchema = z.object({
   start: z.iso.datetime(),
   name: z.string().trim().min(1, 'Please give a name').max(80),
   email: emailSchema,
+  guestEmails: z.array(emailSchema).max(10, 'You can invite at most 10 additional guests.')
+    .transform(values => [...new Set(values)]).optional(),
   timeZone: timeZoneSchema,
   notes: z.string().trim().max(2000).optional(),
   answers: z.record(
@@ -124,6 +126,15 @@ export const cancelBookingSchema = z.object({
 })
 
 export type CancelBookingInput = z.infer<typeof cancelBookingSchema>
+
+export const rejectBookingSchema = z.object({
+  reason: z.string().trim().max(500).optional()
+})
+
+export const deleteAccountSchema = z.object({
+  email: emailSchema,
+  confirmation: z.literal('DELETE')
+})
 
 const wallTimeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use a time like 09:00')
 
@@ -250,6 +261,7 @@ export const eventTypeSchema = z.object({
   reminderMinutes: z.array(z.number().int().min(15).max(20_160)).max(5)
     .transform(values => [...new Set(values)].sort((a, b) => b - a)),
   bookingQuestions: z.array(bookingQuestionSchema).max(10, 'An event type can have at most 10 questions.').default([]),
+  requiresConfirmation: z.boolean().default(false),
   scheduleId: z.uuid().optional(),
   hidden: z.boolean()
 }).superRefine((value, context) => {

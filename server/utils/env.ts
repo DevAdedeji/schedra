@@ -8,7 +8,8 @@ export interface Env {
   googleClientSecret?: string
 
   resendApiKey?: string
-  emailDeliveryMode: 'resend' | 'log'
+  smtpUrl?: string
+  emailDeliveryMode: 'resend' | 'smtp' | 'log'
   emailFrom: string
 }
 
@@ -54,6 +55,8 @@ export function useEnv(): Env {
   const googleClientSecret = optional('GOOGLE_CLIENT_SECRET')
   const integrationEncryptionKey = optional('INTEGRATION_ENCRYPTION_KEY')
   const resendApiKey = optional('RESEND_API_KEY')
+  const smtpUrl = optional('SMTP_URL')
+  const emailFrom = optional('EMAIL_FROM')
 
   if (Boolean(googleClientId) !== Boolean(googleClientSecret)) {
     throw new Error('GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set together.')
@@ -63,9 +66,12 @@ export function useEnv(): Env {
   }
 
   const schedraUrl = parseUrl('SCHEDRA_URL', process.env.SCHEDRA_URL!, ['http:', 'https:'])
-  if (!resendApiKey && !['localhost', '127.0.0.1', '::1'].includes(new URL(schedraUrl).hostname)) {
-    throw new Error('RESEND_API_KEY is required outside local development so account and booking emails are not lost.')
+  const local = ['localhost', '127.0.0.1', '::1'].includes(new URL(schedraUrl).hostname)
+  if (smtpUrl) parseUrl('SMTP_URL', smtpUrl, ['smtp:', 'smtps:'])
+  if (!resendApiKey && !smtpUrl && !local) {
+    throw new Error('Configure SMTP_URL or RESEND_API_KEY outside local development so account and booking emails are not lost.')
   }
+  if (!emailFrom && !local) throw new Error('EMAIL_FROM is required outside local development.')
 
   cached = {
     databaseUrl: parseUrl('DATABASE_URL', process.env.DATABASE_URL!, ['postgres:', 'postgresql:']),
@@ -75,8 +81,9 @@ export function useEnv(): Env {
     googleClientId,
     googleClientSecret,
     resendApiKey,
-    emailDeliveryMode: resendApiKey ? 'resend' : 'log',
-    emailFrom: optional('EMAIL_FROM') ?? 'Schedra <onboarding@resend.dev>'
+    smtpUrl,
+    emailDeliveryMode: smtpUrl ? 'smtp' : resendApiKey ? 'resend' : 'log',
+    emailFrom: emailFrom ?? 'Schedra <onboarding@resend.dev>'
   }
 
   return cached

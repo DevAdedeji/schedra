@@ -92,10 +92,12 @@ describe.skipIf(!url)('meeting delivery', () => {
       uid: 'meeting-delivery-booking',
       eventTitle: 'Intro call',
       hostName: 'Host Person',
+      hostUsername: 'host-person',
       hostEmail: 'host@example.com',
       hostTimeZone: 'Africa/Lagos',
       attendeeName: 'Guest Person',
       attendeeEmail: 'guest@example.com',
+      additionalGuestEmails: [],
       attendeeTimeZone: 'Europe/London',
       startsAt: '2030-09-07T08:00:00Z',
       endsAt: '2030-09-07T08:30:00Z',
@@ -151,5 +153,38 @@ describe.skipIf(!url)('meeting delivery', () => {
     expect(calendar).toContain('LOCATION:Video call: https://meet.example.com/original')
     expect(calendar).toContain('URL:https://meet.example.com/original')
     expect(calendar).toContain('END:VCALENDAR\r\n')
+  })
+
+  it('notifies every additional guest without sharing the primary guest management link', async () => {
+    await bookingFixture()
+    const { queueBookingRequestEmails } = await import('../utils/booking-emails')
+    await queueBookingRequestEmails({
+      uid: 'meeting-delivery-booking',
+      eventTitle: 'Intro call',
+      hostName: 'Host Person',
+      hostUsername: 'host',
+      hostEmail: 'host@example.com',
+      hostTimeZone: 'Africa/Lagos',
+      attendeeName: 'Guest Person',
+      attendeeEmail: 'guest@example.com',
+      additionalGuestEmails: ['friend@example.com'],
+      attendeeTimeZone: 'Europe/London',
+      startsAt: '2030-09-07T08:00:00Z',
+      endsAt: '2030-09-07T08:30:00Z',
+      locationType: 'video_link',
+      locationDetails: 'https://meet.example.com/original',
+      reminderMinutes: []
+    })
+
+    const messages = await sql<{ recipient: string, action_url: string }[]>`
+      select recipient, action_url from email_outbox order by recipient
+    `
+    expect(messages.map(message => message.recipient)).toEqual([
+      'friend@example.com',
+      'guest@example.com',
+      'host@example.com'
+    ])
+    expect(messages.find(message => message.recipient === 'guest@example.com')?.action_url).toContain('/booking/meeting-delivery-booking')
+    expect(messages.find(message => message.recipient === 'friend@example.com')?.action_url).toBe('http://localhost:3002/host')
   })
 })

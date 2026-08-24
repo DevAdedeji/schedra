@@ -7,12 +7,7 @@ import {
   eventTypes
 } from '../database/schema'
 import { useDatabase } from './database'
-import {
-  deleteGoogleCalendarEvent,
-  googleConnectionFor,
-  googleEventId,
-  upsertGoogleCalendarEvent
-} from './google-calendar'
+import { connectedCalendarProviders } from './calendar-providers'
 import { bookingAnswersText } from './booking-answers'
 
 export type CalendarSyncExecutor = Pick<Database, 'insert'>
@@ -39,7 +34,7 @@ export async function enqueueFutureBookingsForCalendarSync(userId: string) {
     select ${bookings.id}, 'upsert', 'upsert:' || ${bookings.id}::text
     from ${bookings}
     where ${bookings.hostId} = ${userId}
-      and ${bookings.status} in ('pending', 'confirmed')
+      and ${bookings.status} = 'confirmed'
       and ${bookings.endsAt} > now()
     on conflict (dedupe_key) do update set
       status = 'pending',
@@ -63,6 +58,7 @@ async function syncBooking(bookingId: string, action: CalendarSyncAction) {
     endsAt: bookings.endsAt,
     attendeeName: bookings.attendeeName,
     attendeeEmail: bookings.attendeeEmail,
+    additionalGuestEmails: bookings.additionalGuestEmails,
     answers: bookings.answers,
     locationType: bookings.locationType,
     locationDetails: bookings.locationDetails,
@@ -78,24 +74,27 @@ async function syncBooking(bookingId: string, action: CalendarSyncAction) {
 
   const [mapping] = await db.select().from(bookingCalendarEvents)
     .where(eq(bookingCalendarEvents.bookingId, booking.id)).limit(1)
-  const connection = await googleConnectionFor(booking.hostId)
+  const connected = await connectedCalendarProviders(booking.hostId)
+  const active = connected[0]
+  const connection = active?.connection
+  const provider = active?.provider
 
   // Revoking a connection intentionally ends future synchronization. Existing
   // Google events are left in place, which the disconnect confirmation explains.
-  if (!connection) return
+  if (!connection || !provider) return
 
   if (action === 'delete' || booking.status === 'cancelled' || booking.status === 'rejected') {
     if (!mapping) {
       if (connection.writeCalendarId) {
-        await deleteGoogleCalendarEvent(
+        await provider.deleteEvent(
           booking.hostId,
           connection.writeCalendarId,
-          googleEventId(booking.uid)
+          provider.eventId(booking.uid)
         )
       }
       return
     }
-    await deleteGoogleCalendarEvent(booking.hostId, mapping.calendarId, mapping.eventId)
+    await provider.deleteEvent(booking.hostId, mapping.calendarId, mapping.eventId)
     await db.delete(bookingCalendarEvents).where(eq(bookingCalendarEvents.id, mapping.id))
     return
   }
@@ -104,12 +103,12 @@ async function syncBooking(bookingId: string, action: CalendarSyncAction) {
 
   let current = mapping
   if (current && current.calendarId !== connection.writeCalendarId) {
-    await deleteGoogleCalendarEvent(booking.hostId, current.calendarId, current.eventId)
+    await provider.deleteEvent(booking.hostId, current.calendarId, current.eventId)
     await db.delete(bookingCalendarEvents).where(eq(bookingCalendarEvents.id, current.id))
     current = undefined
   }
 
-  const remote = await upsertGoogleCalendarEvent(
+  const remote = await provider.upsertEvent(
     booking.hostId,
     connection.writeCalendarId,
     current?.eventId ?? null,
@@ -121,6 +120,7 @@ async function syncBooking(bookingId: string, action: CalendarSyncAction) {
       endsAt: booking.endsAt,
       attendeeName: booking.attendeeName,
       attendeeEmail: booking.attendeeEmail,
+      additionalGuestEmails: booking.additionalGuestEmails,
       locationType: booking.locationType,
       locationDetails: booking.locationDetails,
       meetingUrl: booking.meetingUrl,

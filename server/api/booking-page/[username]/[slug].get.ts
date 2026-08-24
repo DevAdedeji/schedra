@@ -22,6 +22,7 @@ export default defineEventHandler(async (event) => {
     description: found.description,
     durationMinutes: found.durationMinutes,
     bookingQuestions: found.bookingQuestions,
+    requiresConfirmation: found.requiresConfirmation,
     locationType: found.locationType,
     locationDetails: found.locationType === 'google_meet'
       ? 'A private Google Meet link will be created when you book.'

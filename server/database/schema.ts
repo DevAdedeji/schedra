@@ -3,6 +3,7 @@ import {
   bigint,
   boolean,
   check,
+  customType,
   date,
   index,
   integer,
@@ -22,6 +23,10 @@ const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
 }
+
+const bytea = customType<{ data: Uint8Array }>({
+  dataType: () => 'bytea'
+})
 
 export const organizations = pgTable('organizations', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -48,6 +53,17 @@ export const users = pgTable('users', {
 }, table => [
   uniqueIndex('users_email_key').on(sql`lower(${table.email})`),
   uniqueIndex('users_username_key').on(sql`lower(${table.username})`)
+])
+
+export const userAvatars = pgTable('user_avatars', {
+  userId: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  contentType: text('content_type').notNull(),
+  bytes: bytea('bytes').notNull(),
+  size: integer('size').notNull(),
+  hash: text('hash').notNull(),
+  ...timestamps
+}, table => [
+  check('user_avatars_size_range', sql`${table.size} > 0 and ${table.size} <= 2097152`)
 ])
 
 export const sessions = pgTable('sessions', {
@@ -263,6 +279,7 @@ export const eventTypes = pgTable('event_types', {
   locationDetails: text('location_details').notNull().default('The host will share meeting details before the meeting.'),
   reminderMinutes: jsonb('reminder_minutes').$type<number[]>().notNull().default(sql`'[1440, 60]'::jsonb`),
   bookingQuestions: jsonb('booking_questions').$type<BookingQuestion[]>().notNull().default(sql`'[]'::jsonb`),
+  requiresConfirmation: boolean('requires_confirmation').notNull().default(false),
 
   hidden: boolean('hidden').notNull().default(false),
 
@@ -307,6 +324,7 @@ export const bookings = pgTable('bookings', {
   attendeeName: text('attendee_name').notNull(),
   attendeeEmail: text('attendee_email').notNull(),
   attendeeTimeZone: text('attendee_time_zone').notNull(),
+  additionalGuestEmails: jsonb('additional_guest_emails').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
 
   locationType: meetingLocationType('location_type').notNull().default('custom'),
   locationDetails: text('location_details').notNull().default('The host will share meeting details before the meeting.'),
