@@ -88,6 +88,8 @@ describe.skipIf(!url)('Google Calendar integration', () => {
 
   beforeEach(async () => {
     await configure()
+    const { clearGoogleBusyCache } = await import('../utils/google-calendar')
+    clearGoogleBusyCache()
     await sql`
       truncate table
         calendar_sync_jobs, booking_calendar_events, calendar_connections,
@@ -247,6 +249,32 @@ describe.skipIf(!url)('Google Calendar integration', () => {
     expect(JSON.parse(String(requestInit?.body))).toMatchObject({
       items: [{ id: 'primary@example.com' }]
     })
+  })
+
+  it('deduplicates overlapping Google free-busy checks briefly', async () => {
+    const { hostId } = await createHost()
+    await connect(hostId)
+    await chooseCalendars(hostId)
+    const fetchMock = vi.fn().mockResolvedValue(json({
+      calendars: {
+        'primary@example.com': {
+          busy: [
+            { start: '2026-09-07T09:00:00Z', end: '2026-09-07T09:30:00Z' },
+            { start: '2026-09-10T09:00:00Z', end: '2026-09-10T09:30:00Z' }
+          ]
+        }
+      }
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { googleBusyTimes } = await import('../utils/google-calendar')
+    await googleBusyTimes(hostId, '2026-09-01T00:00:00Z', '2026-10-01T00:00:00Z')
+    const narrowed = await googleBusyTimes(hostId, '2026-09-07T00:00:00Z', '2026-09-08T00:00:00Z')
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(narrowed).toEqual([
+      { start: '2026-09-07T09:00:00Z', end: '2026-09-07T09:30:00Z' }
+    ])
   })
 
   it('creates, reschedules and cancels calendar events through durable jobs', async () => {

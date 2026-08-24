@@ -9,6 +9,7 @@
     "postinstall": "nuxt prepare",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node scripts/migrate.mjs",
+    "db:migrate:test": "node scripts/migrate.mjs --test",
     "db:studio": "drizzle-kit studio",
     "lint": "eslint .",
     "test": "vitest run",

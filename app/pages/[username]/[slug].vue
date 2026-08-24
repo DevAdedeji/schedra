@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { bookingsApi, publicBookingApi, type AvailabilityResponse, type PublicBookingPage } from '~/services/schedra-api'
+
 definePageMeta({ layout: 'bare' })
 
 const route = useRoute()
@@ -41,17 +43,33 @@ const firstMonday = addDays(today, -((today.getDay() + 6) % 7))
 const weekStart = computed(() => addDays(firstMonday, weekOffset.value * 7))
 const days = computed(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart.value, i)))
 
-const { data, status, error, refresh } = await useFetch('/api/availability', {
+const availabilityRequest = useFetch<AvailabilityResponse>(publicBookingApi.availabilityEndpoint, {
   query: { username, slug, from: isoDate(firstMonday), to: isoDate(addDays(firstMonday, 62)) }
 })
 
-const { data: page } = await useFetch(`/api/booking-page/${username}/${slug}`)
+const pageRequest = useFetch<PublicBookingPage>(publicBookingApi.pageEndpoint(username, slug))
+const [
+  { data, status, error: availabilityError, refresh },
+  { data: page, status: pageStatus, error: pageError, refresh: refreshPage }
+] = await Promise.all([availabilityRequest, pageRequest])
+
+const initialPageError = pageError.value ?? availabilityError.value
+if (initialPageError) setResponseStatus(initialPageError.statusCode === 404 ? 404 : 503)
+
+const missingPage = computed(() => pageError.value?.statusCode === 404 || availabilityError.value?.statusCode === 404)
+const loadingFailure = computed(() => pageError.value && !missingPage.value ? pageError.value : availabilityError.value)
+const initialLoading = computed(() => !page.value && !loadingFailure.value && (pageStatus.value === 'pending' || status.value === 'pending'))
+const retrying = computed(() => pageStatus.value === 'pending' || status.value === 'pending')
+
+async function retryBookingPage() {
+  await Promise.allSettled([refresh(), refreshPage()])
+}
 const rescheduleBooking = ref<{
   attendeeName: string
   attendeeEmail: string
 } | null>(null)
 if (rescheduleOf.value) {
-  rescheduleBooking.value = await $fetch(`/api/booking/${rescheduleOf.value}`)
+  rescheduleBooking.value = await bookingsApi.get(rescheduleOf.value)
     .catch(() => null)
 }
 
@@ -155,18 +173,15 @@ async function confirm() {
   bookingError.value = ''
 
   try {
-    const result = await $fetch('/api/bookings', {
-      method: 'POST',
-      body: {
-        username,
-        slug,
-        start: selectedSlot.value,
-        name: booking.name,
-        email: booking.email,
-        timeZone: viewerTimeZone.value,
-        notes: booking.notes || undefined,
-        rescheduleOf: rescheduleOf.value
-      }
+    const result = await bookingsApi.create({
+      username,
+      slug,
+      start: selectedSlot.value,
+      name: booking.name,
+      email: booking.email,
+      timeZone: viewerTimeZone.value,
+      notes: booking.notes || undefined,
+      rescheduleOf: rescheduleOf.value
     })
     confirmed.value = {
       start: result.start,
@@ -189,9 +204,23 @@ async function confirm() {
   }
 }
 
+const { url: siteUrl, indexable } = useSiteUrl()
+const seoDescription = computed(() => page.value?.description
+  || (page.value
+    ? `${page.value.durationMinutes}-minute meeting with ${page.value.hostName}. Choose an available time online.`
+    : 'Choose an available time and book a meeting online with Schedra.'))
+
 useSeoMeta({
   title: () => page.value ? `${page.value.title} with ${page.value.hostName}` : 'Book a time',
-  robots: 'noindex, nofollow'
+  description: () => seoDescription.value,
+  robots: () => indexable.value && page.value ? 'index, follow' : 'noindex, nofollow',
+  ogType: 'website',
+  ogTitle: () => page.value ? `${page.value.title} with ${page.value.hostName}` : 'Book a time with Schedra',
+  ogDescription: () => seoDescription.value,
+  ogUrl: () => `${siteUrl.value}/${encodeURIComponent(username)}/${encodeURIComponent(slug)}`,
+  twitterCard: 'summary_large_image',
+  twitterTitle: () => page.value ? `${page.value.title} with ${page.value.hostName}` : 'Book a time with Schedra',
+  twitterDescription: () => seoDescription.value
 })
 </script>
 
@@ -206,7 +235,38 @@ useSeoMeta({
         </div>
 
         <div
-          v-if="error"
+          v-if="initialLoading"
+          class="grid overflow-hidden rounded-2xl border border-default bg-default md:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]"
+          role="status"
+          aria-label="Loading booking page"
+        >
+          <div class="space-y-4 border-b border-default px-7 py-8 md:border-b-0 md:border-r sm:px-8">
+            <USkeleton class="h-8 w-3/4 rounded" />
+            <USkeleton class="h-4 w-1/2 rounded" />
+            <USkeleton class="h-4 w-full rounded" />
+            <USkeleton class="h-4 w-5/6 rounded" />
+          </div>
+          <div class="space-y-5 px-7 py-8 sm:px-8">
+            <USkeleton class="h-6 w-40 rounded" />
+            <div class="grid grid-cols-7 gap-2">
+              <USkeleton
+                v-for="day in 7"
+                :key="day"
+                class="h-14 w-full rounded-lg"
+              />
+            </div>
+            <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <USkeleton
+                v-for="slot in 6"
+                :key="slot"
+                class="h-11 w-full rounded-lg"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div
+          v-else-if="missingPage"
           class="rounded-2xl border border-default bg-default px-8 py-16 text-center"
         >
           <h1 class="font-editorial text-4xl text-highlighted">
@@ -215,6 +275,18 @@ useSeoMeta({
           <p class="mt-4 text-base text-muted">
             This booking link does not exist, or it has been taken down.
           </p>
+        </div>
+
+        <div
+          v-else-if="loadingFailure"
+          class="overflow-hidden rounded-2xl border border-default bg-default"
+        >
+          <AsyncErrorState
+            title="Could not load booking times"
+            description="This booking page is still here, but its available times could not be loaded. Check your connection and try again."
+            :retrying="retrying"
+            @retry="retryBookingPage"
+          />
         </div>
 
         <div

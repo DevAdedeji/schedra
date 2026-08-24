@@ -32,8 +32,10 @@ export async function enqueueEmails(
       dedupeKey,
       recipient: email.to,
       subject: email.subject,
+      preheader: email.preheader,
       heading: email.heading,
       body: email.body,
+      details: email.details,
       actionLabel: email.action.label,
       actionUrl: email.action.url,
       footer: email.footer,
@@ -106,8 +108,10 @@ export async function processEmailOutbox(batchSize = 10) {
       await sendEmail({
         to: job.recipient,
         subject: job.subject,
+        preheader: job.preheader ?? undefined,
         heading: job.heading,
         body: job.body,
+        details: job.details ?? undefined,
         action: { label: job.actionLabel, url: job.actionUrl },
         footer: job.footer ?? undefined
       }, job.id)

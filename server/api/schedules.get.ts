@@ -1,4 +1,4 @@
-import { and, asc, count, eq, ilike } from 'drizzle-orm'
+import { and, asc, count, eq, ilike, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { paginationMeta, paginationQuerySchema } from '#shared/pagination'
 import { availabilityRules, dateOverrides, eventTypes, schedules } from '../database/schema'
@@ -27,10 +27,12 @@ export default defineEventHandler(async (event) => {
     search ? ilike(schedules.name, `%${search}%`) : undefined
   )
 
-  const [[totalRow], [allRow], [defaultRow], owned] = await Promise.all([
+  const [[totalRow], [countRow], owned] = await Promise.all([
     db.select({ value: count() }).from(schedules).where(where),
-    db.select({ value: count() }).from(schedules).where(mine),
-    db.select({ value: count() }).from(schedules).where(and(mine, eq(schedules.isDefault, true))),
+    db.select({
+      all: count(),
+      default: sql<number>`count(*) filter (where ${schedules.isDefault} = true)`.mapWith(Number)
+    }).from(schedules).where(mine),
     db.select({
       id: schedules.id,
       name: schedules.name,
@@ -52,8 +54,7 @@ export default defineEventHandler(async (event) => {
           start: availabilityRules.startTime,
           end: availabilityRules.endTime
         }).from(availabilityRules)
-          .innerJoin(schedules, eq(schedules.id, availabilityRules.scheduleId))
-          .where(eq(schedules.userId, session.user.id))
+          .where(inArray(availabilityRules.scheduleId, scheduleIds))
           .orderBy(asc(availabilityRules.weekday), asc(availabilityRules.startTime)),
         db.select({
           scheduleId: dateOverrides.scheduleId,
@@ -61,17 +62,17 @@ export default defineEventHandler(async (event) => {
           start: dateOverrides.startTime,
           end: dateOverrides.endTime
         }).from(dateOverrides)
-          .innerJoin(schedules, eq(schedules.id, dateOverrides.scheduleId))
-          .where(eq(schedules.userId, session.user.id))
+          .where(inArray(dateOverrides.scheduleId, scheduleIds))
           .orderBy(asc(dateOverrides.date), asc(dateOverrides.startTime)),
-        db.select({ scheduleId: eventTypes.scheduleId }).from(eventTypes)
-          .where(eq(eventTypes.userId, session.user.id))
+        db.select({ scheduleId: eventTypes.scheduleId, value: count() }).from(eventTypes)
+          .where(and(eq(eventTypes.userId, session.user.id), inArray(eventTypes.scheduleId, scheduleIds)))
+          .groupBy(eventTypes.scheduleId)
       ])
     : [[], [], []]
 
   const items = owned.map(schedule => ({
     ...schedule,
-    eventTypeCount: assignments.filter(item => item.scheduleId === schedule.id).length,
+    eventTypeCount: assignments.find(item => item.scheduleId === schedule.id)?.value ?? 0,
     rules: rules.filter(rule => rule.scheduleId === schedule.id).map(rule => ({
       weekday: rule.weekday,
       start: rule.start.slice(0, 5),
@@ -87,6 +88,6 @@ export default defineEventHandler(async (event) => {
   return {
     items,
     pagination: paginationMeta(totalRow?.value ?? 0, page, pageSize),
-    counts: { all: allRow?.value ?? 0, default: defaultRow?.value ?? 0 }
+    counts: { all: countRow?.all ?? 0, default: countRow?.default ?? 0 }
   }
 })

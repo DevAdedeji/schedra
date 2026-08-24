@@ -1,24 +1,19 @@
 <script setup lang="ts">
-import type { PaginationMeta } from '#shared/pagination'
+import { apiErrorMessage, eventTypesApi, type EventTypesResponse } from '~/services/schedra-api'
 import type { EventTypeRecord } from '~/types/event-type'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 useSeoMeta({ title: 'Event types', robots: 'noindex, nofollow' })
-
-interface EventTypesResponse {
-  items: EventTypeRecord[]
-  pagination: PaginationMeta
-  counts: { all: number, active: number, hidden: number }
-}
 
 const query = ref('')
 const search = ref('')
 const filter = ref<'all' | 'active' | 'hidden'>('all')
 const page = ref(1)
 const apiQuery = computed(() => ({ filter: filter.value, search: search.value, page: page.value, pageSize: 10 }))
-const { data, refresh, status, error: loadFailure } = useLazyFetch<EventTypesResponse>('/api/event-types', { query: apiQuery })
+const { data, refresh, status, error: loadFailure } = await useLazyFetch<EventTypesResponse>(eventTypesApi.listEndpoint, { query: apiQuery })
 const { data: currentUser } = await useCurrentUser()
 const { host } = useSiteUrl()
+const feedback = useFeedback()
 const route = useRoute()
 
 const modalOpen = ref(false)
@@ -80,20 +75,25 @@ function requestDelete(item: EventTypeRecord) {
 
 async function confirmDelete() {
   if (!deletingItem.value) return
+  const title = deletingItem.value.title
   deleting.value = true
   deleteError.value = ''
   try {
-    await $fetch(`/api/event-types/${deletingItem.value.id}`, { method: 'DELETE' })
+    await eventTypesApi.remove(deletingItem.value.id)
     await refresh()
     deleteOpen.value = false
     deletingItem.value = null
+    feedback.success({ title: 'Event type deleted', description: `${title} is no longer bookable.` })
   } catch (failure) {
-    deleteError.value = (failure as { data?: { statusMessage?: string }, statusMessage?: string }).data?.statusMessage
-      ?? (failure as { statusMessage?: string }).statusMessage
-      ?? 'Could not delete this event type just now.'
+    deleteError.value = apiErrorMessage(failure, 'Could not delete this event type just now.')
   } finally {
     deleting.value = false
   }
+}
+
+async function saved(action: 'created' | 'updated') {
+  await refresh()
+  feedback.success({ title: action === 'created' ? 'Event type created' : 'Event type updated' })
 }
 
 function bookingPath(item: EventTypeRecord) {
@@ -380,7 +380,7 @@ function locationLabel(item: EventTypeRecord) {
     <EventTypeModal
       v-model:open="modalOpen"
       :event-type="selected"
-      @saved="refresh"
+      @saved="saved"
     />
 
     <UModal

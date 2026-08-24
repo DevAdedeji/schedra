@@ -105,6 +105,19 @@ describe.skipIf(!url)('meeting delivery', () => {
       reminderMinutes: [1440, 60]
     })
 
+    const [confirmation] = await sql<{
+      preheader: string
+      details: Array<{ label: string, value: string }>
+    }[]>`
+      select preheader, details from email_outbox
+      where dedupe_key = 'booking:meeting-delivery-booking:created:guest'
+    `
+    expect(confirmation?.preheader).toBe('Intro call is confirmed with Host Person.')
+    expect(confirmation?.details).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: 'Meeting', value: 'Intro call' }),
+      expect.objectContaining({ label: 'With', value: 'Host Person' })
+    ]))
+
     const reminders = await sql<{ category: string, status: string, available_at: Date }[]>`
       select category, status, available_at from email_outbox
       where category = 'booking_reminder' order by available_at

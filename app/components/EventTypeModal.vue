@@ -1,23 +1,28 @@
 <script setup lang="ts">
 import { eventTypeSchema, type EventTypeInput } from '#shared/validation'
+import { apiErrorMessage, calendarApi, eventTypesApi, schedulesApi, type CalendarConnection, type SchedulesResponse } from '~/services/schedra-api'
 import type { EventTypeRecord } from '~/types/event-type'
-import type { ScheduleRecord } from '~/types/schedule'
 
 const props = defineProps<{ open: boolean, eventType?: EventTypeRecord | null }>()
-const emit = defineEmits<{ 'update:open': [value: boolean], 'saved': [] }>()
-interface SchedulesResponse { items: ScheduleRecord[] }
-interface CalendarConnection { connected: boolean, writeCalendarId?: string | null }
-
+const emit = defineEmits<{ 'update:open': [value: boolean], 'saved': [action: 'created' | 'updated'] }>()
 type EventTypeForm = Omit<EventTypeInput, 'bookingWindowDays' | 'maxPerDay'> & {
   bookingWindowDays?: number
   maxPerDay?: number
 }
 
-const { data: currentUser } = await useCurrentUser()
-const { data: schedules, refresh: refreshSchedules } = await useFetch<SchedulesResponse>('/api/schedules', {
-  query: { pageSize: 10 }
+const currentUserRequest = useCurrentUser()
+const schedulesRequest = useFetch<SchedulesResponse>(schedulesApi.listEndpoint, {
+  query: { pageSize: 10 },
+  immediate: false
 })
-const { data: calendarConnection, refresh: refreshCalendarConnection } = await useFetch<CalendarConnection>('/api/integrations/google-calendar')
+const calendarConnectionRequest = useFetch<CalendarConnection>(calendarApi.connectionEndpoint, {
+  immediate: false
+})
+const [
+  { data: currentUser },
+  { data: schedules, refresh: refreshSchedules },
+  { data: calendarConnection, refresh: refreshCalendarConnection }
+] = await Promise.all([currentUserRequest, schedulesRequest, calendarConnectionRequest])
 const { host } = useSiteUrl()
 const form = reactive<EventTypeForm>(emptyForm())
 const initial = ref('')
@@ -133,16 +138,13 @@ async function save() {
   saving.value = true
   error.value = ''
   try {
-    await $fetch(props.eventType ? `/api/event-types/${props.eventType.id}` : '/api/event-types', {
-      method: props.eventType ? 'PATCH' : 'POST', body: parsed.data
-    })
+    if (props.eventType) await eventTypesApi.update(props.eventType.id, parsed.data)
+    else await eventTypesApi.create(parsed.data)
     await refreshNuxtData('/api/event-types')
-    emit('saved')
+    emit('saved', props.eventType ? 'updated' : 'created')
     isOpen.value = false
   } catch (failure) {
-    error.value = (failure as { data?: { statusMessage?: string }, statusMessage?: string }).data?.statusMessage
-      ?? (failure as { statusMessage?: string }).statusMessage
-      ?? 'Could not save this event type just now.'
+    error.value = apiErrorMessage(failure, 'Could not save this event type just now.')
   } finally {
     saving.value = false
   }

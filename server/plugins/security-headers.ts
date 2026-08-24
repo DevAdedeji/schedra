@@ -28,9 +28,13 @@ export default defineNitroPlugin((nitro) => {
           `form-action 'self'`,
           `frame-ancestors 'none'`,
           `img-src 'self' data: https:`,
+          `manifest-src 'self'`,
+          `media-src 'none'`,
           `object-src 'none'`,
           `script-src 'self' 'unsafe-inline'`,
+          `script-src-attr 'none'`,
           `style-src 'self' 'unsafe-inline'`,
+          `worker-src 'self' blob:`,
           'upgrade-insecure-requests'
         ].join('; '),
         'Strict-Transport-Security': 'max-age=63072000; includeSubDomains'

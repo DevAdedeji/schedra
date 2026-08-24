@@ -40,6 +40,7 @@ test('creates an event and completes the guest booking lifecycle', async ({ page
   await page.getByLabel('Password').fill('a-production-grade-passphrase')
   await page.getByRole('button', { name: 'Sign in' }).click()
   await expect(page).toHaveURL(/\/dashboard$/)
+  await expect(page.getByRole('heading', { name: 'Hello, E2E' })).toBeVisible()
 
   await page.goto('/event-types')
   await page.waitForLoadState('networkidle')

@@ -1,37 +1,16 @@
 <script setup lang="ts">
-import type { PaginationMeta } from '#shared/pagination'
+import { apiErrorMessage, bookingsApi, type BookingRecord, type BookingsResponse } from '~/services/schedra-api'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 useSeoMeta({ title: 'Your bookings', robots: 'noindex, nofollow' })
-
-interface BookingRecord {
-  uid: string
-  status: 'pending' | 'confirmed' | 'cancelled' | 'rejected'
-  startsAt: string
-  endsAt: string
-  attendeeName: string
-  attendeeEmail: string
-  attendeeTimeZone: string
-  locationType: 'google_meet' | 'video_link' | 'phone' | 'in_person' | 'custom'
-  locationDetails: string
-  meetingUrl: string | null
-  eventTitle: string
-  notes: string | null
-  cancellationReason: string | null
-}
-
-interface BookingsResponse {
-  items: BookingRecord[]
-  pagination: PaginationMeta
-  counts: { all: number, upcoming: number, past: number, cancelled: number, nextWeek: number }
-}
 
 const filter = ref<'all' | 'upcoming' | 'past' | 'cancelled'>('upcoming')
 const query = ref('')
 const search = ref('')
 const page = ref(1)
 const apiQuery = computed(() => ({ filter: filter.value, search: search.value, page: page.value, pageSize: 10 }))
-const { data, refresh, status, error: loadFailure } = useLazyFetch<BookingsResponse>('/api/bookings', { query: apiQuery })
+const { data, refresh, status, error: loadFailure } = await useLazyFetch<BookingsResponse>(bookingsApi.listEndpoint, { query: apiQuery })
+const feedback = useFeedback()
 const list = computed(() => data.value?.items ?? [])
 const initialLoading = computed(() => status.value === 'pending' && !data.value)
 const refreshing = computed(() => status.value === 'pending' && Boolean(data.value))
@@ -125,12 +104,11 @@ async function cancel(uid: string) {
   cancelling.value = uid
   actionError.value = ''
   try {
-    await $fetch(`/api/booking/${uid}/cancel`, { method: 'POST', body: {} })
+    await bookingsApi.cancel(uid)
     await refresh()
+    feedback.success({ title: 'Booking cancelled', description: 'The guest and connected calendar will be updated.' })
   } catch (failure) {
-    actionError.value = (failure as { data?: { statusMessage?: string }, statusMessage?: string }).data?.statusMessage
-      ?? (failure as { statusMessage?: string }).statusMessage
-      ?? 'Could not cancel this booking just now. Please try again.'
+    actionError.value = apiErrorMessage(failure, 'Could not cancel this booking just now. Please try again.')
   } finally {
     cancelling.value = null
   }

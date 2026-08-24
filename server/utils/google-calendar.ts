@@ -4,6 +4,7 @@ import { calendarConnections } from '../database/schema'
 import { useDatabase } from './database'
 import { decryptCredential, encryptCredential } from './credential-crypto'
 import { useEnv } from './env'
+import { fetchWithTimeout } from './fetch'
 
 export const GOOGLE_CALENDAR_SCOPES = [
   'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
@@ -72,7 +73,7 @@ export function googleAuthorizationUrl(state: string, email: string) {
 
 export async function exchangeGoogleCode(code: string): Promise<GoogleTokens> {
   const env = useEnv()
-  const response = await fetch('https://oauth2.googleapis.com/token', {
+  const response = await fetchWithTimeout('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -127,7 +128,7 @@ async function accessToken(userId: string, forceRefresh = false) {
   }
 
   const env = useEnv()
-  const response = await fetch('https://oauth2.googleapis.com/token', {
+  const response = await fetchWithTimeout('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -159,7 +160,7 @@ async function accessToken(userId: string, forceRefresh = false) {
 async function googleResponse(userId: string, path: string, init?: RequestInit) {
   let auth = await accessToken(userId)
   if (!auth) throw new CalendarUnavailableError('Google Calendar is not connected.')
-  const request = (token: string) => fetch(`https://www.googleapis.com/calendar/v3${path}`, {
+  const request = (token: string) => fetchWithTimeout(`https://www.googleapis.com/calendar/v3${path}`, {
     ...init,
     headers: { 'authorization': `Bearer ${token}`, 'content-type': 'application/json', ...init?.headers }
   })
@@ -222,19 +223,57 @@ export async function initializeGoogleCalendars(userId: string) {
   }).where(and(eq(calendarConnections.userId, userId), eq(calendarConnections.provider, 'google')))
 }
 
+interface BusyPeriod { start: string, end: string }
+interface BusyCacheEntry {
+  from: number
+  to: number
+  expiresAt: number
+  request: Promise<BusyPeriod[]>
+}
+
+const busyCache = new Map<string, BusyCacheEntry>()
+const BUSY_CACHE_MS = 15_000
+
+export function clearGoogleBusyCache() {
+  busyCache.clear()
+}
+
 export async function googleBusyTimes(userId: string, from: string, to: string) {
   const connection = await googleConnectionFor(userId)
   if (!connection) return []
   if (connection.status !== 'active') throw new CalendarUnavailableError('The host calendar needs to be reconnected.')
   if (!connection.conflictCalendarIds.length) return []
-  const result = await googleRequest<{ calendars: Record<string, { busy?: { start: string, end: string }[], errors?: unknown[] }> }>(
+  const requestedFrom = Date.parse(from)
+  const requestedTo = Date.parse(to)
+  const cacheKey = `${connection.id}:${connection.updatedAt.toISOString()}:${connection.conflictCalendarIds.join('\u0000')}`
+  const cached = busyCache.get(cacheKey)
+
+  if (cached && cached.expiresAt > Date.now() && requestedFrom >= cached.from && requestedTo <= cached.to) {
+    return (await cached.request).filter(period => Date.parse(period.end) > requestedFrom && Date.parse(period.start) < requestedTo)
+  }
+
+  const request = googleRequest<{ calendars: Record<string, { busy?: BusyPeriod[], errors?: unknown[] }> }>(
     userId,
     '/freeBusy',
     { method: 'POST', body: JSON.stringify({ timeMin: from, timeMax: to, timeZone: 'UTC', items: connection.conflictCalendarIds.map(id => ({ id })) }) }
-  )
-  const entries = Object.values(result.calendars)
-  if (entries.some(entry => entry.errors?.length)) throw new CalendarUnavailableError('Google could not check every selected calendar.')
-  return entries.flatMap(entry => entry.busy ?? [])
+  ).then((result) => {
+    const entries = Object.values(result.calendars)
+    if (entries.some(entry => entry.errors?.length)) throw new CalendarUnavailableError('Google could not check every selected calendar.')
+    return entries.flatMap(entry => entry.busy ?? [])
+  })
+
+  if (busyCache.size >= 1000) {
+    const oldestKey = busyCache.keys().next().value
+    if (oldestKey) busyCache.delete(oldestKey)
+  }
+  busyCache.set(cacheKey, { from: requestedFrom, to: requestedTo, expiresAt: Date.now() + BUSY_CACHE_MS, request })
+
+  try {
+    return await request
+  } catch (error) {
+    busyCache.delete(cacheKey)
+    throw error
+  }
 }
 
 export async function googleCalendarConnection(userId: string) {
@@ -359,7 +398,7 @@ export async function disconnectGoogleCalendar(userId: string) {
 
   try {
     const token = decryptCredential(connection.refreshTokenEncrypted)
-    await fetch(`https://oauth2.googleapis.com/revoke?${new URLSearchParams({ token })}`, {
+    await fetchWithTimeout(`https://oauth2.googleapis.com/revoke?${new URLSearchParams({ token })}`, {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' }
     })

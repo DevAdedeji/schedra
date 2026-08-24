@@ -1,31 +1,21 @@
 <script setup lang="ts">
-import type { EventTypeRecord } from '~/types/event-type'
-import type { ScheduleRecord } from '~/types/schedule'
+import { bookingsApi, eventTypesApi, schedulesApi, type BookingsResponse, type EventTypesResponse, type SchedulesResponse } from '~/services/schedra-api'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 useSeoMeta({ title: 'Overview', robots: 'noindex, nofollow' })
 
-interface BookingRecord {
-  uid: string
-  status: string
-  startsAt: string
-  endsAt: string
-  attendeeName: string
-  attendeeEmail: string
-  eventTitle: string
-}
-interface BookingsResponse {
-  items: BookingRecord[]
-  counts: { all: number, upcoming: number, past: number, cancelled: number, nextWeek: number }
-}
-interface EventTypesResponse { items: EventTypeRecord[], counts: { all: number, active: number, hidden: number } }
-interface SchedulesResponse { items: ScheduleRecord[] }
-const { data } = await useCurrentUser()
-const { data: bookings, status: bookingsStatus, error: bookingsFailure, refresh: refreshBookings } = useLazyFetch<BookingsResponse>('/api/bookings', {
+const currentUserRequest = useCurrentUser()
+const bookingsRequest = useLazyFetch<BookingsResponse>(bookingsApi.listEndpoint, {
   query: { filter: 'upcoming', pageSize: 3 }
 })
-const { data: eventTypes, status: eventTypesStatus, error: eventTypesFailure, refresh: refreshEventTypes } = useLazyFetch<EventTypesResponse>('/api/event-types', { query: { pageSize: 1 } })
-const { data: schedules, status: schedulesStatus, error: schedulesFailure, refresh: refreshSchedules } = useLazyFetch<SchedulesResponse>('/api/schedules', { query: { pageSize: 10 } })
+const eventTypesRequest = useLazyFetch<EventTypesResponse>(eventTypesApi.listEndpoint, { query: { pageSize: 1 } })
+const schedulesRequest = useLazyFetch<SchedulesResponse>(schedulesApi.listEndpoint, { query: { pageSize: 10 } })
+const [
+  { data },
+  { data: bookings, status: bookingsStatus, error: bookingsFailure, refresh: refreshBookings },
+  { data: eventTypes, status: eventTypesStatus, error: eventTypesFailure, refresh: refreshEventTypes },
+  { data: schedules, status: schedulesStatus, error: schedulesFailure, refresh: refreshSchedules }
+] = await Promise.all([currentUserRequest, bookingsRequest, eventTypesRequest, schedulesRequest])
 const { url, host } = useSiteUrl()
 const { copied, copy } = useCopy()
 

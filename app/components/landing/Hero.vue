@@ -1,3 +1,7 @@
+<script setup lang="ts">
+const { isSignedIn, accountDestination } = await useLandingNavigation()
+</script>
+
 <template>
   <section class="bg-muted">
     <div class="mx-auto max-w-312 px-6 pb-20 pt-16 lg:px-10 lg:pb-28 lg:pt-24">
@@ -20,12 +24,12 @@
 
           <div class="mt-10 flex flex-wrap items-center gap-3">
             <UButton
-              to="/signup"
+              :to="accountDestination"
               prefetch
               size="xl"
               class="rounded-full px-7 font-medium"
             >
-              Create your link
+              {{ isSignedIn ? 'Go to dashboard' : 'Create your link' }}
             </UButton>
             <UButton
               to="#how"

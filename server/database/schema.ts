@@ -130,8 +130,14 @@ export const emailOutbox = pgTable('email_outbox', {
   dedupeKey: text('dedupe_key').notNull(),
   recipient: text('recipient').notNull(),
   subject: text('subject').notNull(),
+  preheader: text('preheader'),
   heading: text('heading').notNull(),
   body: text('body').notNull(),
+  details: jsonb('details').$type<Array<{
+    label: string
+    value: string
+    url?: string
+  }>>(),
   actionLabel: text('action_label').notNull(),
   actionUrl: text('action_url').notNull(),
   footer: text('footer'),
@@ -261,6 +267,7 @@ export const eventTypes = pgTable('event_types', {
   ...timestamps
 }, table => [
   uniqueIndex('event_types_user_id_slug_key').on(table.userId, table.slug),
+  index('event_types_user_hidden_created_at_idx').on(table.userId, table.hidden, table.createdAt),
   check('event_types_duration_positive', sql`${table.durationMinutes} > 0`),
   check(
     'event_types_increment_positive',
@@ -311,6 +318,7 @@ export const bookings = pgTable('bookings', {
 }, table => [
   uniqueIndex('bookings_uid_key').on(table.uid),
   index('bookings_host_id_starts_at_idx').on(table.hostId, table.startsAt),
+  index('bookings_host_status_ends_at_idx').on(table.hostId, table.status, table.endsAt),
   index('bookings_event_type_id_idx').on(table.eventTypeId),
   check('bookings_ends_after_starts', sql`${table.endsAt} > ${table.startsAt}`)
 ])

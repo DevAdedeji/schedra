@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { apiErrorMessage, schedulesApi } from '~/services/schedra-api'
 import type { ScheduleOverrideRecord, ScheduleRecord } from '~/types/schedule'
 
 const props = defineProps<{ open: boolean, schedule?: ScheduleRecord | null }>()
@@ -125,22 +126,17 @@ async function save() {
   saving.value = true
   error.value = ''
   try {
-    await $fetch(`/api/schedules/${props.schedule.id}`, {
-      method: 'PATCH',
-      body: {
-        name: name.value,
-        timeZone: timeZone.value,
-        isDefault: isDefault.value,
-        rules: rows.value.flatMap(row => row.enabled ? row.windows.map(window => ({ weekday: row.weekday, start: window.start, end: window.end })) : []),
-        overrides: overrides.value
-      }
+    await schedulesApi.update(props.schedule.id, {
+      name: name.value,
+      timeZone: timeZone.value,
+      isDefault: isDefault.value,
+      rules: rows.value.flatMap(row => row.enabled ? row.windows.map(window => ({ weekday: row.weekday, start: window.start, end: window.end })) : []),
+      overrides: overrides.value
     })
     emit('saved', props.schedule.id)
     isOpen.value = false
   } catch (failure) {
-    error.value = (failure as { data?: { statusMessage?: string }, statusMessage?: string }).data?.statusMessage
-      ?? (failure as { statusMessage?: string }).statusMessage
-      ?? 'Could not save this schedule just now.'
+    error.value = apiErrorMessage(failure, 'Could not save this schedule just now.')
   } finally {
     saving.value = false
   }

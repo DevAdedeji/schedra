@@ -7,6 +7,7 @@ const links = [
 
 const open = ref(false)
 const colorMode = useColorMode()
+const { isSignedIn, accountDestination } = await useLandingNavigation()
 
 function toggleColorMode() {
   colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark'
@@ -44,12 +45,12 @@ function toggleColorMode() {
             @click="toggleColorMode"
           />
           <UButton
-            to="/signup"
+            :to="accountDestination"
             prefetch
             size="sm"
             class="hidden rounded-full px-4 font-medium sm:inline-flex"
           >
-            Sign up free
+            {{ isSignedIn ? 'Dashboard' : 'Sign up free' }}
           </UButton>
           <UButton
             color="neutral"
@@ -75,6 +76,16 @@ function toggleColorMode() {
           class="block py-2.5 text-[15px] text-muted transition-colors hover:text-highlighted"
           @click="open = false"
         >{{ link.label }}</a>
+
+        <UButton
+          :to="accountDestination"
+          prefetch
+          block
+          class="mt-3 rounded-full font-medium"
+          @click="open = false"
+        >
+          {{ isSignedIn ? 'Dashboard' : 'Sign up free' }}
+        </UButton>
       </nav>
     </div>
   </header>

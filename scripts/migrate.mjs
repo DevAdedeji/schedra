@@ -7,12 +7,26 @@ if (existsSync('.env')) {
   process.loadEnvFile()
 }
 
+const testMode = process.argv.includes('--test')
+if (testMode && existsSync('.env.test')) {
+  process.loadEnvFile('.env.test')
+}
 // DDL through a connection pooler is unreliable, so prefer the direct endpoint.
-const url = process.env.DIRECT_URL || process.env.DATABASE_URL
+const url = testMode
+  ? process.env.TEST_DATABASE_URL
+  : process.env.DIRECT_URL || process.env.DATABASE_URL
 
 if (!url) {
-  console.error('DATABASE_URL is not set')
+  console.error(`${testMode ? 'TEST_DATABASE_URL' : 'DATABASE_URL'} is not set`)
   process.exit(1)
+}
+
+if (testMode) {
+  const database = decodeURIComponent(new URL(url).pathname.slice(1))
+  if (!/(^|[-_])test($|[-_])/i.test(database)) {
+    console.error(`Refusing to migrate non-test database "${database}" in test mode`)
+    process.exit(1)
+  }
 }
 
 const client = postgres(url, { max: 1, onnotice: () => {} })

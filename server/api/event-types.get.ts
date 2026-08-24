@@ -1,4 +1,4 @@
-import { and, asc, count, eq, ilike, or } from 'drizzle-orm'
+import { and, asc, count, eq, ilike, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { paginationMeta, paginationQuerySchema } from '#shared/pagination'
 import { eventTypes, schedules } from '../database/schema'
@@ -34,11 +34,13 @@ export default defineEventHandler(async (event) => {
     : undefined
   const where = and(mine, visibility, matchesSearch)
 
-  const [[totalRow], [allRow], [activeRow], [hiddenRow], items] = await Promise.all([
+  const [[totalRow], [countRow], items] = await Promise.all([
     db.select({ value: count() }).from(eventTypes).where(where),
-    db.select({ value: count() }).from(eventTypes).where(mine),
-    db.select({ value: count() }).from(eventTypes).where(and(mine, eq(eventTypes.hidden, false))),
-    db.select({ value: count() }).from(eventTypes).where(and(mine, eq(eventTypes.hidden, true))),
+    db.select({
+      all: count(),
+      active: sql<number>`count(*) filter (where ${eventTypes.hidden} = false)`.mapWith(Number),
+      hidden: sql<number>`count(*) filter (where ${eventTypes.hidden} = true)`.mapWith(Number)
+    }).from(eventTypes).where(mine),
     db.select({
       id: eventTypes.id,
       slug: eventTypes.slug,
@@ -69,9 +71,9 @@ export default defineEventHandler(async (event) => {
     items,
     pagination: paginationMeta(totalRow?.value ?? 0, page, pageSize),
     counts: {
-      all: allRow?.value ?? 0,
-      active: activeRow?.value ?? 0,
-      hidden: hiddenRow?.value ?? 0
+      all: countRow?.all ?? 0,
+      active: countRow?.active ?? 0,
+      hidden: countRow?.hidden ?? 0
     }
   }
 })
