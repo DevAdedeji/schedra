@@ -1,0 +1,2 @@
+CREATE INDEX "bookings_host_status_ends_at_idx" ON "bookings" USING btree ("host_id","status","ends_at");--> statement-breakpoint
+CREATE INDEX "event_types_user_hidden_created_at_idx" ON "event_types" USING btree ("user_id","hidden","created_at");

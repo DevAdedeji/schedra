@@ -12,9 +12,11 @@ const props = withDefaults(defineProps<{
   prefix?: string
   placeholder?: string
   state?: 'ok' | 'bad' | 'busy' | null
+  size?: 'lg' | 'xl'
 }>(), {
   placeholder: 'ada',
-  state: null
+  state: null,
+  size: 'xl'
 })
 
 const { host } = useSiteUrl()
@@ -31,19 +33,25 @@ const {
   emitFormChange,
   emitFormFocus,
   emitFormInput
-} = useFormField(props, { deferInputValidation: true })
+} = useFormField<{ size: 'lg' | 'xl' }>(props, { deferInputValidation: true })
 </script>
 
 <template>
   <div
     class="flex w-full items-stretch overflow-hidden rounded-lg border transition-colors"
-    :class="color === 'error'
-      ? 'border-error ring-2 ring-error/20'
-      : focused
-        ? 'border-primary ring-2 ring-primary/20'
-        : 'border-accented hover:border-inverted/20'"
+    :class="[
+      size === 'lg' ? 'h-9' : 'h-10',
+      color === 'error'
+        ? 'border-error ring-2 ring-error/20'
+        : focused
+          ? 'border-primary ring-2 ring-primary/20'
+          : 'border-accented hover:border-inverted/20'
+    ]"
   >
-    <span class="flex shrink-0 select-none items-center border-r border-accented bg-muted px-3 text-[14px] leading-none text-muted">
+    <span
+      class="flex shrink-0 select-none items-center border-r border-accented bg-muted px-3 leading-none text-muted"
+      :class="size === 'lg' ? 'text-[13px]' : 'text-[14px]'"
+    >
       {{ prefix }}
     </span>
 
@@ -57,7 +65,8 @@ const {
       autocapitalize="none"
       spellcheck="false"
       :placeholder="placeholder"
-      class="min-w-0 flex-1 bg-default px-3 py-3 text-[15px] text-highlighted outline-none placeholder:text-dimmed"
+      class="h-full min-w-0 flex-1 bg-default px-3 text-highlighted outline-none placeholder:text-dimmed"
+      :class="size === 'lg' ? 'text-[14px]' : 'text-[15px]'"
       v-bind="{ ...ariaAttrs, ...$attrs }"
       @input="emitFormInput"
       @change="emitFormChange"

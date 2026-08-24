@@ -20,6 +20,12 @@ export default defineEventHandler(async (event) => {
     hostName: found.hostName,
     title: found.title,
     description: found.description,
-    durationMinutes: found.durationMinutes
+    durationMinutes: found.durationMinutes,
+    locationType: found.locationType,
+    locationDetails: found.locationType === 'google_meet'
+      ? 'A private Google Meet link will be created when you book.'
+      : found.locationType === 'video_link'
+        ? 'The meeting link will be shared after you book.'
+        : found.locationDetails
   }
 })

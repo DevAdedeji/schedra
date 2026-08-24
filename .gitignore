@@ -15,6 +15,11 @@ logs
 
 # Test output
 coverage
+test-results
+playwright-report
+
+# Local package-manager cache
+.pnpm-store
 
 # Misc
 .DS_Store

@@ -61,6 +61,9 @@ describe('authentication validation', () => {
       minimumNoticeMinutes: 120,
       bookingWindowDays: 60,
       maxPerDay: 8,
+      locationType: 'video_link',
+      locationDetails: 'https://meet.example.com/intro',
+      reminderMinutes: [1440, 60],
       hidden: false
     }
 
@@ -68,6 +71,8 @@ describe('authentication validation', () => {
     expect(eventTypeSchema.safeParse({ ...valid, slug: '../admin' }).success).toBe(false)
     expect(eventTypeSchema.safeParse({ ...valid, durationMinutes: 0 }).success).toBe(false)
     expect(eventTypeSchema.safeParse({ ...valid, maxPerDay: 0 }).success).toBe(false)
+    expect(eventTypeSchema.safeParse({ ...valid, locationDetails: 'not a link' }).success).toBe(false)
+    expect(eventTypeSchema.parse({ ...valid, reminderMinutes: [60, 1440, 60] }).reminderMinutes).toEqual([1440, 60])
   })
 
   it('accepts unavailable and custom date overrides but rejects partial or reversed hours', () => {

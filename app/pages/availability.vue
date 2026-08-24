@@ -1,22 +1,17 @@
 <script setup lang="ts">
-import type { PaginationMeta } from '#shared/pagination'
+import { apiErrorMessage, schedulesApi, type SchedulesResponse } from '~/services/schedra-api'
 import type { ScheduleRecord } from '~/types/schedule'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 useSeoMeta({ title: 'Availability schedules', robots: 'noindex, nofollow' })
-
-interface SchedulesResponse {
-  items: ScheduleRecord[]
-  pagination: PaginationMeta
-  counts: { all: number, default: number }
-}
 
 const query = ref('')
 const search = ref('')
 const filter = ref<'all' | 'default'>('all')
 const page = ref(1)
 const apiQuery = computed(() => ({ filter: filter.value, search: search.value, page: page.value, pageSize: 10 }))
-const { data, refresh, status, error: loadFailure } = useLazyFetch<SchedulesResponse>('/api/schedules', { query: apiQuery })
+const { data, refresh, status, error: loadFailure } = await useLazyFetch<SchedulesResponse>(schedulesApi.listEndpoint, { query: apiQuery })
+const feedback = useFeedback()
 const zones = Intl.supportedValuesOf('timeZone')
 const editorOpen = ref(false)
 const selected = ref<ScheduleRecord | null>(null)
@@ -76,17 +71,18 @@ async function createSchedule() {
   creating.value = true
   createError.value = ''
   try {
-    const created = await $fetch<{ id: string }>('/api/schedules', { method: 'POST', body: draft })
+    const created = await schedulesApi.create(draft)
     query.value = ''
     search.value = ''
     filter.value = 'all'
     page.value = 1
     await refresh()
     createOpen.value = false
+    feedback.success({ title: 'Schedule created', description: 'Add or adjust its working hours now.' })
     const schedule = data.value?.items.find(item => item.id === created.id)
     if (schedule) edit(schedule)
   } catch (failure) {
-    createError.value = errorMessage(failure, 'Could not create this schedule just now.')
+    createError.value = apiErrorMessage(failure, 'Could not create this schedule just now.')
   } finally {
     creating.value = false
   }
@@ -95,16 +91,17 @@ async function createSchedule() {
 async function duplicate(schedule: ScheduleRecord) {
   pageError.value = ''
   try {
-    const created = await $fetch<{ id: string }>(`/api/schedules/${schedule.id}/duplicate`, { method: 'POST' })
+    const created = await schedulesApi.duplicate(schedule.id)
     query.value = ''
     search.value = ''
     filter.value = 'all'
     page.value = 1
     await refresh()
     const copy = data.value?.items.find(item => item.id === created.id)
+    feedback.success({ title: 'Schedule duplicated', description: `${schedule.name} was copied.` })
     if (copy) edit(copy)
   } catch (failure) {
-    pageError.value = errorMessage(failure, 'Could not duplicate this schedule just now.')
+    pageError.value = apiErrorMessage(failure, 'Could not duplicate this schedule just now.')
   }
 }
 
@@ -116,15 +113,17 @@ function requestDelete(schedule: ScheduleRecord) {
 
 async function confirmDelete() {
   if (!deletingItem.value) return
+  const name = deletingItem.value.name
   deleting.value = true
   deleteError.value = ''
   try {
-    await $fetch(`/api/schedules/${deletingItem.value.id}`, { method: 'DELETE' })
+    await schedulesApi.remove(deletingItem.value.id)
     await refresh()
     deleteOpen.value = false
     deletingItem.value = null
+    feedback.success({ title: 'Schedule deleted', description: `${name} was removed.` })
   } catch (failure) {
-    deleteError.value = errorMessage(failure, 'Could not delete this schedule just now.')
+    deleteError.value = apiErrorMessage(failure, 'Could not delete this schedule just now.')
   } finally {
     deleting.value = false
   }
@@ -133,12 +132,7 @@ async function confirmDelete() {
 async function saved(id: string) {
   await refresh()
   selected.value = data.value?.items.find(item => item.id === id) ?? null
-}
-
-function errorMessage(failure: unknown, fallback: string) {
-  return (failure as { data?: { statusMessage?: string }, statusMessage?: string }).data?.statusMessage
-    ?? (failure as { statusMessage?: string }).statusMessage
-    ?? fallback
+  feedback.success({ title: 'Availability saved' })
 }
 
 function scheduleStats(schedule: ScheduleRecord) {

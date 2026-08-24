@@ -4,9 +4,10 @@ A source-available, self-hostable scheduling platform built around one app conta
 
 > **Status: prelaunch.** Personal booking pages, race-safe booking, weekly
 > availability, timezone conversion, host booking management, cancellation,
-> rescheduling, durable email delivery and Google Calendar conflict/event sync
-> are implemented. Reminders, teams, webhooks and embeds are not implemented
-> yet. The homepage slot picker is an explicitly labelled interactive preview.
+> rescheduling, meeting locations, calendar-file downloads, configurable
+> reminders, durable email delivery and Google Calendar conflict/event/Meet sync
+> are implemented. Teams, webhooks and embeds are not implemented yet. The
+> homepage slot picker is an explicitly labelled interactive preview.
 
 ## Stack
 
@@ -30,6 +31,7 @@ pnpm preview       # preview that build locally
 pnpm lint          # eslint
 pnpm typecheck     # vue-tsc
 pnpm test          # vitest — database tests use TEST_DATABASE_URL only
+pnpm test:e2e      # Playwright — complete host and guest booking lifecycle
 pnpm db:generate   # generate a migration from schema changes
 pnpm db:studio     # browse the database
 ```

@@ -12,8 +12,13 @@ const state = reactive({ name: '', username: '', email: '', password: '' })
 const touched = ref(false)
 const pending = ref(false)
 const error = ref('')
+const ready = ref(false)
 
 const strength = usePasswordStrength(toRef(state, 'password'))
+
+onMounted(() => {
+  ready.value = true
+})
 
 function normalise(value: string) {
   return value
@@ -94,8 +99,10 @@ const linkMessage = computed(() => {
 })
 
 async function onSubmit(event: FormSubmitEvent<SignUpFormInput>) {
-  if (availability.value && !availability.value.available) {
-    error.value = 'Please pick a different link.'
+  if (checking.value || !availability.value?.available) {
+    error.value = checking.value
+      ? 'Please wait while we check your booking link.'
+      : 'Please choose an available booking link.'
     return
   }
 
@@ -150,6 +157,8 @@ async function onSubmit(event: FormSubmitEvent<SignUpFormInput>) {
     <UForm
       :schema="signUpFormSchema"
       :state="state"
+      data-testid="signup-form"
+      :data-ready="ready ? 'true' : 'false'"
       :class="methods?.google ? 'space-y-5' : 'mt-8 space-y-5'"
       @submit="onSubmit"
     >
@@ -247,6 +256,7 @@ async function onSubmit(event: FormSubmitEvent<SignUpFormInput>) {
         size="xl"
         block
         :loading="pending"
+        :disabled="checking || !availability?.available"
         class="rounded-full font-medium"
       >
         Create my link

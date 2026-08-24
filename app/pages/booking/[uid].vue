@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { apiErrorMessage, bookingsApi, type BookingDetail } from '~/services/schedra-api'
+
 definePageMeta({ layout: 'bare' })
 
 const route = useRoute()
@@ -10,7 +12,10 @@ const { data: viewer } = await useCurrentUser()
 const signedIn = computed(() => Boolean(viewer.value?.user))
 if (signedIn.value) setPageLayout('app')
 
-const { data: booking, error, refresh } = await useFetch(`/api/booking/${uid}`)
+const { data: booking, error, status, refresh } = await useFetch<BookingDetail>(bookingsApi.detailEndpoint(uid))
+if (error.value) setResponseStatus(error.value.statusCode === 404 ? 404 : 503)
+const missingBooking = computed(() => error.value?.statusCode === 404)
+const feedback = useFeedback()
 
 const viewerTimeZone = ref('UTC')
 onMounted(() => {
@@ -24,6 +29,16 @@ const cancelError = ref('')
 
 const cancelled = computed(() => booking.value?.status === 'cancelled')
 const past = computed(() => booking.value ? new Date(booking.value.endsAt) < new Date() : false)
+const joinUrl = computed(() => booking.value?.meetingUrl
+  ?? (booking.value?.locationType === 'video_link' ? booking.value.locationDetails : null))
+
+const locationPresentation = computed(() => ({
+  google_meet: { label: 'Google Meet', icon: 'i-simple-icons-googlemeet' },
+  video_link: { label: 'Video call', icon: 'i-lucide-video' },
+  phone: { label: 'Phone call', icon: 'i-lucide-phone' },
+  in_person: { label: 'In person', icon: 'i-lucide-map-pin' },
+  custom: { label: 'Meeting details', icon: 'i-lucide-message-square-text' }
+}[booking.value?.locationType ?? 'custom']))
 
 const longWhen = computed(() => {
   if (!booking.value) return ''
@@ -38,15 +53,12 @@ async function cancel() {
   cancelError.value = ''
 
   try {
-    await $fetch(`/api/booking/${uid}/cancel`, {
-      method: 'POST',
-      body: { reason: reason.value || undefined }
-    })
+    await bookingsApi.cancel(uid, reason.value || undefined)
     confirming.value = false
     await refresh()
+    feedback.success({ title: 'Booking cancelled', description: 'The host and guest will receive an updated confirmation.' })
   } catch (failure) {
-    cancelError.value = (failure as { statusMessage?: string }).statusMessage
-      ?? 'Could not cancel that just now. Please try again.'
+    cancelError.value = apiErrorMessage(failure, 'Could not cancel that just now. Please try again.')
   } finally {
     cancelling.value = false
   }
@@ -89,7 +101,31 @@ useSeoMeta({
         </div>
 
         <div
-          v-if="error"
+          v-if="status === 'pending' && !booking"
+          class="overflow-hidden rounded-2xl border border-default bg-default"
+          role="status"
+          aria-label="Loading booking details"
+        >
+          <div class="space-y-4 px-6 py-8 sm:px-8">
+            <USkeleton class="h-6 w-24 rounded-full" />
+            <USkeleton class="h-8 w-3/4 rounded" />
+            <USkeleton class="h-4 w-40 rounded" />
+            <div class="space-y-3 pt-3">
+              <USkeleton
+                v-for="item in 4"
+                :key="item"
+                class="h-5 w-full rounded"
+              />
+            </div>
+          </div>
+          <div class="grid gap-3 border-t border-default px-6 py-6 sm:grid-cols-2 sm:px-8">
+            <USkeleton class="h-10 w-full rounded-full" />
+            <USkeleton class="h-10 w-full rounded-full" />
+          </div>
+        </div>
+
+        <div
+          v-else-if="missingBooking"
           class="rounded-2xl border border-default bg-default px-8 py-20 text-center"
         >
           <h1 class="font-editorial text-4xl text-highlighted">
@@ -98,6 +134,18 @@ useSeoMeta({
           <p class="mt-4 text-base text-muted">
             This booking link is not valid. It may have been mistyped.
           </p>
+        </div>
+
+        <div
+          v-else-if="error && !booking"
+          class="overflow-hidden rounded-2xl border border-default bg-default"
+        >
+          <AsyncErrorState
+            title="Could not load this booking"
+            description="The booking link may still be valid. Check your connection and try again."
+            :retrying="status === 'pending'"
+            @retry="refresh"
+          />
         </div>
 
         <div
@@ -142,6 +190,26 @@ useSeoMeta({
               </div>
               <div class="flex items-start gap-3">
                 <UIcon
+                  :name="locationPresentation?.icon"
+                  class="mt-0.5 size-4 shrink-0 text-dimmed"
+                />
+                <dd class="min-w-0 text-toned">
+                  <span class="block">{{ locationPresentation?.label }}</span>
+                  <a
+                    v-if="joinUrl && !cancelled"
+                    :href="joinUrl"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="mt-0.5 block truncate text-[13px] font-medium text-primary hover:underline"
+                  >Join meeting</a>
+                  <span
+                    v-else
+                    class="mt-0.5 block text-[13px] leading-relaxed text-muted"
+                  >{{ booking?.locationType === 'google_meet' ? 'The private join link is being prepared. Refresh this page shortly.' : booking?.locationDetails }}</span>
+                </dd>
+              </div>
+              <div class="flex items-start gap-3">
+                <UIcon
                   name="i-lucide-clock"
                   class="mt-0.5 size-4 shrink-0 text-dimmed"
                 />
@@ -174,6 +242,29 @@ useSeoMeta({
             class="border-t border-default px-6 py-6 sm:px-8"
           >
             <template v-if="!confirming">
+              <div class="mb-3 grid gap-3 sm:grid-cols-2">
+                <UButton
+                  v-if="joinUrl"
+                  :to="joinUrl"
+                  target="_blank"
+                  trailing-icon="i-lucide-external-link"
+                  size="lg"
+                  class="justify-center rounded-full font-medium"
+                >
+                  Join {{ booking?.locationType === 'google_meet' ? 'Google Meet' : 'meeting' }}
+                </UButton>
+                <UButton
+                  :to="`/api/booking/${uid}/calendar.ics`"
+                  external
+                  color="neutral"
+                  variant="outline"
+                  icon="i-lucide-calendar-plus"
+                  size="lg"
+                  class="justify-center rounded-full font-medium"
+                >
+                  Add to calendar
+                </UButton>
+              </div>
               <div class="flex flex-col gap-3 sm:flex-row">
                 <UButton
                   :to="`/${booking?.hostUsername}/${booking?.eventSlug}?reschedule=${uid}`"

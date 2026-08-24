@@ -18,12 +18,19 @@ export default defineNuxtConfig({
 
   routeRules: {
     '/': { swr: 3600 },
-    '/signup': { prerender: false },
-    '/login': { prerender: false },
-    '/forgot-password': { prerender: false },
-    '/reset-password': { prerender: false },
-    '/verify-email': { prerender: false },
-    '/dashboard': { prerender: false }
+    '/api/**': { headers: { 'cache-control': 'no-store' } },
+    '/signup': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
+    '/login': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
+    '/forgot-password': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
+    '/reset-password': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
+    '/verify-email': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
+    '/dashboard': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
+    '/event-types': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
+    '/bookings': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
+    '/availability': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
+    '/integrations': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
+    '/settings': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
+    '/booking/**': { prerender: false, headers: { 'cache-control': 'private, no-store' } }
   },
 
   compatibilityDate: '2026-06-30',

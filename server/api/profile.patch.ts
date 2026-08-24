@@ -17,7 +17,7 @@ export default defineEventHandler(async (event) => {
 
   const { name, bio, timeZone } = parsed.data
 
-  await useDatabase()
+  const [updated] = await useDatabase()
     .update(users)
     .set({
       name,
@@ -26,6 +26,15 @@ export default defineEventHandler(async (event) => {
       updatedAt: sql`now()`
     })
     .where(eq(users.id, session.user.id))
+    .returning({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      username: users.username,
+      timeZone: users.timeZone,
+      bio: users.bio
+    })
 
-  return { ok: true }
+  if (!updated) throw createError({ statusCode: 404, statusMessage: 'Your profile could not be found.' })
+  return { ok: true, user: updated }
 })

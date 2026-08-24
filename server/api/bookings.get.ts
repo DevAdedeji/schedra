@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gte, ilike, lt, lte, ne, or } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, ilike, lt, lte, ne, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { paginationMeta, paginationQuerySchema } from '#shared/pagination'
 import { bookings, eventTypes } from '../database/schema'
@@ -35,6 +35,9 @@ export default defineEventHandler(async (event) => {
       )
     : undefined
   const where = and(mine, scope, matchesSearch)
+  const upcomingCount = and(active, gte(bookings.endsAt, now))
+  const pastCount = and(active, lt(bookings.endsAt, now))
+  const nextWeekCount = and(active, gte(bookings.startsAt, now), lte(bookings.startsAt, nextWeek))
 
   const columns = {
     uid: bookings.uid,
@@ -44,23 +47,23 @@ export default defineEventHandler(async (event) => {
     attendeeName: bookings.attendeeName,
     attendeeEmail: bookings.attendeeEmail,
     attendeeTimeZone: bookings.attendeeTimeZone,
+    locationType: bookings.locationType,
+    locationDetails: bookings.locationDetails,
+    meetingUrl: bookings.meetingUrl,
     answers: bookings.answers,
     cancellationReason: bookings.cancellationReason,
     eventTitle: eventTypes.title
   }
 
-  const [[totalRow], [allRow], [upcomingRow], [pastRow], [cancelledRow], [nextWeekRow], rows] = await Promise.all([
+  const [[totalRow], [countRow], rows] = await Promise.all([
     db.select({ value: count() }).from(bookings).innerJoin(eventTypes, eq(eventTypes.id, bookings.eventTypeId)).where(where),
-    db.select({ value: count() }).from(bookings).where(mine),
-    db.select({ value: count() }).from(bookings).where(and(mine, active, gte(bookings.endsAt, now))),
-    db.select({ value: count() }).from(bookings).where(and(mine, active, lt(bookings.endsAt, now))),
-    db.select({ value: count() }).from(bookings).where(and(mine, eq(bookings.status, 'cancelled'))),
-    db.select({ value: count() }).from(bookings).where(and(
-      mine,
-      active,
-      gte(bookings.startsAt, now),
-      lte(bookings.startsAt, nextWeek)
-    )),
+    db.select({
+      all: count(),
+      upcoming: sql<number>`count(*) filter (where ${upcomingCount})`.mapWith(Number),
+      past: sql<number>`count(*) filter (where ${pastCount})`.mapWith(Number),
+      cancelled: sql<number>`count(*) filter (where ${bookings.status} = 'cancelled')`.mapWith(Number),
+      nextWeek: sql<number>`count(*) filter (where ${nextWeekCount})`.mapWith(Number)
+    }).from(bookings).where(mine),
     db.select(columns).from(bookings)
       .innerJoin(eventTypes, eq(eventTypes.id, bookings.eventTypeId))
       .where(where)
@@ -81,11 +84,11 @@ export default defineEventHandler(async (event) => {
     items,
     pagination: paginationMeta(totalRow?.value ?? 0, page, pageSize),
     counts: {
-      all: allRow?.value ?? 0,
-      upcoming: upcomingRow?.value ?? 0,
-      past: pastRow?.value ?? 0,
-      cancelled: cancelledRow?.value ?? 0,
-      nextWeek: nextWeekRow?.value ?? 0
+      all: countRow?.all ?? 0,
+      upcoming: countRow?.upcoming ?? 0,
+      past: countRow?.past ?? 0,
+      cancelled: countRow?.cancelled ?? 0,
+      nextWeek: countRow?.nextWeek ?? 0
     }
   }
 })

@@ -1,16 +1,20 @@
 import { createHash } from 'node:crypto'
 import { and, asc, eq, inArray, lt, lte, sql } from 'drizzle-orm'
 import type { Database } from '../database/client'
-import { emailOutbox } from '../database/schema'
+import { bookings, emailOutbox } from '../database/schema'
 import { useDatabase } from './database'
 import { type Email, sendEmail } from './email'
 
 interface OutboxEmail {
   dedupeKey: string
   email: Email
+  bookingUid?: string
+  category?: 'transactional' | 'booking_reminder'
+  availableAt?: Date
 }
 
 export type EmailInsertExecutor = Pick<Database, 'insert'>
+export type EmailUpdateExecutor = Pick<Database, 'update'>
 
 export function emailDedupeKey(scope: string, value: string) {
   return `${scope}:${createHash('sha256').update(value).digest('hex')}`
@@ -24,17 +28,37 @@ export async function enqueueEmails(
 
   await executor
     .insert(emailOutbox)
-    .values(messages.map(({ dedupeKey, email }) => ({
+    .values(messages.map(({ dedupeKey, email, bookingUid, category, availableAt }) => ({
       dedupeKey,
       recipient: email.to,
       subject: email.subject,
+      preheader: email.preheader,
       heading: email.heading,
       body: email.body,
+      details: email.details,
       actionLabel: email.action.label,
       actionUrl: email.action.url,
-      footer: email.footer
+      footer: email.footer,
+      bookingUid,
+      category: category ?? 'transactional',
+      availableAt
     })))
     .onConflictDoNothing({ target: emailOutbox.dedupeKey })
+}
+
+export async function cancelBookingReminders(
+  bookingUid: string,
+  executor: EmailUpdateExecutor = useDatabase()
+) {
+  await executor.update(emailOutbox).set({
+    status: 'cancelled',
+    lockedAt: null,
+    updatedAt: sql`now()`
+  }).where(and(
+    eq(emailOutbox.bookingUid, bookingUid),
+    eq(emailOutbox.category, 'booking_reminder'),
+    eq(emailOutbox.status, 'pending')
+  ))
 }
 
 export async function processEmailOutbox(batchSize = 10) {
@@ -65,11 +89,29 @@ export async function processEmailOutbox(batchSize = 10) {
 
   for (const job of jobs) {
     try {
+      if (job.category === 'booking_reminder' && job.bookingUid) {
+        const [booking] = await db.select({
+          status: bookings.status,
+          endsAt: bookings.endsAt
+        }).from(bookings).where(eq(bookings.uid, job.bookingUid)).limit(1)
+
+        if (!booking || !['pending', 'confirmed'].includes(booking.status) || booking.endsAt <= new Date()) {
+          await db.update(emailOutbox).set({
+            status: 'cancelled',
+            lockedAt: null,
+            updatedAt: sql`now()`
+          }).where(eq(emailOutbox.id, job.id))
+          continue
+        }
+      }
+
       await sendEmail({
         to: job.recipient,
         subject: job.subject,
+        preheader: job.preheader ?? undefined,
         heading: job.heading,
         body: job.body,
+        details: job.details ?? undefined,
         action: { label: job.actionLabel, url: job.actionUrl },
         footer: job.footer ?? undefined
       }, job.id)

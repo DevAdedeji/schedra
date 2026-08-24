@@ -121,7 +121,8 @@ export const emailDeliveryStatus = pgEnum('email_delivery_status', [
   'pending',
   'sending',
   'sent',
-  'failed'
+  'failed',
+  'cancelled'
 ])
 
 export const emailOutbox = pgTable('email_outbox', {
@@ -129,11 +130,19 @@ export const emailOutbox = pgTable('email_outbox', {
   dedupeKey: text('dedupe_key').notNull(),
   recipient: text('recipient').notNull(),
   subject: text('subject').notNull(),
+  preheader: text('preheader'),
   heading: text('heading').notNull(),
   body: text('body').notNull(),
+  details: jsonb('details').$type<Array<{
+    label: string
+    value: string
+    url?: string
+  }>>(),
   actionLabel: text('action_label').notNull(),
   actionUrl: text('action_url').notNull(),
   footer: text('footer'),
+  bookingUid: text('booking_uid'),
+  category: text('category').notNull().default('transactional'),
   status: emailDeliveryStatus('status').notNull().default('pending'),
   attempts: integer('attempts').notNull().default(0),
   availableAt: timestamp('available_at', { withTimezone: true }).notNull().defaultNow(),
@@ -144,6 +153,7 @@ export const emailOutbox = pgTable('email_outbox', {
 }, table => [
   uniqueIndex('email_outbox_dedupe_key_key').on(table.dedupeKey),
   index('email_outbox_claim_idx').on(table.status, table.availableAt),
+  index('email_outbox_booking_uid_idx').on(table.bookingUid, table.category),
   check('email_outbox_attempts_non_negative', sql`${table.attempts} >= 0`)
 ])
 
@@ -175,6 +185,13 @@ export const calendarConnections = pgTable('calendar_connections', {
 
 export const calendarSyncAction = pgEnum('calendar_sync_action', ['upsert', 'delete'])
 export const calendarSyncStatus = pgEnum('calendar_sync_status', ['pending', 'processing', 'completed', 'failed'])
+export const meetingLocationType = pgEnum('meeting_location_type', [
+  'google_meet',
+  'video_link',
+  'phone',
+  'in_person',
+  'custom'
+])
 
 export const schedules = pgTable('schedules', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -241,12 +258,16 @@ export const eventTypes = pgTable('event_types', {
   minimumNoticeMinutes: integer('minimum_notice_minutes').notNull().default(0),
   bookingWindowDays: integer('booking_window_days'),
   maxPerDay: integer('max_per_day'),
+  locationType: meetingLocationType('location_type').notNull().default('custom'),
+  locationDetails: text('location_details').notNull().default('The host will share meeting details before the meeting.'),
+  reminderMinutes: jsonb('reminder_minutes').$type<number[]>().notNull().default(sql`'[1440, 60]'::jsonb`),
 
   hidden: boolean('hidden').notNull().default(false),
 
   ...timestamps
 }, table => [
   uniqueIndex('event_types_user_id_slug_key').on(table.userId, table.slug),
+  index('event_types_user_hidden_created_at_idx').on(table.userId, table.hidden, table.createdAt),
   check('event_types_duration_positive', sql`${table.durationMinutes} > 0`),
   check(
     'event_types_increment_positive',
@@ -285,6 +306,10 @@ export const bookings = pgTable('bookings', {
   attendeeEmail: text('attendee_email').notNull(),
   attendeeTimeZone: text('attendee_time_zone').notNull(),
 
+  locationType: meetingLocationType('location_type').notNull().default('custom'),
+  locationDetails: text('location_details').notNull().default('The host will share meeting details before the meeting.'),
+  meetingUrl: text('meeting_url'),
+
   answers: jsonb('answers'),
   cancellationReason: text('cancellation_reason'),
   rescheduledFromId: uuid('rescheduled_from_id'),
@@ -293,6 +318,7 @@ export const bookings = pgTable('bookings', {
 }, table => [
   uniqueIndex('bookings_uid_key').on(table.uid),
   index('bookings_host_id_starts_at_idx').on(table.hostId, table.startsAt),
+  index('bookings_host_status_ends_at_idx').on(table.hostId, table.status, table.endsAt),
   index('bookings_event_type_id_idx').on(table.eventTypeId),
   check('bookings_ends_after_starts', sql`${table.endsAt} > ${table.startsAt}`)
 ])

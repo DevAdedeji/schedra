@@ -1,6 +1,7 @@
 import { getAuthSession } from '../utils/session'
 import { useEnv } from '../utils/env'
 import { ensureStarterSetup } from '../utils/onboarding'
+import { profileForUser } from '../utils/profile'
 
 export default defineEventHandler(async (event) => {
   const env = useEnv()
@@ -10,12 +11,9 @@ export default defineEventHandler(async (event) => {
   const session = await getAuthSession(event)
   if (!session) return { user: null, google }
 
-  const { id, name, email, username, timeZone, bio } = session.user as typeof session.user & {
-    username: string
-    timeZone: string
-    bio: string | null
-  }
-  await ensureStarterSetup(id, timeZone || 'UTC')
+  const profile = await profileForUser(session.user.id)
+  if (!profile) return { user: null, google }
+  await ensureStarterSetup(profile.id, profile.timeZone || 'UTC')
 
-  return { user: { id, name, email, username, timeZone, bio }, google }
+  return { user: profile, google }
 })

@@ -3,6 +3,7 @@ import { eventTypeSchema } from '#shared/validation'
 import { eventTypes, schedules } from '../database/schema'
 import { useDatabase } from '../utils/database'
 import { ensureStarterSetup } from '../utils/onboarding'
+import { requireLocationIntegration } from '../utils/event-location'
 import { requireAuthSession } from '../utils/session'
 
 export default defineEventHandler(async (event) => {
@@ -36,6 +37,7 @@ export default defineEventHandler(async (event) => {
   if (!schedule) {
     throw createError({ statusCode: 409, statusMessage: 'Set your availability before creating an event type.' })
   }
+  await requireLocationIntegration(session.user.id, input.locationType)
 
   try {
     const [created] = await db.insert(eventTypes).values({

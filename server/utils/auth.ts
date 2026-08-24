@@ -45,10 +45,11 @@ function createAuth() {
           email: {
             to: user.email,
             subject: 'Reset your Schedra password',
+            preheader: 'Use this secure link to choose a new Schedra password.',
             heading: 'Reset your password',
-            body: 'Click below to choose a new one. The link works once and expires in an hour.',
+            body: 'We received a request to reset your Schedra password. Use the secure button below to choose a new one.\n\nThis link works once and expires in one hour.',
             action: { label: 'Choose a new password', url },
-            footer: 'If you did not ask for this, you can ignore it — nothing has changed.'
+            footer: 'If you did not request this, you can safely ignore this email. Your password has not changed.'
           }
         }])
       }
@@ -64,10 +65,11 @@ function createAuth() {
           email: {
             to: user.email,
             subject: 'Confirm your email for Schedra',
+            preheader: 'Confirm your email address and finish setting up your booking page.',
             heading: 'Confirm your email',
-            body: 'One click and your booking link is live.',
+            body: 'You are one step away from sharing your Schedra booking page. Confirm your email address to finish setting up your account.',
             action: { label: 'Confirm my email', url },
-            footer: 'If you did not sign up for Schedra, you can ignore this.'
+            footer: 'This link expires in 24 hours. If you did not create a Schedra account, you can safely ignore this email.'
           }
         }])
       }

@@ -4,6 +4,7 @@ import { calendarConnections } from '../database/schema'
 import { useDatabase } from './database'
 import { decryptCredential, encryptCredential } from './credential-crypto'
 import { useEnv } from './env'
+import { fetchWithTimeout } from './fetch'
 
 export const GOOGLE_CALENDAR_SCOPES = [
   'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
@@ -35,10 +36,18 @@ interface GoogleEventInput {
   attendeeName: string
   attendeeEmail: string
   notes?: string | null
+  locationType: 'google_meet' | 'video_link' | 'phone' | 'in_person' | 'custom'
+  locationDetails: string
+  meetingUrl?: string | null
 }
 
 interface GoogleEventResponse {
   id: string
+  hangoutLink?: string
+  conferenceData?: {
+    entryPoints?: { entryPointType?: string, uri?: string }[]
+    createRequest?: { status?: { statusCode?: string } }
+  }
 }
 
 export class CalendarUnavailableError extends Error {}
@@ -64,7 +73,7 @@ export function googleAuthorizationUrl(state: string, email: string) {
 
 export async function exchangeGoogleCode(code: string): Promise<GoogleTokens> {
   const env = useEnv()
-  const response = await fetch('https://oauth2.googleapis.com/token', {
+  const response = await fetchWithTimeout('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -119,7 +128,7 @@ async function accessToken(userId: string, forceRefresh = false) {
   }
 
   const env = useEnv()
-  const response = await fetch('https://oauth2.googleapis.com/token', {
+  const response = await fetchWithTimeout('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -151,7 +160,7 @@ async function accessToken(userId: string, forceRefresh = false) {
 async function googleResponse(userId: string, path: string, init?: RequestInit) {
   let auth = await accessToken(userId)
   if (!auth) throw new CalendarUnavailableError('Google Calendar is not connected.')
-  const request = (token: string) => fetch(`https://www.googleapis.com/calendar/v3${path}`, {
+  const request = (token: string) => fetchWithTimeout(`https://www.googleapis.com/calendar/v3${path}`, {
     ...init,
     headers: { 'authorization': `Bearer ${token}`, 'content-type': 'application/json', ...init?.headers }
   })
@@ -214,19 +223,57 @@ export async function initializeGoogleCalendars(userId: string) {
   }).where(and(eq(calendarConnections.userId, userId), eq(calendarConnections.provider, 'google')))
 }
 
+interface BusyPeriod { start: string, end: string }
+interface BusyCacheEntry {
+  from: number
+  to: number
+  expiresAt: number
+  request: Promise<BusyPeriod[]>
+}
+
+const busyCache = new Map<string, BusyCacheEntry>()
+const BUSY_CACHE_MS = 15_000
+
+export function clearGoogleBusyCache() {
+  busyCache.clear()
+}
+
 export async function googleBusyTimes(userId: string, from: string, to: string) {
   const connection = await googleConnectionFor(userId)
   if (!connection) return []
   if (connection.status !== 'active') throw new CalendarUnavailableError('The host calendar needs to be reconnected.')
   if (!connection.conflictCalendarIds.length) return []
-  const result = await googleRequest<{ calendars: Record<string, { busy?: { start: string, end: string }[], errors?: unknown[] }> }>(
+  const requestedFrom = Date.parse(from)
+  const requestedTo = Date.parse(to)
+  const cacheKey = `${connection.id}:${connection.updatedAt.toISOString()}:${connection.conflictCalendarIds.join('\u0000')}`
+  const cached = busyCache.get(cacheKey)
+
+  if (cached && cached.expiresAt > Date.now() && requestedFrom >= cached.from && requestedTo <= cached.to) {
+    return (await cached.request).filter(period => Date.parse(period.end) > requestedFrom && Date.parse(period.start) < requestedTo)
+  }
+
+  const request = googleRequest<{ calendars: Record<string, { busy?: BusyPeriod[], errors?: unknown[] }> }>(
     userId,
     '/freeBusy',
     { method: 'POST', body: JSON.stringify({ timeMin: from, timeMax: to, timeZone: 'UTC', items: connection.conflictCalendarIds.map(id => ({ id })) }) }
-  )
-  const entries = Object.values(result.calendars)
-  if (entries.some(entry => entry.errors?.length)) throw new CalendarUnavailableError('Google could not check every selected calendar.')
-  return entries.flatMap(entry => entry.busy ?? [])
+  ).then((result) => {
+    const entries = Object.values(result.calendars)
+    if (entries.some(entry => entry.errors?.length)) throw new CalendarUnavailableError('Google could not check every selected calendar.')
+    return entries.flatMap(entry => entry.busy ?? [])
+  })
+
+  if (busyCache.size >= 1000) {
+    const oldestKey = busyCache.keys().next().value
+    if (oldestKey) busyCache.delete(oldestKey)
+  }
+  busyCache.set(cacheKey, { from: requestedFrom, to: requestedTo, expiresAt: Date.now() + BUSY_CACHE_MS, request })
+
+  try {
+    return await request
+  } catch (error) {
+    busyCache.delete(cacheKey)
+    throw error
+  }
 }
 
 export async function googleCalendarConnection(userId: string) {
@@ -263,20 +310,41 @@ export async function updateGoogleCalendarSelection(userId: string, conflictCale
 
 function eventBody(input: GoogleEventInput) {
   const manageUrl = `${useEnv().schedraUrl}/booking/${input.uid}`
+  const location = input.locationType === 'google_meet'
+    ? 'Google Meet'
+    : input.locationDetails
   const description = [
     input.description,
     `Guest: ${input.attendeeName} (${input.attendeeEmail})`,
+    `Where: ${location}`,
     input.notes ? `Guest notes:\n${input.notes}` : null,
     `Manage this booking: ${manageUrl}`
   ].filter(Boolean).join('\n\n')
   return {
     summary: `${input.title} with ${input.attendeeName}`,
     description,
+    location: input.locationType === 'google_meet' ? undefined : input.locationDetails,
     start: { dateTime: input.startsAt.toISOString() },
     end: { dateTime: input.endsAt.toISOString() },
     attendees: [{ email: input.attendeeEmail, displayName: input.attendeeName }],
+    ...input.locationType === 'google_meet' && !input.meetingUrl
+      ? {
+          conferenceData: {
+            createRequest: {
+              requestId: `schedra-${createHash('sha256').update(input.uid).digest('hex').slice(0, 32)}`,
+              conferenceSolutionKey: { type: 'hangoutsMeet' }
+            }
+          }
+        }
+      : {},
     extendedProperties: { private: { schedraBookingUid: input.uid } }
   }
+}
+
+function meetingUrl(event: GoogleEventResponse) {
+  return event.hangoutLink
+    ?? event.conferenceData?.entryPoints?.find(point => point.entryPointType === 'video')?.uri
+    ?? null
 }
 
 export function googleEventId(uid: string) {
@@ -290,7 +358,7 @@ export async function upsertGoogleCalendarEvent(
   input: GoogleEventInput
 ) {
   const calendar = encodeURIComponent(calendarId)
-  const query = new URLSearchParams({ sendUpdates: 'none' })
+  const query = new URLSearchParams({ sendUpdates: 'all', conferenceDataVersion: '1' })
   // A deterministic, Google-compatible event id makes creation idempotent if
   // the process stops after Google accepts the event but before the mapping is saved.
   const candidateId = eventId ?? googleEventId(input.uid)
@@ -300,19 +368,23 @@ export async function upsertGoogleCalendarEvent(
     `/calendars/${calendar}/events/${encodeURIComponent(candidateId)}?${query}`,
     { method: 'PATCH', body: JSON.stringify(eventBody(input)) }
   )
-  if (response.ok) return response.json() as Promise<GoogleEventResponse>
+  if (response.ok) {
+    const event = await response.json() as GoogleEventResponse
+    return { ...event, meetingUrl: meetingUrl(event) }
+  }
   if (response.status !== 404) throw new CalendarUnavailableError(`Google Calendar request failed (${response.status}).`)
 
-  return googleRequest<GoogleEventResponse>(userId, `/calendars/${calendar}/events?${query}`, {
+  const event = await googleRequest<GoogleEventResponse>(userId, `/calendars/${calendar}/events?${query}`, {
     method: 'POST',
     body: JSON.stringify({ id: candidateId, ...eventBody(input) })
   })
+  return { ...event, meetingUrl: meetingUrl(event) }
 }
 
 export async function deleteGoogleCalendarEvent(userId: string, calendarId: string, eventId: string) {
   const response = await googleResponse(
     userId,
-    `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?${new URLSearchParams({ sendUpdates: 'none' })}`,
+    `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?${new URLSearchParams({ sendUpdates: 'all' })}`,
     { method: 'DELETE' }
   )
   if (![404, 410].includes(response.status) && !response.ok) {
@@ -326,7 +398,7 @@ export async function disconnectGoogleCalendar(userId: string) {
 
   try {
     const token = decryptCredential(connection.refreshTokenEncrypted)
-    await fetch(`https://oauth2.googleapis.com/revoke?${new URLSearchParams({ token })}`, {
+    await fetchWithTimeout(`https://oauth2.googleapis.com/revoke?${new URLSearchParams({ token })}`, {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' }
     })

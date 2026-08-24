@@ -1,45 +1,23 @@
 <script setup lang="ts">
+import { apiErrorMessage, calendarApi, type CalendarConnection, type CalendarItem } from '~/services/schedra-api'
+
 definePageMeta({ layout: 'app', middleware: 'auth' })
 useSeoMeta({ title: 'Integrations', robots: 'noindex, nofollow' })
 
-interface Connection {
-  connected: boolean
-  configured: boolean
-  status?: 'active' | 'needs_reauthorization' | 'disconnected'
-  accountLabel?: string | null
-  conflictCalendarIds?: string[]
-  writeCalendarId?: string | null
-  lastError?: string | null
-}
-
-interface CalendarItem {
-  id: string
-  summary: string
-  primary: boolean
-  accessRole: 'freeBusyReader' | 'reader' | 'writer' | 'owner'
-  backgroundColor?: string
-  unavailable?: boolean
-}
-
-interface CalendarsResponse {
-  items: CalendarItem[]
-  conflictCalendarIds: string[]
-  writeCalendarId: string | null
-}
-
 const route = useRoute()
-const { data: connection, refresh: refreshConnection, status, error: connectionFailure } = useLazyFetch<Connection>('/api/integrations/google-calendar')
+const feedback = useFeedback()
+const { data: connection, refresh: refreshConnection, status, error: connectionFailure } = await useLazyFetch<CalendarConnection>(calendarApi.connectionEndpoint)
 const calendars = ref<CalendarItem[]>([])
 const selectedConflictIds = ref<string[]>([])
 const writeCalendarId = ref('')
 const baseline = ref('')
 const loadingCalendars = ref(false)
 const saving = ref(false)
-const saved = ref(false)
 const pageError = ref('')
 const calendarFailure = ref('')
 const disconnectOpen = ref(false)
 const disconnecting = ref(false)
+const calendarsLoaded = ref(false)
 const connectionRetrying = computed(() => status.value === 'pending')
 
 const callbackNotice = computed(() => {
@@ -86,24 +64,20 @@ const currentSnapshot = computed(() => JSON.stringify({
 }))
 const dirty = computed(() => currentSnapshot.value !== baseline.value)
 
-function errorMessage(failure: unknown, fallback: string) {
-  return (failure as { data?: { statusMessage?: string }, statusMessage?: string }).data?.statusMessage
-    ?? (failure as { statusMessage?: string }).statusMessage
-    ?? fallback
-}
-
-async function loadCalendars() {
+async function loadCalendars(force = false) {
   if (!connection.value?.connected) return
+  if (loadingCalendars.value || (calendarsLoaded.value && !force)) return
   loadingCalendars.value = true
   calendarFailure.value = ''
   try {
-    const data = await $fetch<CalendarsResponse>('/api/integrations/google-calendar/calendars')
+    const data = await calendarApi.calendars()
     calendars.value = data.items
     selectedConflictIds.value = [...data.conflictCalendarIds]
     writeCalendarId.value = data.writeCalendarId ?? ''
     baseline.value = currentSnapshot.value
+    calendarsLoaded.value = true
   } catch (failure) {
-    calendarFailure.value = errorMessage(failure, 'Could not load calendars from Google just now.')
+    calendarFailure.value = apiErrorMessage(failure, 'Could not load calendars from Google just now.')
   } finally {
     loadingCalendars.value = false
   }
@@ -111,34 +85,29 @@ async function loadCalendars() {
 
 async function retryConnection() {
   await refreshConnection()
-  await loadCalendars()
+  await loadCalendars(true)
 }
 
 function toggleConflict(id: string, selected: boolean) {
   selectedConflictIds.value = selected
     ? [...new Set([...selectedConflictIds.value, id])]
     : selectedConflictIds.value.filter(calendarId => calendarId !== id)
-  saved.value = false
 }
 
 async function saveCalendars() {
   if (!selectedConflictIds.value.length || !writeCalendarId.value) return
   saving.value = true
-  saved.value = false
   pageError.value = ''
   try {
-    await $fetch('/api/integrations/google-calendar', {
-      method: 'PATCH',
-      body: {
-        conflictCalendarIds: selectedConflictIds.value,
-        writeCalendarId: writeCalendarId.value
-      }
+    await calendarApi.update({
+      conflictCalendarIds: selectedConflictIds.value,
+      writeCalendarId: writeCalendarId.value
     })
     baseline.value = currentSnapshot.value
-    saved.value = true
     await refreshConnection()
+    feedback.success({ title: 'Calendar preferences saved' })
   } catch (failure) {
-    pageError.value = errorMessage(failure, 'Could not save your calendar settings just now.')
+    pageError.value = apiErrorMessage(failure, 'Could not save your calendar settings just now.')
   } finally {
     saving.value = false
   }
@@ -148,20 +117,31 @@ async function disconnect() {
   disconnecting.value = true
   pageError.value = ''
   try {
-    await $fetch('/api/integrations/google-calendar', { method: 'DELETE' })
+    await calendarApi.disconnect()
     disconnectOpen.value = false
     calendars.value = []
+    calendarsLoaded.value = false
     selectedConflictIds.value = []
     writeCalendarId.value = ''
     await refreshConnection()
+    feedback.success({ title: 'Google Calendar disconnected' })
   } catch (failure) {
-    pageError.value = errorMessage(failure, 'Could not disconnect Google Calendar just now.')
+    pageError.value = apiErrorMessage(failure, 'Could not disconnect Google Calendar just now.')
   } finally {
     disconnecting.value = false
   }
 }
 
-onMounted(loadCalendars)
+watch(() => connection.value?.connected, (connected) => {
+  if (connected) {
+    void loadCalendars()
+    return
+  }
+  calendarsLoaded.value = false
+  calendars.value = []
+  selectedConflictIds.value = []
+  writeCalendarId.value = ''
+}, { immediate: true })
 </script>
 
 <template>
@@ -316,7 +296,7 @@ onMounted(loadCalendars)
         title="Could not load your calendars"
         :description="calendarFailure"
         :retrying="loadingCalendars"
-        @retry="loadCalendars"
+        @retry="loadCalendars(true)"
       />
 
       <div
@@ -330,7 +310,7 @@ onMounted(loadCalendars)
           title="Could not refresh your calendars"
           description="The last loaded calendar preferences are still shown below."
           :retrying="loadingCalendars"
-          @retry="loadCalendars"
+          @retry="loadCalendars(true)"
         />
         <div
           v-else-if="loadingCalendars"
@@ -426,7 +406,6 @@ onMounted(loadCalendars)
               icon="i-lucide-calendar-days"
               placeholder="Choose a calendar"
               class="min-h-11 w-full sm:min-h-8"
-              @update:model-value="saved = false"
             />
             <p
               v-if="!writableCalendars.length || writeCalendarMissing"
@@ -453,11 +432,7 @@ onMounted(loadCalendars)
             />
             Calendar access is encrypted and can be revoked anytime.
           </p>
-          <div class="flex items-center gap-3">
-            <span
-              v-if="saved"
-              class="text-[12px] text-success"
-            >Saved</span>
+          <div>
             <UButton
               :loading="saving"
               :disabled="!dirty || !selectedConflictIds.length || !writeCalendarId || writeCalendarMissing"

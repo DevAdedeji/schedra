@@ -20,11 +20,10 @@ const emit = defineEmits<{ retry: [] }>()
     aria-live="assertive"
     :class="compact
       ? 'flex flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5'
-      : 'flex min-h-64 flex-col items-center justify-center px-6 py-14 text-center sm:py-16'"
+      : 'flex min-h-64 flex-col items-center justify-center gap-5 px-6 py-14 text-center sm:py-16'"
   >
     <div
-      class="flex items-start gap-3"
-      :class="!compact && 'flex-col items-center'"
+      :class="compact ? 'flex items-start gap-3' : 'flex flex-col items-center gap-3'"
     >
       <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-error/10 text-error">
         <UIcon

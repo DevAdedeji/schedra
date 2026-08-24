@@ -88,6 +88,8 @@ describe.skipIf(!url)('Google Calendar integration', () => {
 
   beforeEach(async () => {
     await configure()
+    const { clearGoogleBusyCache } = await import('../utils/google-calendar')
+    clearGoogleBusyCache()
     await sql`
       truncate table
         calendar_sync_jobs, booking_calendar_events, calendar_connections,
@@ -249,6 +251,32 @@ describe.skipIf(!url)('Google Calendar integration', () => {
     })
   })
 
+  it('deduplicates overlapping Google free-busy checks briefly', async () => {
+    const { hostId } = await createHost()
+    await connect(hostId)
+    await chooseCalendars(hostId)
+    const fetchMock = vi.fn().mockResolvedValue(json({
+      calendars: {
+        'primary@example.com': {
+          busy: [
+            { start: '2026-09-07T09:00:00Z', end: '2026-09-07T09:30:00Z' },
+            { start: '2026-09-10T09:00:00Z', end: '2026-09-10T09:30:00Z' }
+          ]
+        }
+      }
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { googleBusyTimes } = await import('../utils/google-calendar')
+    await googleBusyTimes(hostId, '2026-09-01T00:00:00Z', '2026-10-01T00:00:00Z')
+    const narrowed = await googleBusyTimes(hostId, '2026-09-07T00:00:00Z', '2026-09-08T00:00:00Z')
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(narrowed).toEqual([
+      { start: '2026-09-07T09:00:00Z', end: '2026-09-07T09:30:00Z' }
+    ])
+  })
+
   it('creates, reschedules and cancels calendar events through durable jobs', async () => {
     const { hostId, eventTypeId } = await createHost({ withSchedule: true })
     await connect(hostId)
@@ -305,6 +333,56 @@ describe.skipIf(!url)('Google Calendar integration', () => {
     const methods = fetchMock.mock.calls.map(call => call[1]?.method)
     expect(methods.filter(method => method === 'POST')).toHaveLength(2)
     expect(methods.filter(method => method === 'DELETE')).toHaveLength(2)
+  })
+
+  it('creates one private Google Meet per booking and stores its join link', async () => {
+    const { hostId, eventTypeId } = await createHost({ withSchedule: true })
+    await connect(hostId)
+    await chooseCalendars(hostId)
+    const bookingId = await createBooking(hostId, eventTypeId!, 'google-meet-booking')
+    await sql`
+      update bookings
+      set location_type = 'google_meet',
+          location_details = '',
+          meeting_url = null
+      where id = ${bookingId}
+    `
+
+    const fetchMock = vi.fn(async (_request: string | URL | Request, init?: RequestInit) => {
+      if (init?.method === 'PATCH') return json({}, 404)
+      if (init?.method === 'POST') {
+        const body = JSON.parse(String(init.body)) as { id: string }
+        return json({ id: body.id, hangoutLink: 'https://meet.google.com/abc-defg-hij' })
+      }
+      if (init?.method === 'DELETE') return new Response(null, { status: 204 })
+      throw new Error(`Unexpected Google request: ${init?.method}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { enqueueCalendarSync, processCalendarSyncJobs } = await import('../utils/calendar-sync')
+    await enqueueCalendarSync(bookingId, 'upsert')
+    expect(await processCalendarSyncJobs()).toBe(1)
+
+    const post = fetchMock.mock.calls.find(call => call[1]?.method === 'POST')!
+    const requestUrl = new URL(String(post[0]))
+    const requestBody = JSON.parse(String(post[1]?.body))
+    expect(requestUrl.searchParams.get('sendUpdates')).toBe('all')
+    expect(requestUrl.searchParams.get('conferenceDataVersion')).toBe('1')
+    expect(requestBody.conferenceData.createRequest).toMatchObject({
+      conferenceSolutionKey: { type: 'hangoutsMeet' }
+    })
+    expect(requestBody.conferenceData.createRequest.requestId).toMatch(/^schedra-[a-f0-9]{32}$/)
+
+    const [booking] = await sql<{ meeting_url: string }[]>`
+      select meeting_url from bookings where id = ${bookingId}
+    `
+    expect(booking?.meeting_url).toBe('https://meet.google.com/abc-defg-hij')
+
+    await sql`update bookings set status = 'cancelled' where id = ${bookingId}`
+    await enqueueCalendarSync(bookingId, 'delete')
+    expect(await processCalendarSyncJobs()).toBe(1)
+    const deletion = fetchMock.mock.calls.find(call => call[1]?.method === 'DELETE')!
+    expect(new URL(String(deletion[0])).searchParams.get('sendUpdates')).toBe('all')
   })
 
   it('backs off transient failures and stops after the eighth attempt', async () => {

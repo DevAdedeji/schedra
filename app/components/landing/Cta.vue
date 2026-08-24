@@ -1,3 +1,7 @@
+<script setup lang="ts">
+const { isSignedIn, accountDestination } = await useLandingNavigation()
+</script>
+
 <template>
   <section
     id="get-started"
@@ -12,12 +16,12 @@
         you need to. No card and no trial that quietly ends.
       </p>
       <UButton
-        to="/signup"
+        :to="accountDestination"
         prefetch
         size="xl"
         class="mt-10 rounded-full px-8 font-medium"
       >
-        Create your link
+        {{ isSignedIn ? 'Go to dashboard' : 'Create your link' }}
       </UButton>
     </div>
   </section>

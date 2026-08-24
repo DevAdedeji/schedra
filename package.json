@@ -9,11 +9,13 @@
     "postinstall": "nuxt prepare",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node scripts/migrate.mjs",
+    "db:migrate:test": "node scripts/migrate.mjs --test",
     "db:studio": "drizzle-kit studio",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
     "typecheck": "nuxt typecheck",
     "og": "node scripts/generate-og.mjs"
   },

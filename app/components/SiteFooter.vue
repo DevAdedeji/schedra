@@ -5,7 +5,9 @@ interface FooterLink {
   external?: boolean
 }
 
-const columns: { title: string, links: FooterLink[] }[] = [
+const { isSignedIn } = await useLandingNavigation()
+
+const columns = computed<{ title: string, links: FooterLink[] }[]>(() => [
   {
     title: 'Product',
     links: [
@@ -17,10 +19,12 @@ const columns: { title: string, links: FooterLink[] }[] = [
   },
   {
     title: 'Account',
-    links: [
-      { label: 'Create your link', to: '/signup' },
-      { label: 'Sign in', to: '/login' }
-    ]
+    links: isSignedIn.value
+      ? [{ label: 'Dashboard', to: '/dashboard' }]
+      : [
+          { label: 'Create your link', to: '/signup' },
+          { label: 'Sign in', to: '/login' }
+        ]
   },
   {
     title: 'Project',
@@ -30,7 +34,7 @@ const columns: { title: string, links: FooterLink[] }[] = [
       { label: 'Readme', to: 'https://github.com/DevAdedeji/schedra#readme', external: true }
     ]
   }
-]
+])
 
 const year = new Date().getFullYear()
 </script>

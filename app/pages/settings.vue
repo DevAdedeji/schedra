@@ -1,14 +1,16 @@
 <script setup lang="ts">
+import { apiErrorMessage, profileApi } from '~/services/schedra-api'
+
 definePageMeta({ layout: 'app', middleware: 'auth' })
 useSeoMeta({ title: 'Settings', robots: 'noindex, nofollow' })
 
 const { data } = await useCurrentUser()
 const { host } = useSiteUrl()
+const feedback = useFeedback()
 const user = computed(() => data.value?.user)
 
 const profile = reactive({ name: '', bio: '' })
 const saving = ref(false)
-const saved = ref(false)
 const error = ref('')
 
 watchEffect(() => {
@@ -18,19 +20,15 @@ watchEffect(() => {
 
 async function save() {
   saving.value = true
-  saved.value = false
   error.value = ''
 
   try {
-    await $fetch('/api/profile', {
-      method: 'PATCH',
-      body: { name: profile.name, bio: profile.bio || undefined }
-    })
-    saved.value = true
+    const result = await profileApi.update({ name: profile.name, bio: profile.bio || undefined })
+    if (data.value?.user) data.value = { ...data.value, user: result.user }
     await refreshNuxtData('current-user')
+    feedback.success({ title: 'Profile saved', description: 'Your public booking page is up to date.' })
   } catch (failure) {
-    error.value = (failure as { statusMessage?: string }).statusMessage
-      ?? 'Could not save that just now.'
+    error.value = apiErrorMessage(failure, 'Could not save that just now.')
   } finally {
     saving.value = false
   }
@@ -108,7 +106,7 @@ const initials = computed(() => (profile.name || '')
           {{ error }}
         </p>
 
-        <div class="flex items-center gap-3">
+        <div>
           <UButton
             type="submit"
             size="lg"
@@ -117,10 +115,6 @@ const initials = computed(() => (profile.name || '')
           >
             Save changes
           </UButton>
-          <span
-            v-if="saved"
-            class="text-[13px] text-primary"
-          >Saved</span>
         </div>
       </form>
     </section>

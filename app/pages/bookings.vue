@@ -1,34 +1,16 @@
 <script setup lang="ts">
-import type { PaginationMeta } from '#shared/pagination'
+import { apiErrorMessage, bookingsApi, type BookingRecord, type BookingsResponse } from '~/services/schedra-api'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 useSeoMeta({ title: 'Your bookings', robots: 'noindex, nofollow' })
-
-interface BookingRecord {
-  uid: string
-  status: 'pending' | 'confirmed' | 'cancelled' | 'rejected'
-  startsAt: string
-  endsAt: string
-  attendeeName: string
-  attendeeEmail: string
-  attendeeTimeZone: string
-  eventTitle: string
-  notes: string | null
-  cancellationReason: string | null
-}
-
-interface BookingsResponse {
-  items: BookingRecord[]
-  pagination: PaginationMeta
-  counts: { all: number, upcoming: number, past: number, cancelled: number, nextWeek: number }
-}
 
 const filter = ref<'all' | 'upcoming' | 'past' | 'cancelled'>('upcoming')
 const query = ref('')
 const search = ref('')
 const page = ref(1)
 const apiQuery = computed(() => ({ filter: filter.value, search: search.value, page: page.value, pageSize: 10 }))
-const { data, refresh, status, error: loadFailure } = useLazyFetch<BookingsResponse>('/api/bookings', { query: apiQuery })
+const { data, refresh, status, error: loadFailure } = await useLazyFetch<BookingsResponse>(bookingsApi.listEndpoint, { query: apiQuery })
+const feedback = useFeedback()
 const list = computed(() => data.value?.items ?? [])
 const initialLoading = computed(() => status.value === 'pending' && !data.value)
 const refreshing = computed(() => status.value === 'pending' && Boolean(data.value))
@@ -107,6 +89,14 @@ function isUpcoming(item: BookingRecord) {
   return item.status !== 'cancelled' && new Date(item.endsAt) >= new Date()
 }
 
+function locationLabel(item: BookingRecord) {
+  if (item.locationType === 'google_meet') return 'Google Meet'
+  if (item.locationType === 'video_link') return 'Video call'
+  if (item.locationType === 'phone') return 'Phone call'
+  if (item.locationType === 'in_person') return 'In person'
+  return 'Meeting details'
+}
+
 const cancelling = ref<string | null>(null)
 const actionError = ref('')
 
@@ -114,12 +104,11 @@ async function cancel(uid: string) {
   cancelling.value = uid
   actionError.value = ''
   try {
-    await $fetch(`/api/booking/${uid}/cancel`, { method: 'POST', body: {} })
+    await bookingsApi.cancel(uid)
     await refresh()
+    feedback.success({ title: 'Booking cancelled', description: 'The guest and connected calendar will be updated.' })
   } catch (failure) {
-    actionError.value = (failure as { data?: { statusMessage?: string }, statusMessage?: string }).data?.statusMessage
-      ?? (failure as { statusMessage?: string }).statusMessage
-      ?? 'Could not cancel this booking just now. Please try again.'
+    actionError.value = apiErrorMessage(failure, 'Could not cancel this booking just now. Please try again.')
   } finally {
     cancelling.value = null
   }
@@ -257,6 +246,13 @@ async function cancel(uid: string) {
                     <p class="mt-0.5 truncate text-[13px] text-muted">
                       {{ item.attendeeName }} · {{ item.attendeeEmail }}
                     </p>
+                    <p class="mt-1.5 flex items-center gap-1.5 text-[12px] text-muted">
+                      <UIcon
+                        :name="item.locationType === 'in_person' ? 'i-lucide-map-pin' : item.locationType === 'phone' ? 'i-lucide-phone' : 'i-lucide-video'"
+                        class="size-3.5 shrink-0 text-dimmed"
+                      />
+                      <span class="truncate">{{ locationLabel(item) }}<template v-if="item.locationType === 'in_person'"> · {{ item.locationDetails }}</template></span>
+                    </p>
 
                     <p
                       v-if="item.notes"
@@ -267,6 +263,18 @@ async function cancel(uid: string) {
                   </div>
 
                   <div class="flex shrink-0 gap-2">
+                    <UButton
+                      v-if="isUpcoming(item) && item.meetingUrl"
+                      :to="item.meetingUrl"
+                      target="_blank"
+                      color="neutral"
+                      variant="outline"
+                      size="sm"
+                      trailing-icon="i-lucide-external-link"
+                      class="font-medium"
+                    >
+                      Join
+                    </UButton>
                     <UButton
                       :to="`/booking/${item.uid}`"
                       color="neutral"
