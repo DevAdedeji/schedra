@@ -9,6 +9,7 @@ import { cancelBookingReminders } from '../utils/email-outbox'
 import { enforceRateLimit } from '../utils/rate-limit'
 import { enqueueCalendarSync } from '../utils/calendar-sync'
 import { CalendarUnavailableError } from '../utils/google-calendar'
+import { BookingAnswerValidationError, buildBookingAnswersSnapshot } from '../utils/booking-answers'
 
 const SLOT_TAKEN = '23P01'
 
@@ -23,11 +24,21 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const { username, slug, start, name, email, timeZone, notes, rescheduleOf } = parsed.data
+  const { username, slug, start, name, email, timeZone, notes, answers, rescheduleOf } = parsed.data
   const eventType = await findPublicEventType(username, slug)
 
   if (!eventType) {
     throw createError({ statusCode: 404, statusMessage: 'No such booking page' })
+  }
+
+  let answerSnapshot
+  try {
+    answerSnapshot = buildBookingAnswersSnapshot(eventType.bookingQuestions, answers, notes)
+  } catch (error) {
+    if (error instanceof BookingAnswerValidationError) {
+      throw createError({ statusCode: 400, statusMessage: error.message })
+    }
+    throw error
   }
 
   const now = new Date().toISOString()
@@ -113,7 +124,7 @@ export default defineEventHandler(async (event) => {
         locationType: eventType.locationType,
         locationDetails: eventType.locationDetails,
         meetingUrl: eventType.locationType === 'video_link' ? eventType.locationDetails : null,
-        answers: notes ? { notes } : null,
+        answers: answerSnapshot,
         rescheduledFromId: previous?.id ?? null
       }).returning({ id: bookings.id })
 
@@ -134,7 +145,9 @@ export default defineEventHandler(async (event) => {
         locationType: eventType.locationType,
         locationDetails: eventType.locationDetails,
         meetingUrl: eventType.locationType === 'video_link' ? eventType.locationDetails : null,
-        reminderMinutes: eventType.reminderMinutes
+        reminderMinutes: eventType.reminderMinutes,
+        answers: answerSnapshot?.responses ?? [],
+        notes: answerSnapshot?.notes ?? null
       }, tx)
     })
   } catch (error) {

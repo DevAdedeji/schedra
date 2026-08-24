@@ -1,7 +1,7 @@
 import type { ManagedBooking } from './booking-manage'
 import { enqueueEmails, type EmailInsertExecutor } from './email-outbox'
 import { useEnv } from './env'
-import type { MeetingLocationType } from '#shared/validation'
+import type { BookingAnswer, MeetingLocationType } from '#shared/validation'
 
 export interface BookingNotice {
   uid: string
@@ -18,6 +18,8 @@ export interface BookingNotice {
   locationDetails: string
   meetingUrl?: string | null
   reminderMinutes: number[]
+  answers?: BookingAnswer[]
+  notes?: string | null
 }
 
 function whenRange(startsAt: string, endsAt: string, timeZone: string) {
@@ -91,6 +93,8 @@ export async function queueBookingEmails(booking: BookingNotice, executor?: Emai
           { label: 'When', value: whenRange(booking.startsAt, booking.endsAt, booking.hostTimeZone) },
           { label: 'Guest', value: booking.attendeeName },
           { label: 'Guest email', value: booking.attendeeEmail },
+          ...(booking.answers ?? []).map(answer => ({ label: answer.label, value: answer.value })),
+          ...(booking.notes ? [{ label: 'Notes', value: booking.notes }] : []),
           {
             label: 'Where',
             value: meetingLocationText(booking.locationType, booking.locationDetails, booking.meetingUrl),

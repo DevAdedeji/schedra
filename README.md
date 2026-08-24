@@ -4,7 +4,7 @@ A source-available, self-hostable scheduling platform built around one app conta
 
 > **Status: prelaunch.** Personal booking pages, race-safe booking, weekly
 > availability, timezone conversion, host booking management, cancellation,
-> rescheduling, meeting locations, calendar-file downloads, configurable
+> rescheduling, custom guest questions, meeting locations, calendar-file downloads, configurable
 > reminders, durable email delivery and Google Calendar conflict/event/Meet sync
 > are implemented. Teams, webhooks and embeds are not implemented yet. The
 > homepage slot picker is an explicitly labelled interactive preview.

@@ -28,6 +28,7 @@ export default defineEventHandler(async (event) => {
       locationType: eventTypes.locationType,
       locationDetails: eventTypes.locationDetails,
       reminderMinutes: eventTypes.reminderMinutes,
+      bookingQuestions: eventTypes.bookingQuestions,
       scheduleId: eventTypes.scheduleId,
       scheduleName: schedules.name,
       hidden: eventTypes.hidden

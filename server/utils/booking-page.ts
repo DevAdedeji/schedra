@@ -4,6 +4,7 @@ import type { AvailabilityRule, DateOverride, Slot, Weekday } from '../domain/ty
 import { availabilityRules, bookings, dateOverrides, eventTypes, schedules, users } from '../database/schema'
 import { useDatabase } from './database'
 import { googleBusyTimes } from './google-calendar'
+import type { BookingQuestion } from '#shared/validation'
 
 export interface PublicEventType {
   id: string
@@ -19,6 +20,7 @@ export interface PublicEventType {
   locationType: 'google_meet' | 'video_link' | 'phone' | 'in_person' | 'custom'
   locationDetails: string
   reminderMinutes: number[]
+  bookingQuestions: BookingQuestion[]
 }
 
 /** `HH:MM:SS` from Postgres `time`, trimmed to what the engine expects. */
@@ -50,6 +52,7 @@ export async function findPublicEventType(username: string, slug: string) {
       locationType: eventTypes.locationType,
       locationDetails: eventTypes.locationDetails,
       reminderMinutes: eventTypes.reminderMinutes,
+      bookingQuestions: eventTypes.bookingQuestions,
       scheduleId: eventTypes.scheduleId,
       scheduleTimeZone: schedules.timeZone
     })

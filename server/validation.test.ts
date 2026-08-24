@@ -64,6 +64,7 @@ describe('authentication validation', () => {
       locationType: 'video_link',
       locationDetails: 'https://meet.example.com/intro',
       reminderMinutes: [1440, 60],
+      bookingQuestions: [],
       hidden: false
     }
 
@@ -73,6 +74,41 @@ describe('authentication validation', () => {
     expect(eventTypeSchema.safeParse({ ...valid, maxPerDay: 0 }).success).toBe(false)
     expect(eventTypeSchema.safeParse({ ...valid, locationDetails: 'not a link' }).success).toBe(false)
     expect(eventTypeSchema.parse({ ...valid, reminderMinutes: [60, 1440, 60] }).reminderMinutes).toEqual([1440, 60])
+  })
+
+  it('validates guest questions and their choice options', () => {
+    const question = {
+      id: 'f5d799e8-5773-4fcf-9dc7-cb82e4efbd73',
+      label: 'What would you like to discuss?',
+      type: 'select' as const,
+      required: true,
+      options: ['Product strategy', 'Technical review']
+    }
+    const base = {
+      title: 'Intro call',
+      slug: 'intro-call',
+      durationMinutes: 30,
+      bufferBeforeMinutes: 0,
+      bufferAfterMinutes: 0,
+      minimumNoticeMinutes: 120,
+      locationType: 'custom' as const,
+      locationDetails: 'Details will be shared.',
+      reminderMinutes: [],
+      hidden: false
+    }
+
+    expect(eventTypeSchema.safeParse({ ...base, bookingQuestions: [question] }).success).toBe(true)
+    expect(eventTypeSchema.safeParse({
+      ...base,
+      bookingQuestions: [{ ...question, options: ['Same', 'same'] }]
+    }).success).toBe(false)
+    expect(eventTypeSchema.safeParse({
+      ...base,
+      bookingQuestions: Array.from({ length: 11 }, (_, index) => ({
+        ...question,
+        id: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`
+      }))
+    }).success).toBe(false)
   })
 
   it('accepts unavailable and custom date overrides but rejects partial or reversed hours', () => {

@@ -229,6 +229,40 @@ useSeoMeta({
               </div>
             </dl>
 
+            <div
+              v-if="booking?.answers.length || booking?.notes"
+              class="mt-6 border-t border-default pt-6"
+            >
+              <h2 class="text-[13px] font-semibold text-highlighted">
+                Guest responses
+              </h2>
+              <dl class="mt-3 space-y-3">
+                <div
+                  v-for="answer in booking?.answers"
+                  :key="answer.questionId"
+                  class="rounded-lg border border-default bg-muted px-4 py-3"
+                >
+                  <dt class="text-[11px] font-semibold uppercase tracking-[0.08em] text-dimmed">
+                    {{ answer.label }}
+                  </dt>
+                  <dd class="mt-1 whitespace-pre-wrap text-[13px] leading-relaxed text-toned">
+                    {{ answer.value }}
+                  </dd>
+                </div>
+                <div
+                  v-if="booking?.notes"
+                  class="rounded-lg border border-default bg-muted px-4 py-3"
+                >
+                  <dt class="text-[11px] font-semibold uppercase tracking-[0.08em] text-dimmed">
+                    Notes
+                  </dt>
+                  <dd class="mt-1 whitespace-pre-wrap text-[13px] leading-relaxed text-toned">
+                    {{ booking.notes }}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+
             <p
               v-if="cancelled && booking?.cancellationReason"
               class="mt-5 rounded-lg border border-default bg-muted px-4 py-3 text-[13px] leading-relaxed text-muted"

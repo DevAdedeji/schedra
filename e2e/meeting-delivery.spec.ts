@@ -47,6 +47,9 @@ test('creates an event and completes the guest booking lifecycle', async ({ page
   await page.getByRole('button', { name: 'New event type' }).click()
   await page.getByLabel('Event name').fill('E2E consultation')
   await page.getByLabel('Description').fill('A complete scheduling lifecycle test.')
+  await page.getByRole('button', { name: 'Add question' }).click()
+  await page.getByLabel('Question', { exact: true }).fill('What should we prepare?')
+  await page.getByLabel('Guests must answer this question').check()
   await expect(page.getByRole('button', { name: 'Create event type' })).toBeEnabled()
   await page.getByRole('button', { name: 'Create event type' }).click()
   await expect(page.getByRole('heading', { name: 'E2E consultation' })).toBeVisible()
@@ -56,11 +59,14 @@ test('creates an event and completes the guest booking lifecycle', async ({ page
   await page.getByTestId('booking-slot').first().click()
   await page.getByLabel('Your name').fill('E2E Guest')
   await page.getByLabel('Email').fill('e2e-guest@schedra.test')
+  await page.getByLabel('What should we prepare?').fill('The onboarding metrics')
   await page.getByRole('button', { name: 'Confirm booking' }).click()
   await expect(page.getByTestId('booking-confirmation')).toContainText('You\'re booked')
 
   await page.getByRole('link', { name: 'View or change booking' }).click()
   await expect(page.getByText('Meeting details', { exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Guest responses' })).toBeVisible()
+  await expect(page.getByText('The onboarding metrics')).toBeVisible()
   await expect(page.getByRole('link', { name: 'Add to calendar' })).toBeVisible()
 
   const firstBookingUrl = page.url()
@@ -74,6 +80,7 @@ test('creates an event and completes the guest booking lifecycle', async ({ page
   await page.getByTestId('booking-slot').first().click()
   await expect(page.getByLabel('Your name')).toHaveValue('E2E Guest')
   await expect(page.getByLabel('Email')).toHaveValue('e2e-guest@schedra.test')
+  await expect(page.getByLabel('What should we prepare?')).toHaveValue('The onboarding metrics')
   await page.getByRole('button', { name: 'Confirm new time' }).click()
   await expect(page.getByTestId('booking-confirmation')).toContainText('You\'re booked')
 
@@ -82,10 +89,13 @@ test('creates an event and completes the guest booking lifecycle', async ({ page
   await page.getByRole('button', { name: 'Yes, cancel it' }).click()
   await expect(page.getByText('Cancelled', { exact: true })).toBeVisible()
 
-  const bookings = await sql<{ status: string }[]>`
-    select status from bookings order by created_at
+  const bookings = await sql<{ status: string, answers: { responses?: Array<{ label: string, value: string }> } }[]>`
+    select status, answers from bookings order by created_at
   `
   expect(bookings.map(booking => booking.status)).toEqual(['cancelled', 'cancelled'])
+  expect(bookings[1]?.answers.responses).toEqual([
+    expect.objectContaining({ label: 'What should we prepare?', value: 'The onboarding metrics' })
+  ])
 
   const liveReminders = await sql<{ count: number }[]>`
     select count(*)::int as count from email_outbox

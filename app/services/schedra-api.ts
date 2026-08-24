@@ -1,5 +1,5 @@
 import type { PaginationMeta } from '#shared/pagination'
-import type { EventTypeInput, MeetingLocationType } from '#shared/validation'
+import type { BookingAnswer, BookingQuestion, EventTypeInput, MeetingLocationType } from '#shared/validation'
 import type { EventTypeRecord } from '~/types/event-type'
 import type { ScheduleOverrideRecord, ScheduleRecord, ScheduleRuleRecord } from '~/types/schedule'
 
@@ -36,6 +36,8 @@ export interface BookingDetail {
   durationMinutes: number
   hostName: string
   hostUsername: string
+  notes: string | null
+  answers: BookingAnswer[]
 }
 
 export interface CreateBookingResult {
@@ -109,6 +111,7 @@ export interface PublicBookingPage {
   durationMinutes: number
   locationType: MeetingLocationType
   locationDetails: string
+  bookingQuestions: BookingQuestion[]
 }
 
 export interface AvailabilityResponse {
@@ -125,6 +128,7 @@ export interface CreateBookingInput {
   email: string
   timeZone: string
   notes?: string
+  answers?: Record<string, string>
   rescheduleOf?: string
 }
 

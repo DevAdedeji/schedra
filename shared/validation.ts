@@ -94,7 +94,19 @@ export const createBookingSchema = z.object({
   email: emailSchema,
   timeZone: timeZoneSchema,
   notes: z.string().trim().max(2000).optional(),
+  answers: z.record(
+    z.string().trim().min(1).max(64),
+    z.string().trim().max(2000)
+  ).optional(),
   rescheduleOf: z.string().trim().max(64).optional()
+}).superRefine((value, context) => {
+  if (value.answers && Object.keys(value.answers).length > 10) {
+    context.addIssue({
+      code: 'custom',
+      path: ['answers'],
+      message: 'Too many booking answers were submitted.'
+    })
+  }
 })
 
 export type CreateBookingInput = z.infer<typeof createBookingSchema>
@@ -171,6 +183,49 @@ export const meetingLocationTypeSchema = z.enum([
 
 export type MeetingLocationType = z.infer<typeof meetingLocationTypeSchema>
 
+export const bookingQuestionTypeSchema = z.enum(['short_text', 'long_text', 'select'])
+export type BookingQuestionType = z.infer<typeof bookingQuestionTypeSchema>
+
+export const bookingQuestionSchema = z.object({
+  id: z.uuid(),
+  label: z.string().trim().min(1, 'Give this question a label.').max(120, 'Keep question labels under 120 characters.'),
+  type: bookingQuestionTypeSchema,
+  required: z.boolean(),
+  options: z.array(
+    z.string().trim().min(1, 'Options cannot be empty.').max(80, 'Keep options under 80 characters.')
+  ).max(20, 'A question can have at most 20 options.').default([])
+}).superRefine((question, context) => {
+  if (question.type !== 'select') {
+    if (question.options.length) {
+      context.addIssue({ code: 'custom', path: ['options'], message: 'Only choice questions can have options.' })
+    }
+    return
+  }
+
+  if (question.options.length < 2) {
+    context.addIssue({ code: 'custom', path: ['options'], message: 'Add at least two choices.' })
+  }
+  const normalized = question.options.map(option => option.toLocaleLowerCase())
+  if (new Set(normalized).size !== normalized.length) {
+    context.addIssue({ code: 'custom', path: ['options'], message: 'Each choice must be different.' })
+  }
+})
+
+export type BookingQuestion = z.infer<typeof bookingQuestionSchema>
+
+export interface BookingAnswer {
+  questionId: string
+  label: string
+  type: BookingQuestionType
+  value: string
+}
+
+export interface BookingAnswersSnapshot {
+  version: 1
+  responses: BookingAnswer[]
+  notes?: string
+}
+
 function isHttpUrl(value: string) {
   try {
     return ['http:', 'https:'].includes(new URL(value).protocol)
@@ -194,9 +249,18 @@ export const eventTypeSchema = z.object({
   locationDetails: z.string().trim().max(500, 'Keep meeting details under 500 characters.'),
   reminderMinutes: z.array(z.number().int().min(15).max(20_160)).max(5)
     .transform(values => [...new Set(values)].sort((a, b) => b - a)),
+  bookingQuestions: z.array(bookingQuestionSchema).max(10, 'An event type can have at most 10 questions.').default([]),
   scheduleId: z.uuid().optional(),
   hidden: z.boolean()
 }).superRefine((value, context) => {
+  const questionIds = value.bookingQuestions.map(question => question.id)
+  if (new Set(questionIds).size !== questionIds.length) {
+    context.addIssue({
+      code: 'custom',
+      path: ['bookingQuestions'],
+      message: 'Each booking question must have a unique identifier.'
+    })
+  }
   if (value.locationType === 'google_meet') return
   if (!value.locationDetails) {
     context.addIssue({

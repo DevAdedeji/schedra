@@ -5,7 +5,7 @@ export default defineNuxtConfig({
   ],
 
   devtools: {
-    enabled: true
+    enabled: process.env.NODE_ENV !== 'production'
   },
 
   css: ['~/assets/css/main.css'],
@@ -17,7 +17,7 @@ export default defineNuxtConfig({
   },
 
   routeRules: {
-    '/': { swr: 3600 },
+    '/': { prerender: true },
     '/api/**': { headers: { 'cache-control': 'no-store' } },
     '/signup': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
     '/login': { prerender: false, headers: { 'cache-control': 'private, no-store' } },

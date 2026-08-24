@@ -16,6 +16,7 @@ import {
   uniqueIndex,
   uuid
 } from 'drizzle-orm/pg-core'
+import type { BookingAnswersSnapshot, BookingQuestion } from '#shared/validation'
 
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -261,6 +262,7 @@ export const eventTypes = pgTable('event_types', {
   locationType: meetingLocationType('location_type').notNull().default('custom'),
   locationDetails: text('location_details').notNull().default('The host will share meeting details before the meeting.'),
   reminderMinutes: jsonb('reminder_minutes').$type<number[]>().notNull().default(sql`'[1440, 60]'::jsonb`),
+  bookingQuestions: jsonb('booking_questions').$type<BookingQuestion[]>().notNull().default(sql`'[]'::jsonb`),
 
   hidden: boolean('hidden').notNull().default(false),
 
@@ -310,7 +312,7 @@ export const bookings = pgTable('bookings', {
   locationDetails: text('location_details').notNull().default('The host will share meeting details before the meeting.'),
   meetingUrl: text('meeting_url'),
 
-  answers: jsonb('answers'),
+  answers: jsonb('answers').$type<BookingAnswersSnapshot>(),
   cancellationReason: text('cancellation_reason'),
   rescheduledFromId: uuid('rescheduled_from_id'),
 

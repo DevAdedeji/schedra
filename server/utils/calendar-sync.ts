@@ -13,6 +13,7 @@ import {
   googleEventId,
   upsertGoogleCalendarEvent
 } from './google-calendar'
+import { bookingAnswersText } from './booking-answers'
 
 export type CalendarSyncExecutor = Pick<Database, 'insert'>
 export type CalendarSyncAction = 'upsert' | 'delete'
@@ -123,9 +124,9 @@ async function syncBooking(bookingId: string, action: CalendarSyncAction) {
       locationType: booking.locationType,
       locationDetails: booking.locationDetails,
       meetingUrl: booking.meetingUrl,
-      notes: typeof booking.answers === 'object' && booking.answers && 'notes' in booking.answers
-        ? String(booking.answers.notes)
-        : null
+      // Google Calendar descriptions have a finite size; preserve useful
+      // context without letting several long answers make sync fail.
+      notes: bookingAnswersText(booking.answers).slice(0, 5000) || null
     }
   )
 

@@ -1,4 +1,5 @@
 import { findBookingByUid } from '../../utils/booking-manage'
+import { readBookingAnswers } from '../../utils/booking-answers'
 
 export default defineEventHandler(async (event) => {
   const uid = getRouterParam(event, 'uid')
@@ -13,6 +14,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'No such booking' })
   }
 
+  const answers = readBookingAnswers(booking.answers)
   return {
     uid: booking.uid,
     status: booking.status,
@@ -29,6 +31,8 @@ export default defineEventHandler(async (event) => {
     eventSlug: booking.eventSlug,
     durationMinutes: booking.durationMinutes,
     hostName: booking.hostName,
-    hostUsername: booking.hostUsername
+    hostUsername: booking.hostUsername,
+    notes: answers.notes ?? null,
+    answers: answers.responses
   }
 })

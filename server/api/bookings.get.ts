@@ -4,6 +4,7 @@ import { paginationMeta, paginationQuerySchema } from '#shared/pagination'
 import { bookings, eventTypes } from '../database/schema'
 import { useDatabase } from '../utils/database'
 import { requireAuthSession } from '../utils/session'
+import { readBookingAnswers } from '../utils/booking-answers'
 
 const querySchema = paginationQuerySchema.extend({
   filter: z.enum(['all', 'upcoming', 'past', 'cancelled']).default('upcoming')
@@ -72,13 +73,16 @@ export default defineEventHandler(async (event) => {
       .offset((page - 1) * pageSize)
   ])
 
-  const items = rows.map(row => ({
-    ...row,
-    startsAt: row.startsAt.toISOString(),
-    endsAt: row.endsAt.toISOString(),
-    notes: (row.answers as { notes?: string } | null)?.notes ?? null,
-    answers: undefined
-  }))
+  const items = rows.map((row) => {
+    const answerSnapshot = readBookingAnswers(row.answers)
+    return {
+      ...row,
+      startsAt: row.startsAt.toISOString(),
+      endsAt: row.endsAt.toISOString(),
+      notes: answerSnapshot.notes ?? null,
+      answers: undefined
+    }
+  })
 
   return {
     items,

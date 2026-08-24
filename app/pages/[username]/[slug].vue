@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { bookingsApi, publicBookingApi, type AvailabilityResponse, type PublicBookingPage } from '~/services/schedra-api'
+import { apiErrorMessage, bookingsApi, publicBookingApi, type AvailabilityResponse, type BookingDetail, type PublicBookingPage } from '~/services/schedra-api'
 
 definePageMeta({ layout: 'bare' })
 
@@ -64,10 +64,7 @@ const retrying = computed(() => pageStatus.value === 'pending' || status.value =
 async function retryBookingPage() {
   await Promise.allSettled([refresh(), refreshPage()])
 }
-const rescheduleBooking = ref<{
-  attendeeName: string
-  attendeeEmail: string
-} | null>(null)
+const rescheduleBooking = ref<BookingDetail | null>(null)
 if (rescheduleOf.value) {
   rescheduleBooking.value = await bookingsApi.get(rescheduleOf.value)
     .catch(() => null)
@@ -120,9 +117,16 @@ const longSelected = computed(() => selectedDate.value
   : '')
 
 const booking = reactive({ name: '', email: '', notes: '' })
+const bookingAnswers = reactive<Record<string, string>>({})
 if (rescheduleBooking.value) {
   booking.name = rescheduleBooking.value.attendeeName
   booking.email = rescheduleBooking.value.attendeeEmail
+  booking.notes = rescheduleBooking.value.notes ?? ''
+  for (const answer of rescheduleBooking.value.answers) {
+    if (page.value?.bookingQuestions.some(question => question.id === answer.questionId)) {
+      bookingAnswers[answer.questionId] = answer.value
+    }
+  }
 }
 const submitting = ref(false)
 const bookingError = ref('')
@@ -169,6 +173,13 @@ function locationIcon(type?: string) {
 async function confirm() {
   if (!selectedSlot.value) return
 
+  const unanswered = page.value?.bookingQuestions.find(question =>
+    question.required && !bookingAnswers[question.id]?.trim())
+  if (unanswered) {
+    bookingError.value = `Answer “${unanswered.label}” before booking.`
+    return
+  }
+
   submitting.value = true
   bookingError.value = ''
 
@@ -181,6 +192,9 @@ async function confirm() {
       email: booking.email,
       timeZone: viewerTimeZone.value,
       notes: booking.notes || undefined,
+      answers: Object.fromEntries(
+        Object.entries(bookingAnswers).filter(([, value]) => value.trim())
+      ),
       rescheduleOf: rescheduleOf.value
     })
     confirmed.value = {
@@ -194,7 +208,7 @@ async function confirm() {
     const code = (failure as { statusCode?: number }).statusCode
     bookingError.value = code === 409
       ? 'Someone just took that time. Please pick another.'
-      : 'Could not book that just now. Check your details and try again.'
+      : apiErrorMessage(failure, 'Could not book that just now. Check your details and try again.')
     if (code === 409) {
       selectedSlot.value = null
       await refresh()
@@ -561,6 +575,41 @@ useSeoMeta({
                   class="min-h-11 w-full"
                 />
               </UFormField>
+
+              <UFormField
+                v-for="question in page?.bookingQuestions"
+                :key="question.id"
+                :label="question.label"
+                :name="`question-${question.id}`"
+                :hint="question.required ? undefined : 'Optional'"
+                :required="question.required"
+              >
+                <UTextarea
+                  v-if="question.type === 'long_text'"
+                  v-model="bookingAnswers[question.id]"
+                  :rows="3"
+                  :maxlength="2000"
+                  :required="question.required"
+                  placeholder="Write your answer"
+                  class="w-full"
+                />
+                <USelectMenu
+                  v-else-if="question.type === 'select'"
+                  v-model="bookingAnswers[question.id]"
+                  :items="question.options"
+                  placeholder="Choose an option"
+                  class="min-h-11 w-full"
+                />
+                <UInput
+                  v-else
+                  v-model="bookingAnswers[question.id]"
+                  :maxlength="500"
+                  :required="question.required"
+                  placeholder="Write your answer"
+                  class="min-h-11 w-full"
+                />
+              </UFormField>
+
               <UFormField
                 label="Notes"
                 name="notes"

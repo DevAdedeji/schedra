@@ -1,4 +1,4 @@
-import type { MeetingLocationType } from '#shared/validation'
+import type { BookingQuestion, MeetingLocationType } from '#shared/validation'
 
 export interface EventTypeRecord {
   id: string
@@ -15,6 +15,7 @@ export interface EventTypeRecord {
   locationType: MeetingLocationType
   locationDetails: string
   reminderMinutes: number[]
+  bookingQuestions: BookingQuestion[]
   scheduleId: string | null
   scheduleName: string | null
   hidden: boolean

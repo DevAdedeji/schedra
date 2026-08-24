@@ -1,0 +1,1 @@
+ALTER TABLE "event_types" ADD COLUMN "booking_questions" jsonb DEFAULT '[]'::jsonb NOT NULL;
