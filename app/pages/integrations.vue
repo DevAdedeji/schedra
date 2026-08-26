@@ -334,8 +334,8 @@ watch(() => connection.value?.connected, (connected) => {
           />
           Google reported a recent calendar error. Reload your calendars or reconnect if it continues.
         </div>
-        <div class="grid gap-6 px-5 py-6 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] sm:px-7">
-          <div>
+        <div class="grid grid-cols-[minmax(0,1fr)] gap-6 px-5 py-6 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] sm:px-7">
+          <div class="min-w-0">
             <h3 class="text-[14px] font-semibold text-highlighted">
               Calendars that block booking times
             </h3>
@@ -343,7 +343,7 @@ watch(() => connection.value?.connected, (connected) => {
               Select every calendar where an existing busy event means a guest should not be able to book you. This does not add, change or remove events on those calendars.
             </p>
           </div>
-          <div>
+          <div class="min-w-0">
             <div class="overflow-hidden rounded-lg border border-default">
               <label
                 v-for="calendar in conflictCalendars"
@@ -388,8 +388,8 @@ watch(() => connection.value?.connected, (connected) => {
           </div>
         </div>
 
-        <div class="grid gap-6 px-5 py-6 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] sm:px-7">
-          <div>
+        <div class="grid grid-cols-[minmax(0,1fr)] gap-6 px-5 py-6 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] sm:px-7">
+          <div class="min-w-0">
             <h3 class="text-[14px] font-semibold text-highlighted">
               Calendar for new bookings
             </h3>
@@ -397,7 +397,7 @@ watch(() => connection.value?.connected, (connected) => {
               Choose the one calendar where Schedra should create booking events. Reschedules and cancellations will update the same event automatically.
             </p>
           </div>
-          <div>
+          <div class="min-w-0">
             <USelectMenu
               v-model="writeCalendarId"
               :items="writableCalendars"
