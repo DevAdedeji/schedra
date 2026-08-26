@@ -95,7 +95,7 @@ const comparison: { group: string, rows: ComparisonRow[] }[] = [
 const faqs = [
   {
     q: 'Who exactly am I paying for?',
-    a: `Only people who have actually joined a team. A pending invitation costs nothing until it is accepted, and someone you remove stops counting from that moment. Teams are billed at a ${TEAM_PLAN.minimumSeats}-member minimum, so the smallest team invoice is ${formatUsd(TEAM_PLAN.minimumSeats * TEAM_PLAN.monthlyCentsPerSeat)} a month.`
+    a: 'Only people who have actually joined a team. A pending invitation costs nothing until it is accepted, and someone you remove stops counting from that moment. There are no prepaid or empty seats.'
   },
   {
     q: 'Is my personal booking page affected?',
@@ -249,8 +249,7 @@ useHead({
               <template v-else>
                 Charged every month.
               </template>
-              {{ TEAM_PLAN.minimumSeats }}-member minimum, so a team starts at
-              {{ formatUsd(TEAM_PLAN.minimumSeats * headlineCents) }}.
+              You only pay for people who have joined, starting with the team owner.
             </p>
             <p class="mt-6 max-w-[40ch] text-[15px] leading-relaxed text-muted">
               One shared link the whole team hosts. Round-robin, collective

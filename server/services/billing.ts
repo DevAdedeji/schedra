@@ -20,8 +20,8 @@ import { organizationEntitlement } from './entitlement'
 import { recordAudit } from './organization'
 import { useEnv } from '../config/env'
 
-// Bachs rejects NGN checkouts below ₦1,000. The smallest possible team invoice
-// is the two-seat minimum, which is far above that, so it can never bite here.
+// Bachs rejects NGN checkouts below ₦1,000. Even the smallest one-seat team
+// invoice is far above that after USD-to-NGN conversion.
 function periodEnd(from: Date, interval: BillingInterval) {
   const end = new Date(from)
   if (interval === 'yearly') end.setUTCFullYear(end.getUTCFullYear() + 1)

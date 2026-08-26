@@ -160,8 +160,9 @@ async function create() {
                 {{ TEAM_PLAN.trialDays }} days free, no card needed
               </p>
               <p class="mt-1">
-                After the trial it is {{ formatUsd(TEAM_PLAN.monthlyCentsPerSeat) }} per member each month,
-                billed only for members who have actually joined. Your personal booking page stays free.
+                After the trial it is {{ formatUsd(TEAM_PLAN.monthlyCentsPerSeat) }} per member monthly or
+                {{ formatUsd(TEAM_PLAN.yearlyCentsPerSeat) }} per member yearly. You only pay for people who
+                have joined, and your personal booking page stays free.
               </p>
             </div>
           </div>

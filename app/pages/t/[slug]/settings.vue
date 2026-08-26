@@ -254,12 +254,6 @@ async function leave() {
               </dt>
               <dd class="mt-1 text-[15px] font-medium text-highlighted">
                 {{ entitlement.seatsUsed }}
-                <span
-                  v-if="entitlement.seatsUsed < TEAM_PLAN.minimumSeats"
-                  class="text-[12px] font-normal text-muted"
-                >
-                  (billed at the {{ TEAM_PLAN.minimumSeats }}-member minimum)
-                </span>
               </dd>
             </div>
             <div>

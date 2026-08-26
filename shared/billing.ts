@@ -9,7 +9,7 @@ export const TEAM_PLAN = {
   currency: 'USD',
   monthlyCentsPerSeat: 800,
   yearlyCentsPerSeat: 8000,
-  minimumSeats: 2,
+  minimumSeats: 1,
   trialDays: 14,
   trialSeatLimit: 10,
   graceDays: 7,
@@ -79,7 +79,7 @@ export function seatPriceCents(interval: BillingInterval) {
   return interval === 'yearly' ? TEAM_PLAN.yearlyCentsPerSeat : TEAM_PLAN.monthlyCentsPerSeat
 }
 
-/** A one-person "team" would cost more in processing fees than it earns. */
+/** Every team has an owner, so occupied-seat billing starts at one seat. */
 export function billableSeats(seatsUsed: number) {
   return Math.max(TEAM_PLAN.minimumSeats, seatsUsed)
 }

@@ -94,11 +94,11 @@ describe('money at the bachs boundary', () => {
     expect(fromDecimalString('not-a-number')).toBe(0)
   })
 
-  it('never bills below the two-seat minimum', () => {
-    expect(billableSeats(0)).toBe(2)
-    expect(billableSeats(1)).toBe(2)
+  it('never bills below the owner seat', () => {
+    expect(billableSeats(0)).toBe(1)
+    expect(billableSeats(1)).toBe(1)
     expect(billableSeats(5)).toBe(5)
-    expect(invoiceTotalCents(1, 'monthly')).toBe(1600)
+    expect(invoiceTotalCents(1, 'monthly')).toBe(800)
     expect(invoiceTotalCents(3, 'yearly')).toBe(24000)
   })
 })

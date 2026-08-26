@@ -106,7 +106,7 @@ describe.skipIf(!url)('teams', () => {
     expect(found?.renamed).toBe(true)
   })
 
-  it('counts only members who joined, and bills a two-seat minimum', async () => {
+  it('counts and bills only members who joined', async () => {
     const ada = await signUp('Ada Lovelace', 'ada', 'ada@example.com')
     const team = await createTeam(ada.headers)
 
@@ -122,7 +122,7 @@ describe.skipIf(!url)('teams', () => {
     // A pending invitation costs nothing until it is accepted.
     expect(entitlement.seatsUsed).toBe(1)
     expect(entitlement.status).toBe('trialing')
-    expect(entitlement.nextInvoiceCents).toBe(2 * 8000)
+    expect(entitlement.nextInvoiceCents).toBe(8000)
   })
 
   it('lets an invited person join and records it', async () => {

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import {
-  TEAM_PLAN,
   billingIntervals,
   collectionCurrencies,
   collectionMethodFor,
@@ -48,7 +47,6 @@ const willAutoRenew = computed(() => collectionMethodFor(currency.value) === 'ch
 
 const seats = computed(() => entitlement.value?.seatsUsed ?? 0)
 const total = computed(() => invoiceTotalCents(seats.value, interval.value))
-const belowMinimum = computed(() => seats.value < TEAM_PLAN.minimumSeats)
 
 // Bachs confirms payment by webhook; this redirect only tells us to re-read.
 const paidJustNow = computed(() => route.query.paid === '1')
@@ -214,9 +212,6 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
             <div class="flex flex-wrap items-baseline justify-between gap-2">
               <p class="text-[13px] text-muted">
                 {{ seats }} {{ seats === 1 ? 'member' : 'members' }}
-                <span v-if="belowMinimum">
-                  · billed at the {{ TEAM_PLAN.minimumSeats }}-member minimum
-                </span>
               </p>
               <p class="text-[20px] font-semibold text-highlighted">
                 {{ formatUsd(total) }}

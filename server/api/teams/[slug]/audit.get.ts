@@ -9,7 +9,7 @@ export default defineEventHandler(async (event) => {
   const context = await requireOrganizationPermission(event, slug, { member: ['update'] })
 
   const parsed = await getValidatedQuery(event, paginationQuerySchema.safeParse)
-  if (!parsed.success) throw createError({ statusCode: 400, statusMessage: 'Invalid history filters.' })
+  if (!parsed.success) throw createError({ statusCode: 400, statusMessage: 'Invalid activity log filters.' })
 
   const { page, pageSize } = parsed.data
   const db = useDatabase()

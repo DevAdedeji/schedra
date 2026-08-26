@@ -8,7 +8,7 @@ const slug = computed(() => String(route.params.slug ?? ''))
 
 const { data: team } = await useLazyFetch<TeamDetail>(() => teamsApi.detailEndpoint(slug.value))
 useSeoMeta({
-  title: () => team.value ? `${team.value.organization.name} history` : 'Team history',
+  title: () => team.value ? `${team.value.organization.name} activity log` : 'Team activity log',
   robots: 'noindex, nofollow'
 })
 
@@ -77,26 +77,26 @@ function when(iso: string) {
 <template>
   <div class="space-y-6">
     <PageHeader
-      title="History"
+      title="Activity log"
       description="Who changed what in this team, and when."
     />
 
     <section class="overflow-hidden rounded-xl border border-default bg-default">
       <AsyncErrorState
         v-if="loadFailure && !data"
-        title="Could not load history"
+        title="Could not load the activity log"
         description="Only owners and admins can see this."
         @retry="refresh"
       />
 
       <ListLoadingSkeleton
         v-else-if="initialLoading"
-        label="Loading history"
+        label="Loading activity"
       />
 
       <ListEmptyState
         v-else-if="!list.length"
-        icon="i-lucide-history"
+        icon="i-lucide-activity"
         title="Nothing recorded yet"
         description="Membership and billing changes will show up here as they happen."
       />

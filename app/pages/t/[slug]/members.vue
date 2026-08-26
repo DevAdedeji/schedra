@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { TEAM_PLAN, formatUsd, invitableRoles, type InvitableRole, type OrganizationRole } from '#shared/billing'
+import { TEAM_PLAN, formatUsd, invitableRoles, seatPriceCents, type InvitableRole, type OrganizationRole } from '#shared/billing'
 import {
   apiErrorMessage,
   teamsApi,
@@ -206,15 +206,6 @@ async function retry() {
     >
       <template #actions>
         <UButton
-          v-if="permissions?.updateTeam"
-          color="neutral"
-          variant="outline"
-          icon="i-lucide-settings"
-          :to="`/t/${slug}/settings`"
-        >
-          Settings
-        </UButton>
-        <UButton
           v-if="permissions?.inviteMembers"
           icon="i-lucide-user-plus"
           :disabled="entitlement && !entitlement.canAddMembers"
@@ -237,9 +228,9 @@ async function retry() {
         <span class="font-medium text-highlighted">
           {{ entitlement.daysLeftInTrial }} days left in your trial.
         </span>
-        After that it is {{ formatUsd(TEAM_PLAN.monthlyCentsPerSeat) }} per member each month —
-        currently {{ formatUsd(entitlement.nextInvoiceCents) }} for
-        {{ entitlement.seatsUsed }} {{ entitlement.seatsUsed === 1 ? 'member' : 'members' }}.
+        After that it is {{ formatUsd(seatPriceCents(entitlement.interval)) }} per member
+        {{ entitlement.interval === 'yearly' ? 'per year, billed annually' : 'each month' }}.
+        At your current team size, your first invoice will be {{ formatUsd(entitlement.nextInvoiceCents) }}.
       </p>
     </div>
 
