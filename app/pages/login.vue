@@ -109,13 +109,10 @@ async function onSubmit(event: FormSubmitEvent<SignInInput>) {
         label="Password"
         name="password"
       >
-        <UInput
+        <PasswordField
           v-model="state.password"
-          type="password"
-          size="xl"
           autocomplete="current-password"
           placeholder="Your password"
-          class="w-full"
         />
       </UFormField>
 

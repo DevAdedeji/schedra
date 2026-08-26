@@ -11,6 +11,7 @@ const columns = computed<{ title: string, links: FooterLink[] }[]>(() => [
   {
     title: 'Product',
     links: [
+      { label: 'Pricing', to: '/pricing' },
       { label: 'How it works', to: '/#how' },
       { label: 'What you get', to: '/#features' },
       { label: 'Timezones', to: '/#timezones' },
@@ -76,7 +77,7 @@ const year = new Date().getFullYear()
 
       <div class="flex flex-col gap-2 border-t border-default py-6 text-[13px] text-dimmed sm:flex-row sm:items-center sm:justify-between">
         <span>© {{ year }} Schedra</span>
-        <span>No ads. No tracking. No charge per person.</span>
+        <span>No ads. No tracking. Free for your own booking page.</span>
       </div>
     </div>
   </footer>

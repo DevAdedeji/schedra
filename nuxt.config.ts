@@ -18,6 +18,7 @@ export default defineNuxtConfig({
 
   routeRules: {
     '/': { prerender: true },
+    '/pricing': { prerender: true },
     '/api/**': { headers: { 'cache-control': 'no-store' } },
     '/signup': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
     '/login': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
@@ -30,7 +31,9 @@ export default defineNuxtConfig({
     '/availability': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
     '/integrations': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
     '/settings': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
-    '/booking/**': { prerender: false, headers: { 'cache-control': 'private, no-store' } }
+    '/booking/**': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
+    '/t/**': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
+    '/invite/**': { prerender: false, headers: { 'cache-control': 'private, no-store' } }
   },
 
   compatibilityDate: '2026-06-30',

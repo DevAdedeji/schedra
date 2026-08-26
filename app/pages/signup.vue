@@ -32,8 +32,6 @@ watch(invitation, (value) => {
   if (value?.email) state.email = value.email
 }, { immediate: true })
 
-const strength = usePasswordStrength(toRef(state, 'password'))
-
 onMounted(() => {
   ready.value = true
 })
@@ -247,33 +245,11 @@ async function onSubmit(event: FormSubmitEvent<SignUpFormInput>) {
         label="Password"
         name="password"
       >
-        <UInput
+        <PasswordField
           v-model="state.password"
-          type="password"
-          size="xl"
           autocomplete="new-password"
           placeholder="At least 10 characters"
-          class="w-full"
         />
-
-        <div class="mt-2 flex items-center gap-3">
-          <div
-            class="flex flex-1 gap-1.5"
-            aria-hidden="true"
-          >
-            <span
-              v-for="step in 3"
-              :key="step"
-              class="h-1 flex-1 rounded-full transition-colors"
-              :class="strength.score >= step ? strength.barClass : 'bg-accented'"
-            />
-          </div>
-          <span
-            v-if="strength.label"
-            class="text-[12px] font-medium"
-            :class="strength.textClass"
-          >{{ strength.label }}</span>
-        </div>
       </UFormField>
 
       <p

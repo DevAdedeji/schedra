@@ -2,7 +2,8 @@
 const links = [
   { label: 'How it works', to: '#how' },
   { label: 'What you get', to: '#features' },
-  { label: 'For developers', to: '#developers' }
+  { label: 'For developers', to: '#developers' },
+  { label: 'Pricing', to: '/pricing' }
 ]
 
 const open = ref(false)
@@ -29,7 +30,7 @@ function toggleColorMode() {
           <a
             v-for="link in links"
             :key="link.label"
-            :href="link.to"
+            :href="link.to.startsWith('#') ? `/${link.to}` : link.to"
             class="text-[14px] text-muted transition-colors hover:text-highlighted"
           >{{ link.label }}</a>
         </nav>
@@ -72,7 +73,7 @@ function toggleColorMode() {
         <a
           v-for="link in links"
           :key="link.label"
-          :href="link.to"
+          :href="link.to.startsWith('#') ? `/${link.to}` : link.to"
           class="block py-2.5 text-[15px] text-muted transition-colors hover:text-highlighted"
           @click="open = false"
         >{{ link.label }}</a>
