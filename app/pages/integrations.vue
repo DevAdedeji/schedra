@@ -332,7 +332,7 @@ watch(() => connection.value?.connected, (connected) => {
             name="i-lucide-triangle-alert"
             class="mt-0.5 size-4 shrink-0"
           />
-          Google reported a recent calendar error. Reload your calendars or reconnect if it continues.
+          {{ connection.lastError }} Review the calendars below and save your preferences if needed.
         </div>
         <div class="grid grid-cols-[minmax(0,1fr)] gap-6 px-5 py-6 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] sm:px-7">
           <div class="min-w-0">
@@ -340,7 +340,7 @@ watch(() => connection.value?.connected, (connected) => {
               Calendars that block booking times
             </h3>
             <p class="mt-1 text-[12px] leading-relaxed text-muted">
-              Select every calendar where an existing busy event means a guest should not be able to book you. This does not add, change or remove events on those calendars.
+              Select every calendar where an existing busy event means a guest should not be able to book you. Some subscription calendars, such as holidays and week numbers, do not provide busy times and should stay unchecked.
             </p>
           </div>
           <div class="min-w-0">

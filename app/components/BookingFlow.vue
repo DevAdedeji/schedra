@@ -18,6 +18,13 @@ const props = defineProps<{
   mode: 'personal' | 'team'
   owner: string
   slug: string
+  embedded?: boolean
+  prefillName?: string
+  prefillEmail?: string
+}>()
+
+const emit = defineEmits<{
+  booked: [booking: { uid: string, start: string, status: 'pending' | 'confirmed' | 'cancelled' | 'rejected' }]
 }>()
 
 const route = useRoute()
@@ -150,6 +157,18 @@ const longSelected = computed(() => selectedDate.value
 const booking = reactive({ name: '', email: '', notes: '' })
 const bookingAnswers = reactive<Record<string, string>>({})
 const guestEmails = ref<string[]>([])
+
+const bookingSource = computed(() => props.embedded ? 'embed' as const : 'hosted' as const)
+const bookingAttribution = computed(() => props.embedded
+  ? {
+      referrerHost: typeof route.query.referrer === 'string' ? route.query.referrer : undefined,
+      utmSource: typeof route.query.utm_source === 'string' ? route.query.utm_source : undefined,
+      utmMedium: typeof route.query.utm_medium === 'string' ? route.query.utm_medium : undefined,
+      utmCampaign: typeof route.query.utm_campaign === 'string' ? route.query.utm_campaign : undefined,
+      utmTerm: typeof route.query.utm_term === 'string' ? route.query.utm_term : undefined,
+      utmContent: typeof route.query.utm_content === 'string' ? route.query.utm_content : undefined
+    }
+  : undefined)
 if (rescheduleBooking.value) {
   booking.name = rescheduleBooking.value.attendeeName
   booking.email = rescheduleBooking.value.attendeeEmail
@@ -160,6 +179,9 @@ if (rescheduleBooking.value) {
       bookingAnswers[answer.questionId] = answer.value
     }
   }
+} else {
+  booking.name = props.prefillName?.trim() ?? ''
+  booking.email = props.prefillEmail?.trim().toLowerCase() ?? ''
 }
 const submitting = ref(false)
 const bookingError = ref('')
@@ -246,7 +268,9 @@ async function confirm() {
       notes: booking.notes || undefined,
       answers: Object.fromEntries(
         Object.entries(bookingAnswers).filter(([, value]) => value.trim())
-      )
+      ),
+      source: bookingSource.value,
+      attribution: bookingAttribution.value
     }
 
     const result = isTeam.value
@@ -260,6 +284,11 @@ async function confirm() {
       meetingUrl: result.meetingUrl,
       status: result.status
     }
+    emit('booked', {
+      uid: result.uid,
+      start: result.start,
+      status: result.status
+    })
   } catch (failure) {
     const code = (failure as { statusCode?: number }).statusCode
     const message = apiErrorMessage(failure, 'Could not book that just now. Check your details and try again.')
@@ -289,7 +318,7 @@ useSeoMeta({
   description: () => seoDescription.value,
   // A move link is private, booking-specific state. Keep the canonical public
   // booking page indexable while preventing reschedule URLs entering search.
-  robots: () => indexable.value && page.value && !rescheduleOf.value
+  robots: () => indexable.value && page.value && !rescheduleOf.value && !props.embedded
     ? 'index, follow'
     : 'noindex, nofollow',
   ogType: 'website',
@@ -305,14 +334,28 @@ useSeoMeta({
 </script>
 
 <template>
-  <div class="flex min-h-screen flex-col bg-muted">
-    <div class="flex-1 px-5">
+  <div
+    class="flex min-h-screen flex-col bg-muted"
+    :data-embedded="embedded ? 'true' : undefined"
+  >
+    <div
+      class="flex-1"
+      :class="embedded ? 'px-3 sm:px-4' : 'px-5'"
+    >
       <div class="mx-auto max-w-4xl">
-        <div class="pt-6 pb-12">
+        <div
+          v-if="!embedded"
+          class="pt-6 pb-12"
+        >
           <NuxtLink to="/">
             <SchedraMark />
           </NuxtLink>
         </div>
+        <div
+          v-else
+          class="h-3 sm:h-4"
+          aria-hidden="true"
+        />
 
         <div
           v-if="initialLoading"
@@ -789,7 +832,10 @@ useSeoMeta({
       </div>
     </div>
 
-    <footer class="px-5 pb-10 pt-6 text-center text-xs text-muted">
+    <footer
+      class="px-5 text-center text-xs text-muted"
+      :class="embedded ? 'pb-4 pt-3' : 'pb-10 pt-6'"
+    >
       Scheduling by
       <NuxtLink
         to="/"

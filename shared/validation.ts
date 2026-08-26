@@ -87,6 +87,19 @@ export type SignInInput = z.infer<typeof signInSchema>
 export type RequestResetInput = z.infer<typeof requestResetSchema>
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>
 
+export const bookingSourceSchema = z.enum(['hosted', 'embed'])
+export type BookingSource = z.infer<typeof bookingSourceSchema>
+
+export const bookingAttributionSchema = z.object({
+  referrerHost: z.string().trim().max(253).optional(),
+  utmSource: z.string().trim().max(200).optional(),
+  utmMedium: z.string().trim().max(200).optional(),
+  utmCampaign: z.string().trim().max(200).optional(),
+  utmTerm: z.string().trim().max(200).optional(),
+  utmContent: z.string().trim().max(200).optional()
+}).optional()
+export type BookingAttribution = z.infer<typeof bookingAttributionSchema>
+
 export const createBookingSchema = z.object({
   username: z.string().min(1),
   slug: z.string().min(1),
@@ -101,6 +114,8 @@ export const createBookingSchema = z.object({
     z.string().trim().min(1).max(64),
     z.string().trim().max(2000)
   ).optional(),
+  source: bookingSourceSchema.default('hosted'),
+  attribution: bookingAttributionSchema,
   rescheduleOf: z.string().trim().max(64).optional()
 }).superRefine((value, context) => {
   if (value.answers && Object.keys(value.answers).length > 10) {

@@ -211,6 +211,13 @@ export async function initializeGoogleCalendars(userId: string) {
 }
 
 interface BusyPeriod { start: string, end: string }
+interface FreeBusyCalendarResult {
+  busy?: BusyPeriod[]
+  errors?: Array<{ reason?: string }>
+}
+interface FreeBusyResponse {
+  calendars: Record<string, FreeBusyCalendarResult>
+}
 interface BusyCacheEntry {
   from: number
   to: number
@@ -223,6 +230,24 @@ const BUSY_CACHE_MS = 15_000
 
 export function clearGoogleBusyCache() {
   busyCache.clear()
+}
+
+function freeBusy(userId: string, calendarIds: string[], from: string, to: string) {
+  return googleRequest<FreeBusyResponse>(userId, '/freeBusy', {
+    method: 'POST',
+    body: JSON.stringify({
+      timeMin: from,
+      timeMax: to,
+      timeZone: 'UTC',
+      items: calendarIds.map(id => ({ id }))
+    })
+  })
+}
+
+function failedFreeBusyCalendarIds(result: FreeBusyResponse) {
+  return Object.entries(result.calendars)
+    .filter(([, entry]) => entry.errors?.length)
+    .map(([id]) => id)
 }
 
 export async function googleBusyTimes(userId: string, from: string, to: string) {
@@ -239,14 +264,41 @@ export async function googleBusyTimes(userId: string, from: string, to: string) 
     return (await cached.request).filter(period => Date.parse(period.end) > requestedFrom && Date.parse(period.start) < requestedTo)
   }
 
-  const request = googleRequest<{ calendars: Record<string, { busy?: BusyPeriod[], errors?: unknown[] }> }>(
-    userId,
-    '/freeBusy',
-    { method: 'POST', body: JSON.stringify({ timeMin: from, timeMax: to, timeZone: 'UTC', items: connection.conflictCalendarIds.map(id => ({ id })) }) }
-  ).then((result) => {
-    const entries = Object.values(result.calendars)
-    if (entries.some(entry => entry.errors?.length)) throw new CalendarUnavailableError('Google could not check every selected calendar.')
-    return entries.flatMap(entry => entry.busy ?? [])
+  const request = freeBusy(userId, connection.conflictCalendarIds, from, to).then(async (result) => {
+    const failedIds = failedFreeBusyCalendarIds(result)
+    if (!failedIds.length) return Object.values(result.calendars).flatMap(entry => entry.busy ?? [])
+
+    const permanentFailures = failedIds.filter((id) => {
+      const errors = result.calendars[id]?.errors ?? []
+      return errors.length > 0 && errors.every(error => error.reason === 'notFound')
+    })
+    const usableIds = connection.conflictCalendarIds.filter(id => !permanentFailures.includes(id))
+
+    // Google returns per-calendar `notFound` errors for some subscribed
+    // calendars (notably holiday and week-number feeds) even though they are
+    // present in Calendar List. Keep healthy calendars protecting the host,
+    // and remove only entries Google has confirmed it cannot query.
+    if (permanentFailures.length === failedIds.length && usableIds.length) {
+      const count = permanentFailures.length
+      await useDatabase().update(calendarConnections).set({
+        conflictCalendarIds: usableIds,
+        lastError: `${count} selected ${count === 1 ? 'calendar was' : 'calendars were'} removed because Google cannot check ${count === 1 ? 'its' : 'their'} busy times.`,
+        updatedAt: sql`now()`
+      }).where(and(
+        eq(calendarConnections.id, connection.id),
+        eq(calendarConnections.conflictCalendarIds, connection.conflictCalendarIds)
+      ))
+      return usableIds.flatMap(id => result.calendars[id]?.busy ?? [])
+    }
+
+    const message = usableIds.length
+      ? 'Google could not check every selected calendar.'
+      : 'Google cannot check busy times on the selected calendar.'
+    await useDatabase().update(calendarConnections).set({
+      lastError: message,
+      updatedAt: sql`now()`
+    }).where(eq(calendarConnections.id, connection.id))
+    throw new CalendarUnavailableError(message)
   })
 
   if (busyCache.size >= 1000) {
@@ -284,6 +336,17 @@ export async function updateGoogleCalendarSelection(userId: string, conflictCale
   const write = byId.get(writeCalendarId)
   if (!write || !['writer', 'owner'].includes(write.accessRole)) {
     throw new CalendarSelectionError('Choose a calendar where Schedra may create events.')
+  }
+
+  const checkFrom = new Date()
+  const checkTo = new Date(checkFrom.getTime() + 60 * 60_000)
+  const check = await freeBusy(userId, conflictCalendarIds, checkFrom.toISOString(), checkTo.toISOString())
+  const failedIds = failedFreeBusyCalendarIds(check)
+  if (failedIds.length) {
+    const labels = failedIds.map(id => byId.get(id)?.summary ?? 'a selected calendar')
+    throw new CalendarSelectionError(
+      `Google cannot check busy times on ${labels.join(', ')}. Leave ${failedIds.length === 1 ? 'that calendar' : 'those calendars'} unchecked.`
+    )
   }
   await useDatabase().update(calendarConnections).set({
     conflictCalendarIds,
