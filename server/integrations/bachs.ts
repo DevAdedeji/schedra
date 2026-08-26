@@ -188,22 +188,43 @@ export interface BachsSubscription {
   trial_end?: string | null
   cancel_at_period_end?: boolean
   metadata?: Record<string, string> | null
+  product?: BachsProduct | null
 }
 
-const planKey = (interval: BillingInterval) => `team_${interval}`
+const planKey = (interval: BillingInterval, seats: number) => `team_${interval}_seats_${seats}`
+
+interface BachsProductPage {
+  items?: BachsProduct[]
+  pagination?: { has_more?: boolean, next_cursor?: string | null }
+}
+
+async function findProductByPlan(key: string) {
+  let cursor: string | undefined
+  do {
+    const page = await bachsFetch<BachsProductPage>('/products', {
+      query: { limit: 100, cursor }
+    })
+    const match = (page.items ?? []).find(item => item.metadata?.schedra_plan === key)
+    if (match) return match
+    cursor = page.pagination?.has_more ? page.pagination.next_cursor ?? undefined : undefined
+  } while (cursor)
+  return null
+}
 
 /**
- * One catalog product per billing interval, found by our own metadata key so a
- * redeploy never creates duplicates. Bachs has no upsert, so this is
- * list-then-create; the catalog is two rows, which makes that cheap.
+ * Bachs does not expose subscription quantity updates yet. A fixed-price
+ * product for each supported seat count lets us use its supported plan-change
+ * endpoint and immediate proration without losing per-seat billing semantics.
  */
-export async function ensureTeamProduct(interval: BillingInterval): Promise<string> {
-  const key = planKey(interval)
+export async function ensureTeamProduct(interval: BillingInterval, seats: number): Promise<string> {
+  const billable = Math.max(TEAM_PLAN.minimumSeats, Math.floor(seats))
+  if (billable > TEAM_PLAN.maxSeats) throw new Error(`Cannot bill more than ${TEAM_PLAN.maxSeats} seats.`)
+
+  const key = planKey(interval, billable)
   const cached = productCache.get(key)
   if (cached) return cached
 
-  const existing = await bachsFetch<{ items?: BachsProduct[] }>('/products', { query: { limit: 100 } })
-  const match = (existing.items ?? []).find(item => item.metadata?.schedra_plan === key)
+  const match = await findProductByPlan(key)
   if (match) {
     productCache.set(key, match.id)
     return match.id
@@ -211,16 +232,17 @@ export async function ensureTeamProduct(interval: BillingInterval): Promise<stri
 
   const created = await bachsFetch<BachsProduct>('/products', {
     method: 'POST',
+    idempotencyKey: `schedra-${key}`,
     body: {
-      name: interval === 'yearly' ? 'Schedra Team (yearly)' : 'Schedra Team (monthly)',
-      description: 'Team scheduling on Schedra, billed per member who has joined.',
+      name: `Schedra Team — ${billable} ${billable === 1 ? 'seat' : 'seats'} (${interval})`,
+      description: `Team scheduling on Schedra for ${billable} occupied ${billable === 1 ? 'seat' : 'seats'}.`,
       price: {
         currency: TEAM_PLAN.currency,
         price_type: 'fixed',
-        amount: toDecimalString(seatPriceCents(interval))
+        amount: toDecimalString(seatPriceCents(interval) * billable)
       },
       billing_cycle: { interval: interval === 'yearly' ? 'year' : 'month', frequency: 1 },
-      metadata: { schedra_plan: key }
+      metadata: { schedra_plan: key, schedra_seats: String(billable) }
     }
   })
 
@@ -232,6 +254,24 @@ const productCache = new Map<string, string>()
 
 export function getSubscription(subscriptionId: string) {
   return bachsFetch<BachsSubscription>(`/subscriptions/${encodeURIComponent(subscriptionId)}`)
+}
+
+export function updateSubscriptionPlan(
+  subscriptionId: string,
+  productId: string,
+  prorationBehavior: 'invoice_now' | 'next_cycle' | 'none' = 'invoice_now'
+) {
+  return bachsFetch<BachsSubscription>(`/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+    method: 'PATCH',
+    body: { product_id: productId, proration_behavior: prorationBehavior }
+  })
+}
+
+export function updateSubscriptionMetadata(subscriptionId: string, metadata: Record<string, string>) {
+  return bachsFetch<BachsSubscription>(`/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+    method: 'PATCH',
+    body: { metadata }
+  })
 }
 
 export function cancelSubscription(subscriptionId: string, atPeriodEnd = true) {

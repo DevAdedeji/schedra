@@ -13,6 +13,7 @@ import { emailDedupeKey, enqueueEmails } from './email-outbox'
 import { useEnv } from '../config/env'
 import { assertCanAddMember, organizationEntitlement, startTrial } from './entitlement'
 import { countMembersWithRole, recordAudit } from './organization'
+import { enqueueSubscriptionSeatSync } from './subscription-seat-sync'
 
 function createAuth() {
   const env = useEnv()
@@ -199,6 +200,7 @@ function createAuth() {
           },
 
           afterAcceptInvitation: async ({ invitation, member, user }) => {
+            await enqueueSubscriptionSeatSync(invitation.organizationId)
             await recordAudit({
               organizationId: invitation.organizationId,
               actorUserId: user.id,
@@ -272,6 +274,7 @@ function createAuth() {
           },
 
           afterRemoveMember: async ({ member, user }) => {
+            await enqueueSubscriptionSeatSync(member.organizationId)
             await recordAudit({
               organizationId: member.organizationId,
               actorUserId: user.id,

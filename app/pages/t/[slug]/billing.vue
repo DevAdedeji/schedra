@@ -22,11 +22,19 @@ const { data, refresh, status, error: loadFailure }
 
 const entitlement = computed(() => data.value?.entitlement)
 const invoices = computed(() => data.value?.invoices ?? [])
+const seatBilling = computed(() => data.value?.seatBilling)
 const initialLoading = computed(() => status.value === 'pending' && !data.value)
+const seatMismatch = computed(() => Boolean(
+  entitlement.value
+  && (seatBilling.value?.billedSeats ?? 0) !== entitlement.value.seatsUsed
+))
+const automaticSeatBilling = computed(() => seatBilling.value?.collectionMethod === 'charge_automatically')
+const seatSyncActive = computed(() => ['pending', 'processing'].includes(seatBilling.value?.syncStatus ?? ''))
 
 const interval = ref<BillingInterval>('yearly')
 const currency = ref<CollectionCurrency>('USD')
 const starting = ref(false)
+const retryingSeatSync = ref(false)
 
 watch(entitlement, (value) => {
   if (value) interval.value = value.interval
@@ -73,6 +81,27 @@ async function startCheckout() {
       description: apiErrorMessage(failure, 'Please try again.')
     })
     starting.value = false
+  }
+}
+
+async function retrySeatSync() {
+  if (retryingSeatSync.value) return
+  retryingSeatSync.value = true
+  try {
+    await billingApi.syncSeats(slug.value)
+    feedback.success({
+      title: 'Seat billing queued',
+      description: 'We are checking the subscription against your active members now.'
+    })
+    await new Promise(resolve => setTimeout(resolve, 1500))
+    await refresh()
+  } catch (failure) {
+    feedback.error({
+      title: 'Could not retry seat billing',
+      description: apiErrorMessage(failure, 'Please try again shortly.')
+    })
+  } finally {
+    retryingSeatSync.value = false
   }
 }
 
@@ -149,6 +178,58 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
         </p>
       </div>
 
+      <div
+        v-if="entitlement.status === 'active' && automaticSeatBilling && (seatMismatch || seatSyncActive || seatBilling?.syncStatus === 'failed')"
+        class="flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3"
+        :class="seatBilling?.syncStatus === 'failed' ? 'border-error/30 bg-error/5' : 'border-info/30 bg-info/5'"
+        :role="seatBilling?.syncStatus === 'failed' ? 'alert' : 'status'"
+      >
+        <UIcon
+          :name="seatBilling?.syncStatus === 'failed' ? 'i-lucide-circle-alert' : 'i-lucide-refresh-cw'"
+          class="size-4 shrink-0"
+          :class="seatBilling?.syncStatus === 'failed' ? 'text-error' : 'text-info'"
+        />
+        <p class="min-w-0 flex-1 text-[13px] text-muted">
+          <template v-if="seatBilling?.syncStatus === 'failed'">
+            We could not update the subscription for {{ entitlement.seatsUsed }} active
+            {{ entitlement.seatsUsed === 1 ? 'member' : 'members' }}. No change has been hidden;
+            retry after checking the Bachs connection.
+          </template>
+          <template v-else>
+            Updating the subscription to {{ entitlement.seatsUsed }}
+            {{ entitlement.seatsUsed === 1 ? 'seat' : 'seats' }}. Bachs will charge only the
+            prorated difference for the time remaining in this billing period.
+          </template>
+        </p>
+        <UButton
+          v-if="seatBilling?.syncStatus === 'failed'"
+          color="neutral"
+          variant="outline"
+          size="sm"
+          icon="i-lucide-refresh-cw"
+          :loading="retryingSeatSync"
+          @click="retrySeatSync"
+        >
+          Try again
+        </UButton>
+      </div>
+
+      <div
+        v-if="entitlement.status === 'active' && !automaticSeatBilling && seatMismatch"
+        class="flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/5 px-4 py-3"
+        role="status"
+      >
+        <UIcon
+          name="i-lucide-triangle-alert"
+          class="mt-0.5 size-4 shrink-0 text-warning"
+        />
+        <p class="text-[13px] leading-relaxed text-muted">
+          This team now has {{ entitlement.seatsUsed }} active members, but the last paid invoice
+          covered {{ seatBilling?.billedSeats ?? 0 }}. Bank transfers cannot be charged automatically;
+          start checkout below to update the paid term for the current team size.
+        </p>
+      </div>
+
       <section class="overflow-hidden rounded-xl border border-default bg-default">
         <header class="flex flex-wrap items-center justify-between gap-3 border-b border-default px-5 py-4">
           <h2 class="text-[14px] font-semibold text-highlighted">
@@ -218,6 +299,14 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
                 <span class="text-[13px] font-normal text-muted">/{{ interval === 'yearly' ? 'year' : 'month' }}</span>
               </p>
             </div>
+            <p
+              v-if="seatBilling?.billedSeats != null"
+              class="mt-2 text-[11px] text-muted"
+            >
+              Current subscription: {{ seatBilling.billedSeats }}
+              {{ seatBilling.billedSeats === 1 ? 'seat' : 'seats' }}.
+              Pending invitations remain free until accepted.
+            </p>
           </div>
 
           <UButton

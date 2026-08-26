@@ -75,7 +75,7 @@ export default defineEventHandler(async (event) => {
         action: `billing.subscription_${subscription.status}`,
         targetType: 'subscription',
         targetId: subscription.id,
-        metadata: { type, quantity: subscription.quantity ?? null }
+        metadata: { type, billedSeats: result.billedSeats ?? null }
       })
     }
     return { received: true, applied: result.applied, reason: result.reason }

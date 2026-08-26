@@ -249,6 +249,20 @@ async function retry() {
       </p>
     </div>
 
+    <div
+      v-else-if="entitlement && entitlement.status === 'active'"
+      class="flex items-start gap-3 rounded-xl border border-default bg-muted/50 px-4 py-3"
+    >
+      <UIcon
+        name="i-lucide-receipt-text"
+        class="mt-0.5 size-4 shrink-0 text-primary"
+      />
+      <p class="text-[13px] leading-relaxed text-muted">
+        Pending invitations are free. When someone accepts, they become a paid member and the
+        subscription is updated for the remaining time in your current billing period.
+      </p>
+    </div>
+
     <section
       v-if="permissions?.inviteMembers && pendingInvites.length"
       class="overflow-hidden rounded-xl border border-default bg-default"
