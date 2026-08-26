@@ -36,6 +36,11 @@ async function onSubmit(event: FormSubmitEvent<SignInInput>) {
     })
 
     if (failure) {
+      if (failure.status === 429) {
+        error.value = 'Too many sign-in attempts. Wait a few seconds, then try again.'
+        return
+      }
+
       if (failure.code === 'EMAIL_NOT_VERIFIED') {
         unverified.value = true
         return

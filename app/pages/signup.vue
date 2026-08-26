@@ -139,6 +139,11 @@ async function onSubmit(event: FormSubmitEvent<SignUpFormInput>) {
     })
 
     if (failure) {
+      if (failure.status === 429) {
+        error.value = 'Too many sign-up attempts. Wait a few seconds, then try again.'
+        return
+      }
+
       error.value = 'Could not create your account. Check the details and try again.'
       return
     }

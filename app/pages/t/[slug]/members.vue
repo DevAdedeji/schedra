@@ -460,6 +460,7 @@ async function retry() {
               v-model="inviteRole"
               :items="roleOptions"
               value-key="value"
+              aria-label="Role"
               size="lg"
               class="w-full"
             />

@@ -31,6 +31,7 @@ const rescheduleOf = computed(() => {
 })
 
 const viewerTimeZone = ref('UTC')
+const viewerTimeZoneReady = ref(false)
 const zones = Intl.supportedValuesOf('timeZone')
 const weekOffset = ref(0)
 const maxWeekOffset = 8
@@ -40,6 +41,7 @@ const jumped = ref(false)
 
 onMounted(() => {
   viewerTimeZone.value = Intl.DateTimeFormat().resolvedOptions().timeZone
+  viewerTimeZoneReady.value = true
 })
 
 watch(viewerTimeZone, () => {
@@ -556,7 +558,7 @@ useSeoMeta({
                   : slotsByDate.has(isoDate(day))
                     ? 'text-highlighted hover:bg-muted'
                     : 'cursor-not-allowed text-dimmed opacity-40'"
-                :disabled="!slotsByDate.has(isoDate(day))"
+                :disabled="!viewerTimeZoneReady || !slotsByDate.has(isoDate(day))"
                 :aria-label="new Intl.DateTimeFormat('en', { dateStyle: 'full' }).format(day)"
                 :aria-pressed="selectedDate === isoDate(day)"
                 @click="selectedDate = isoDate(day); selectedSlot = null"
@@ -608,6 +610,7 @@ useSeoMeta({
                       ? 'border-primary bg-primary text-inverted'
                       : 'border-default text-toned hover:border-primary'"
                     :aria-pressed="selectedSlot === slot"
+                    :disabled="!viewerTimeZoneReady"
                     @click="selectedSlot = slot"
                   >
                     {{ timeLabel(slot) }}

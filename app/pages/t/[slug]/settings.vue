@@ -443,6 +443,7 @@ async function leave() {
             :items="transferOptions"
             value-key="value"
             placeholder="Choose a member"
+            aria-label="New owner"
             size="lg"
             class="w-full"
           />
