@@ -2,7 +2,6 @@
 const links = [
   { label: 'How it works', to: '#how' },
   { label: 'What you get', to: '#features' },
-  { label: 'For developers', to: '#developers' },
   { label: 'Pricing', to: '/pricing' }
 ]
 

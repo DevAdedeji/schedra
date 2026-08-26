@@ -35,7 +35,6 @@ useHead({
     <LandingHowItWorks />
     <LandingFeatures />
     <LandingTimezones />
-    <LandingDevelopers />
     <LandingCta />
   </div>
 </template>

@@ -619,7 +619,7 @@ describe.skipIf(!url)('teams', () => {
     const ada = await signUp('Ada Lovelace', 'ada', 'ada@example.com')
     const team = await createTeam(ada.headers)
     // The sweep is deliberately inert when billing is not configured, so a
-    // self-hosted deployment never nags anybody about a bill.
+    // non-billed environment never sends an irrelevant payment reminder.
     process.env.BACHS_SECRET_KEY = 'sk_sandbox_test'
     process.env.BACHS_WEBHOOK_SECRET = 'whsec-test'
     const { resetEnv } = await import('../config/env')

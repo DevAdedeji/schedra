@@ -2,7 +2,6 @@
 interface FooterLink {
   label: string
   to: string
-  external?: boolean
 }
 
 const { isSignedIn } = await useLandingNavigation()
@@ -14,8 +13,7 @@ const columns = computed<{ title: string, links: FooterLink[] }[]>(() => [
       { label: 'Pricing', to: '/pricing' },
       { label: 'How it works', to: '/#how' },
       { label: 'What you get', to: '/#features' },
-      { label: 'Timezones', to: '/#timezones' },
-      { label: 'Self-hosting', to: '/#developers' }
+      { label: 'Timezones', to: '/#timezones' }
     ]
   },
   {
@@ -26,14 +24,6 @@ const columns = computed<{ title: string, links: FooterLink[] }[]>(() => [
           { label: 'Create your link', to: '/signup' },
           { label: 'Sign in', to: '/login' }
         ]
-  },
-  {
-    title: 'Project',
-    links: [
-      { label: 'Source on GitHub', to: 'https://github.com/DevAdedeji/schedra', external: true },
-      { label: 'Feature plan', to: 'https://github.com/DevAdedeji/schedra/blob/staging/FEATURES.md', external: true },
-      { label: 'Readme', to: 'https://github.com/DevAdedeji/schedra#readme', external: true }
-    ]
   }
 ])
 
@@ -43,7 +33,7 @@ const year = new Date().getFullYear()
 <template>
   <footer class="border-t border-default bg-muted">
     <div class="mx-auto max-w-312 px-6 lg:px-10">
-      <div class="grid gap-12 py-16 md:grid-cols-[1.4fr_repeat(3,1fr)]">
+      <div class="grid gap-12 py-16 md:grid-cols-[1.4fr_repeat(2,1fr)]">
         <div>
           <SchedraMark />
           <p class="mt-5 max-w-[28ch] text-[15px] leading-relaxed text-muted">
@@ -66,8 +56,6 @@ const year = new Date().getFullYear()
             >
               <NuxtLink
                 :to="link.to"
-                :target="link.external ? '_blank' : undefined"
-                :rel="link.external ? 'noopener noreferrer' : undefined"
                 class="text-[14px] text-muted transition-colors hover:text-highlighted"
               >{{ link.label }}</NuxtLink>
             </li>

@@ -7,7 +7,7 @@ const { url: siteUrl, indexable } = useSiteUrl()
 const origin = siteUrl.value
 
 const title = 'Schedra — share a link, get booked'
-const description = 'Share one link and let people pick a time that suits you both. Meetings land in your calendar with reminders sent, timezones handled. Free and open source.'
+const description = 'Share one link and let people pick a time that suits you both. Meetings land in your calendar with reminders sent and timezones handled.'
 const ogImage = `${origin}/og.png`
 
 const canonical = computed(() => `${origin}${route.path === '/' ? '' : route.path}`)
