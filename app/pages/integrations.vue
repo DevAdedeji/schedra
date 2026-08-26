@@ -5,6 +5,7 @@ definePageMeta({ layout: 'app', middleware: 'auth' })
 useSeoMeta({ title: 'Integrations', robots: 'noindex, nofollow' })
 
 const route = useRoute()
+const router = useRouter()
 const feedback = useFeedback()
 const { data: connection, refresh: refreshConnection, status, error: connectionFailure } = await useLazyFetch<CalendarConnection>(calendarApi.connectionEndpoint)
 const { data: zoomConnection, refresh: refreshZoomConnection, status: zoomStatus, error: zoomFailure } = await useLazyFetch<VideoConferenceConnection>(zoomApi.connectionEndpoint)
@@ -25,14 +26,37 @@ const calendarsLoaded = ref(false)
 const connectionRetrying = computed(() => status.value === 'pending')
 const zoomRetrying = computed(() => zoomStatus.value === 'pending')
 
+const callbackResult = reactive({
+  zoom: typeof route.query.zoom === 'string' ? route.query.zoom : '',
+  calendar: typeof route.query.calendar === 'string' ? route.query.calendar : ''
+})
+
 const callbackNotice = computed(() => {
-  if (route.query.zoom === 'connected') return { tone: 'success', text: 'Zoom is connected. You can now create event types with automatic Zoom links.' }
-  if (route.query.zoom === 'invalid-request') return { tone: 'error', text: 'That Zoom connection request expired. Please start again.' }
-  if (route.query.zoom === 'connection-failed') return { tone: 'error', text: 'Zoom could not be connected. Check the app scopes and callback URL, then try again.' }
-  if (route.query.calendar === 'connected') return { tone: 'success', text: 'Google Calendar is connected. Review which calendars Schedra should use.' }
-  if (route.query.calendar === 'invalid-request') return { tone: 'error', text: 'That connection request expired. Please start again.' }
-  if (route.query.calendar === 'connection-failed') return { tone: 'error', text: 'Google Calendar could not be connected. Please try again.' }
+  if (callbackResult.zoom === 'connected') {
+    return { tone: 'success', text: 'Zoom is connected. You can now create event types with automatic Zoom links.' }
+  }
+  if (callbackResult.zoom === 'invalid-request') return { tone: 'error', text: 'That Zoom connection request expired. Please start again.' }
+  if (callbackResult.zoom === 'connection-failed' && zoomConnection.value?.connected) {
+    return { tone: 'warning', text: 'Zoom is still connected, but the latest reconnection attempt did not complete.' }
+  }
+  if (callbackResult.zoom === 'connection-failed') return { tone: 'error', text: 'Zoom could not be connected. Check the app scopes and callback URL, then try again.' }
+  if (callbackResult.calendar === 'connected') {
+    return { tone: 'success', text: 'Google Calendar is connected. Review which calendars Schedra should use.' }
+  }
+  if (callbackResult.calendar === 'invalid-request') return { tone: 'error', text: 'That connection request expired. Please start again.' }
+  if (callbackResult.calendar === 'connection-failed' && connection.value?.connected) {
+    return { tone: 'warning', text: 'Google Calendar is still connected, but the latest reconnection attempt did not complete.' }
+  }
+  if (callbackResult.calendar === 'connection-failed') return { tone: 'error', text: 'Google Calendar could not be connected. Please try again.' }
   return null
+})
+
+onMounted(() => {
+  if (!callbackResult.zoom && !callbackResult.calendar) return
+  const query = { ...route.query }
+  delete query.zoom
+  delete query.calendar
+  void router.replace({ path: route.path, query })
 })
 
 async function disconnectZoom() {
@@ -177,11 +201,17 @@ watch(() => connection.value?.connected, (connected) => {
     <div
       v-if="callbackNotice"
       class="flex items-start gap-3 rounded-xl border px-4 py-3 text-[13px]"
-      :class="callbackNotice.tone === 'success' ? 'border-success/25 bg-success/10 text-success' : 'border-error/25 bg-error/10 text-error'"
+      :class="callbackNotice.tone === 'success'
+        ? 'border-success/25 bg-success/10 text-success'
+        : callbackNotice.tone === 'warning'
+          ? 'border-warning/25 bg-warning/10 text-warning'
+          : 'border-error/25 bg-error/10 text-error'"
       role="status"
     >
       <UIcon
-        :name="callbackNotice.tone === 'success' ? 'i-lucide-circle-check' : 'i-lucide-circle-alert'"
+        :name="callbackNotice.tone === 'success'
+          ? 'i-lucide-circle-check'
+          : callbackNotice.tone === 'warning' ? 'i-lucide-triangle-alert' : 'i-lucide-circle-alert'"
         class="mt-0.5 size-4 shrink-0"
       />
       {{ callbackNotice.text }}

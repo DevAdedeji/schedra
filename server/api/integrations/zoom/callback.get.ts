@@ -29,8 +29,6 @@ export default defineEventHandler(async (event) => {
   try {
     const tokens = await exchangeZoomCode(parsed.data.code)
     await saveZoomConnection(session.user.id, tokens)
-    await enqueueFutureBookingsForCalendarSync(session.user.id)
-    return sendRedirect(event, '/integrations?zoom=connected')
   } catch (error) {
     console.error(JSON.stringify({
       level: 'error',
@@ -40,4 +38,20 @@ export default defineEventHandler(async (event) => {
     }))
     return sendRedirect(event, '/integrations?zoom=connection-failed')
   }
+
+  // Backfilling existing bookings is recoverable and must not turn a completed
+  // OAuth connection into a false failure. Future confirmed bookings enqueue
+  // their own jobs, and reconnecting reopens the backfill safely.
+  try {
+    await enqueueFutureBookingsForCalendarSync(session.user.id)
+  } catch (error) {
+    console.error(JSON.stringify({
+      level: 'error',
+      event: 'zoom_booking_backfill_failed',
+      userId: session.user.id,
+      message: error instanceof Error ? error.message : String(error)
+    }))
+  }
+
+  return sendRedirect(event, '/integrations?zoom=connected')
 })

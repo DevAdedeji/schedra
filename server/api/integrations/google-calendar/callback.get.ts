@@ -34,8 +34,6 @@ export default defineEventHandler(async (event) => {
     const tokens = await exchangeGoogleCode(parsed.data.code)
     await saveGoogleConnection(session.user.id, tokens)
     await initializeGoogleCalendars(session.user.id)
-    await enqueueFutureBookingsForCalendarSync(session.user.id)
-    return sendRedirect(event, '/integrations?calendar=connected')
   } catch (error) {
     console.error(JSON.stringify({
       level: 'error',
@@ -45,4 +43,17 @@ export default defineEventHandler(async (event) => {
     }))
     return sendRedirect(event, '/integrations?calendar=connection-failed')
   }
+
+  try {
+    await enqueueFutureBookingsForCalendarSync(session.user.id)
+  } catch (error) {
+    console.error(JSON.stringify({
+      level: 'error',
+      event: 'google_calendar_booking_backfill_failed',
+      userId: session.user.id,
+      message: error instanceof Error ? error.message : String(error)
+    }))
+  }
+
+  return sendRedirect(event, '/integrations?calendar=connected')
 })
