@@ -6,7 +6,8 @@ import {
   dateOverrides,
   eventTypes,
   schedules,
-  users
+  users,
+  videoConferenceConnections
 } from '../../database/schema'
 import { useDatabase } from '../../database/index'
 import { requireAuthSession } from '../../services/session'
@@ -14,7 +15,7 @@ import { requireAuthSession } from '../../services/session'
 export default defineEventHandler(async (event) => {
   const session = await requireAuthSession(event)
   const db = useDatabase()
-  const [profile, scheduleRows, eventTypeRows, bookingRows, integrationRows] = await Promise.all([
+  const [profile, scheduleRows, eventTypeRows, bookingRows, calendarIntegrationRows, videoIntegrationRows] = await Promise.all([
     db.select().from(users).where(eq(users.id, session.user.id)).limit(1),
     db.select().from(schedules).where(eq(schedules.userId, session.user.id)),
     db.select().from(eventTypes).where(eq(eventTypes.userId, session.user.id)),
@@ -27,7 +28,14 @@ export default defineEventHandler(async (event) => {
       status: calendarConnections.status,
       createdAt: calendarConnections.createdAt,
       updatedAt: calendarConnections.updatedAt
-    }).from(calendarConnections).where(eq(calendarConnections.userId, session.user.id))
+    }).from(calendarConnections).where(eq(calendarConnections.userId, session.user.id)),
+    db.select({
+      provider: videoConferenceConnections.provider,
+      accountLabel: videoConferenceConnections.accountLabel,
+      status: videoConferenceConnections.status,
+      createdAt: videoConferenceConnections.createdAt,
+      updatedAt: videoConferenceConnections.updatedAt
+    }).from(videoConferenceConnections).where(eq(videoConferenceConnections.userId, session.user.id))
   ])
   const scheduleIds = scheduleRows.map(schedule => schedule.id)
   const rules = scheduleIds.length ? await db.select().from(availabilityRules).where(inArray(availabilityRules.scheduleId, scheduleIds)) : []
@@ -62,6 +70,6 @@ export default defineEventHandler(async (event) => {
     })),
     eventTypes: eventTypeRows,
     bookings: bookingRows,
-    integrations: integrationRows
+    integrations: [...calendarIntegrationRows, ...videoIntegrationRows]
   }, null, 2)
 })

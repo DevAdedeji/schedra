@@ -33,7 +33,8 @@ export default defineEventHandler(async (event) => {
       .limit(24),
     useDatabase().select({
       billedSeats: organizationSubscriptions.seatsAtLastInvoice,
-      collectionMethod: organizationSubscriptions.collectionMethod
+      collectionMethod: organizationSubscriptions.collectionMethod,
+      collectionCurrency: organizationSubscriptions.collectionCurrency
     }).from(organizationSubscriptions)
       .where(eq(organizationSubscriptions.organizationId, context.organization.id))
       .limit(1),
@@ -52,6 +53,7 @@ export default defineEventHandler(async (event) => {
     seatBilling: {
       billedSeats: subscription?.billedSeats ?? null,
       collectionMethod: subscription?.collectionMethod ?? 'invoice',
+      collectionCurrency: subscription?.collectionCurrency ?? 'USD',
       syncStatus: seatJob?.status ?? null,
       hasError: Boolean(seatJob?.lastError),
       updatedAt: seatJob?.updatedAt.toISOString() ?? null

@@ -2,6 +2,7 @@ import { eq, sql } from 'drizzle-orm'
 import type { BillingInterval, CollectionCurrency, OrganizationPlanStatus } from '#shared/billing'
 import {
   TEAM_PLAN,
+  billingCheckoutReason,
   billableSeats,
   collectionMethodFor,
   invoiceTotalCents,
@@ -68,6 +69,30 @@ export async function startCheckout(input: {
   const entitlement = await organizationEntitlement(input.organizationId)
 
   const seats = billableSeats(entitlement.seatsUsed)
+  const [currentSubscription] = await db.select({
+    collectionMethod: organizationSubscriptions.collectionMethod,
+    seatsAtLastInvoice: organizationSubscriptions.seatsAtLastInvoice
+  }).from(organizationSubscriptions)
+    .where(eq(organizationSubscriptions.organizationId, input.organizationId))
+    .limit(1)
+
+  const currentMethod = currentSubscription?.collectionMethod === 'charge_automatically'
+    ? 'charge_automatically'
+    : 'invoice'
+  const checkoutReason = billingCheckoutReason(
+    entitlement.status,
+    currentMethod,
+    (currentSubscription?.seatsAtLastInvoice ?? 0) !== seats
+  )
+  if (!checkoutReason) {
+    throw createError({
+      statusCode: 409,
+      statusMessage: entitlement.status === 'active'
+        ? 'This subscription is already active and renews automatically.'
+        : 'Bachs is already handling payment recovery for this subscription.'
+    })
+  }
+
   const amountCents = invoiceTotalCents(entitlement.seatsUsed, input.interval)
   const method = collectionMethodFor(input.collectionCurrency)
   const start = new Date()

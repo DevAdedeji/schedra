@@ -94,10 +94,19 @@ function isUpcoming(item: BookingRecord) {
 
 function locationLabel(item: BookingRecord) {
   if (item.locationType === 'google_meet') return 'Google Meet'
+  if (item.locationType === 'zoom') return 'Zoom'
   if (item.locationType === 'video_link') return 'Video call'
   if (item.locationType === 'phone') return 'Phone call'
   if (item.locationType === 'in_person') return 'In person'
   return 'Meeting details'
+}
+
+function locationIcon(item: BookingRecord) {
+  if (item.locationType === 'google_meet') return 'i-simple-icons-googlemeet'
+  if (item.locationType === 'zoom') return 'i-simple-icons-zoom'
+  if (item.locationType === 'in_person') return 'i-lucide-map-pin'
+  if (item.locationType === 'phone') return 'i-lucide-phone'
+  return 'i-lucide-video'
 }
 
 const cancelling = ref<string | null>(null)
@@ -299,7 +308,7 @@ async function reject(uid: string) {
                     </p>
                     <p class="mt-1.5 flex items-center gap-1.5 text-[12px] text-muted">
                       <UIcon
-                        :name="item.locationType === 'in_person' ? 'i-lucide-map-pin' : item.locationType === 'phone' ? 'i-lucide-phone' : 'i-lucide-video'"
+                        :name="locationIcon(item)"
                         class="size-3.5 shrink-0 text-dimmed"
                       />
                       <span class="truncate">{{ locationLabel(item) }}<template v-if="item.locationType === 'in_person'"> · {{ item.locationDetails }}</template></span>

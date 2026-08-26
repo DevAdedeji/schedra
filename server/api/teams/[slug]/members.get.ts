@@ -5,6 +5,8 @@ import type { OrganizationRole } from '#shared/billing'
 import { members, users } from '../../../database/schema'
 import { useDatabase } from '../../../database/index'
 import { requireOrganization } from '../../../services/organization'
+import { writableGoogleCalendarUserIds } from '../../../repositories/calendar-connection'
+import { connectedZoomUserIds } from '../../../repositories/video-conference-connection'
 
 const querySchema = paginationQuerySchema.extend({
   filter: z.enum(['all', 'owner', 'admin', 'member']).default('all')
@@ -53,12 +55,23 @@ export default defineEventHandler(async (event) => {
       .offset((page - 1) * pageSize)
   ])
 
+  const [googleUsers, zoomUsers] = await Promise.all([
+    writableGoogleCalendarUserIds(items.map(item => item.userId)),
+    connectedZoomUserIds(items.map(item => item.userId))
+  ])
+  const googleSet = new Set(googleUsers)
+  const zoomSet = new Set(zoomUsers)
+
   return {
     items: items.map(item => ({
       ...item,
       role: item.role as OrganizationRole,
       joinedAt: item.joinedAt.toISOString(),
-      isYou: item.userId === context.userId
+      isYou: item.userId === context.userId,
+      integrations: {
+        googleMeet: googleSet.has(item.userId),
+        zoom: zoomSet.has(item.userId)
+      }
     })),
     pagination: paginationMeta(totalRow?.value ?? 0, page, pageSize),
     counts: {

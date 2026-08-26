@@ -6,6 +6,8 @@ export interface Env {
 
   googleClientId?: string
   googleClientSecret?: string
+  zoomClientId?: string
+  zoomClientSecret?: string
 
   bachsSecretKey?: string
   bachsWebhookSecret?: string
@@ -56,6 +58,8 @@ export function useEnv(): Env {
 
   const googleClientId = optional('GOOGLE_CLIENT_ID')
   const googleClientSecret = optional('GOOGLE_CLIENT_SECRET')
+  const zoomClientId = optional('ZOOM_CLIENT_ID')
+  const zoomClientSecret = optional('ZOOM_CLIENT_SECRET')
   const integrationEncryptionKey = optional('INTEGRATION_ENCRYPTION_KEY')
   const bachsSecretKey = optional('BACHS_SECRET_KEY')
   const bachsWebhookSecret = optional('BACHS_WEBHOOK_SECRET')
@@ -65,6 +69,9 @@ export function useEnv(): Env {
 
   if (Boolean(googleClientId) !== Boolean(googleClientSecret)) {
     throw new Error('GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set together.')
+  }
+  if (Boolean(zoomClientId) !== Boolean(zoomClientSecret)) {
+    throw new Error('ZOOM_CLIENT_ID and ZOOM_CLIENT_SECRET must be set together.')
   }
   if (integrationEncryptionKey && integrationEncryptionKey.length < 32) {
     throw new Error('INTEGRATION_ENCRYPTION_KEY must be at least 32 characters.')
@@ -95,6 +102,8 @@ export function useEnv(): Env {
     bachsWebhookSecret,
     googleClientId,
     googleClientSecret,
+    zoomClientId,
+    zoomClientSecret,
     resendApiKey,
     smtpUrl,
     emailDeliveryMode: smtpUrl ? 'smtp' : resendApiKey ? 'resend' : 'log',

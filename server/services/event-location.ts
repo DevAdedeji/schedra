@@ -1,14 +1,19 @@
 import type { MeetingLocationType } from '#shared/validation'
 import { writableGoogleCalendarUserIds } from '../repositories/calendar-connection'
+import { connectedZoomUserIds } from '../repositories/video-conference-connection'
 
 export async function requireLocationIntegration(userId: string, locationType: MeetingLocationType) {
-  if (locationType !== 'google_meet') return
+  if (!['google_meet', 'zoom'].includes(locationType)) return
 
-  const connectedUserIds = await writableGoogleCalendarUserIds([userId])
+  const connectedUserIds = locationType === 'google_meet'
+    ? await writableGoogleCalendarUserIds([userId])
+    : await connectedZoomUserIds([userId])
   if (!connectedUserIds.length) {
     throw createError({
       statusCode: 409,
-      statusMessage: 'Connect Google Calendar and choose a calendar for new bookings before using Google Meet.'
+      statusMessage: locationType === 'google_meet'
+        ? 'Connect Google Calendar and choose a calendar for new bookings before using Google Meet.'
+        : 'Connect Zoom before using Zoom as the meeting location.'
     })
   }
 }
@@ -22,15 +27,19 @@ export async function requireTeamLocationIntegrations(
   userIds: string[],
   locationType: MeetingLocationType
 ) {
-  if (locationType !== 'google_meet') return
+  if (!['google_meet', 'zoom'].includes(locationType)) return
 
   const uniqueUserIds = [...new Set(userIds)]
-  const connectedUserIds = await writableGoogleCalendarUserIds(uniqueUserIds)
+  const connectedUserIds = locationType === 'google_meet'
+    ? await writableGoogleCalendarUserIds(uniqueUserIds)
+    : await connectedZoomUserIds(uniqueUserIds)
 
   if (connectedUserIds.length !== uniqueUserIds.length) {
     throw createError({
       statusCode: 409,
-      statusMessage: 'Every active host must connect Google Calendar and choose a calendar before this event can use Google Meet.'
+      statusMessage: locationType === 'google_meet'
+        ? 'Every active host must connect Google Calendar and choose a calendar before this event can use Google Meet.'
+        : 'Every active host must connect Zoom before this team event can use Zoom.'
     })
   }
 }

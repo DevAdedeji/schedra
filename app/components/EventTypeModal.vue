@@ -5,7 +5,7 @@ import {
   type BookingQuestionType,
   type EventTypeInput
 } from '#shared/validation'
-import { apiErrorMessage, calendarApi, eventTypesApi, schedulesApi, type CalendarConnection, type SchedulesResponse } from '~/services/schedra-api'
+import { apiErrorMessage, calendarApi, eventTypesApi, schedulesApi, zoomApi, type CalendarConnection, type SchedulesResponse, type VideoConferenceConnection } from '~/services/schedra-api'
 import type { EventTypeRecord } from '~/types/event-type'
 
 const props = defineProps<{ open: boolean, eventType?: EventTypeRecord | null }>()
@@ -23,11 +23,15 @@ const schedulesRequest = useFetch<SchedulesResponse>(schedulesApi.listEndpoint, 
 const calendarConnectionRequest = useFetch<CalendarConnection>(calendarApi.connectionEndpoint, {
   immediate: false
 })
+const zoomConnectionRequest = useFetch<VideoConferenceConnection>(zoomApi.connectionEndpoint, {
+  immediate: false
+})
 const [
   { data: currentUser },
   { data: schedules, refresh: refreshSchedules },
-  { data: calendarConnection, refresh: refreshCalendarConnection }
-] = await Promise.all([currentUserRequest, schedulesRequest, calendarConnectionRequest])
+  { data: calendarConnection, refresh: refreshCalendarConnection },
+  { data: zoomConnection, refresh: refreshZoomConnection }
+] = await Promise.all([currentUserRequest, schedulesRequest, calendarConnectionRequest, zoomConnectionRequest])
 const { host } = useSiteUrl()
 const form = reactive<EventTypeForm>(emptyForm())
 const initial = ref('')
@@ -48,8 +52,10 @@ const selectedSchedule = computed(() => schedules.value?.items.find(schedule => 
 const valid = computed(() => eventTypeSchema.safeParse(form).success && Boolean(form.scheduleId))
 const dirty = computed(() => JSON.stringify(form) !== initial.value)
 const googleMeetReady = computed(() => Boolean(calendarConnection.value?.connected && calendarConnection.value.writeCalendarId))
+const zoomReady = computed(() => Boolean(zoomConnection.value?.connected))
 const locationOptions = computed(() => [
   { label: 'Google Meet', value: 'google_meet', icon: 'i-simple-icons-googlemeet', disabled: !googleMeetReady.value },
+  { label: 'Zoom', value: 'zoom', icon: 'i-simple-icons-zoom', disabled: !zoomReady.value },
   { label: 'Video link', value: 'video_link', icon: 'i-lucide-video' },
   { label: 'Phone call', value: 'phone', icon: 'i-lucide-phone' },
   { label: 'In person', value: 'in_person', icon: 'i-lucide-map-pin' },
@@ -60,12 +66,17 @@ const questionTypeOptions = [
   { label: 'Long answer', value: 'long_text' },
   { label: 'Choose one', value: 'select' }
 ]
-const locationField = computed(() => ({
+const locationFields = {
   video_link: { label: 'Meeting link', help: 'Guests receive this link after booking.', placeholder: 'https://zoom.us/j/…' },
   phone: { label: 'Call instructions', help: 'Explain who calls whom and which number to use.', placeholder: 'I will call you on the number we have on file.' },
   in_person: { label: 'Address', help: 'Include enough detail for guests to find you.', placeholder: '12 Marina Road, Lagos · Reception, 2nd floor' },
   custom: { label: 'Meeting instructions', help: 'Tell guests exactly how or where you will meet.', placeholder: 'I will share the meeting details before the call.' }
-}[form.locationType === 'google_meet' ? 'custom' : form.locationType]))
+} as const
+const locationField = computed(() => locationFields[
+  ['google_meet', 'zoom'].includes(form.locationType)
+    ? 'custom'
+    : form.locationType as keyof typeof locationFields
+])
 
 const previewDays = [
   { day: 'MON', date: '24', active: true },
@@ -176,7 +187,7 @@ function removeQuestionOption(question: BookingQuestion, index: number) {
 
 watch(() => props.open, (open) => {
   if (open) {
-    Promise.allSettled([refreshSchedules(), refreshCalendarConnection()]).then(loadForm)
+    Promise.allSettled([refreshSchedules(), refreshCalendarConnection(), refreshZoomConnection()]).then(loadForm)
   }
 })
 watch(() => props.eventType, () => {
@@ -514,16 +525,16 @@ async function save() {
               </UFormField>
 
               <div
-                v-if="form.locationType === 'google_meet'"
+                v-if="['google_meet', 'zoom'].includes(form.locationType)"
                 class="flex items-start gap-3 rounded-lg border border-success/20 bg-success/5 px-4 py-3"
               >
                 <UIcon
-                  name="i-simple-icons-googlemeet"
+                  :name="form.locationType === 'zoom' ? 'i-simple-icons-zoom' : 'i-simple-icons-googlemeet'"
                   class="mt-0.5 size-4 shrink-0 text-success"
                 />
                 <div>
                   <p class="text-[13px] font-medium text-highlighted">
-                    A private Meet link will be created for every booking.
+                    A private {{ form.locationType === 'zoom' ? 'Zoom' : 'Meet' }} link will be created for every booking.
                   </p>
                   <p class="mt-1 text-[12px] leading-relaxed text-muted">
                     It will be added to the calendar event, confirmation and booking details automatically.
@@ -550,8 +561,27 @@ async function save() {
                 </UButton>
               </div>
 
+              <div
+                v-if="form.locationType !== 'zoom' && !zoomReady"
+                class="flex items-center justify-between gap-3 rounded-lg border border-default bg-muted px-4 py-3"
+              >
+                <p class="text-[12px] leading-relaxed text-muted">
+                  Want automatic Zoom links? Connect your Zoom account first.
+                </p>
+                <UButton
+                  to="/integrations"
+                  target="_blank"
+                  color="neutral"
+                  variant="outline"
+                  size="xs"
+                  class="shrink-0"
+                >
+                  Connect
+                </UButton>
+              </div>
+
               <UFormField
-                v-if="form.locationType !== 'google_meet'"
+                v-if="!['google_meet', 'zoom'].includes(form.locationType)"
                 :label="locationField?.label"
                 name="locationDetails"
                 :help="locationField?.help"

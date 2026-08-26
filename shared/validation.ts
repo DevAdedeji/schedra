@@ -202,6 +202,7 @@ export const eventTypeSlugSchema = z
 
 export const meetingLocationTypeSchema = z.enum([
   'google_meet',
+  'zoom',
   'video_link',
   'phone',
   'in_person',
@@ -298,7 +299,7 @@ function refineEventType(value: EventTypeShape, context: z.RefinementCtx) {
       message: 'Each booking question must have a unique identifier.'
     })
   }
-  if (value.locationType === 'google_meet') return
+  if (['google_meet', 'zoom'].includes(value.locationType)) return
   if (!value.locationDetails) {
     context.addIssue({
       code: 'custom',

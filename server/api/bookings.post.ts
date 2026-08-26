@@ -10,6 +10,7 @@ import { enforceRateLimit } from '../services/rate-limit'
 import { enqueueCalendarSync } from '../services/calendar-sync'
 import { CalendarUnavailableError } from '../integrations/calendar/google'
 import { BookingAnswerValidationError, buildBookingAnswersSnapshot } from '../domain/booking-answers'
+import { requireLocationIntegration } from '../services/event-location'
 
 const SLOT_TAKEN = '23P01'
 
@@ -65,9 +66,13 @@ export default defineEventHandler(async (event) => {
   // instants, not strings — the engine emits no milliseconds, Date does.
   let offered
   try {
+    await requireLocationIntegration(eventType.hostId, eventType.locationType)
     offered = await slotsFor(eventType, day(-1), day(1), now)
   } catch (error) {
-    if (error instanceof CalendarUnavailableError) {
+    if (error instanceof CalendarUnavailableError || (
+      ['google_meet', 'zoom'].includes(eventType.locationType)
+      && (error as { statusCode?: number }).statusCode === 409
+    )) {
       throw createError({
         statusCode: 503,
         statusMessage: 'Booking times are temporarily unavailable. Please try again shortly.'

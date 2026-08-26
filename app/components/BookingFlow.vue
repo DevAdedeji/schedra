@@ -209,6 +209,7 @@ const confirmedWhen = computed(() => confirmed.value
 function locationLabel(type?: string) {
   return ({
     google_meet: 'Google Meet',
+    zoom: 'Zoom',
     video_link: 'Video call',
     phone: 'Phone call',
     in_person: 'In person',
@@ -219,6 +220,7 @@ function locationLabel(type?: string) {
 function locationIcon(type?: string) {
   return ({
     google_meet: 'i-simple-icons-googlemeet',
+    zoom: 'i-simple-icons-zoom',
     video_link: 'i-lucide-video',
     phone: 'i-lucide-phone',
     in_person: 'i-lucide-map-pin',
@@ -473,7 +475,7 @@ useSeoMeta({
                   v-else
                   class="mt-0.5 text-[12px] leading-relaxed text-muted"
                 >
-                  {{ confirmed.locationType === 'google_meet' ? 'Your private join link is being prepared and will appear in the booking details.' : confirmed.locationDetails }}
+                  {{ ['google_meet', 'zoom'].includes(confirmed.locationType) ? `Your private ${confirmed.locationType === 'zoom' ? 'Zoom' : 'Google Meet'} link is being prepared and will appear in the booking details.` : confirmed.locationDetails }}
                 </p>
               </div>
             </template>

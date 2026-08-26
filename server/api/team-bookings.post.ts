@@ -152,7 +152,21 @@ export default defineEventHandler(async (event) => {
       // Connections can be revoked after an event type is configured. Verify
       // the hosts selected for this booking before persisting a meeting that
       // could never receive its Google Meet link.
-      await requireTeamLocationIntegrations(assigned, eventType.locationType)
+      try {
+        await requireTeamLocationIntegrations(
+          eventType.locationType === 'zoom' ? assigned.slice(0, 1) : assigned,
+          eventType.locationType
+        )
+      } catch (error) {
+        if (['google_meet', 'zoom'].includes(eventType.locationType)) {
+          throw createError({
+            statusCode: 503,
+            statusMessage: 'Booking times are temporarily unavailable. Please try again shortly.',
+            cause: error
+          })
+        }
+        throw error
+      }
 
       const organizer = hosts.find(host => host.userId === assigned[0])
       if (!organizer) {

@@ -360,9 +360,10 @@ export async function updateGoogleCalendarSelection(userId: string, conflictCale
 
 function eventBody(input: CalendarEventInput) {
   const manageUrl = `${useEnv().schedraUrl}/booking/${input.uid}`
+  const generatedMeeting = ['google_meet', 'zoom'].includes(input.locationType)
   const location = input.locationType === 'google_meet'
     ? 'Google Meet'
-    : input.locationDetails
+    : input.locationType === 'zoom' ? 'Zoom' : input.locationDetails
   const description = [
     input.description,
     `Guest: ${input.attendeeName} (${input.attendeeEmail})`,
@@ -374,7 +375,7 @@ function eventBody(input: CalendarEventInput) {
   return {
     summary: `${input.title} with ${input.attendeeName}`,
     description,
-    location: input.locationType === 'google_meet' ? input.meetingUrl ?? undefined : input.locationDetails,
+    location: generatedMeeting ? input.meetingUrl ?? location : input.locationDetails,
     start: { dateTime: input.startsAt.toISOString() },
     end: { dateTime: input.endsAt.toISOString() },
     attendees: input.inviteGuests === false

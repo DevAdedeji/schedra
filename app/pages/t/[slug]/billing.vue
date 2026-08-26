@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   billingIntervals,
+  billingCheckoutReason,
   collectionCurrencies,
   collectionMethodFor,
   formatUsd,
@@ -30,6 +31,20 @@ const seatMismatch = computed(() => Boolean(
 ))
 const automaticSeatBilling = computed(() => seatBilling.value?.collectionMethod === 'charge_automatically')
 const seatSyncActive = computed(() => ['pending', 'processing'].includes(seatBilling.value?.syncStatus ?? ''))
+const checkoutReason = computed(() => {
+  if (!entitlement.value || !seatBilling.value) return null
+  return billingCheckoutReason(
+    entitlement.value.status,
+    seatBilling.value.collectionMethod,
+    seatMismatch.value
+  )
+})
+const checkoutLabel = computed(() => {
+  if (checkoutReason.value === 'restart') return 'Start a new subscription'
+  if (checkoutReason.value === 'manual_seat_change') return 'Update billing for current members'
+  if (checkoutReason.value === 'manual_renewal') return 'Pay outstanding invoice'
+  return 'Pay and activate'
+})
 
 const interval = ref<BillingInterval>('yearly')
 const currency = ref<CollectionCurrency>('USD')
@@ -38,6 +53,10 @@ const retryingSeatSync = ref(false)
 
 watch(entitlement, (value) => {
   if (value) interval.value = value.interval
+}, { immediate: true })
+
+watch(() => seatBilling.value?.collectionCurrency, (value) => {
+  if (value) currency.value = value
 }, { immediate: true })
 
 const intervalOptions = billingIntervals.map(value => ({
@@ -65,7 +84,7 @@ watch(paidJustNow, async (paid) => {
 }, { immediate: true })
 
 async function startCheckout() {
-  if (starting.value) return
+  if (starting.value || !checkoutReason.value) return
   starting.value = true
 
   try {
@@ -270,6 +289,7 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
                 :items="intervalOptions"
                 value-key="value"
                 size="lg"
+                :disabled="!checkoutReason"
                 class="w-full"
               />
             </UFormField>
@@ -284,6 +304,7 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
                 :items="currencyOptions"
                 value-key="value"
                 size="lg"
+                :disabled="!checkoutReason"
                 class="w-full"
               />
             </UFormField>
@@ -310,14 +331,47 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
           </div>
 
           <UButton
+            v-if="checkoutReason"
             size="lg"
             block
             :loading="starting"
             :disabled="!data?.configured"
             @click="startCheckout"
           >
-            {{ entitlement.status === 'active' ? 'Renew now' : 'Pay and activate' }}
+            {{ checkoutLabel }}
           </UButton>
+
+          <div
+            v-else-if="entitlement.autoRenews"
+            class="flex items-start gap-3 rounded-xl border border-success/30 bg-success/5 px-4 py-3"
+            role="status"
+          >
+            <UIcon
+              name="i-lucide-circle-check"
+              class="mt-0.5 size-4 shrink-0 text-success"
+            />
+            <p class="text-[13px] leading-relaxed text-muted">
+              No payment action is needed. This subscription will renew automatically
+              <template v-if="entitlement.currentPeriodEnd">
+                on {{ formatDate(entitlement.currentPeriodEnd) }}
+              </template>.
+            </p>
+          </div>
+
+          <div
+            v-else-if="automaticSeatBilling && ['past_due', 'unpaid', 'paused'].includes(entitlement.status)"
+            class="flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/5 px-4 py-3"
+            role="status"
+          >
+            <UIcon
+              name="i-lucide-mail-warning"
+              class="mt-0.5 size-4 shrink-0 text-warning"
+            />
+            <p class="text-[13px] leading-relaxed text-muted">
+              Bachs is managing this payment issue. Use the secure payment-update link sent to
+              the billing email instead of starting a second subscription.
+            </p>
+          </div>
         </div>
       </section>
 

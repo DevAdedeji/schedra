@@ -2,6 +2,7 @@ import { and, asc, eq, inArray, lt, lte, sql } from 'drizzle-orm'
 import type { Database } from '../database/client'
 import {
   bookingCalendarEvents,
+  bookingConferenceMeetings,
   bookingHosts,
   bookings,
   calendarSyncJobs,
@@ -10,6 +11,11 @@ import {
 import { useDatabase } from '../database'
 import { connectedCalendarProviders } from '../integrations/calendar/providers'
 import { bookingAnswersText } from '../domain/booking-answers'
+import {
+  deleteZoomMeeting,
+  upsertZoomMeeting,
+  zoomConnectionFor
+} from '../integrations/video/zoom'
 
 export type CalendarSyncExecutor = Pick<Database, 'insert'>
 export type CalendarSyncAction = 'upsert' | 'delete'
@@ -75,7 +81,7 @@ async function syncBooking(bookingId: string, action: CalendarSyncAction) {
 
   if (!booking) return
 
-  const [hosts, mappings] = await Promise.all([
+  const [hosts, mappings, conferenceMappings] = await Promise.all([
     db.select({
       userId: bookingHosts.userId,
       isOrganizer: bookingHosts.isOrganizer
@@ -83,8 +89,73 @@ async function syncBooking(bookingId: string, action: CalendarSyncAction) {
       .where(eq(bookingHosts.bookingId, booking.id))
       .orderBy(sql`${bookingHosts.isOrganizer} desc`, bookingHosts.createdAt, bookingHosts.id),
     db.select().from(bookingCalendarEvents)
-      .where(eq(bookingCalendarEvents.bookingId, booking.id))
+      .where(eq(bookingCalendarEvents.bookingId, booking.id)),
+    db.select().from(bookingConferenceMeetings)
+      .where(eq(bookingConferenceMeetings.bookingId, booking.id))
   ])
+
+  const conferenceMapping = conferenceMappings.find(mapping => mapping.provider === 'zoom')
+  const organizer = hosts.find(host => host.isOrganizer) ?? hosts[0]
+  const deleting = action === 'delete' || booking.status === 'cancelled' || booking.status === 'rejected'
+  let sharedMeetingUrl = booking.meetingUrl
+
+  if (booking.locationType === 'zoom' && organizer) {
+    const zoomConnection = await zoomConnectionFor(organizer.userId)
+    if (deleting) {
+      // Disconnecting Zoom deliberately leaves already-created meetings in
+      // place. When authorization still exists, cancellation removes both the
+      // remote meeting and its local mapping.
+      if (conferenceMapping && zoomConnection?.status === 'active') {
+        await deleteZoomMeeting(organizer.userId, conferenceMapping.meetingId)
+        await db.delete(bookingConferenceMeetings)
+          .where(eq(bookingConferenceMeetings.id, conferenceMapping.id))
+      }
+    } else {
+      if (!zoomConnection || zoomConnection.status !== 'active') {
+        throw new Error('The organizer must reconnect Zoom before this booking can be synchronized.')
+      }
+      const remote = await upsertZoomMeeting(
+        organizer.userId,
+        conferenceMapping?.meetingId ?? null,
+        {
+          uid: booking.uid,
+          title: booking.eventTitle,
+          description: booking.eventDescription,
+          startsAt: booking.startsAt,
+          endsAt: booking.endsAt,
+          attendeeName: booking.attendeeName,
+          attendeeEmail: booking.attendeeEmail,
+          additionalGuestEmails: booking.additionalGuestEmails,
+          notes: bookingAnswersText(booking.answers).slice(0, 1000) || null
+        }
+      )
+      const joinUrl = remote.joinUrl ?? conferenceMapping?.joinUrl
+      if (!joinUrl) throw new Error('Zoom did not return a join link for this meeting.')
+      sharedMeetingUrl = joinUrl
+      if (joinUrl !== booking.meetingUrl) {
+        await db.update(bookings).set({ meetingUrl: joinUrl, updatedAt: sql`now()` })
+          .where(eq(bookings.id, booking.id))
+      }
+      await db.insert(bookingConferenceMeetings).values({
+        bookingId: booking.id,
+        userId: organizer.userId,
+        connectionId: zoomConnection.id,
+        provider: 'zoom',
+        meetingId: remote.id,
+        joinUrl
+      }).onConflictDoUpdate({
+        target: [bookingConferenceMeetings.bookingId, bookingConferenceMeetings.provider],
+        set: {
+          userId: organizer.userId,
+          connectionId: zoomConnection.id,
+          meetingId: remote.id,
+          joinUrl,
+          syncedAt: sql`now()`,
+          updatedAt: sql`now()`
+        }
+      })
+    }
+  }
 
   const mappingByUser = new Map(mappings.map(mapping => [mapping.userId, mapping]))
   const hostConnections = (await Promise.all(hosts.map(async host => ({
@@ -96,7 +167,7 @@ async function syncBooking(bookingId: string, action: CalendarSyncAction) {
   // remote events are left in place, which the disconnect confirmation explains.
   if (!hostConnections.length) return
 
-  if (action === 'delete' || booking.status === 'cancelled' || booking.status === 'rejected') {
+  if (deleting) {
     for (const host of hostConnections) {
       const { connection, provider } = host.connected!
       const mapping = mappingByUser.get(host.userId)
@@ -120,8 +191,6 @@ async function syncBooking(bookingId: string, action: CalendarSyncAction) {
   // calendar event, avoiding duplicate invitations in the guest's calendar.
   const primary = hostConnections.find(host => host.isOrganizer) ?? hostConnections[0]!
   const ordered = [primary, ...hostConnections.filter(host => host.userId !== primary.userId)]
-  let sharedMeetingUrl = booking.meetingUrl
-
   for (const host of ordered) {
     const { connection, provider } = host.connected!
     // `hostConnections` only contains writable selections. This local alias
@@ -190,8 +259,8 @@ async function syncBooking(bookingId: string, action: CalendarSyncAction) {
     })
   }
 
-  if (booking.locationType === 'google_meet' && !sharedMeetingUrl) {
-    throw new Error('Google Meet is still preparing the join link.')
+  if (['google_meet', 'zoom'].includes(booking.locationType) && !sharedMeetingUrl) {
+    throw new Error(`${booking.locationType === 'zoom' ? 'Zoom' : 'Google Meet'} is still preparing the join link.`)
   }
 }
 

@@ -30,8 +30,11 @@ export default defineEventHandler(async (event) => {
   const db = useDatabase()
 
   const resolvedHosts = await resolveHosts(context.organization.id, hosts)
+  const integrationHosts = resolvedHosts.filter(host => host.enabled)
   await requireTeamLocationIntegrations(
-    resolvedHosts.filter(host => host.enabled).map(host => host.userId),
+    (fields.locationType === 'zoom' && fields.assignmentMode === 'collective'
+      ? integrationHosts.slice(0, 1)
+      : integrationHosts).map(host => host.userId),
     fields.locationType
   )
 

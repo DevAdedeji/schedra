@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { apiErrorMessage, calendarApi, type CalendarConnection, type CalendarItem } from '~/services/schedra-api'
+import { apiErrorMessage, calendarApi, zoomApi, type CalendarConnection, type CalendarItem, type VideoConferenceConnection } from '~/services/schedra-api'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 useSeoMeta({ title: 'Integrations', robots: 'noindex, nofollow' })
@@ -7,6 +7,7 @@ useSeoMeta({ title: 'Integrations', robots: 'noindex, nofollow' })
 const route = useRoute()
 const feedback = useFeedback()
 const { data: connection, refresh: refreshConnection, status, error: connectionFailure } = await useLazyFetch<CalendarConnection>(calendarApi.connectionEndpoint)
+const { data: zoomConnection, refresh: refreshZoomConnection, status: zoomStatus, error: zoomFailure } = await useLazyFetch<VideoConferenceConnection>(zoomApi.connectionEndpoint)
 const calendars = ref<CalendarItem[]>([])
 const selectedConflictIds = ref<string[]>([])
 const writeCalendarId = ref('')
@@ -17,15 +18,37 @@ const pageError = ref('')
 const calendarFailure = ref('')
 const disconnectOpen = ref(false)
 const disconnecting = ref(false)
+const zoomDisconnectOpen = ref(false)
+const zoomDisconnecting = ref(false)
+const zoomPageError = ref('')
 const calendarsLoaded = ref(false)
 const connectionRetrying = computed(() => status.value === 'pending')
+const zoomRetrying = computed(() => zoomStatus.value === 'pending')
 
 const callbackNotice = computed(() => {
+  if (route.query.zoom === 'connected') return { tone: 'success', text: 'Zoom is connected. You can now create event types with automatic Zoom links.' }
+  if (route.query.zoom === 'invalid-request') return { tone: 'error', text: 'That Zoom connection request expired. Please start again.' }
+  if (route.query.zoom === 'connection-failed') return { tone: 'error', text: 'Zoom could not be connected. Check the app scopes and callback URL, then try again.' }
   if (route.query.calendar === 'connected') return { tone: 'success', text: 'Google Calendar is connected. Review which calendars Schedra should use.' }
   if (route.query.calendar === 'invalid-request') return { tone: 'error', text: 'That connection request expired. Please start again.' }
   if (route.query.calendar === 'connection-failed') return { tone: 'error', text: 'Google Calendar could not be connected. Please try again.' }
   return null
 })
+
+async function disconnectZoom() {
+  zoomDisconnecting.value = true
+  zoomPageError.value = ''
+  try {
+    await zoomApi.disconnect()
+    zoomDisconnectOpen.value = false
+    await refreshZoomConnection()
+    feedback.success({ title: 'Zoom disconnected' })
+  } catch (failure) {
+    zoomPageError.value = apiErrorMessage(failure, 'Could not disconnect Zoom just now.')
+  } finally {
+    zoomDisconnecting.value = false
+  }
+}
 
 const writableCalendars = computed(() => calendars.value
   .filter(calendar => ['writer', 'owner'].includes(calendar.accessRole))
@@ -446,6 +469,137 @@ watch(() => connection.value?.connected, (connected) => {
       </div>
     </section>
 
+    <section class="overflow-hidden rounded-xl border border-default bg-default">
+      <div class="flex flex-col gap-5 border-b border-default px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+        <div class="flex min-w-0 items-center gap-4">
+          <span class="flex size-12 shrink-0 items-center justify-center rounded-xl bg-[#2D8CFF] text-white shadow-sm">
+            <UIcon
+              name="i-simple-icons-zoom"
+              class="size-6"
+            />
+          </span>
+          <div class="min-w-0">
+            <div class="flex flex-wrap items-center gap-2">
+              <h2 class="text-[16px] font-semibold text-highlighted">
+                Zoom
+              </h2>
+              <span
+                v-if="zoomConnection?.connected"
+                class="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-medium text-success"
+              ><span class="size-1.5 rounded-full bg-success" />Connected</span>
+              <span
+                v-else-if="zoomConnection?.status === 'needs_reauthorization'"
+                class="inline-flex items-center gap-1.5 rounded-full bg-warning/10 px-2 py-0.5 text-[10px] font-medium text-warning"
+              ><span class="size-1.5 rounded-full bg-warning" />Needs attention</span>
+            </div>
+            <p class="mt-1 truncate text-[13px] text-muted">
+              {{ zoomConnection?.accountLabel || 'Create a unique Zoom meeting for every confirmed booking.' }}
+            </p>
+          </div>
+        </div>
+
+        <UButton
+          v-if="zoomConnection?.connected"
+          color="error"
+          variant="outline"
+          size="sm"
+          icon="i-lucide-unplug"
+          class="min-h-11 font-medium sm:min-h-8"
+          @click="zoomDisconnectOpen = true"
+        >
+          Disconnect
+        </UButton>
+        <UButton
+          v-else-if="zoomConnection?.configured"
+          to="/api/integrations/zoom/connect"
+          external
+          icon="i-lucide-link"
+          class="min-h-11 sm:min-h-9"
+        >
+          {{ zoomConnection?.status === 'needs_reauthorization' ? 'Reconnect' : 'Connect' }}
+        </UButton>
+      </div>
+
+      <IntegrationPreferencesSkeleton v-if="zoomStatus === 'pending'" />
+      <AsyncErrorState
+        v-else-if="zoomFailure"
+        compact
+        title="Could not load Zoom"
+        description="Check your connection and try loading the Zoom integration again."
+        :retrying="zoomRetrying"
+        @retry="refreshZoomConnection"
+      />
+      <div
+        v-else-if="!zoomConnection?.configured"
+        class="flex items-start gap-3 px-6 py-6 sm:px-7"
+      >
+        <UIcon
+          name="i-lucide-info"
+          class="mt-0.5 size-4 shrink-0 text-muted"
+        />
+        <div>
+          <p class="text-[14px] font-medium text-highlighted">
+            Zoom is not available yet
+          </p>
+          <p class="mt-1 text-[13px] leading-relaxed text-muted">
+            Add the Zoom OAuth credentials and callback URL to this deployment to enable automatic meeting links.
+          </p>
+        </div>
+      </div>
+      <div
+        v-else-if="zoomConnection?.connected"
+        class="grid gap-px bg-border sm:grid-cols-3"
+      >
+        <div
+          v-for="benefit in [
+            ['i-lucide-video', 'Unique meeting links', 'Every confirmed booking receives its own protected Zoom room.'],
+            ['i-lucide-calendar-clock', 'Reschedules stay current', 'Changing a booking updates the existing Zoom meeting automatically.'],
+            ['i-lucide-calendar-x', 'Cancellations clean up', 'Cancelling a booking removes its Zoom meeting while access is connected.']
+          ]"
+          :key="benefit[1]"
+          class="bg-default px-6 py-6"
+        >
+          <UIcon
+            :name="benefit[0]"
+            class="size-4 text-primary"
+          />
+          <h3 class="mt-3 text-[13px] font-semibold text-highlighted">
+            {{ benefit[1] }}
+          </h3>
+          <p class="mt-1 text-[12px] leading-relaxed text-muted">
+            {{ benefit[2] }}
+          </p>
+        </div>
+      </div>
+      <div
+        v-else
+        class="divide-y divide-default"
+      >
+        <div
+          v-if="zoomConnection?.status === 'needs_reauthorization'"
+          class="flex items-start gap-3 bg-warning/5 px-6 py-4 text-[13px] text-warning sm:px-7"
+        >
+          <UIcon
+            name="i-lucide-triangle-alert"
+            class="mt-0.5 size-4 shrink-0"
+          />
+          Zoom access has expired. Reconnect before using Zoom on new bookings.
+        </div>
+        <div class="px-6 py-6 sm:px-7">
+          <p class="max-w-2xl text-[13px] leading-relaxed text-muted">
+            Once connected, choose Zoom when creating an event type. Schedra creates the meeting only after a booking is confirmed and keeps it synchronized through reschedules and cancellations.
+          </p>
+        </div>
+      </div>
+      <div
+        v-if="zoomPageError"
+        class="border-t border-error/30 bg-error/10 px-6 py-3 text-[13px] text-error sm:px-7"
+        role="alert"
+      >
+        {{ zoomPageError }}
+      </div>
+    </section>
+
     <section class="rounded-xl border border-dashed border-default px-6 py-7 text-center">
       <span class="mx-auto flex size-10 items-center justify-center rounded-xl bg-muted text-muted">
         <UIcon
@@ -457,7 +611,7 @@ watch(() => connection.value?.connected, (connected) => {
         More integrations are coming
       </h2>
       <p class="mx-auto mt-1 max-w-md text-[12px] leading-relaxed text-muted">
-        Video conferencing and automation providers will live here without cluttering your account settings.
+        More calendars, video providers and automation tools will live here without cluttering your account settings.
       </p>
     </section>
 
@@ -485,6 +639,37 @@ watch(() => connection.value?.connected, (connected) => {
             color="error"
             :loading="disconnecting"
             @click="disconnect"
+          >
+            Disconnect
+          </UButton>
+        </div>
+      </template>
+    </UModal>
+
+    <UModal
+      v-model:open="zoomDisconnectOpen"
+      title="Disconnect Zoom?"
+      description="Schedra will stop creating and updating Zoom meetings for future booking changes."
+    >
+      <template #body>
+        <p class="text-[14px] leading-relaxed text-muted">
+          Zoom meetings already created will remain in your Zoom account. Existing event types using Zoom must be changed before they can accept new bookings.
+        </p>
+      </template>
+      <template #footer>
+        <div class="flex w-full justify-end gap-2">
+          <UButton
+            color="neutral"
+            variant="ghost"
+            :disabled="zoomDisconnecting"
+            @click="zoomDisconnectOpen = false"
+          >
+            Keep connected
+          </UButton>
+          <UButton
+            color="error"
+            :loading="zoomDisconnecting"
+            @click="disconnectZoom"
           >
             Disconnect
           </UButton>

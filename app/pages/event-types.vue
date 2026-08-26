@@ -170,10 +170,19 @@ function noticeLabel(minutes: number) {
 
 function locationLabel(item: EventTypeRecord) {
   if (item.locationType === 'google_meet') return 'Google Meet'
+  if (item.locationType === 'zoom') return 'Zoom'
   if (item.locationType === 'video_link') return 'Video call'
   if (item.locationType === 'phone') return 'Phone call'
   if (item.locationType === 'in_person') return 'In person'
   return 'Custom location'
+}
+
+function locationIcon(item: EventTypeRecord) {
+  if (item.locationType === 'google_meet') return 'i-simple-icons-googlemeet'
+  if (item.locationType === 'zoom') return 'i-simple-icons-zoom'
+  if (item.locationType === 'in_person') return 'i-lucide-map-pin'
+  if (item.locationType === 'phone') return 'i-lucide-phone'
+  return 'i-lucide-video'
 }
 </script>
 
@@ -328,7 +337,7 @@ function locationLabel(item: EventTypeRecord) {
                       class="size-3.5 text-dimmed"
                     />{{ item.scheduleName ?? 'Default schedule' }}</span>
                     <span class="flex items-center gap-1.5"><UIcon
-                      :name="item.locationType === 'in_person' ? 'i-lucide-map-pin' : item.locationType === 'phone' ? 'i-lucide-phone' : 'i-lucide-video'"
+                      :name="locationIcon(item)"
                       class="size-3.5 text-dimmed"
                     />{{ locationLabel(item) }}</span>
                     <span

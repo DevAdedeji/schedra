@@ -58,6 +58,24 @@ export function collectionMethodFor(currency: CollectionCurrency): CollectionMet
   return currency === 'USD' ? 'charge_automatically' : 'invoice'
 }
 
+export type BillingCheckoutReason = 'activate' | 'restart' | 'manual_seat_change' | 'manual_renewal'
+
+/**
+ * Checkout creates a new payment commitment, so it must never be offered for
+ * a provider-managed subscription that is already active or being recovered.
+ */
+export function billingCheckoutReason(
+  status: OrganizationPlanStatus,
+  collectionMethod: CollectionMethod,
+  seatMismatch: boolean
+): BillingCheckoutReason | null {
+  if (status === 'trialing') return 'activate'
+  if (status === 'canceled') return 'restart'
+  if (collectionMethod === 'charge_automatically') return null
+  if (status === 'active') return seatMismatch ? 'manual_seat_change' : null
+  return 'manual_renewal'
+}
+
 export interface OrganizationEntitlement {
   status: OrganizationPlanStatus
   interval: BillingInterval

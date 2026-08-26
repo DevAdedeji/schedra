@@ -98,6 +98,9 @@ export interface CalendarConnection {
   lastError?: string | null
 }
 
+export type VideoConferenceConnection = Pick<CalendarConnection,
+  'connected' | 'configured' | 'status' | 'accountLabel' | 'lastError'>
+
 export interface CalendarItem {
   id: string
   summary: string
@@ -242,6 +245,11 @@ export const calendarApi = {
   disconnect: () => $fetch('/api/integrations/google-calendar', { method: 'DELETE' })
 }
 
+export const zoomApi = {
+  connectionEndpoint: '/api/integrations/zoom' as const,
+  disconnect: () => $fetch('/api/integrations/zoom', { method: 'DELETE' })
+}
+
 export const publicBookingApi = {
   profileEndpoint: (username: string) => resource('/api/profile', username),
   pageEndpoint: (username: string, slug: string) => resource(resource('/api/booking-page', username), slug),
@@ -289,6 +297,7 @@ export interface TeamMemberRecord {
   avatarUrl: string | null
   timeZone: string
   isYou: boolean
+  integrations: { googleMeet: boolean, zoom: boolean }
 }
 
 export interface TeamMembersResponse {
@@ -388,6 +397,7 @@ export interface TeamBillingResponse {
   seatBilling: {
     billedSeats: number | null
     collectionMethod: 'charge_automatically' | 'invoice'
+    collectionCurrency: CollectionCurrency
     syncStatus: 'pending' | 'processing' | 'completed' | 'failed' | null
     hasError: boolean
     updatedAt: string | null

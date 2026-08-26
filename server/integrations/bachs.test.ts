@@ -1,6 +1,12 @@
 import { createHmac } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { toDecimalString, fromDecimalString, billableSeats, invoiceTotalCents } from '#shared/billing'
+import {
+  billingCheckoutReason,
+  toDecimalString,
+  fromDecimalString,
+  billableSeats,
+  invoiceTotalCents
+} from '#shared/billing'
 
 const SECRET = 'whsec-test-secret'
 
@@ -100,5 +106,20 @@ describe('money at the bachs boundary', () => {
     expect(billableSeats(5)).toBe(5)
     expect(invoiceTotalCents(1, 'monthly')).toBe(800)
     expect(invoiceTotalCents(3, 'yearly')).toBe(24000)
+  })
+
+  it('does not offer a second checkout for provider-managed subscriptions', () => {
+    expect(billingCheckoutReason('active', 'charge_automatically', false)).toBeNull()
+    expect(billingCheckoutReason('active', 'charge_automatically', true)).toBeNull()
+    expect(billingCheckoutReason('past_due', 'charge_automatically', false)).toBeNull()
+    expect(billingCheckoutReason('unpaid', 'charge_automatically', false)).toBeNull()
+  })
+
+  it('offers checkout only when the customer genuinely needs to pay', () => {
+    expect(billingCheckoutReason('trialing', 'invoice', false)).toBe('activate')
+    expect(billingCheckoutReason('canceled', 'charge_automatically', false)).toBe('restart')
+    expect(billingCheckoutReason('active', 'invoice', false)).toBeNull()
+    expect(billingCheckoutReason('active', 'invoice', true)).toBe('manual_seat_change')
+    expect(billingCheckoutReason('past_due', 'invoice', false)).toBe('manual_renewal')
   })
 })

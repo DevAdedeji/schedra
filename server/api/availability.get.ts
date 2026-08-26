@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { findPublicEventType, slotsFor } from '../services/booking-page'
 import { enforceRateLimit } from '../services/rate-limit'
 import { CalendarUnavailableError } from '../integrations/calendar/google'
+import { requireLocationIntegration } from '../services/event-location'
 
 const query = z.object({
   username: z.string().min(1),
@@ -36,9 +37,13 @@ export default defineEventHandler(async (event) => {
 
   let slots
   try {
+    await requireLocationIntegration(eventType.hostId, eventType.locationType)
     slots = await slotsFor(eventType, from, to, new Date().toISOString())
   } catch (error) {
-    if (error instanceof CalendarUnavailableError) {
+    if (error instanceof CalendarUnavailableError || (
+      ['google_meet', 'zoom'].includes(eventType.locationType)
+      && (error as { statusCode?: number }).statusCode === 409
+    )) {
       throw createError({
         statusCode: 503,
         statusMessage: 'Booking times are temporarily unavailable. Please try again shortly.'

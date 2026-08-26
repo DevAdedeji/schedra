@@ -374,10 +374,30 @@ export const calendarConnections = pgTable('calendar_connections', {
   index('calendar_connections_user_id_idx').on(table.userId)
 ])
 
+export const videoConferenceConnections = pgTable('video_conference_connections', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  provider: text('provider').notNull().default('zoom'),
+  providerAccountId: text('provider_account_id').notNull(),
+  accountLabel: text('account_label'),
+  accessTokenEncrypted: text('access_token_encrypted').notNull(),
+  refreshTokenEncrypted: text('refresh_token_encrypted').notNull(),
+  accessTokenExpiresAt: timestamp('access_token_expires_at', { withTimezone: true }).notNull(),
+  scope: text('scope').notNull(),
+  status: calendarConnectionStatus('status').notNull().default('active'),
+  lastError: text('last_error'),
+  lastCheckedAt: timestamp('last_checked_at', { withTimezone: true }),
+  ...timestamps
+}, table => [
+  uniqueIndex('video_conference_connections_user_provider_key').on(table.userId, table.provider),
+  index('video_conference_connections_user_id_idx').on(table.userId)
+])
+
 export const calendarSyncAction = pgEnum('calendar_sync_action', ['upsert', 'delete'])
 export const calendarSyncStatus = pgEnum('calendar_sync_status', ['pending', 'processing', 'completed', 'failed'])
 export const meetingLocationType = pgEnum('meeting_location_type', [
   'google_meet',
+  'zoom',
   'video_link',
   'phone',
   'in_person',
@@ -618,6 +638,22 @@ export const bookingCalendarEvents = pgTable('booking_calendar_events', {
   uniqueIndex('booking_calendar_events_booking_user_key').on(table.bookingId, table.userId),
   index('booking_calendar_events_user_id_idx').on(table.userId),
   uniqueIndex('booking_calendar_events_remote_key').on(table.calendarId, table.eventId)
+])
+
+export const bookingConferenceMeetings = pgTable('booking_conference_meetings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  bookingId: uuid('booking_id').notNull().references(() => bookings.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  connectionId: uuid('connection_id').references(() => videoConferenceConnections.id, { onDelete: 'set null' }),
+  provider: text('provider').notNull().default('zoom'),
+  meetingId: text('meeting_id').notNull(),
+  joinUrl: text('join_url').notNull(),
+  syncedAt: timestamp('synced_at', { withTimezone: true }).notNull().defaultNow(),
+  ...timestamps
+}, table => [
+  uniqueIndex('booking_conference_meetings_booking_provider_key').on(table.bookingId, table.provider),
+  index('booking_conference_meetings_user_id_idx').on(table.userId),
+  uniqueIndex('booking_conference_meetings_remote_key').on(table.provider, table.meetingId)
 ])
 
 export const calendarSyncJobs = pgTable('calendar_sync_jobs', {
