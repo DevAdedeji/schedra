@@ -2,8 +2,8 @@
 definePageMeta({
   layout: 'app',
   middleware: 'auth',
-  // Members is the workspace landing page until team scheduling lands.
-  redirect: to => `/w/${to.params.slug}/members`
+  // Members is the team landing page until team scheduling lands.
+  redirect: to => `/t/${to.params.slug}/members`
 })
 </script>
 

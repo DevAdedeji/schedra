@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
   if (!parsed.success) {
     throw createError({
       statusCode: 400,
-      statusMessage: parsed.error.issues[0]?.message ?? 'That workspace address is not valid.'
+      statusMessage: parsed.error.issues[0]?.message ?? 'That team address is not valid.'
     })
   }
 
@@ -32,7 +32,7 @@ export default defineEventHandler(async (event) => {
       .where(sql`lower(${organizationSlugHistory.slug}) = ${next}`).limit(1)
 
     if (takenByOrg || takenByHistory) {
-      throw createError({ statusCode: 409, statusMessage: 'That workspace address is already taken.' })
+      throw createError({ statusCode: 409, statusMessage: 'That team address is already taken.' })
     }
 
     // Recording the old slug first keeps every shared /team link resolving.

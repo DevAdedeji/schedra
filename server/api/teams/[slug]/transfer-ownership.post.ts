@@ -22,12 +22,12 @@ export default defineEventHandler(async (event) => {
     .where(and(eq(members.id, parsed.data.memberId), eq(members.organizationId, context.organization.id)))
     .limit(1)
 
-  if (!target) throw createError({ statusCode: 404, statusMessage: 'That person is not in this workspace.' })
+  if (!target) throw createError({ statusCode: 404, statusMessage: 'That person is not in this team.' })
   if (target.userId === context.userId) {
-    throw createError({ statusCode: 400, statusMessage: 'You already own this workspace.' })
+    throw createError({ statusCode: 400, statusMessage: 'You already own this team.' })
   }
 
-  // Both writes must land together — a workspace with two owners or none is
+  // Both writes must land together — a team with two owners or none is
   // worse than a failed transfer.
   await db.transaction(async (tx) => {
     await tx.update(members)

@@ -7,6 +7,9 @@ export interface Env {
   googleClientId?: string
   googleClientSecret?: string
 
+  bachsSecretKey?: string
+  bachsWebhookSecret?: string
+
   resendApiKey?: string
   smtpUrl?: string
   emailDeliveryMode: 'resend' | 'smtp' | 'log'
@@ -54,6 +57,8 @@ export function useEnv(): Env {
   const googleClientId = optional('GOOGLE_CLIENT_ID')
   const googleClientSecret = optional('GOOGLE_CLIENT_SECRET')
   const integrationEncryptionKey = optional('INTEGRATION_ENCRYPTION_KEY')
+  const bachsSecretKey = optional('BACHS_SECRET_KEY')
+  const bachsWebhookSecret = optional('BACHS_WEBHOOK_SECRET')
   const resendApiKey = optional('RESEND_API_KEY')
   const smtpUrl = optional('SMTP_URL')
   const emailFrom = optional('EMAIL_FROM')
@@ -63,6 +68,14 @@ export function useEnv(): Env {
   }
   if (integrationEncryptionKey && integrationEncryptionKey.length < 32) {
     throw new Error('INTEGRATION_ENCRYPTION_KEY must be at least 32 characters.')
+  }
+  if (bachsSecretKey && !/^sk_(sandbox|live)_/.test(bachsSecretKey)) {
+    throw new Error('BACHS_SECRET_KEY must start with sk_sandbox_ or sk_live_.')
+  }
+  // A checkout nobody can confirm is worse than no checkout: Bachs webhooks are
+  // the only trustworthy signal that money actually arrived.
+  if (bachsSecretKey && !bachsWebhookSecret) {
+    throw new Error('BACHS_WEBHOOK_SECRET is required whenever BACHS_SECRET_KEY is set.')
   }
 
   const schedraUrl = parseUrl('SCHEDRA_URL', process.env.SCHEDRA_URL!, ['http:', 'https:'])
@@ -78,6 +91,8 @@ export function useEnv(): Env {
     schedraUrl,
     authSecret,
     integrationEncryptionKey,
+    bachsSecretKey,
+    bachsWebhookSecret,
     googleClientId,
     googleClientSecret,
     resendApiKey,

@@ -66,7 +66,7 @@ function initials(name: string) {
   <div class="space-y-7">
     <PageHeader
       :title="`Hello, ${user?.name?.split(' ')[0] ?? ''}`"
-      description="Your scheduling workspace at a glance."
+      description="Everything you have scheduled, at a glance."
     >
       <template #actions>
         <UButton
@@ -90,7 +90,7 @@ function initials(name: string) {
     >
       <AsyncErrorState
         title="Could not load your overview"
-        description="Your scheduling data is safe. Check your connection and try loading the workspace again."
+        description="Your scheduling data is safe. Check your connection and try loading your overview again."
         :retrying="overviewRetrying"
         @retry="retryOverview"
       />

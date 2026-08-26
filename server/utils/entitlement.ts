@@ -60,7 +60,7 @@ export async function organizationEntitlement(
 
   const seatsUsed = seatRow?.value ?? 0
 
-  // No row means the workspace predates billing or its creation hook failed;
+  // No row means the team predates billing or its creation hook failed;
   // treat it as expired rather than handing out a free team plan.
   if (!row) {
     return {
@@ -113,7 +113,7 @@ export async function startTrial(organizationId: string, now = new Date()) {
 
 /**
  * Seats are billed as occupied, so this is not a purchased-seat check: it stops
- * a workspace growing while it is behind on payment, over the trial allowance,
+ * a team growing while it is behind on payment, over the trial allowance,
  * or at the hard ceiling.
  */
 export async function assertCanAddMember(organizationId: string) {
@@ -129,22 +129,22 @@ export async function assertCanAddMember(organizationId: string) {
   if (entitlement.seatsUsed >= TEAM_PLAN.maxSeats) {
     throw createError({
       statusCode: 409,
-      statusMessage: `This workspace has reached the limit of ${TEAM_PLAN.maxSeats} members.`
+      statusMessage: `This team has reached the limit of ${TEAM_PLAN.maxSeats} members.`
     })
   }
   throw createError({
     statusCode: 402,
-    statusMessage: 'This workspace is not on an active subscription, so new members cannot be added yet.'
+    statusMessage: 'This team is not on an active subscription, so new members cannot be added yet.'
   })
 }
 
-/** Blocks writes on a workspace whose grace period has run out. */
-export async function assertWorkspaceWritable(organizationId: string) {
+/** Blocks writes on a team whose grace period has run out. */
+export async function assertTeamWritable(organizationId: string) {
   const entitlement = await organizationEntitlement(organizationId)
   if (!entitlement.readOnly) return entitlement
 
   throw createError({
     statusCode: 402,
-    statusMessage: 'This workspace is read-only until its subscription is renewed.'
+    statusMessage: 'This team is read-only until its subscription is renewed.'
   })
 }

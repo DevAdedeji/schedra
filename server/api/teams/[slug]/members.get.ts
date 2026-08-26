@@ -19,12 +19,12 @@ export default defineEventHandler(async (event) => {
 
   const { page, pageSize, search, filter } = parsed.data
   const db = useDatabase()
-  const inWorkspace = eq(members.organizationId, context.organization.id)
+  const inTeam = eq(members.organizationId, context.organization.id)
   const byRole = filter === 'all' ? undefined : eq(members.role, filter)
   const matchesSearch = search
     ? or(ilike(users.name, `%${search}%`), ilike(users.email, `%${search}%`), ilike(users.username, `%${search}%`))
     : undefined
-  const where = and(inWorkspace, byRole, matchesSearch)
+  const where = and(inTeam, byRole, matchesSearch)
 
   const [[totalRow], [countRow], items] = await Promise.all([
     db.select({ value: count() }).from(members).innerJoin(users, eq(users.id, members.userId)).where(where),
@@ -33,7 +33,7 @@ export default defineEventHandler(async (event) => {
       owner: sql<number>`count(*) filter (where ${members.role} = 'owner')`.mapWith(Number),
       admin: sql<number>`count(*) filter (where ${members.role} = 'admin')`.mapWith(Number),
       member: sql<number>`count(*) filter (where ${members.role} = 'member')`.mapWith(Number)
-    }).from(members).where(inWorkspace),
+    }).from(members).where(inTeam),
     db.select({
       id: members.id,
       userId: members.userId,

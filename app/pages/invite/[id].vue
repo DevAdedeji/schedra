@@ -61,7 +61,7 @@ async function accept() {
       title: `Welcome to ${invitation.value?.organization.name}`,
       description: 'Your personal booking page is untouched — this only adds team scheduling.'
     })
-    await navigateTo(`/w/${invitation.value?.organization.slug}`)
+    await navigateTo(`/t/${invitation.value?.organization.slug}`)
   } catch (failure) {
     actionError.value = apiErrorMessage(failure, 'Could not accept that invitation.')
   } finally {
@@ -160,7 +160,7 @@ async function resendVerification() {
       <div class="mt-5 rounded-xl border border-default bg-muted/50 px-4 py-3">
         <p class="text-[12px] leading-relaxed text-muted">
           Joining never moves or shares your personal schedules, event types, bookings or calendar.
-          The workspace only ever sees whether you are free or busy.
+          The team only ever sees whether you are free or busy.
         </p>
       </div>
 
@@ -272,9 +272,9 @@ async function resendVerification() {
             <template v-else-if="stage === 'archived'">
               {{ invitation.organization.name }} has been archived, so this invitation can no longer be accepted.
             </template>
-            <template v-else-if="stage === 'workspace_full'">
+            <template v-else-if="stage === 'team_full'">
               {{ invitation.organization.name }} cannot take new members right now. Ask
-              {{ invitation.inviterName }} to check the workspace subscription, then try again.
+              {{ invitation.inviterName }} to check the team subscription, then try again.
             </template>
             <template v-else>
               This invitation is no longer available.
@@ -282,14 +282,14 @@ async function resendVerification() {
           </p>
         </div>
         <UButton
-          :to="stage === 'accepted' ? `/w/${invitation.organization.slug}` : '/dashboard'"
+          :to="stage === 'accepted' ? `/t/${invitation.organization.slug}` : '/dashboard'"
           block
           color="neutral"
           variant="outline"
           size="lg"
           class="mt-3"
         >
-          {{ stage === 'accepted' ? 'Open workspace' : 'Go to Schedra' }}
+          {{ stage === 'accepted' ? 'Open team' : 'Go to Schedra' }}
         </UButton>
       </div>
 

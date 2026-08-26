@@ -2,10 +2,10 @@
 import { TEAM_PLAN, formatUsd, organizationNameSchema, organizationSlugSchema } from '#shared/billing'
 import {
   apiErrorMessage,
-  workspacesApi,
+  teamsApi,
   type SlugAvailability,
-  type WorkspaceDetail,
-  type WorkspaceMembersResponse
+  type TeamDetail,
+  type TeamMembersResponse
 } from '~/services/schedra-api'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
@@ -16,27 +16,27 @@ const authClient = useAuthClient()
 const feedback = useFeedback()
 const { host } = useSiteUrl()
 
-const { data: workspace, refresh: refreshWorkspace, error: loadFailure }
-  = await useLazyFetch<WorkspaceDetail>(() => workspacesApi.detailEndpoint(slug.value))
+const { data: team, refresh: refreshTeam, error: loadFailure }
+  = await useLazyFetch<TeamDetail>(() => teamsApi.detailEndpoint(slug.value))
 
 useSeoMeta({
-  title: () => workspace.value ? `${workspace.value.organization.name} settings` : 'Workspace settings',
+  title: () => team.value ? `${team.value.organization.name} settings` : 'Team settings',
   robots: 'noindex, nofollow'
 })
 
-const permissions = computed(() => workspace.value?.permissions)
-const entitlement = computed(() => workspace.value?.entitlement)
+const permissions = computed(() => team.value?.permissions)
+const entitlement = computed(() => team.value?.entitlement)
 
 const name = ref('')
 const address = ref('')
-watch(workspace, (value) => {
+watch(team, (value) => {
   if (!value) return
   name.value = value.organization.name
   address.value = value.organization.slug
 }, { immediate: true })
 
 const savingName = ref(false)
-const nameDirty = computed(() => name.value.trim() !== workspace.value?.organization.name)
+const nameDirty = computed(() => name.value.trim() !== team.value?.organization.name)
 const nameValid = computed(() => organizationNameSchema.safeParse(name.value).success)
 
 async function saveName() {
@@ -44,12 +44,12 @@ async function saveName() {
   savingName.value = true
   try {
     const result = await authClient.organization.update({
-      organizationId: workspace.value?.organization.id,
+      organizationId: team.value?.organization.id,
       data: { name: name.value.trim() }
     })
-    if (result.error) throw new Error(result.error.message ?? 'Could not rename this workspace.')
-    feedback.success({ title: 'Workspace renamed' })
-    await refreshWorkspace()
+    if (result.error) throw new Error(result.error.message ?? 'Could not rename this team.')
+    feedback.success({ title: 'Team renamed' })
+    await refreshTeam()
   } catch (failure) {
     feedback.error({ title: 'Could not rename', description: apiErrorMessage(failure, 'Please try again.') })
   } finally {
@@ -63,7 +63,7 @@ const availability = ref<SlugAvailability | null>(null)
 let debounce: ReturnType<typeof setTimeout> | undefined
 let request = 0
 
-const addressDirty = computed(() => address.value !== workspace.value?.organization.slug)
+const addressDirty = computed(() => address.value !== team.value?.organization.slug)
 
 watch(address, (value) => {
   const current = ++request
@@ -75,7 +75,7 @@ watch(address, (value) => {
   checking.value = true
   debounce = setTimeout(async () => {
     try {
-      const result = await workspacesApi.slugAvailable(value)
+      const result = await teamsApi.slugAvailable(value)
       if (current === request && value === address.value) availability.value = result
     } catch {
       if (current === request) availability.value = null
@@ -101,12 +101,12 @@ async function saveAddress() {
   if (!addressValid.value || savingAddress.value) return
   savingAddress.value = true
   try {
-    const result = await workspacesApi.updateAddress(slug.value, address.value)
+    const result = await teamsApi.updateAddress(slug.value, address.value)
     feedback.success({
       title: 'Address changed',
       description: 'Links using the old address still work.'
     })
-    await navigateTo(`/w/${result.slug}/settings`)
+    await navigateTo(`/t/${result.slug}/settings`)
   } catch (failure) {
     feedback.error({ title: 'Could not change address', description: apiErrorMessage(failure, 'Please try again.') })
   } finally {
@@ -117,8 +117,8 @@ async function saveAddress() {
 const transferring = ref(false)
 const transferTarget = ref('')
 const transferBusy = ref(false)
-const { data: members, refresh: refreshMembers } = await useLazyFetch<WorkspaceMembersResponse>(
-  () => workspacesApi.membersEndpoint(slug.value),
+const { data: members, refresh: refreshMembers } = await useLazyFetch<TeamMembersResponse>(
+  () => teamsApi.membersEndpoint(slug.value),
   { query: { pageSize: 50 }, immediate: false }
 )
 
@@ -134,14 +134,14 @@ async function transfer() {
   if (!transferTarget.value || transferBusy.value) return
   transferBusy.value = true
   try {
-    await workspacesApi.transferOwnership(slug.value, transferTarget.value)
+    await teamsApi.transferOwnership(slug.value, transferTarget.value)
     feedback.success({
       title: 'Ownership transferred',
-      description: 'You are now an admin of this workspace.'
+      description: 'You are now an admin of this team.'
     })
     transferring.value = false
     transferTarget.value = ''
-    await refreshWorkspace()
+    await refreshTeam()
   } catch (failure) {
     feedback.error({ title: 'Could not transfer', description: apiErrorMessage(failure, 'Please try again.') })
   } finally {
@@ -157,9 +157,9 @@ async function archive() {
   if (archiveBusy.value) return
   archiveBusy.value = true
   try {
-    const result = await workspacesApi.archive(slug.value, archiveConfirmation.value.trim())
+    const result = await teamsApi.archive(slug.value, archiveConfirmation.value.trim())
     feedback.success({
-      title: 'Workspace archived',
+      title: 'Team archived',
       description: result.cancelledBookings
         ? `${result.cancelledBookings} upcoming booking(s) were cancelled and guests notified.`
         : 'Its data is retained and exportable.'
@@ -178,10 +178,10 @@ async function leave() {
   leaving.value = true
   try {
     const result = await authClient.organization.leave({
-      organizationId: workspace.value?.organization.id ?? ''
+      organizationId: team.value?.organization.id ?? ''
     })
-    if (result.error) throw new Error(result.error.message ?? 'Could not leave this workspace.')
-    feedback.success({ title: 'You left the workspace' })
+    if (result.error) throw new Error(result.error.message ?? 'Could not leave this team.')
+    feedback.success({ title: 'You left the team' })
     await navigateTo('/dashboard')
   } catch (failure) {
     feedback.error({ title: 'Could not leave', description: apiErrorMessage(failure, 'Please try again.') })
@@ -194,15 +194,15 @@ async function leave() {
 <template>
   <div class="space-y-6">
     <PageHeader
-      title="Workspace settings"
-      :description="workspace?.organization.name"
+      title="Team settings"
+      :description="team?.organization.name"
     >
       <template #actions>
         <UButton
           color="neutral"
           variant="outline"
           icon="i-lucide-arrow-left"
-          :to="`/w/${slug}/members`"
+          :to="`/t/${slug}/members`"
         >
           Members
         </UButton>
@@ -210,13 +210,13 @@ async function leave() {
     </PageHeader>
 
     <AsyncErrorState
-      v-if="loadFailure && !workspace"
-      title="Could not load this workspace"
+      v-if="loadFailure && !team"
+      title="Could not load this team"
       description="It may have been archived, or your access may have changed."
-      @retry="refreshWorkspace"
+      @retry="refreshTeam"
     />
 
-    <template v-else-if="workspace">
+    <template v-else-if="team">
       <section
         v-if="entitlement && permissions?.manageBilling"
         class="overflow-hidden rounded-xl border border-default bg-default"
@@ -288,7 +288,7 @@ async function leave() {
       </section>
 
       <section
-        v-if="permissions?.updateWorkspace"
+        v-if="permissions?.updateTeam"
         class="overflow-hidden rounded-xl border border-default bg-default"
       >
         <header class="border-b border-default px-5 py-4">
@@ -298,7 +298,7 @@ async function leave() {
         </header>
         <div class="flex flex-wrap items-end gap-3 px-5 py-5">
           <UFormField
-            label="Workspace name"
+            label="Team name"
             class="min-w-0 flex-1"
           >
             <UInput
@@ -365,7 +365,7 @@ async function leave() {
         </header>
         <div class="space-y-4 px-5 py-5">
           <p class="text-[13px] text-muted">
-            You are {{ workspace.role === 'owner' ? 'the owner' : `an ${workspace.role}` }} of this workspace.
+            You are {{ team.role === 'owner' ? 'the owner' : `an ${team.role}` }} of this team.
             Leaving does not touch your personal booking page, schedules or calendar.
           </p>
 
@@ -380,38 +380,38 @@ async function leave() {
               Transfer ownership
             </UButton>
             <UButton
-              v-if="workspace.role !== 'owner'"
+              v-if="team.role !== 'owner'"
               color="error"
               variant="outline"
               icon="i-lucide-log-out"
               :loading="leaving"
               @click="leave"
             >
-              Leave workspace
+              Leave team
             </UButton>
           </div>
 
           <p
-            v-if="workspace.role === 'owner'"
+            v-if="team.role === 'owner'"
             class="text-[12px] text-muted"
           >
-            An owner cannot leave. Transfer ownership first, or archive the workspace.
+            An owner cannot leave. Transfer ownership first, or archive the team.
           </p>
         </div>
       </section>
 
       <section
-        v-if="permissions?.archiveWorkspace"
+        v-if="permissions?.archiveTeam"
         class="overflow-hidden rounded-xl border border-error/30 bg-default"
       >
         <header class="border-b border-error/20 px-5 py-4">
           <h2 class="text-[14px] font-semibold text-highlighted">
-            Archive workspace
+            Archive team
           </h2>
         </header>
         <div class="space-y-4 px-5 py-5">
           <p class="text-[13px] leading-relaxed text-muted">
-            Archiving closes the workspace for everyone and cancels upcoming team bookings, notifying their guests.
+            Archiving closes the team for everyone and cancels upcoming team bookings, notifying their guests.
             Nothing is deleted — bookings, history and exports are retained, and the address stays reserved so
             nobody else can claim it.
           </p>
@@ -421,7 +421,7 @@ async function leave() {
             icon="i-lucide-archive"
             @click="archiving = true"
           >
-            Archive this workspace
+            Archive this team
           </UButton>
         </div>
       </section>
@@ -471,13 +471,13 @@ async function leave() {
 
     <UModal
       v-model:open="archiving"
-      title="Archive this workspace"
+      title="Archive this team"
       description="This closes it for everyone. Data is kept, not deleted."
       :ui="{ content: 'w-full max-w-md', footer: 'border-t border-default px-5 py-4 sm:px-6' }"
     >
       <template #body>
         <UFormField
-          :label="`Type ${workspace?.organization.slug} to confirm`"
+          :label="`Type ${team?.organization.slug} to confirm`"
           class="px-1 py-1"
         >
           <UInput
@@ -501,10 +501,10 @@ async function leave() {
           <UButton
             color="error"
             :loading="archiveBusy"
-            :disabled="archiveConfirmation.trim() !== workspace?.organization.slug"
+            :disabled="archiveConfirmation.trim() !== team?.organization.slug"
             @click="archive"
           >
-            Archive workspace
+            Archive team
           </UButton>
         </div>
       </template>

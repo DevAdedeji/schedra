@@ -46,7 +46,7 @@ export async function findOrganizationBySlug(slug: string) {
 
   if (organization) return { organization, renamed: false as const }
 
-  // A renamed workspace keeps its old public links working.
+  // A renamed team keeps its old public links working.
   const [previous] = await db
     .select({ organizationId: organizationSlugHistory.organizationId })
     .from(organizationSlugHistory)
@@ -88,15 +88,15 @@ export async function requireOrganization(
   const session = await requireAuthSession(event)
   const found = await findOrganizationBySlug(slug)
 
-  // Membership is never confirmed or denied for a workspace the caller cannot
+  // Membership is never confirmed or denied for a team the caller cannot
   // see, so a stranger cannot probe which slugs exist.
-  if (!found) throw createError({ statusCode: 404, statusMessage: 'Workspace not found' })
+  if (!found) throw createError({ statusCode: 404, statusMessage: 'Team not found' })
 
   const membership = await membershipFor(found.organization.id, session.user.id)
-  if (!membership) throw createError({ statusCode: 404, statusMessage: 'Workspace not found' })
+  if (!membership) throw createError({ statusCode: 404, statusMessage: 'Team not found' })
 
   if (found.organization.archivedAt && !options.allowArchived) {
-    throw createError({ statusCode: 410, statusMessage: 'This workspace has been archived.' })
+    throw createError({ statusCode: 410, statusMessage: 'This team has been archived.' })
   }
 
   return {
@@ -112,7 +112,7 @@ export function assertPermission(role: OrganizationRole, request: PermissionRequ
   if (!result.success) {
     throw createError({
       statusCode: 403,
-      statusMessage: 'You do not have permission to do that in this workspace.'
+      statusMessage: 'You do not have permission to do that in this team.'
     })
   }
 }
@@ -130,9 +130,9 @@ export async function requireOrganizationPermission(
 
 /**
  * Deleting an account cascades its memberships away, which would leave any
- * workspace it owns without an owner. Callers must clear this first.
+ * team it owns without an owner. Callers must clear this first.
  */
-export async function activeWorkspacesOwnedBy(userId: string) {
+export async function activeTeamsOwnedBy(userId: string) {
   return useDatabase()
     .select({ id: organizations.id, name: organizations.name, slug: organizations.slug })
     .from(members)

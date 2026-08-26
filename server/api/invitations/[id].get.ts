@@ -13,11 +13,11 @@ export type InvitationState
     | 'canceled'
     | 'expired'
     | 'archived'
-    | 'workspace_full'
+    | 'team_full'
 
 /**
  * Unauthenticated on purpose: someone with no Schedra account has to see which
- * workspace invited them before deciding to sign up. The invitation id is
+ * team invited them before deciding to sign up. The invitation id is
  * opaque and only reaches the invited mailbox.
  */
 export default defineEventHandler(async (event) => {
@@ -79,7 +79,7 @@ async function resolveState(invitation: {
   // Surfaced before sign-up rather than after, so nobody creates an account
   // only to be turned away at the last step.
   const entitlement = await organizationEntitlement(invitation.organizationId)
-  if (!entitlement.canAddMembers) return 'workspace_full'
+  if (!entitlement.canAddMembers) return 'team_full'
 
   return 'pending'
 }

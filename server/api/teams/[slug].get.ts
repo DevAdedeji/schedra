@@ -17,11 +17,11 @@ export default defineEventHandler(async (event) => {
       inviteMembers: can({ invitation: ['create'] }),
       removeMembers: can({ member: ['delete'] }),
       changeRoles: can({ member: ['update'] }),
-      updateWorkspace: can({ organization: ['update'] }),
+      updateTeam: can({ organization: ['update'] }),
       changeAddress: can({ slug: ['update'] }),
       transferOwnership: can({ ownership: ['transfer'] }),
       manageBilling: can({ billing: ['manage'] }),
-      archiveWorkspace: can({ organization: ['delete'] }),
+      archiveTeam: can({ organization: ['delete'] }),
       manageEventTypes: can({ eventType: ['create'] }),
       viewAllBookings: can({ booking: ['viewAll'] })
     }

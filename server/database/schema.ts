@@ -36,7 +36,7 @@ export const organizations = pgTable('organizations', {
   metadata: jsonb('metadata').$type<Record<string, unknown>>(),
   // Organizations are archived rather than deleted so booking history, exports
   // and audit records survive. The slug stays reserved so nobody can claim it
-  // and inherit traffic from links the archived workspace shared.
+  // and inherit traffic from links the archived team shared.
   archivedAt: timestamp('archived_at', { withTimezone: true }),
   ...timestamps
 }, table => [
@@ -158,6 +158,47 @@ export const organizationSubscriptions = pgTable('organization_subscriptions', {
     'organization_subscriptions_seats_positive',
     sql`${table.seatsAtLastInvoice} is null or ${table.seatsAtLastInvoice} > 0`
   )
+])
+
+/**
+ * Keyed by our own `reference`, which is also the Bachs idempotency key, so a
+ * retried checkout and a redelivered webhook converge on one row. Amounts are
+ * integer USD cents here and only become decimal strings at the Bachs boundary.
+ */
+export const organizationInvoices = pgTable('organization_invoices', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  reference: text('reference').notNull(),
+  status: text('status').notNull().default('pending'),
+
+  interval: text('interval').notNull(),
+  seats: integer('seats').notNull(),
+  amountCents: integer('amount_cents').notNull(),
+  collectionCurrency: text('collection_currency').notNull().default('USD'),
+  // What actually reached the balance, which is not what the customer was
+  // charged whenever the customer is bearing the fee.
+  settlementAmountCents: integer('settlement_amount_cents'),
+
+  periodStart: timestamp('period_start', { withTimezone: true }).notNull(),
+  periodEnd: timestamp('period_end', { withTimezone: true }).notNull(),
+  paidAt: timestamp('paid_at', { withTimezone: true }),
+
+  bachsCheckoutId: text('bachs_checkout_id'),
+  bachsChargeId: text('bachs_charge_id'),
+  lastError: text('last_error'),
+
+  ...timestamps
+}, table => [
+  uniqueIndex('organization_invoices_reference_key').on(table.reference),
+  index('organization_invoices_organization_created_idx').on(table.organizationId, table.createdAt),
+  index('organization_invoices_checkout_idx').on(table.bachsCheckoutId),
+  check(
+    'organization_invoices_status_allowed',
+    sql`${table.status} in ('pending', 'paid', 'failed', 'expired')`
+  ),
+  check('organization_invoices_seats_positive', sql`${table.seats} > 0`),
+  check('organization_invoices_amount_positive', sql`${table.amountCents} > 0`),
+  check('organization_invoices_period_ordered', sql`${table.periodEnd} > ${table.periodStart}`)
 ])
 
 export const organizationAuditLogs = pgTable('organization_audit_logs', {
@@ -329,6 +370,12 @@ export const meetingLocationType = pgEnum('meeting_location_type', [
   'custom'
 ])
 
+export const assignmentMode = pgEnum('assignment_mode', [
+  'single',
+  'round_robin',
+  'collective'
+])
+
 // Schedules stay personal even when a member joins an organization: a team
 // event borrows the member's own hours, it never owns them.
 export const schedules = pgTable('schedules', {
@@ -401,11 +448,24 @@ export const eventTypes = pgTable('event_types', {
   bookingQuestions: jsonb('booking_questions').$type<BookingQuestion[]>().notNull().default(sql`'[]'::jsonb`),
   requiresConfirmation: boolean('requires_confirmation').notNull().default(false),
 
+  // Personal event types always have exactly one host, so 'single' is both the
+  // default and the only mode that applies when organizationId is null.
+  assignmentMode: assignmentMode('assignment_mode').notNull().default('single'),
+
   hidden: boolean('hidden').notNull().default(false),
 
   ...timestamps
 }, table => [
-  uniqueIndex('event_types_user_id_slug_key').on(table.userId, table.slug),
+  // A slug is unique per owner: per user for a personal page, per organization
+  // for a team page, since the two live in different URL namespaces.
+  uniqueIndex('event_types_user_id_slug_key')
+    .on(table.userId, table.slug)
+    .where(sql`${table.organizationId} is null`),
+  uniqueIndex('event_types_organization_slug_key')
+    .on(table.organizationId, table.slug)
+    .where(sql`${table.organizationId} is not null`),
+  index('event_types_organization_hidden_idx')
+    .on(table.organizationId, table.hidden, table.createdAt),
   index('event_types_user_hidden_created_at_idx').on(table.userId, table.hidden, table.createdAt),
   check('event_types_duration_positive', sql`${table.durationMinutes} > 0`),
   check(
@@ -420,6 +480,33 @@ export const eventTypes = pgTable('event_types', {
     'event_types_max_per_day_positive',
     sql`${table.maxPerDay} is null or ${table.maxPerDay} > 0`
   )
+])
+
+/**
+ * Who may host a team event, and with which of their own schedules. The
+ * membership reference is what makes removal automatic: taking someone out of
+ * the team cascades their host rows away, so they stop being assigned without
+ * anything else having to notice.
+ */
+export const eventTypeHosts = pgTable('event_type_hosts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  eventTypeId: uuid('event_type_id').notNull().references(() => eventTypes.id, { onDelete: 'cascade' }),
+  memberId: uuid('member_id').notNull().references(() => members.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+
+  // Null means "whichever schedule is their default at booking time", so a host
+  // who reorganises their availability does not silently fall out of rotation.
+  scheduleId: uuid('schedule_id').references(() => schedules.id, { onDelete: 'set null' }),
+  enabled: boolean('enabled').notNull().default(true),
+  // Reserved for weighted round-robin; every host is equal until it is used.
+  weight: integer('weight').notNull().default(100),
+
+  ...timestamps
+}, table => [
+  uniqueIndex('event_type_hosts_event_member_key').on(table.eventTypeId, table.memberId),
+  index('event_type_hosts_event_enabled_idx').on(table.eventTypeId, table.enabled),
+  index('event_type_hosts_user_idx').on(table.userId),
+  check('event_type_hosts_weight_positive', sql`${table.weight} > 0`)
 ])
 
 export const bookingStatus = pgEnum('booking_status', [

@@ -8,7 +8,7 @@ import { requireAuthSession } from '../utils/session'
 export default defineEventHandler(async (event) => {
   const session = await requireAuthSession(event)
 
-  // An archived workspace is gone as far as the switcher is concerned; its data
+  // An archived team is gone as far as the switcher is concerned; its data
   // stays in the database for export and audit.
   const rows = await useDatabase()
     .select({

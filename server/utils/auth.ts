@@ -131,7 +131,7 @@ function createAuth() {
               subject: `${data.inviter.user.name} invited you to ${data.organization.name} on Schedra`,
               preheader: `Join ${data.organization.name} to share team booking links.`,
               heading: `Join ${data.organization.name}`,
-              body: `${data.inviter.user.name} (${data.inviter.user.email}) invited you to join ${data.organization.name} on Schedra as ${data.role === 'admin' ? 'an admin' : 'a member'}.\n\nYour personal booking page, availability and calendar stay yours — joining a workspace never moves or shares them.`,
+              body: `${data.inviter.user.name} (${data.inviter.user.email}) invited you to join ${data.organization.name} on Schedra as ${data.role === 'admin' ? 'an admin' : 'a member'}.\n\nYour personal booking page, availability and calendar stay yours — joining a team never moves or shares them.`,
               action: { label: 'Review the invitation', url },
               footer: `This invitation expires in ${TEAM_PLAN.invitationExpiryDays} days and can only be accepted by ${data.email}. If you were not expecting it, you can safely ignore this email.`
             }
@@ -148,12 +148,12 @@ function createAuth() {
             if (!parsed.success) {
               throw new APIError('BAD_REQUEST', {
                 code: 'INVALID_ORGANIZATION',
-                message: parsed.error.issues[0]?.message ?? 'Those workspace details are not valid.'
+                message: parsed.error.issues[0]?.message ?? 'Those team details are not valid.'
               })
             }
 
             // A slug retired by a rename still resolves old booking links, so
-            // it cannot be handed to a different workspace.
+            // it cannot be handed to a different team.
             const [taken] = await useDatabase()
               .select({ id: schema.organizationSlugHistory.id })
               .from(schema.organizationSlugHistory)
@@ -163,7 +163,7 @@ function createAuth() {
             if (taken) {
               throw new APIError('BAD_REQUEST', {
                 code: 'SLUG_TAKEN',
-                message: 'That workspace address is already taken.'
+                message: 'That team address is already taken.'
               })
             }
 
@@ -187,13 +187,13 @@ function createAuth() {
             if (changes.slug !== undefined) {
               throw new APIError('BAD_REQUEST', {
                 code: 'SLUG_CHANGE_NOT_ALLOWED',
-                message: 'Change the workspace address from workspace settings so old links keep working.'
+                message: 'Change the team address from team settings so old links keep working.'
               })
             }
           },
 
           // Seats are billed as occupied, so acceptance is where the bill grows
-          // — and where a workspace behind on payment has to stop growing.
+          // — and where a team behind on payment has to stop growing.
           beforeAcceptInvitation: async ({ invitation }) => {
             await assertCanAddMember(invitation.organizationId)
           },
@@ -266,7 +266,7 @@ function createAuth() {
             if (remaining <= 1) {
               throw new APIError('BAD_REQUEST', {
                 code: 'LAST_OWNER',
-                message: 'Transfer ownership to someone else before leaving this workspace.'
+                message: 'Transfer ownership to someone else before leaving this team.'
               })
             }
           },

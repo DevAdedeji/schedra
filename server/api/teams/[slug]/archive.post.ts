@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
   if (!parsed.success || parsed.data.confirmation !== context.organization.slug) {
     throw createError({
       statusCode: 400,
-      statusMessage: `Type ${context.organization.slug} to confirm archiving this workspace.`
+      statusMessage: `Type ${context.organization.slug} to confirm archiving this team.`
     })
   }
 
@@ -27,7 +27,7 @@ export default defineEventHandler(async (event) => {
     const affected = await tx.update(bookings)
       .set({
         status: 'cancelled',
-        cancellationReason: 'This workspace was archived.',
+        cancellationReason: 'This team was archived.',
         updatedAt: sql`now()`
       })
       .where(and(
@@ -42,7 +42,7 @@ export default defineEventHandler(async (event) => {
       .where(eq(organizationSubscriptions.organizationId, context.organization.id))
 
     // The slug stays on the archived row so nobody can claim it and inherit
-    // traffic from links the old workspace shared.
+    // traffic from links the old team shared.
     await tx.update(organizations)
       .set({ archivedAt: now, updatedAt: sql`now()` })
       .where(eq(organizations.id, context.organization.id))

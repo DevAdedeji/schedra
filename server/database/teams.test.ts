@@ -5,10 +5,10 @@ import { configureAppTestEnvironment, getTestDatabaseUrl } from '../../test/help
 const url = getTestDatabaseUrl()
 
 const TABLES = 'organization_audit_logs, organization_slug_history, organization_subscriptions, '
-  + 'invitations, members, email_outbox, api_rate_limits, rate_limits, sessions, accounts, '
+  + 'organization_invoices, bachs_webhook_events, event_type_hosts, invitations, members, email_outbox, api_rate_limits, rate_limits, sessions, accounts, '
   + 'verifications, bookings, event_types, date_overrides, availability_rules, schedules, users, organizations'
 
-describe.skipIf(!url)('team workspaces', () => {
+describe.skipIf(!url)('teams', () => {
   const sql = postgres(url!, { max: 3, onnotice: () => {} })
 
   async function auth() {
@@ -36,7 +36,7 @@ describe.skipIf(!url)('team workspaces', () => {
     return { headers: new Headers({ cookie }), id: row!.id, email }
   }
 
-  async function createWorkspace(headers: Headers, name = 'Acme Design', slug = 'acme') {
+  async function createTeam(headers: Headers, name = 'Acme Design', slug = 'acme') {
     const instance = await auth()
     return instance.api.createOrganization({ body: { name, slug }, headers })
   }
@@ -52,72 +52,72 @@ describe.skipIf(!url)('team workspaces', () => {
 
   it('makes the creator an owner and starts a trial', async () => {
     const ada = await signUp('Ada Lovelace', 'ada', 'ada@example.com')
-    const workspace = await createWorkspace(ada.headers)
+    const team = await createTeam(ada.headers)
 
-    expect(workspace?.slug).toBe('acme')
+    expect(team?.slug).toBe('acme')
 
     const [membership] = await sql<{ role: string }[]>`
-      select role from members where organization_id = ${workspace!.id} and user_id = ${ada.id}
+      select role from members where organization_id = ${team!.id} and user_id = ${ada.id}
     `
     expect(membership?.role).toBe('owner')
 
     const [subscription] = await sql<{ status: string, interval: string, trial_ends_at: Date }[]>`
       select status, interval, trial_ends_at from organization_subscriptions
-      where organization_id = ${workspace!.id}
+      where organization_id = ${team!.id}
     `
     expect(subscription?.status).toBe('trialing')
     expect(subscription?.interval).toBe('yearly')
     expect(subscription!.trial_ends_at.getTime()).toBeGreaterThan(Date.now())
 
     const [audit] = await sql<{ action: string }[]>`
-      select action from organization_audit_logs where organization_id = ${workspace!.id}
+      select action from organization_audit_logs where organization_id = ${team!.id}
     `
     expect(audit?.action).toBe('organization.created')
   })
 
-  it('refuses a reserved workspace address', async () => {
+  it('refuses a reserved team address', async () => {
     const ada = await signUp('Ada Lovelace', 'ada', 'ada@example.com')
-    await expect(createWorkspace(ada.headers, 'Settings', 'settings')).rejects.toThrow()
+    await expect(createTeam(ada.headers, 'Settings', 'settings')).rejects.toThrow()
   })
 
   it('keeps a retired address reserved so old links cannot be hijacked', async () => {
     const ada = await signUp('Ada Lovelace', 'ada', 'ada@example.com')
-    const workspace = await createWorkspace(ada.headers)
+    const team = await createTeam(ada.headers)
 
     await sql`
-      insert into organization_slug_history (organization_id, slug) values (${workspace!.id}, 'retired')
+      insert into organization_slug_history (organization_id, slug) values (${team!.id}, 'retired')
     `
 
     const grace = await signUp('Grace Hopper', 'grace', 'grace@example.com')
-    await expect(createWorkspace(grace.headers, 'Retired', 'retired')).rejects.toThrow()
+    await expect(createTeam(grace.headers, 'Retired', 'retired')).rejects.toThrow()
   })
 
-  it('resolves a renamed workspace by its old address', async () => {
+  it('resolves a renamed team by its old address', async () => {
     const ada = await signUp('Ada Lovelace', 'ada', 'ada@example.com')
-    const workspace = await createWorkspace(ada.headers)
+    const team = await createTeam(ada.headers)
 
-    await sql`insert into organization_slug_history (organization_id, slug) values (${workspace!.id}, 'acme')`
-    await sql`update organizations set slug = 'acme-design' where id = ${workspace!.id}`
+    await sql`insert into organization_slug_history (organization_id, slug) values (${team!.id}, 'acme')`
+    await sql`update organizations set slug = 'acme-design' where id = ${team!.id}`
 
     const { findOrganizationBySlug } = await import('../utils/organization')
     const found = await findOrganizationBySlug('acme')
 
-    expect(found?.organization.id).toBe(workspace!.id)
+    expect(found?.organization.id).toBe(team!.id)
     expect(found?.renamed).toBe(true)
   })
 
   it('counts only members who joined, and bills a two-seat minimum', async () => {
     const ada = await signUp('Ada Lovelace', 'ada', 'ada@example.com')
-    const workspace = await createWorkspace(ada.headers)
+    const team = await createTeam(ada.headers)
 
     const instance = await auth()
     await instance.api.createInvitation({
-      body: { email: 'grace@example.com', role: 'member', organizationId: workspace!.id },
+      body: { email: 'grace@example.com', role: 'member', organizationId: team!.id },
       headers: ada.headers
     })
 
     const { organizationEntitlement } = await import('../utils/entitlement')
-    const entitlement = await organizationEntitlement(workspace!.id)
+    const entitlement = await organizationEntitlement(team!.id)
 
     // A pending invitation costs nothing until it is accepted.
     expect(entitlement.seatsUsed).toBe(1)
@@ -128,11 +128,11 @@ describe.skipIf(!url)('team workspaces', () => {
   it('lets an invited person join and records it', async () => {
     const ada = await signUp('Ada Lovelace', 'ada', 'ada@example.com')
     const grace = await signUp('Grace Hopper', 'grace', 'grace@example.com')
-    const workspace = await createWorkspace(ada.headers)
+    const team = await createTeam(ada.headers)
 
     const instance = await auth()
     const invitation = await instance.api.createInvitation({
-      body: { email: 'grace@example.com', role: 'admin', organizationId: workspace!.id },
+      body: { email: 'grace@example.com', role: 'admin', organizationId: team!.id },
       headers: ada.headers
     })
 
@@ -142,89 +142,89 @@ describe.skipIf(!url)('team workspaces', () => {
     })
 
     const [membership] = await sql<{ role: string }[]>`
-      select role from members where organization_id = ${workspace!.id} and user_id = ${grace.id}
+      select role from members where organization_id = ${team!.id} and user_id = ${grace.id}
     `
     expect(membership?.role).toBe('admin')
 
     const actions = await sql<{ action: string }[]>`
-      select action from organization_audit_logs where organization_id = ${workspace!.id} order by created_at
+      select action from organization_audit_logs where organization_id = ${team!.id} order by created_at
     `
     expect(actions.map(row => row.action)).toContain('invitation.accepted')
   })
 
   it('refuses to let the last owner leave', async () => {
     const ada = await signUp('Ada Lovelace', 'ada', 'ada@example.com')
-    const workspace = await createWorkspace(ada.headers)
+    const team = await createTeam(ada.headers)
     const instance = await auth()
 
     await expect(instance.api.leaveOrganization({
-      body: { organizationId: workspace!.id },
+      body: { organizationId: team!.id },
       headers: ada.headers
     })).rejects.toThrow()
 
     const [membership] = await sql<{ role: string }[]>`
-      select role from members where organization_id = ${workspace!.id} and user_id = ${ada.id}
+      select role from members where organization_id = ${team!.id} and user_id = ${ada.id}
     `
     expect(membership?.role).toBe('owner')
   })
 
   it('treats an expired trial as past due, then read-only after the grace period', async () => {
     const ada = await signUp('Ada Lovelace', 'ada', 'ada@example.com')
-    const workspace = await createWorkspace(ada.headers)
+    const team = await createTeam(ada.headers)
     const { organizationEntitlement } = await import('../utils/entitlement')
 
     await sql`
       update organization_subscriptions set trial_ends_at = now() - interval '1 day'
-      where organization_id = ${workspace!.id}
+      where organization_id = ${team!.id}
     `
-    const justExpired = await organizationEntitlement(workspace!.id)
+    const justExpired = await organizationEntitlement(team!.id)
     expect(justExpired.status).toBe('past_due')
     expect(justExpired.readOnly).toBe(false)
     expect(justExpired.canAddMembers).toBe(false)
 
     await sql`
       update organization_subscriptions set trial_ends_at = now() - interval '30 days'
-      where organization_id = ${workspace!.id}
+      where organization_id = ${team!.id}
     `
-    const lapsed = await organizationEntitlement(workspace!.id)
+    const lapsed = await organizationEntitlement(team!.id)
     expect(lapsed.status).toBe('past_due')
     expect(lapsed.readOnly).toBe(true)
   })
 
-  it('treats a workspace with no subscription row as expired rather than free', async () => {
+  it('treats a team with no subscription row as expired rather than free', async () => {
     const ada = await signUp('Ada Lovelace', 'ada', 'ada@example.com')
-    const workspace = await createWorkspace(ada.headers)
+    const team = await createTeam(ada.headers)
 
-    await sql`delete from organization_subscriptions where organization_id = ${workspace!.id}`
+    await sql`delete from organization_subscriptions where organization_id = ${team!.id}`
 
     const { organizationEntitlement } = await import('../utils/entitlement')
-    const entitlement = await organizationEntitlement(workspace!.id)
+    const entitlement = await organizationEntitlement(team!.id)
 
     expect(entitlement.status).toBe('canceled')
     expect(entitlement.readOnly).toBe(true)
     expect(entitlement.canAddMembers).toBe(false)
   })
 
-  it('blocks account deletion while a workspace would be left ownerless', async () => {
+  it('blocks account deletion while a team would be left ownerless', async () => {
     const ada = await signUp('Ada Lovelace', 'ada', 'ada@example.com')
-    const workspace = await createWorkspace(ada.headers)
-    const { activeWorkspacesOwnedBy } = await import('../utils/organization')
+    const team = await createTeam(ada.headers)
+    const { activeTeamsOwnedBy } = await import('../utils/organization')
 
-    expect(await activeWorkspacesOwnedBy(ada.id)).toHaveLength(1)
+    expect(await activeTeamsOwnedBy(ada.id)).toHaveLength(1)
 
-    // Archiving clears the obligation; the workspace no longer needs an owner.
-    await sql`update organizations set archived_at = now() where id = ${workspace!.id}`
-    expect(await activeWorkspacesOwnedBy(ada.id)).toHaveLength(0)
+    // Archiving clears the obligation; the team no longer needs an owner.
+    await sql`update organizations set archived_at = now() where id = ${team!.id}`
+    expect(await activeTeamsOwnedBy(ada.id)).toHaveLength(0)
   })
 
   it('hands ownership over without ever leaving two owners or none', async () => {
     const ada = await signUp('Ada Lovelace', 'ada', 'ada@example.com')
     const grace = await signUp('Grace Hopper', 'grace', 'grace@example.com')
-    const workspace = await createWorkspace(ada.headers)
+    const team = await createTeam(ada.headers)
     const instance = await auth()
 
     const invitation = await instance.api.createInvitation({
-      body: { email: 'grace@example.com', role: 'member', organizationId: workspace!.id },
+      body: { email: 'grace@example.com', role: 'member', organizationId: team!.id },
       headers: ada.headers
     })
     await instance.api.acceptInvitation({
@@ -233,24 +233,157 @@ describe.skipIf(!url)('team workspaces', () => {
     })
 
     const [graceMember] = await sql<{ id: string }[]>`
-      select id from members where organization_id = ${workspace!.id} and user_id = ${grace.id}
+      select id from members where organization_id = ${team!.id} and user_id = ${grace.id}
     `
 
     await sql.begin(async (tx) => {
       await tx`update members set role = 'owner' where id = ${graceMember!.id}`
       await tx`
         update members set role = 'admin'
-        where organization_id = ${workspace!.id} and user_id = ${ada.id}
+        where organization_id = ${team!.id} and user_id = ${ada.id}
       `
     })
 
     const roles = await sql<{ role: string }[]>`
-      select role from members where organization_id = ${workspace!.id} order by role
+      select role from members where organization_id = ${team!.id} order by role
     `
     expect(roles.map(row => row.role)).toEqual(['admin', 'owner'])
 
     const { countMembersWithRole } = await import('../utils/organization')
-    expect(await countMembersWithRole(workspace!.id, 'owner')).toBe(1)
+    expect(await countMembersWithRole(team!.id, 'owner')).toBe(1)
+  })
+
+  it('applies a payment once even when the webhook and redirect race', async () => {
+    const ada = await signUp('Ada Lovelace', 'ada', 'ada@example.com')
+    const team = await createTeam(ada.headers)
+    const { markInvoicePaid } = await import('../utils/billing')
+    const { organizationEntitlement } = await import('../utils/entitlement')
+
+    const reference = 'schedra-team-test-reference'
+    await sql`
+      insert into organization_invoices
+        (organization_id, reference, status, interval, seats, amount_cents, period_start, period_end)
+      values
+        (${team!.id}, ${reference}, 'pending', 'yearly', 2, 16000, now(), now() + interval '1 year')
+    `
+
+    // Both deliveries arrive at once, which is the normal case, not the edge.
+    const [first, second] = await Promise.all([
+      markInvoicePaid({ reference, chargeId: 'chr_1', settlementAmountCents: 15800 }),
+      markInvoicePaid({ reference, chargeId: 'chr_1', settlementAmountCents: 15800 })
+    ])
+
+    expect([first.applied, second.applied].filter(Boolean)).toHaveLength(1)
+
+    const rows = await sql<{ status: string, settlement_amount_cents: number }[]>`
+      select status, settlement_amount_cents from organization_invoices where reference = ${reference}
+    `
+    expect(rows).toHaveLength(1)
+    expect(rows[0]!.status).toBe('paid')
+    // The settlement amount is credited, never the gross charge.
+    expect(rows[0]!.settlement_amount_cents).toBe(15800)
+
+    const entitlement = await organizationEntitlement(team!.id)
+    expect(entitlement.status).toBe('active')
+    expect(entitlement.readOnly).toBe(false)
+  })
+
+  it('ignores a payment for a reference it does not know', async () => {
+    const { markInvoicePaid } = await import('../utils/billing')
+    const result = await markInvoicePaid({ reference: 'not-a-real-reference' })
+
+    expect(result.applied).toBe(false)
+    expect(result.reason).toBe('unknown-reference')
+  })
+
+  it('refuses a host who is not in the team, or a schedule that is not theirs', async () => {
+    const ada = await signUp('Ada Lovelace', 'ada', 'ada@example.com')
+    const grace = await signUp('Grace Hopper', 'grace', 'grace@example.com')
+    const team = await createTeam(ada.headers)
+    const { resolveHosts } = await import('../utils/team-event-types')
+
+    const [adaMember] = await sql<{ id: string }[]>`
+      select id from members where organization_id = ${team!.id} and user_id = ${ada.id}
+    `
+
+    // Grace has an account and a starter schedule, but never joined the team.
+    const [graceSchedule] = await sql<{ id: string }[]>`
+      select id from schedules where user_id = ${grace.id} limit 1
+    `
+    const [adaSchedule] = await sql<{ id: string }[]>`
+      select id from schedules where user_id = ${ada.id} limit 1
+    `
+
+    const outsider = { memberId: crypto.randomUUID(), scheduleId: null, enabled: true, weight: 100 }
+    await expect(resolveHosts(team!.id, [outsider])).rejects.toThrow()
+
+    // Ada is a member, but the schedule she pinned belongs to Grace.
+    await expect(resolveHosts(team!.id, [
+      { memberId: adaMember!.id, scheduleId: graceSchedule!.id, enabled: true, weight: 100 }
+    ])).rejects.toThrow()
+
+    const allowed = await resolveHosts(team!.id, [
+      { memberId: adaMember!.id, scheduleId: adaSchedule!.id, enabled: true, weight: 100 }
+    ])
+    expect(allowed).toHaveLength(1)
+    expect(allowed[0]!.userId).toBe(ada.id)
+  })
+
+  it('drops someone as a host the moment they leave the team', async () => {
+    const ada = await signUp('Ada Lovelace', 'ada', 'ada@example.com')
+    const grace = await signUp('Grace Hopper', 'grace', 'grace@example.com')
+    const team = await createTeam(ada.headers)
+    const instance = await auth()
+
+    const invitation = await instance.api.createInvitation({
+      body: { email: 'grace@example.com', role: 'member', organizationId: team!.id },
+      headers: ada.headers
+    })
+    await instance.api.acceptInvitation({ body: { invitationId: invitation!.id }, headers: grace.headers })
+
+    const [graceMember] = await sql<{ id: string }[]>`
+      select id from members where organization_id = ${team!.id} and user_id = ${grace.id}
+    `
+    const [eventType] = await sql<{ id: string }[]>`
+      insert into event_types (organization_id, user_id, slug, title, duration_minutes, assignment_mode)
+      values (${team!.id}, ${ada.id}, 'team-intro', 'Team intro', 30, 'round_robin')
+      returning id
+    `
+    await sql`
+      insert into event_type_hosts (event_type_id, member_id, user_id)
+      values (${eventType!.id}, ${graceMember!.id}, ${grace.id})
+    `
+
+    expect(await sql`select id from event_type_hosts where event_type_id = ${eventType!.id}`).toHaveLength(1)
+
+    await instance.api.removeMember({
+      body: { memberIdOrEmail: graceMember!.id, organizationId: team!.id },
+      headers: ada.headers
+    })
+
+    // The event survives; the departed member simply stops being assignable.
+    expect(await sql`select id from event_type_hosts where event_type_id = ${eventType!.id}`).toHaveLength(0)
+    expect(await sql`select id from event_types where id = ${eventType!.id}`).toHaveLength(1)
+  })
+
+  it('scopes an event type slug to its owner, not globally', async () => {
+    const ada = await signUp('Ada Lovelace', 'ada', 'ada@example.com')
+    const team = await createTeam(ada.headers)
+
+    // Ada already has a personal '30min' from onboarding; the team may reuse it.
+    await sql`
+      insert into event_types (organization_id, user_id, slug, title, duration_minutes)
+      values (${team!.id}, ${ada.id}, '30min', 'Team 30 min', 30)
+    `
+
+    const rows = await sql<{ slug: string }[]>`select slug from event_types where slug = '30min'`
+    expect(rows).toHaveLength(2)
+
+    // But the same team cannot have two.
+    await expect(sql`
+      insert into event_types (organization_id, user_id, slug, title, duration_minutes)
+      values (${team!.id}, ${ada.id}, '30min', 'Duplicate', 30)
+    `).rejects.toThrow()
   })
 
   it('gives owners more than admins, and members nothing', async () => {

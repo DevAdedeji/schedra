@@ -16,7 +16,7 @@ const pending = ref(false)
 const error = ref('')
 const ready = ref(false)
 
-// Arriving from a workspace invitation: the address is fixed to the one that
+// Arriving from a team invitation: the address is fixed to the one that
 // was invited, because membership is only granted when the two match.
 const inviteId = computed(() => String(route.query.invite ?? ''))
 const { data: invitation } = await useAsyncData(

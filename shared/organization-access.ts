@@ -31,7 +31,7 @@ export const ownerRole = accessControl.newRole({
 })
 
 /**
- * Admins run the workspace day to day but cannot touch anything that is either
+ * Admins run the team day to day but cannot touch anything that is either
  * irreversible or financial: archiving, billing, the public slug, and handing
  * over ownership all stay with the owner.
  */

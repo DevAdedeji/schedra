@@ -4,7 +4,7 @@ export const RESERVED_USERNAMES = new Set([
   'admin', 'api', 'app', 'auth', 'billing', 'blog', 'dashboard', 'designs',
   'docs', 'help', 'integrations', 'invite', 'login', 'logout', 'me', 'new', 'pricing',
   'privacy', 'schedra', 'settings', 'signin', 'signup', 'support', 'team', 'terms',
-  'w', 'workspaces', 'www'
+  't', 'teams', 'w', 'workspaces', 'www'
 ])
 
 export const usernameSchema = z
@@ -246,7 +246,7 @@ function isHttpUrl(value: string) {
   }
 }
 
-export const eventTypeSchema = z.object({
+const eventTypeBaseSchema = z.object({
   title: z.string().trim().min(1, 'Required').max(100, 'At most 100 characters'),
   slug: eventTypeSlugSchema,
   description: z.string().trim().max(1000, 'At most 1000 characters').optional(),
@@ -265,7 +265,16 @@ export const eventTypeSchema = z.object({
   requiresConfirmation: z.boolean().default(false),
   scheduleId: z.uuid().optional(),
   hidden: z.boolean()
-}).superRefine((value, context) => {
+})
+
+interface EventTypeShape {
+  bookingQuestions: BookingQuestion[]
+  locationType: MeetingLocationType
+  locationDetails: string
+}
+
+/** Shared by personal and team event types, which differ only in who hosts. */
+function refineEventType(value: EventTypeShape, context: z.RefinementCtx) {
   const questionIds = value.bookingQuestions.map(question => question.id)
   if (new Set(questionIds).size !== questionIds.length) {
     context.addIssue({
@@ -290,6 +299,63 @@ export const eventTypeSchema = z.object({
       message: 'Enter a complete link beginning with https:// or http://.'
     })
   }
-})
+}
+
+export const eventTypeSchema = eventTypeBaseSchema.superRefine(refineEventType)
 
 export type EventTypeInput = z.infer<typeof eventTypeSchema>
+
+export const assignmentModeSchema = z.enum(['single', 'round_robin', 'collective'])
+export type AssignmentMode = z.infer<typeof assignmentModeSchema>
+
+export const teamEventTypeHostSchema = z.object({
+  memberId: z.uuid(),
+  // Null means the host's default schedule at booking time, so reorganising
+  // their availability never quietly drops them out of rotation.
+  scheduleId: z.uuid().nullable().default(null),
+  enabled: z.boolean().default(true),
+  weight: z.number().int().min(1).max(1000).default(100)
+})
+
+export type TeamEventTypeHostInput = z.infer<typeof teamEventTypeHostSchema>
+
+// A team event borrows each host's own schedule, so there is no single
+// scheduleId on the event itself.
+export const teamEventTypeSchema = eventTypeBaseSchema
+  .omit({ scheduleId: true })
+  .extend({
+    assignmentMode: assignmentModeSchema,
+    hosts: z.array(teamEventTypeHostSchema).min(1, 'Choose at least one host.').max(50)
+  })
+  .superRefine((value, context) => {
+    refineEventType(value, context)
+
+    const memberIds = value.hosts.map(host => host.memberId)
+    if (new Set(memberIds).size !== memberIds.length) {
+      context.addIssue({
+        code: 'custom',
+        path: ['hosts'],
+        message: 'Each host can only be added once.'
+      })
+    }
+
+    const active = value.hosts.filter(host => host.enabled)
+    if (!active.length) {
+      context.addIssue({
+        code: 'custom',
+        path: ['hosts'],
+        message: 'At least one host must be active, or nobody can be booked.'
+      })
+      return
+    }
+
+    if (value.assignmentMode === 'single' && active.length !== 1) {
+      context.addIssue({
+        code: 'custom',
+        path: ['hosts'],
+        message: 'A single-host event needs exactly one active host.'
+      })
+    }
+  })
+
+export type TeamEventTypeInput = z.infer<typeof teamEventTypeSchema>

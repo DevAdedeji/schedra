@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 /**
- * Personal workspaces stay free forever — they are the funnel. Organizations
+ * Personal teams stay free forever — they are the funnel. Organizations
  * are billed per occupied seat, so adding a member never blocks on a purchased
  * seat count; it just changes what the next invoice says.
  */
@@ -90,7 +90,7 @@ export function fromDecimalString(amount: string | number | null | undefined) {
 export const RESERVED_ORGANIZATION_SLUGS = new Set([
   'about', 'admin', 'api', 'app', 'billing', 'checkout', 'docs', 'help', 'invite',
   'login', 'new', 'pricing', 'privacy', 'schedra', 'settings', 'signup', 'support',
-  'team', 'teams', 'terms', 'w', 'www'
+  't', 'team', 'teams', 'terms', 'w', 'workspaces', 'www'
 ])
 
 export const organizationSlugSchema = z

@@ -1,40 +1,40 @@
 <script setup lang="ts">
-import type { WorkspaceSummary } from '~/services/schedra-api'
+import type { TeamSummary } from '~/services/schedra-api'
 
 const props = defineProps<{ collapsedLabel?: string }>()
 
 const route = useRoute()
-const { data, refresh } = await useWorkspaces()
+const { data, refresh } = await useTeams()
 const creating = ref(false)
 
-const workspaces = computed<WorkspaceSummary[]>(() => data.value?.items ?? [])
+const teams = computed<TeamSummary[]>(() => data.value?.items ?? [])
 const activeSlug = computed(() => (
-  route.path.startsWith('/w/') ? String(route.params.slug ?? '') : ''
+  route.path.startsWith('/t/') ? String(route.params.slug ?? '') : ''
 ))
-const active = computed(() => workspaces.value.find(item => item.slug === activeSlug.value) ?? null)
+const active = computed(() => teams.value.find(item => item.slug === activeSlug.value) ?? null)
 
 function initials(name: string) {
   return name.split(' ').map(part => part[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
 }
 
 const items = computed(() => [
-  [{ label: 'Workspace', type: 'label' as const }],
+  [{ label: 'Team', type: 'label' as const }],
   [{
     label: 'Personal',
     icon: 'i-lucide-user',
     to: '/dashboard',
     active: !activeSlug.value
   }],
-  workspaces.value.length
-    ? workspaces.value.map(workspace => ({
-        label: workspace.name,
+  teams.value.length
+    ? teams.value.map(team => ({
+        label: team.name,
         icon: 'i-lucide-users',
-        to: `/w/${workspace.slug}`,
-        active: workspace.slug === activeSlug.value
+        to: `/t/${team.slug}`,
+        active: team.slug === activeSlug.value
       }))
-    : [{ label: 'No workspaces yet', type: 'label' as const }],
+    : [{ label: 'No teams yet', type: 'label' as const }],
   [{
-    label: 'Create workspace',
+    label: 'Create team',
     icon: 'i-lucide-plus',
     onSelect: () => { creating.value = true }
   }]
@@ -50,7 +50,7 @@ const menuUi = {
 async function onCreated(slug: string) {
   creating.value = false
   await refresh()
-  await navigateTo(`/w/${slug}`)
+  await navigateTo(`/t/${slug}`)
 }
 </script>
 
@@ -65,7 +65,7 @@ async function onCreated(slug: string) {
       <button
         type="button"
         class="flex w-full items-center gap-2.5 rounded-lg border border-default bg-default px-2.5 py-2 text-left transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-        :aria-label="`Current workspace: ${active?.name ?? 'Personal'}. Switch workspace`"
+        :aria-label="`Current team: ${active?.name ?? 'Personal'}. Switch team`"
       >
         <span
           class="flex size-6 shrink-0 items-center justify-center rounded-md text-[10px] font-semibold"
@@ -90,7 +90,7 @@ async function onCreated(slug: string) {
       </button>
     </UDropdownMenu>
 
-    <WorkspaceCreateModal
+    <TeamCreateModal
       v-model:open="creating"
       @created="onCreated"
     />

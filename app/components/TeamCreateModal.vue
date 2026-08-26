@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { createOrganizationSchema, TEAM_PLAN, formatUsd } from '#shared/billing'
-import { apiErrorMessage, workspacesApi, type SlugAvailability } from '~/services/schedra-api'
+import { apiErrorMessage, teamsApi, type SlugAvailability } from '~/services/schedra-api'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ 'update:open': [value: boolean], 'created': [slug: string] }>()
@@ -44,7 +44,7 @@ watch(() => form.slug, (value) => {
   checking.value = true
   debounce = setTimeout(async () => {
     try {
-      const result = await workspacesApi.slugAvailable(value)
+      const result = await teamsApi.slugAvailable(value)
       if (current === request && value === form.slug) availability.value = result
     } catch {
       if (current === request) availability.value = null
@@ -83,7 +83,7 @@ async function create() {
 
   try {
     const result = await authClient.organization.create({ name: form.name, slug: form.slug })
-    if (result.error) throw new Error(result.error.message ?? 'Could not create that workspace.')
+    if (result.error) throw new Error(result.error.message ?? 'Could not create that team.')
 
     feedback.success({
       title: `${form.name} is ready`,
@@ -91,7 +91,7 @@ async function create() {
     })
     emit('created', form.slug)
   } catch (failure) {
-    error.value = apiErrorMessage(failure, 'Could not create that workspace.')
+    error.value = apiErrorMessage(failure, 'Could not create that team.')
   } finally {
     saving.value = false
   }
@@ -101,18 +101,18 @@ async function create() {
 <template>
   <UModal
     v-model:open="isOpen"
-    title="Create a workspace"
+    title="Create a team"
     description="Share booking links your whole team can host."
     :ui="{ content: 'w-full max-w-lg', footer: 'border-t border-default px-5 py-4 sm:px-6' }"
   >
     <template #body>
       <form
-        id="workspace-create-form"
+        id="team-create-form"
         class="space-y-5 px-1 py-1"
         @submit.prevent="create"
       >
         <UFormField
-          label="Workspace name"
+          label="Team name"
           name="name"
           required
         >
@@ -126,7 +126,7 @@ async function create() {
         </UFormField>
 
         <UFormField
-          label="Workspace address"
+          label="Team address"
           name="slug"
           required
           :help="`This is where your team's public booking links live.`"
@@ -189,11 +189,11 @@ async function create() {
         </UButton>
         <UButton
           type="submit"
-          form="workspace-create-form"
+          form="team-create-form"
           :loading="saving"
           :disabled="!valid"
         >
-          Create workspace
+          Create team
         </UButton>
       </div>
     </template>

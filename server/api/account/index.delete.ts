@@ -4,7 +4,7 @@ import { users } from '../../database/schema'
 import { useDatabase } from '../../utils/database'
 import { requireAuthSession } from '../../utils/session'
 import { disconnectGoogleCalendar } from '../../utils/google-calendar'
-import { activeWorkspacesOwnedBy } from '../../utils/organization'
+import { activeTeamsOwnedBy } from '../../utils/organization'
 import { useAuth } from '../../utils/auth'
 
 export default defineEventHandler(async (event) => {
@@ -15,8 +15,8 @@ export default defineEventHandler(async (event) => {
   }
 
   // Deleting the account would cascade the membership away and leave the
-  // workspace ownerless, so the handover has to happen first.
-  const owned = await activeWorkspacesOwnedBy(session.user.id)
+  // team ownerless, so the handover has to happen first.
+  const owned = await activeTeamsOwnedBy(session.user.id)
 
   if (owned.length) {
     throw createError({

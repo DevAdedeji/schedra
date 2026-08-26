@@ -11,10 +11,10 @@ const initials = computed(() => (user.value?.name ?? '')
 const leaving = ref(false)
 const route = useRoute()
 
-// The workspace comes from the URL, never a stored "active workspace", so two
-// tabs open on different workspaces can never act on each other's data.
-const workspaceSlug = computed(() => (
-  route.path.startsWith('/w/') ? String(route.params.slug ?? '') : ''
+// The team comes from the URL, never a stored "active team", so two
+// tabs open on different teams can never act on each other's data.
+const teamSlug = computed(() => (
+  route.path.startsWith('/t/') ? String(route.params.slug ?? '') : ''
 ))
 
 const personalLinks = [
@@ -25,10 +25,12 @@ const personalLinks = [
   { label: 'Integrations', to: '/integrations', icon: 'i-lucide-blocks' }
 ]
 
-const links = computed(() => (workspaceSlug.value
+const links = computed(() => (teamSlug.value
   ? [
-      { label: 'Members', to: `/w/${workspaceSlug.value}/members`, icon: 'i-lucide-users' },
-      { label: 'Settings', to: `/w/${workspaceSlug.value}/settings`, icon: 'i-lucide-settings' }
+      { label: 'Event types', to: `/t/${teamSlug.value}/event-types`, icon: 'i-lucide-link-2' },
+      { label: 'Members', to: `/t/${teamSlug.value}/members`, icon: 'i-lucide-users' },
+      { label: 'Billing', to: `/t/${teamSlug.value}/billing`, icon: 'i-lucide-credit-card' },
+      { label: 'Settings', to: `/t/${teamSlug.value}/settings`, icon: 'i-lucide-settings' }
     ]
   : personalLinks))
 
@@ -63,34 +65,34 @@ const menu = computed(() => [
 
 // On mobile every destination lives in this one menu — nothing hides behind a
 // second control.
-const { data: workspaceList, refresh: refreshWorkspaces } = await useWorkspaces()
-const creatingWorkspace = ref(false)
+const { data: teamList, refresh: refreshTeams } = await useTeams()
+const creatingTeam = ref(false)
 
 const mobileMenu = computed(() => [
   menu.value[0]!,
   links.value.map(link => ({ ...link, active: route.path === link.to })),
   [
-    { label: 'Workspace', type: 'label' as const },
-    { label: 'Personal', icon: 'i-lucide-user', to: '/dashboard', active: !workspaceSlug.value },
-    ...(workspaceList.value?.items ?? []).map(workspace => ({
-      label: workspace.name,
+    { label: 'Team', type: 'label' as const },
+    { label: 'Personal', icon: 'i-lucide-user', to: '/dashboard', active: !teamSlug.value },
+    ...(teamList.value?.items ?? []).map(team => ({
+      label: team.name,
       icon: 'i-lucide-users',
-      to: `/w/${workspace.slug}`,
-      active: workspace.slug === workspaceSlug.value
+      to: `/t/${team.slug}`,
+      active: team.slug === teamSlug.value
     })),
     {
-      label: 'Create workspace',
+      label: 'Create team',
       icon: 'i-lucide-plus',
-      onSelect: () => { creatingWorkspace.value = true }
+      onSelect: () => { creatingTeam.value = true }
     }
   ],
   ...menu.value.slice(1)
 ])
 
-async function onWorkspaceCreated(slug: string) {
-  creatingWorkspace.value = false
-  await refreshWorkspaces()
-  await navigateTo(`/w/${slug}`)
+async function onTeamCreated(slug: string) {
+  creatingTeam.value = false
+  await refreshTeams()
+  await navigateTo(`/t/${slug}`)
 }
 
 const menuUi = {
@@ -121,7 +123,7 @@ const mobileMenuUi = {
       </div>
 
       <div class="px-3 pb-4">
-        <WorkspaceSwitcher />
+        <TeamSwitcher />
       </div>
 
       <nav class="flex-1 space-y-2 px-3">
@@ -238,9 +240,9 @@ const mobileMenuUi = {
       </div>
     </main>
 
-    <WorkspaceCreateModal
-      v-model:open="creatingWorkspace"
-      @created="onWorkspaceCreated"
+    <TeamCreateModal
+      v-model:open="creatingTeam"
+      @created="onTeamCreated"
     />
   </div>
 </template>

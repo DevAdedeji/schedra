@@ -7,7 +7,7 @@ import { requireAuthSession } from '../utils/session'
 
 export default defineEventHandler(async (event) => {
   await requireAuthSession(event)
-  await enforceRateLimit(event, { namespace: 'workspace-slug-available', limit: 60, windowSeconds: 60 })
+  await enforceRateLimit(event, { namespace: 'team-slug-available', limit: 60, windowSeconds: 60 })
 
   const parsed = organizationSlugSchema.safeParse(getQuery(event).slug ?? '')
   if (!parsed.success) {

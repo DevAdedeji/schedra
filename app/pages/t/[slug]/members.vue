@@ -2,11 +2,11 @@
 import { TEAM_PLAN, formatUsd, invitableRoles, type InvitableRole, type OrganizationRole } from '#shared/billing'
 import {
   apiErrorMessage,
-  workspacesApi,
-  type WorkspaceDetail,
-  type WorkspaceInvitationsResponse,
-  type WorkspaceMemberRecord,
-  type WorkspaceMembersResponse
+  teamsApi,
+  type TeamDetail,
+  type TeamInvitationsResponse,
+  type TeamMemberRecord,
+  type TeamMembersResponse
 } from '~/services/schedra-api'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
@@ -16,11 +16,11 @@ const slug = computed(() => String(route.params.slug ?? ''))
 const authClient = useAuthClient()
 const feedback = useFeedback()
 
-const { data: workspace, refresh: refreshWorkspace, error: workspaceFailure }
-  = await useLazyFetch<WorkspaceDetail>(() => workspacesApi.detailEndpoint(slug.value))
+const { data: team, refresh: refreshTeam, error: teamFailure }
+  = await useLazyFetch<TeamDetail>(() => teamsApi.detailEndpoint(slug.value))
 
 useSeoMeta({
-  title: () => workspace.value ? `${workspace.value.organization.name} members` : 'Workspace members',
+  title: () => team.value ? `${team.value.organization.name} members` : 'Team members',
   robots: 'noindex, nofollow'
 })
 
@@ -33,21 +33,21 @@ const membersQuery = computed(() => ({
   filter: filter.value, search: search.value, page: page.value, pageSize: 10
 }))
 const { data: members, refresh: refreshMembers, status, error: membersFailure }
-  = await useLazyFetch<WorkspaceMembersResponse>(() => workspacesApi.membersEndpoint(slug.value), { query: membersQuery })
+  = await useLazyFetch<TeamMembersResponse>(() => teamsApi.membersEndpoint(slug.value), { query: membersQuery })
 
 const { data: invitations, refresh: refreshInvitations }
-  = await useLazyFetch<WorkspaceInvitationsResponse>(() => workspacesApi.invitationsEndpoint(slug.value), {
+  = await useLazyFetch<TeamInvitationsResponse>(() => teamsApi.invitationsEndpoint(slug.value), {
     query: { pageSize: 50 },
     immediate: false
   })
 
-const permissions = computed(() => workspace.value?.permissions)
-const entitlement = computed(() => workspace.value?.entitlement)
+const permissions = computed(() => team.value?.permissions)
+const entitlement = computed(() => team.value?.entitlement)
 const list = computed(() => members.value?.items ?? [])
 const pendingInvites = computed(() => invitations.value?.items ?? [])
 const initialLoading = computed(() => status.value === 'pending' && !members.value)
 const refreshing = computed(() => status.value === 'pending' && Boolean(members.value))
-const blockingFailure = computed(() => Boolean((membersFailure.value || workspaceFailure.value) && !members.value))
+const blockingFailure = computed(() => Boolean((membersFailure.value || teamFailure.value) && !members.value))
 
 watch(() => permissions.value?.inviteMembers, (allowed) => {
   if (allowed) refreshInvitations()
@@ -104,7 +104,7 @@ async function sendInvite() {
     const result = await authClient.organization.inviteMember({
       email: inviteEmail.value.trim().toLowerCase(),
       role: inviteRole.value,
-      organizationId: workspace.value?.organization.id
+      organizationId: team.value?.organization.id
     })
     if (result.error) throw new Error(result.error.message ?? 'Could not send that invitation.')
 
@@ -115,7 +115,7 @@ async function sendInvite() {
     inviteEmail.value = ''
     inviteRole.value = 'member'
     inviting.value = false
-    await Promise.all([refreshInvitations(), refreshWorkspace()])
+    await Promise.all([refreshInvitations(), refreshTeam()])
   } catch (failure) {
     inviteError.value = apiErrorMessage(failure, 'Could not send that invitation.')
   } finally {
@@ -137,13 +137,13 @@ async function revokeInvite(id: string, email: string) {
   }
 }
 
-async function changeRole(member: WorkspaceMemberRecord, role: InvitableRole) {
+async function changeRole(member: TeamMemberRecord, role: InvitableRole) {
   busyId.value = member.id
   try {
     const result = await authClient.organization.updateMemberRole({
       memberId: member.id,
       role,
-      organizationId: workspace.value?.organization.id
+      organizationId: team.value?.organization.id
     })
     if (result.error) throw new Error(result.error.message ?? 'Could not change that role.')
     feedback.success({ title: 'Role updated', description: `${member.name} is now ${role === 'admin' ? 'an admin' : 'a member'}.` })
@@ -155,16 +155,16 @@ async function changeRole(member: WorkspaceMemberRecord, role: InvitableRole) {
   }
 }
 
-async function removeMember(member: WorkspaceMemberRecord) {
+async function removeMember(member: TeamMemberRecord) {
   busyId.value = member.id
   try {
     const result = await authClient.organization.removeMember({
       memberIdOrEmail: member.id,
-      organizationId: workspace.value?.organization.id
+      organizationId: team.value?.organization.id
     })
     if (result.error) throw new Error(result.error.message ?? 'Could not remove that person.')
     feedback.success({ title: 'Member removed', description: `${member.name} no longer has access.` })
-    await Promise.all([refreshMembers(), refreshWorkspace()])
+    await Promise.all([refreshMembers(), refreshTeam()])
   } catch (failure) {
     feedback.error({ title: 'Could not remove', description: apiErrorMessage(failure, 'Please try again.') })
   } finally {
@@ -172,7 +172,7 @@ async function removeMember(member: WorkspaceMemberRecord) {
   }
 }
 
-function memberActions(member: WorkspaceMemberRecord) {
+function memberActions(member: TeamMemberRecord) {
   const actions = []
 
   if (permissions.value?.changeRoles && member.role !== 'owner') {
@@ -183,7 +183,7 @@ function memberActions(member: WorkspaceMemberRecord) {
 
   if (permissions.value?.removeMembers && member.role !== 'owner' && !member.isYou) {
     actions.push({
-      label: 'Remove from workspace',
+      label: 'Remove from team',
       icon: 'i-lucide-user-minus',
       color: 'error' as const,
       onSelect: () => removeMember(member)
@@ -194,23 +194,23 @@ function memberActions(member: WorkspaceMemberRecord) {
 }
 
 async function retry() {
-  await Promise.all([refreshWorkspace(), refreshMembers()])
+  await Promise.all([refreshTeam(), refreshMembers()])
 }
 </script>
 
 <template>
   <div class="space-y-6">
     <PageHeader
-      :title="workspace?.organization.name ?? 'Workspace'"
+      :title="team?.organization.name ?? 'Team'"
       description="Everyone here can host team meetings. Personal booking pages stay private."
     >
       <template #actions>
         <UButton
-          v-if="permissions?.updateWorkspace"
+          v-if="permissions?.updateTeam"
           color="neutral"
           variant="outline"
           icon="i-lucide-settings"
-          :to="`/w/${slug}/settings`"
+          :to="`/t/${slug}/settings`"
         >
           Settings
         </UButton>
@@ -253,7 +253,7 @@ async function retry() {
         class="size-4 shrink-0 text-error"
       />
       <p class="min-w-0 flex-1 text-[13px] text-muted">
-        <span class="font-medium text-highlighted">This workspace is read-only.</span>
+        <span class="font-medium text-highlighted">This team is read-only.</span>
         Team booking pages are not taking new bookings. Everything is still here and exportable.
       </p>
     </div>
@@ -322,7 +322,7 @@ async function retry() {
 
       <AsyncErrorState
         v-if="blockingFailure"
-        title="Could not load this workspace"
+        title="Could not load this team"
         description="It may have been archived, or your access may have changed."
         :retrying="refreshing"
         @retry="retry"
@@ -427,7 +427,7 @@ async function retry() {
 
     <UModal
       v-model:open="inviting"
-      title="Invite to this workspace"
+      title="Invite to this team"
       :description="`They keep their own booking page — joining only adds team scheduling.`"
       :ui="{ content: 'w-full max-w-md', footer: 'border-t border-default px-5 py-4 sm:px-6' }"
     >
