@@ -123,10 +123,7 @@ async function syncBooking(bookingId: string, action: CalendarSyncAction) {
           description: booking.eventDescription,
           startsAt: booking.startsAt,
           endsAt: booking.endsAt,
-          attendeeName: booking.attendeeName,
-          attendeeEmail: booking.attendeeEmail,
-          additionalGuestEmails: booking.additionalGuestEmails,
-          notes: bookingAnswersText(booking.answers).slice(0, 1000) || null
+          attendeeName: booking.attendeeName
         }
       )
       const joinUrl = remote.joinUrl ?? conferenceMapping?.joinUrl

@@ -38,9 +38,6 @@ export interface ZoomMeetingInput {
   startsAt: Date
   endsAt: Date
   attendeeName: string
-  attendeeEmail: string
-  additionalGuestEmails: string[]
-  notes: string | null
 }
 
 export class ZoomUnavailableError extends Error {}
@@ -254,9 +251,6 @@ function meetingBody(input: ZoomMeetingInput) {
   const agenda = [
     marker(input.uid),
     input.description,
-    `Guest: ${input.attendeeName} (${input.attendeeEmail})`,
-    input.additionalGuestEmails.length ? `Additional guests: ${input.additionalGuestEmails.join(', ')}` : null,
-    input.notes ? `Guest notes:\n${input.notes}` : null,
     `Manage this booking: ${useEnv().schedraUrl}/booking/${input.uid}`
   ].filter(Boolean).join('\n\n').slice(0, 2000)
 

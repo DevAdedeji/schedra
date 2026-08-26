@@ -168,10 +168,7 @@ describe.skipIf(!url)('Zoom integration', () => {
       description: null,
       startsAt: new Date('2026-09-07T08:00:00Z'),
       endsAt: new Date('2026-09-07T08:30:00Z'),
-      attendeeName: 'Guest Person',
-      attendeeEmail: 'guest@example.com',
-      additionalGuestEmails: [],
-      notes: null
+      attendeeName: 'Guest Person'
     })
 
     expect(remote).toEqual({ id: '123456789', joinUrl: 'https://zoom.us/j/123456789?pwd=safe' })
@@ -214,6 +211,10 @@ describe.skipIf(!url)('Zoom integration', () => {
       meetingUrl: 'https://zoom.us/j/987654321?pwd=safe',
       meetingId: '987654321'
     })
+    const createRequest = requests.find(request => request.method === 'POST' && request.url.endsWith('/users/me/meetings'))
+    expect(createRequest?.body).toContain('Project review')
+    expect(createRequest?.body).toContain('Guest Person')
+    expect(createRequest?.body).not.toContain('guest@example.com')
 
     await sql`
       update bookings

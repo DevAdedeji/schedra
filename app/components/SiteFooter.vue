@@ -24,6 +24,15 @@ const columns = computed<{ title: string, links: FooterLink[] }[]>(() => [
           { label: 'Create your link', to: '/signup' },
           { label: 'Sign in', to: '/login' }
         ]
+  },
+  {
+    title: 'Company',
+    links: [
+      { label: 'Support', to: '/support' },
+      { label: 'Privacy', to: '/privacy' },
+      { label: 'Terms', to: '/terms' },
+      { label: 'Zoom guide', to: '/docs/integrations/zoom' }
+    ]
   }
 ])
 
@@ -33,7 +42,7 @@ const year = new Date().getFullYear()
 <template>
   <footer class="border-t border-default bg-muted">
     <div class="mx-auto max-w-312 px-6 lg:px-10">
-      <div class="grid gap-12 py-16 md:grid-cols-[1.4fr_repeat(2,1fr)]">
+      <div class="grid gap-12 py-16 sm:grid-cols-2 lg:grid-cols-[1.4fr_repeat(3,1fr)]">
         <div>
           <SchedraMark />
           <p class="mt-5 max-w-[28ch] text-[15px] leading-relaxed text-muted">

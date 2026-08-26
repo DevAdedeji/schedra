@@ -19,6 +19,10 @@ export default defineNuxtConfig({
   routeRules: {
     '/': { prerender: true },
     '/pricing': { prerender: true },
+    '/privacy': { prerender: true },
+    '/terms': { prerender: true },
+    '/support': { prerender: true },
+    '/docs/integrations/zoom': { prerender: true },
     '/embed.js': {
       headers: {
         'access-control-allow-origin': '*',
