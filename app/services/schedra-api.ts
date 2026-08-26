@@ -1,4 +1,5 @@
 import type { PaginationMeta } from '#shared/pagination'
+import type { InvitableRole, OrganizationEntitlement, OrganizationRole } from '#shared/billing'
 import type { BookingAnswer, BookingQuestion, EventTypeInput, MeetingLocationType } from '#shared/validation'
 import type { EventTypeRecord } from '~/types/event-type'
 import type { ScheduleOverrideRecord, ScheduleRecord, ScheduleRuleRecord } from '~/types/schedule'
@@ -112,6 +113,7 @@ export interface CurrentProfile {
   id: string
   name: string
   email: string
+  emailVerified: boolean
   username: string
   bio: string | null
   avatarUrl: string | null
@@ -227,4 +229,129 @@ export const publicBookingApi = {
   profileEndpoint: (username: string) => resource('/api/profile', username),
   pageEndpoint: (username: string, slug: string) => resource(resource('/api/booking-page', username), slug),
   availabilityEndpoint: '/api/availability' as const
+}
+
+export interface WorkspaceSummary {
+  id: string
+  name: string
+  slug: string
+  logo: string | null
+  role: OrganizationRole
+  joinedAt: string
+  entitlement: OrganizationEntitlement
+}
+
+export interface WorkspacePermissions {
+  inviteMembers: boolean
+  removeMembers: boolean
+  changeRoles: boolean
+  updateWorkspace: boolean
+  changeAddress: boolean
+  transferOwnership: boolean
+  manageBilling: boolean
+  archiveWorkspace: boolean
+  manageEventTypes: boolean
+  viewAllBookings: boolean
+}
+
+export interface WorkspaceDetail {
+  organization: { id: string, name: string, slug: string, logo: string | null, archived: boolean }
+  role: OrganizationRole
+  entitlement: OrganizationEntitlement
+  permissions: WorkspacePermissions
+}
+
+export interface WorkspaceMemberRecord {
+  id: string
+  userId: string
+  role: OrganizationRole
+  joinedAt: string
+  name: string
+  email: string
+  username: string
+  avatarUrl: string | null
+  timeZone: string
+  isYou: boolean
+}
+
+export interface WorkspaceMembersResponse {
+  items: WorkspaceMemberRecord[]
+  pagination: PaginationMeta
+  counts: { all: number, owner: number, admin: number, member: number }
+}
+
+export interface WorkspaceInvitationRecord {
+  id: string
+  email: string
+  role: InvitableRole
+  expiresAt: string
+  createdAt: string
+  expired: boolean
+  inviterName: string
+  inviterEmail: string
+}
+
+export interface WorkspaceInvitationsResponse {
+  items: WorkspaceInvitationRecord[]
+  pagination: PaginationMeta
+}
+
+export interface WorkspaceAuditRecord {
+  id: string
+  action: string
+  targetType: string | null
+  targetId: string | null
+  metadata: Record<string, unknown> | null
+  createdAt: string
+  actorName: string | null
+  actorEmail: string | null
+}
+
+export interface WorkspaceAuditResponse {
+  items: WorkspaceAuditRecord[]
+  pagination: PaginationMeta
+}
+
+export type InvitationState
+  = 'pending' | 'accepted' | 'rejected' | 'canceled' | 'expired' | 'archived' | 'workspace_full'
+
+export interface InvitationPreview {
+  state: InvitationState
+  email: string
+  role: InvitableRole
+  expiresAt: string
+  organization: { name: string, slug: string }
+  inviterName: string
+}
+
+export interface SlugAvailability {
+  available: boolean
+  reason: 'invalid' | 'taken' | null
+  message: string
+}
+
+export const workspacesApi = {
+  listEndpoint: '/api/workspaces' as const,
+  detailEndpoint: (slug: string) => resource('/api/workspaces', slug),
+  membersEndpoint: (slug: string) => resource('/api/workspaces', slug, '/members'),
+  invitationsEndpoint: (slug: string) => resource('/api/workspaces', slug, '/invitations'),
+  auditEndpoint: (slug: string) => resource('/api/workspaces', slug, '/audit'),
+  slugAvailable: (slug: string) => $fetch<SlugAvailability>('/api/workspace-slug-available', { query: { slug } }),
+  updateAddress: (slug: string, next: string) => $fetch<{ slug: string }>(
+    resource('/api/workspaces', slug, '/address'),
+    { method: 'PATCH', body: { slug: next } }
+  ),
+  transferOwnership: (slug: string, memberId: string) => $fetch<{ ownerMemberId: string, yourRole: 'admin' }>(
+    resource('/api/workspaces', slug, '/transfer-ownership'),
+    { method: 'POST', body: { memberId } }
+  ),
+  archive: (slug: string, confirmation: string) => $fetch<{ archived: true, cancelledBookings: number }>(
+    resource('/api/workspaces', slug, '/archive'),
+    { method: 'POST', body: { confirmation } }
+  )
+}
+
+export const invitationsApi = {
+  previewEndpoint: (id: string) => resource('/api/invitations', id),
+  preview: (id: string) => $fetch<InvitationPreview>(resource('/api/invitations', id))
 }

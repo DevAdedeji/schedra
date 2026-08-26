@@ -9,7 +9,9 @@ const route = useRoute()
 const { signIn } = useAuthClient()
 const { data: methods } = useCurrentUser()
 
-const state = reactive({ email: '', password: '' })
+// Prefilled when arriving from a workspace invitation, so the address the
+// invitation was sent to is the one they sign in with.
+const state = reactive({ email: String(route.query.email ?? ''), password: '' })
 const remember = ref(true)
 const pending = ref(false)
 const error = ref('')

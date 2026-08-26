@@ -2,8 +2,9 @@ import { z } from 'zod'
 
 export const RESERVED_USERNAMES = new Set([
   'admin', 'api', 'app', 'auth', 'billing', 'blog', 'dashboard', 'designs',
-  'docs', 'help', 'integrations', 'login', 'logout', 'me', 'new', 'pricing', 'privacy',
-  'schedra', 'settings', 'signin', 'signup', 'support', 'team', 'terms', 'www'
+  'docs', 'help', 'integrations', 'invite', 'login', 'logout', 'me', 'new', 'pricing',
+  'privacy', 'schedra', 'settings', 'signin', 'signup', 'support', 'team', 'terms',
+  'w', 'workspaces', 'www'
 ])
 
 export const usernameSchema = z

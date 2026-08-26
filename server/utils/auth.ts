@@ -1,12 +1,18 @@
+import { sql } from 'drizzle-orm'
 import { betterAuth } from 'better-auth'
 import { APIError } from 'better-auth/api'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
+import { organization } from 'better-auth/plugins/organization'
 import { accountProfileSchema } from '../../shared/validation'
+import { TEAM_PLAN, createOrganizationSchema } from '../../shared/billing'
+import { accessControl, organizationAccessRoles } from '../../shared/organization-access'
 import * as schema from '../database/schema'
 import { useDatabase } from './database'
 import { createStarterSetup } from './onboarding'
 import { emailDedupeKey, enqueueEmails } from './email-outbox'
 import { useEnv } from './env'
+import { assertCanAddMember, organizationEntitlement, startTrial } from './entitlement'
+import { countMembersWithRole, recordAudit } from './organization'
 
 function createAuth() {
   const env = useEnv()
@@ -92,6 +98,194 @@ function createAuth() {
       }
     },
 
+    plugins: [
+      organization({
+        ac: accessControl,
+        roles: organizationAccessRoles,
+        creatorRole: 'owner',
+        organizationLimit: 5,
+
+        invitationExpiresIn: TEAM_PLAN.invitationExpiryDays * 24 * 60 * 60,
+        // Re-inviting supersedes the old link, so a revoked or forwarded
+        // invitation cannot be redeemed after a fresh one goes out.
+        cancelPendingInvitationsOnReInvite: true,
+        // The invited address is the proof of ownership, so it has to be
+        // verified before the invitation can be redeemed.
+        requireEmailVerificationOnInvitation: true,
+
+        membershipLimit: async (_user, org) => {
+          const entitlement = await organizationEntitlement(org.id)
+          return entitlement.seatLimit
+        },
+
+        // Archiving replaces deletion so booking history and audit records
+        // survive; the endpoint that archives also frees the public slug.
+        disableOrganizationDeletion: true,
+
+        sendInvitationEmail: async (data) => {
+          const url = `${env.schedraUrl}/invite/${data.id}`
+          await enqueueEmails([{
+            dedupeKey: emailDedupeKey('organization-invitation', data.id),
+            email: {
+              to: data.email,
+              subject: `${data.inviter.user.name} invited you to ${data.organization.name} on Schedra`,
+              preheader: `Join ${data.organization.name} to share team booking links.`,
+              heading: `Join ${data.organization.name}`,
+              body: `${data.inviter.user.name} (${data.inviter.user.email}) invited you to join ${data.organization.name} on Schedra as ${data.role === 'admin' ? 'an admin' : 'a member'}.\n\nYour personal booking page, availability and calendar stay yours — joining a workspace never moves or shares them.`,
+              action: { label: 'Review the invitation', url },
+              footer: `This invitation expires in ${TEAM_PLAN.invitationExpiryDays} days and can only be accepted by ${data.email}. If you were not expecting it, you can safely ignore this email.`
+            }
+          }])
+        },
+
+        organizationHooks: {
+          beforeCreateOrganization: async ({ organization: draft }) => {
+            const parsed = createOrganizationSchema.safeParse({
+              name: draft.name,
+              slug: draft.slug
+            })
+
+            if (!parsed.success) {
+              throw new APIError('BAD_REQUEST', {
+                code: 'INVALID_ORGANIZATION',
+                message: parsed.error.issues[0]?.message ?? 'Those workspace details are not valid.'
+              })
+            }
+
+            // A slug retired by a rename still resolves old booking links, so
+            // it cannot be handed to a different workspace.
+            const [taken] = await useDatabase()
+              .select({ id: schema.organizationSlugHistory.id })
+              .from(schema.organizationSlugHistory)
+              .where(sql`lower(${schema.organizationSlugHistory.slug}) = ${parsed.data.slug}`)
+              .limit(1)
+
+            if (taken) {
+              throw new APIError('BAD_REQUEST', {
+                code: 'SLUG_TAKEN',
+                message: 'That workspace address is already taken.'
+              })
+            }
+
+            return { data: { ...draft, ...parsed.data } }
+          },
+
+          afterCreateOrganization: async ({ organization: created, user }) => {
+            await startTrial(created.id)
+            await recordAudit({
+              organizationId: created.id,
+              actorUserId: user.id,
+              actorEmail: user.email,
+              action: 'organization.created',
+              metadata: { name: created.name, slug: created.slug }
+            })
+          },
+
+          // The public slug is how old booking links resolve, so renames go
+          // through an endpoint that records the previous one.
+          beforeUpdateOrganization: async ({ organization: changes }) => {
+            if (changes.slug !== undefined) {
+              throw new APIError('BAD_REQUEST', {
+                code: 'SLUG_CHANGE_NOT_ALLOWED',
+                message: 'Change the workspace address from workspace settings so old links keep working.'
+              })
+            }
+          },
+
+          // Seats are billed as occupied, so acceptance is where the bill grows
+          // — and where a workspace behind on payment has to stop growing.
+          beforeAcceptInvitation: async ({ invitation }) => {
+            await assertCanAddMember(invitation.organizationId)
+          },
+
+          afterAcceptInvitation: async ({ invitation, member, user }) => {
+            await recordAudit({
+              organizationId: invitation.organizationId,
+              actorUserId: user.id,
+              actorEmail: user.email,
+              action: 'invitation.accepted',
+              targetType: 'member',
+              targetId: member.id,
+              metadata: { role: invitation.role, email: invitation.email }
+            })
+          },
+
+          afterRejectInvitation: async ({ invitation, user }) => {
+            await recordAudit({
+              organizationId: invitation.organizationId,
+              actorUserId: user.id,
+              actorEmail: invitation.email,
+              action: 'invitation.rejected',
+              targetType: 'invitation',
+              targetId: invitation.id
+            })
+          },
+
+          afterCreateInvitation: async ({ invitation, inviter }) => {
+            await recordAudit({
+              organizationId: invitation.organizationId,
+              actorUserId: inviter.id,
+              actorEmail: inviter.email,
+              action: 'invitation.sent',
+              targetType: 'invitation',
+              targetId: invitation.id,
+              metadata: { email: invitation.email, role: invitation.role }
+            })
+          },
+
+          afterCancelInvitation: async ({ invitation, cancelledBy }) => {
+            await recordAudit({
+              organizationId: invitation.organizationId,
+              actorUserId: cancelledBy.id,
+              actorEmail: cancelledBy.email,
+              action: 'invitation.revoked',
+              targetType: 'invitation',
+              targetId: invitation.id,
+              metadata: { email: invitation.email }
+            })
+          },
+
+          afterUpdateMemberRole: async ({ member, previousRole, user }) => {
+            await recordAudit({
+              organizationId: member.organizationId,
+              actorUserId: user.id,
+              actorEmail: user.email,
+              action: 'member.role_changed',
+              targetType: 'member',
+              targetId: member.id,
+              metadata: { from: previousRole, to: member.role }
+            })
+          },
+
+          // An organization must always have an owner, so the last one cannot
+          // leave or be removed until ownership is transferred.
+          beforeRemoveMember: async ({ member }) => {
+            if (member.role !== 'owner') return
+
+            const remaining = await countMembersWithRole(member.organizationId, 'owner')
+            if (remaining <= 1) {
+              throw new APIError('BAD_REQUEST', {
+                code: 'LAST_OWNER',
+                message: 'Transfer ownership to someone else before leaving this workspace.'
+              })
+            }
+          },
+
+          afterRemoveMember: async ({ member, user }) => {
+            await recordAudit({
+              organizationId: member.organizationId,
+              actorUserId: user.id,
+              actorEmail: user.email,
+              action: 'member.removed',
+              targetType: 'member',
+              targetId: member.id,
+              metadata: { userId: member.userId }
+            })
+          }
+        }
+      })
+    ],
+
     databaseHooks: {
       user: {
         create: {
@@ -141,7 +335,6 @@ function createAuth() {
 }
 
 async function deriveUsername(seed: string) {
-  const { sql } = await import('drizzle-orm')
   const { users } = schema
   const db = useDatabase()
 

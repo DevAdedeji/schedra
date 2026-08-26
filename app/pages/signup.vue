@@ -1,18 +1,36 @@
 <script setup lang="ts">
 import type { FormSubmitEvent } from '@nuxt/ui'
 import { signUpFormSchema, type SignUpFormInput } from '#shared/validation'
+import { invitationsApi } from '~/services/schedra-api'
 
 definePageMeta({ layout: 'auth', middleware: 'guest' })
 useSeoMeta({ title: 'Create your Schedra link', robots: 'noindex, nofollow' })
 
 const { signUp } = useAuthClient()
 const { data: methods } = useCurrentUser()
+const route = useRoute()
 
 const state = reactive({ name: '', username: '', email: '', password: '' })
 const touched = ref(false)
 const pending = ref(false)
 const error = ref('')
 const ready = ref(false)
+
+// Arriving from a workspace invitation: the address is fixed to the one that
+// was invited, because membership is only granted when the two match.
+const inviteId = computed(() => String(route.query.invite ?? ''))
+const { data: invitation } = await useAsyncData(
+  () => `signup-invitation:${inviteId.value}`,
+  async () => {
+    if (!inviteId.value) return null
+    return invitationsApi.preview(inviteId.value).catch(() => null)
+  },
+  { watch: [inviteId] }
+)
+
+watch(invitation, (value) => {
+  if (value?.email) state.email = value.email
+}, { immediate: true })
 
 const strength = usePasswordStrength(toRef(state, 'password'))
 
@@ -110,7 +128,10 @@ async function onSubmit(event: FormSubmitEvent<SignUpFormInput>) {
   error.value = ''
 
   const { email } = event.data
-  const callbackURL = `/verify-email?verified=1&email=${encodeURIComponent(email)}`
+  // Verifying returns them to the invitation so joining is one continuous flow.
+  const callbackURL = inviteId.value
+    ? `/invite/${encodeURIComponent(inviteId.value)}`
+    : `/verify-email?verified=1&email=${encodeURIComponent(email)}`
 
   try {
     const { error: failure } = await signUp.email({
@@ -136,10 +157,15 @@ async function onSubmit(event: FormSubmitEvent<SignUpFormInput>) {
 <template>
   <div>
     <h1 class="font-editorial text-[2.75rem] leading-[1.02] tracking-[-0.02em] text-highlighted">
-      Create your link.
+      {{ invitation ? `Join ${invitation.organization.name}.` : 'Create your link.' }}
     </h1>
     <p class="mt-3 text-[15px] leading-relaxed text-muted">
-      Free, and about two minutes. You can change any of this later.
+      <template v-if="invitation">
+        Create your Schedra account to accept the invitation. You get your own booking page too.
+      </template>
+      <template v-else>
+        Free, and about two minutes. You can change any of this later.
+      </template>
     </p>
 
     <template v-if="methods?.google">
@@ -206,8 +232,15 @@ async function onSubmit(event: FormSubmitEvent<SignUpFormInput>) {
           size="xl"
           autocomplete="email"
           placeholder="ada@example.com"
+          :disabled="Boolean(invitation)"
           class="w-full"
         />
+        <p
+          v-if="invitation"
+          class="mt-1.5 text-[12px] text-muted"
+        >
+          {{ invitation.organization.name }} invited this address, so it cannot be changed here.
+        </p>
       </UFormField>
 
       <UFormField

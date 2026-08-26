@@ -8,7 +8,16 @@ const user = computed(() => data.value?.user)
 const initials = computed(() => (user.value?.name ?? '')
   .split(' ').map(part => part[0]).filter(Boolean).slice(0, 2).join('').toUpperCase())
 
-const links = [
+const leaving = ref(false)
+const route = useRoute()
+
+// The workspace comes from the URL, never a stored "active workspace", so two
+// tabs open on different workspaces can never act on each other's data.
+const workspaceSlug = computed(() => (
+  route.path.startsWith('/w/') ? String(route.params.slug ?? '') : ''
+))
+
+const personalLinks = [
   { label: 'Overview', to: '/dashboard', icon: 'i-lucide-layout-dashboard' },
   { label: 'Event types', to: '/event-types', icon: 'i-lucide-link-2' },
   { label: 'Bookings', to: '/bookings', icon: 'i-lucide-calendar-days' },
@@ -16,8 +25,12 @@ const links = [
   { label: 'Integrations', to: '/integrations', icon: 'i-lucide-blocks' }
 ]
 
-const leaving = ref(false)
-const route = useRoute()
+const links = computed(() => (workspaceSlug.value
+  ? [
+      { label: 'Members', to: `/w/${workspaceSlug.value}/members`, icon: 'i-lucide-users' },
+      { label: 'Settings', to: `/w/${workspaceSlug.value}/settings`, icon: 'i-lucide-settings' }
+    ]
+  : personalLinks))
 
 async function leave() {
   leaving.value = true
@@ -48,11 +61,37 @@ const menu = computed(() => [
   [{ label: 'Sign out', icon: 'i-lucide-log-out', onSelect: leave }]
 ])
 
+// On mobile every destination lives in this one menu — nothing hides behind a
+// second control.
+const { data: workspaceList, refresh: refreshWorkspaces } = await useWorkspaces()
+const creatingWorkspace = ref(false)
+
 const mobileMenu = computed(() => [
   menu.value[0]!,
-  links.map(link => ({ ...link, active: route.path === link.to })),
+  links.value.map(link => ({ ...link, active: route.path === link.to })),
+  [
+    { label: 'Workspace', type: 'label' as const },
+    { label: 'Personal', icon: 'i-lucide-user', to: '/dashboard', active: !workspaceSlug.value },
+    ...(workspaceList.value?.items ?? []).map(workspace => ({
+      label: workspace.name,
+      icon: 'i-lucide-users',
+      to: `/w/${workspace.slug}`,
+      active: workspace.slug === workspaceSlug.value
+    })),
+    {
+      label: 'Create workspace',
+      icon: 'i-lucide-plus',
+      onSelect: () => { creatingWorkspace.value = true }
+    }
+  ],
   ...menu.value.slice(1)
 ])
+
+async function onWorkspaceCreated(slug: string) {
+  creatingWorkspace.value = false
+  await refreshWorkspaces()
+  await navigateTo(`/w/${slug}`)
+}
 
 const menuUi = {
   content: 'w-56',
@@ -79,6 +118,10 @@ const mobileMenuUi = {
         >
           <SchedraMark />
         </NuxtLink>
+      </div>
+
+      <div class="px-3 pb-4">
+        <WorkspaceSwitcher />
       </div>
 
       <nav class="flex-1 space-y-2 px-3">
@@ -194,5 +237,10 @@ const mobileMenuUi = {
         <slot />
       </div>
     </main>
+
+    <WorkspaceCreateModal
+      v-model:open="creatingWorkspace"
+      @created="onWorkspaceCreated"
+    />
   </div>
 </template>

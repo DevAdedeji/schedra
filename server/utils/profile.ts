@@ -7,6 +7,7 @@ export async function profileForUser(userId: string) {
     id: users.id,
     name: users.name,
     email: users.email,
+    emailVerified: users.emailVerified,
     username: users.username,
     timeZone: users.timeZone,
     bio: users.bio,
