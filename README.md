@@ -7,7 +7,8 @@ A proprietary scheduling platform for personal and team bookings, built with Nux
 > rescheduling, additional guests, host approval, custom guest questions,
 > meeting locations, calendar-file downloads, configurable reminders, durable
 > SMTP/Resend email delivery and Google Calendar conflict/event/Meet sync
-> are implemented. Teams, webhooks and embeds are not implemented yet. The
+> are implemented. Team workspaces, shared event types, invitations and
+> cross-site booking embeds are implemented; webhooks are not yet available. The
 > homepage slot picker is an explicitly labelled interactive preview.
 
 ## Stack
@@ -74,6 +75,46 @@ Each needs its own Google authorised redirect URI, at
 `${SCHEDRA_URL}/api/integrations/google-calendar/callback`. The Google Calendar
 API must be enabled for the OAuth project before users connect calendars.
 
+## Embedding a booking page
+
+Open **Event types**, choose **Embed on website** for an active personal event,
+or use the same action from a team's event-type menu. The generator provides a
+responsive snippet, theme and accent controls, optional visitor prefilling, and
+a live preview.
+
+The standard button installation is plain HTML:
+
+```html
+<button
+  type="button"
+  data-schedra-embed="https://schedra.xyz/your-name/consultation"
+  data-schedra-theme="auto"
+  data-schedra-accent="#FF3D00"
+>
+  Book a meeting
+</button>
+<script async src="https://schedra.xyz/embed.js"></script>
+```
+
+Use a team URL such as `https://schedra.xyz/team/acme/consultation` in the same
+attribute for a shared event type. The loader also supports an existing button
+or a floating launcher. The generated script must come from the same Schedra
+origin as the booking URL, so staging snippets load the staging script.
+
+Optional `data-schedra-name` and `data-schedra-email` attributes prefill the
+guest form. Only use them when the visitor has already shared that information
+with the host website. Schedra forwards the referring hostname and any `utm_*`
+parameters into booking attribution, but parent-page completion events do not
+contain visitor identity.
+
+For application code, `window.SchedraEmbed.open({ bookingUrl })` opens the
+overlay and `window.SchedraEmbed.close()` closes it. The loader dispatches
+`schedra:open`, `schedra:ready`, `schedra:booking-completed`, `schedra:close`
+and `schedra:error` events on `window`.
+
+Only public booking routes can be framed. Account and dashboard routes retain
+their deny-framing security policy.
+
 **Neon** hands out two connection strings. Point `DATABASE_URL` at the pooled
 host (it contains `-pooler`) and `DIRECT_URL` at the direct one. Migrations use
 the direct endpoint because DDL through PgBouncer is unreliable, and the app
@@ -99,7 +140,8 @@ app/
 server/
   domain/             Availability engine — pure, no I/O, no clock
   database/           Drizzle schema, migrations, client
-  utils/auth.ts       Better Auth configuration and server-side profile checks
+  repositories/       Database access grouped by domain
+  services/           Application workflows and external integrations
 ```
 
 Overlapping bookings are prevented by a Postgres `EXCLUDE USING gist`
@@ -120,4 +162,4 @@ and bundled locally at build time, so the site makes no third-party font request
 
 ## License
 
-None yet — default copyright applies until one is chosen.
+Proprietary. See `LICENSE`.

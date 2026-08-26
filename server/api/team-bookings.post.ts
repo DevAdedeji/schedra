@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { and, eq, gt, inArray, sql } from 'drizzle-orm'
-import { emailSchema, timeZoneSchema } from '#shared/validation'
+import { bookingAttributionSchema, bookingSourceSchema, emailSchema, timeZoneSchema } from '#shared/validation'
 import { bookingHosts, bookings } from '../database/schema'
 import { useDatabase } from '../database/index'
 import {
@@ -30,6 +30,8 @@ const bodySchema = z.object({
   timeZone: timeZoneSchema,
   notes: z.string().trim().max(2000).optional(),
   answers: z.record(z.string().trim().min(1).max(64), z.string().trim().max(2000)).optional(),
+  source: bookingSourceSchema.default('hosted'),
+  attribution: bookingAttributionSchema,
   rescheduleOf: z.string().trim().max(64).optional()
 })
 
@@ -44,7 +46,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const { team, slug, start, name, email, guestEmails, timeZone, notes, answers, rescheduleOf } = parsed.data
+  const { team, slug, start, name, email, guestEmails, timeZone, notes, answers, source, attribution, rescheduleOf } = parsed.data
   const eventType = await findPublicTeamEventType(team, slug)
   if (!eventType) throw createError({ statusCode: 404, statusMessage: 'No such booking page' })
 
@@ -176,6 +178,8 @@ export default defineEventHandler(async (event) => {
         locationDetails: eventType.locationDetails,
         meetingUrl: eventType.locationType === 'video_link' ? eventType.locationDetails : null,
         answers: answerSnapshot,
+        source,
+        attribution,
         rescheduledFromId: previous?.id ?? null
       }).returning({ id: bookings.id })
 

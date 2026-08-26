@@ -24,7 +24,10 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const { username, slug, start, name, email, guestEmails: submittedGuestEmails, timeZone, notes, answers, rescheduleOf } = parsed.data
+  const {
+    username, slug, start, name, email, guestEmails: submittedGuestEmails,
+    timeZone, notes, answers, source, attribution, rescheduleOf
+  } = parsed.data
   const eventType = await findPublicEventType(username, slug)
 
   if (!eventType) {
@@ -139,6 +142,8 @@ export default defineEventHandler(async (event) => {
         locationDetails: eventType.locationDetails,
         meetingUrl: eventType.locationType === 'video_link' ? eventType.locationDetails : null,
         answers: answerSnapshot,
+        source,
+        attribution,
         rescheduledFromId: previous?.id ?? null
       }).returning({ id: bookings.id })
 

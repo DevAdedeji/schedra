@@ -14,7 +14,7 @@ definePageMeta({ layout: 'app', middleware: 'auth' })
 const route = useRoute()
 const slug = computed(() => String(route.params.slug ?? ''))
 const feedback = useFeedback()
-const { host } = useSiteUrl()
+const { host, url: siteUrl } = useSiteUrl()
 const { copy } = useCopy()
 
 const { data: team } = await useLazyFetch<TeamDetail>(() => teamsApi.detailEndpoint(slug.value))
@@ -55,6 +55,8 @@ const filterOptions = computed(() => [
 const editing = ref<TeamEventTypeRecord | null>(null)
 const modalOpen = ref(false)
 const busyId = ref('')
+const embedOpen = ref(false)
+const embeddingItem = ref<TeamEventTypeRecord | null>(null)
 
 function create() {
   editing.value = null
@@ -66,6 +68,11 @@ function edit(eventType: TeamEventTypeRecord) {
   modalOpen.value = true
 }
 
+function showEmbed(eventType: TeamEventTypeRecord) {
+  embeddingItem.value = eventType
+  embedOpen.value = true
+}
+
 const assignmentLabel: Record<string, string> = {
   single: 'One host',
   round_robin: 'Round robin',
@@ -73,7 +80,7 @@ const assignmentLabel: Record<string, string> = {
 }
 
 function publicUrl(eventType: TeamEventTypeRecord) {
-  return `${host.value}/team/${slug.value}/${eventType.slug}`
+  return `${siteUrl.value}/team/${slug.value}/${eventType.slug}`
 }
 
 async function remove(eventType: TeamEventTypeRecord) {
@@ -98,6 +105,10 @@ function actions(eventType: TeamEventTypeRecord) {
       if (written) feedback.success({ title: 'Booking link copied' })
       else feedback.error({ title: 'Could not copy', description: 'Copy it from the address shown instead.' })
     }
+  }, {
+    label: 'Embed on website',
+    icon: 'i-lucide-code-xml',
+    onSelect: async () => { showEmbed(eventType) }
   }]
 
   if (permissions.value?.manageEventTypes) {
@@ -267,6 +278,13 @@ function activeHosts(eventType: TeamEventTypeRecord) {
       :members="memberList"
       :event-type="editing"
       @saved="() => refresh()"
+    />
+
+    <EmbedCodeModal
+      v-if="embeddingItem"
+      v-model:open="embedOpen"
+      :booking-url="publicUrl(embeddingItem)"
+      :title="embeddingItem.title"
     />
   </div>
 </template>

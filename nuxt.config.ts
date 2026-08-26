@@ -5,7 +5,7 @@ export default defineNuxtConfig({
   ],
 
   devtools: {
-    enabled: process.env.NODE_ENV !== 'production'
+    enabled: process.env.NODE_ENV !== 'production' && process.env.NUXT_DISABLE_DEVTOOLS !== '1'
   },
 
   css: ['~/assets/css/main.css'],
@@ -19,6 +19,14 @@ export default defineNuxtConfig({
   routeRules: {
     '/': { prerender: true },
     '/pricing': { prerender: true },
+    '/embed.js': {
+      headers: {
+        'access-control-allow-origin': '*',
+        'cache-control': 'public, max-age=300, stale-while-revalidate=86400',
+        'cross-origin-resource-policy': 'cross-origin',
+        'x-content-type-options': 'nosniff'
+      }
+    },
     '/api/**': { headers: { 'cache-control': 'no-store' } },
     '/signup': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
     '/login': { prerender: false, headers: { 'cache-control': 'private, no-store' } },

@@ -251,6 +251,68 @@ describe.skipIf(!url)('Google Calendar integration', () => {
     })
   })
 
+  it('keeps healthy conflict checks when Google rejects a subscribed calendar', async () => {
+    const { hostId } = await createHost()
+    await connect(hostId)
+    await sql`
+      update calendar_connections
+      set conflict_calendar_ids = '["primary@example.com", "holidays@example.com"]'::jsonb
+      where user_id = ${hostId}
+    `
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({
+      calendars: {
+        'primary@example.com': {
+          busy: [{ start: '2026-09-07T09:00:00Z', end: '2026-09-07T09:30:00Z' }]
+        },
+        'holidays@example.com': {
+          errors: [{ domain: 'global', reason: 'notFound' }]
+        }
+      }
+    })))
+
+    const { googleBusyTimes } = await import('../integrations/calendar/google')
+    const busy = await googleBusyTimes(hostId, '2026-09-01T00:00:00Z', '2026-10-01T00:00:00Z')
+
+    expect(busy).toEqual([
+      { start: '2026-09-07T09:00:00Z', end: '2026-09-07T09:30:00Z' }
+    ])
+    const [connection] = await sql<{ conflict_calendar_ids: string[], last_error: string }[]>`
+      select conflict_calendar_ids, last_error
+      from calendar_connections
+      where user_id = ${hostId}
+    `
+    expect(connection?.conflict_calendar_ids).toEqual(['primary@example.com'])
+    expect(connection?.last_error).toContain('1 selected calendar was removed')
+  })
+
+  it('rejects conflict calendars that Google cannot check before saving preferences', async () => {
+    const { hostId } = await createHost()
+    await connect(hostId)
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json({
+        items: [
+          { id: 'primary@example.com', summary: 'Primary', primary: true, accessRole: 'owner' },
+          { id: 'holidays@example.com', summary: 'Holidays', accessRole: 'reader' }
+        ]
+      }))
+      .mockResolvedValueOnce(json({
+        calendars: {
+          'primary@example.com': { busy: [] },
+          'holidays@example.com': { errors: [{ domain: 'global', reason: 'notFound' }] }
+        }
+      }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { CalendarSelectionError, updateGoogleCalendarSelection } = await import('../integrations/calendar/google')
+    const failure = await updateGoogleCalendarSelection(
+      hostId,
+      ['primary@example.com', 'holidays@example.com'],
+      'primary@example.com'
+    ).catch(error => error)
+    expect(failure).toBeInstanceOf(CalendarSelectionError)
+    expect((failure as Error).message).toContain('Google cannot check busy times on Holidays')
+  })
+
   it('deduplicates overlapping Google free-busy checks briefly', async () => {
     const { hostId } = await createHost()
     await connect(hostId)
@@ -518,6 +580,12 @@ describe.skipIf(!url)('Google Calendar integration', () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(json(calendars))
       .mockResolvedValueOnce(json(calendars))
+      .mockResolvedValueOnce(json({
+        calendars: {
+          'primary@example.com': { busy: [] },
+          'read-only@example.com': { busy: [] }
+        }
+      }))
       .mockRejectedValueOnce(new Error('Google is unavailable'))
     vi.stubGlobal('fetch', fetchMock)
 

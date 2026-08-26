@@ -7,16 +7,27 @@ export default defineNitroPlugin((nitro) => {
   const secureOrigin = new URL(useEnv().schedraUrl).protocol === 'https:'
 
   nitro.hooks.hook('request', (event) => {
+    const pathname = event.path.split('?')[0] ?? ''
+    const embedDocument = pathname.startsWith('/embed/')
+    const embedScript = pathname === '/embed.js'
+
     setResponseHeaders(event, {
-      'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Resource-Policy': 'same-origin',
+      'Cross-Origin-Opener-Policy': embedDocument ? 'unsafe-none' : 'same-origin',
+      'Cross-Origin-Resource-Policy': embedDocument || embedScript ? 'cross-origin' : 'same-origin',
       'Origin-Agent-Cluster': '?1',
       'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
       'Referrer-Policy': 'strict-origin-when-cross-origin',
       'X-Content-Type-Options': 'nosniff',
       'X-DNS-Prefetch-Control': 'off',
-      'X-Frame-Options': 'DENY'
+      ...(embedDocument ? {} : { 'X-Frame-Options': 'DENY' })
     })
+
+    if (embedScript) {
+      setResponseHeaders(event, {
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'public, max-age=300, stale-while-revalidate=86400'
+      })
+    }
 
     if (secureOrigin) {
       setResponseHeaders(event, {
@@ -26,7 +37,7 @@ export default defineNitroPlugin((nitro) => {
           `connect-src 'self'`,
           `font-src 'self' data:`,
           `form-action 'self'`,
-          `frame-ancestors 'none'`,
+          embedDocument ? `frame-ancestors http: https:` : `frame-ancestors 'none'`,
           `img-src 'self' data: https:`,
           `manifest-src 'self'`,
           `media-src 'none'`,

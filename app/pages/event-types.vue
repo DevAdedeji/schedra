@@ -12,7 +12,7 @@ const page = ref(1)
 const apiQuery = computed(() => ({ filter: filter.value, search: search.value, page: page.value, pageSize: 10 }))
 const { data, refresh, status, error: loadFailure } = await useLazyFetch<EventTypesResponse>(eventTypesApi.listEndpoint, { query: apiQuery })
 const { data: currentUser } = await useCurrentUser()
-const { host } = useSiteUrl()
+const { host, url: siteUrl } = useSiteUrl()
 const feedback = useFeedback()
 const route = useRoute()
 
@@ -23,6 +23,8 @@ const deletingItem = ref<EventTypeRecord | null>(null)
 const deleting = ref(false)
 const deleteError = ref('')
 const duplicating = ref<string | null>(null)
+const embedOpen = ref(false)
+const embeddingItem = ref<EventTypeRecord | null>(null)
 
 const filters = [
   { value: 'all', label: 'All' },
@@ -67,6 +69,48 @@ function edit(item: EventTypeRecord) {
   selected.value = item
   modalOpen.value = true
 }
+
+function showEmbed(item: EventTypeRecord) {
+  embeddingItem.value = item
+  embedOpen.value = true
+}
+
+function mobileActions(item: EventTypeRecord) {
+  return [[
+    ...(!item.hidden
+      ? [{
+          label: 'Embed on website',
+          icon: 'i-lucide-code-xml',
+          onSelect: () => showEmbed(item)
+        }, {
+          label: 'Preview booking page',
+          icon: 'i-lucide-external-link',
+          to: bookingPath(item),
+          target: '_blank'
+        }]
+      : []),
+    {
+      label: 'Duplicate',
+      icon: 'i-lucide-copy',
+      onSelect: async () => { await duplicate(item) }
+    },
+    {
+      label: 'Edit',
+      icon: 'i-lucide-pencil',
+      onSelect: () => edit(item)
+    },
+    {
+      label: 'Delete',
+      icon: 'i-lucide-trash-2',
+      color: 'error' as const,
+      onSelect: () => requestDelete(item)
+    }
+  ]]
+}
+
+const embedBookingUrl = computed(() => embeddingItem.value
+  ? `${siteUrl.value}${bookingPath(embeddingItem.value)}`
+  : '')
 
 function requestDelete(item: EventTypeRecord) {
   deletingItem.value = item
@@ -310,6 +354,29 @@ function locationLabel(item: EventTypeRecord) {
             </button>
 
             <div class="absolute right-3 top-4 flex items-center gap-0.5 sm:right-5 sm:top-5">
+              <UDropdownMenu :items="mobileActions(item)">
+                <UButton
+                  color="neutral"
+                  variant="ghost"
+                  size="xs"
+                  icon="i-lucide-ellipsis"
+                  class="size-8 justify-center p-0 sm:hidden"
+                  :ui="{ leadingIcon: 'size-4' }"
+                  :aria-label="`Actions for ${item.title}`"
+                  @click.stop
+                />
+              </UDropdownMenu>
+              <UButton
+                v-if="!item.hidden"
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                icon="i-lucide-code-xml"
+                class="hidden size-7 justify-center p-0 sm:inline-flex"
+                :ui="{ leadingIcon: 'size-4' }"
+                aria-label="Embed on website"
+                @click.stop="showEmbed(item)"
+              />
               <UButton
                 v-if="!item.hidden"
                 :to="bookingPath(item)"
@@ -328,7 +395,7 @@ function locationLabel(item: EventTypeRecord) {
                 variant="ghost"
                 size="xs"
                 icon="i-lucide-copy"
-                class="size-7 justify-center p-0"
+                class="hidden size-7 justify-center p-0 sm:inline-flex"
                 :loading="duplicating === item.id"
                 :ui="{ leadingIcon: 'size-4' }"
                 aria-label="Duplicate event type"
@@ -339,7 +406,7 @@ function locationLabel(item: EventTypeRecord) {
                 variant="ghost"
                 size="xs"
                 icon="i-lucide-pencil"
-                class="size-7 justify-center p-0"
+                class="hidden size-7 justify-center p-0 sm:inline-flex"
                 :ui="{ leadingIcon: 'size-4' }"
                 aria-label="Edit event type"
                 @click.stop="edit(item)"
@@ -349,7 +416,7 @@ function locationLabel(item: EventTypeRecord) {
                 variant="ghost"
                 size="xs"
                 icon="i-lucide-trash-2"
-                class="size-7 justify-center p-0 hover:text-error"
+                class="hidden size-7 justify-center p-0 hover:text-error sm:inline-flex"
                 :ui="{ leadingIcon: 'size-4' }"
                 aria-label="Delete event type"
                 @click.stop="requestDelete(item)"
@@ -416,6 +483,13 @@ function locationLabel(item: EventTypeRecord) {
       v-model:open="modalOpen"
       :event-type="selected"
       @saved="saved"
+    />
+
+    <EmbedCodeModal
+      v-if="embeddingItem"
+      v-model:open="embedOpen"
+      :booking-url="embedBookingUrl"
+      :title="embeddingItem.title"
     />
 
     <UModal
