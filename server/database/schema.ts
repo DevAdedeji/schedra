@@ -122,10 +122,11 @@ export const invitations = pgTable('invitations', {
 ])
 
 /**
- * Billing is per occupied seat: the member count at checkout is the Bachs
- * subscription quantity. Bachs cannot change that quantity afterwards, so seats
- * are counted at each renewal rather than prorated mid-period. Paying in USD by
- * card auto-renews; NGN is bank transfer, which nothing can charge for us.
+ * Billing is per occupied seat. Bachs does not yet let an existing subscription
+ * change quantity, so card subscriptions move between fixed-price seat-count
+ * products instead. That gives us immediate proration without postponing a new
+ * member until renewal. NGN remains invoice-based because a bank transfer cannot
+ * be charged automatically.
  */
 export const organizationSubscriptions = pgTable('organization_subscriptions', {
   organizationId: uuid('organization_id').primaryKey().references(() => organizations.id, { onDelete: 'cascade' }),
@@ -635,4 +636,33 @@ export const calendarSyncJobs = pgTable('calendar_sync_jobs', {
   uniqueIndex('calendar_sync_jobs_dedupe_key_key').on(table.dedupeKey),
   index('calendar_sync_jobs_claim_idx').on(table.status, table.availableAt),
   check('calendar_sync_jobs_attempts_non_negative', sql`${table.attempts} >= 0`)
+])
+
+export const billingSyncStatus = pgEnum('billing_sync_status', [
+  'pending',
+  'processing',
+  'completed',
+  'failed'
+])
+
+/**
+ * Membership changes must not depend on Bachs being reachable. Each accepted
+ * or removed membership creates a durable job; workers derive the current seat
+ * count when they run, making rapid or out-of-order changes converge safely.
+ */
+export const subscriptionSeatSyncJobs = pgTable('subscription_seat_sync_jobs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  status: billingSyncStatus('status').notNull().default('pending'),
+  attempts: integer('attempts').notNull().default(0),
+  availableAt: timestamp('available_at', { withTimezone: true }).notNull().defaultNow(),
+  lockedAt: timestamp('locked_at', { withTimezone: true }),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  lastError: text('last_error'),
+  ...timestamps
+}, table => [
+  uniqueIndex('subscription_seat_sync_jobs_organization_key').on(table.organizationId),
+  index('subscription_seat_sync_jobs_claim_idx').on(table.status, table.availableAt),
+  index('subscription_seat_sync_jobs_organization_idx').on(table.organizationId, table.createdAt),
+  check('subscription_seat_sync_jobs_attempts_non_negative', sql`${table.attempts} >= 0`)
 ])

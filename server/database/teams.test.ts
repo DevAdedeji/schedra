@@ -4,7 +4,7 @@ import { configureAppTestEnvironment, getTestDatabaseUrl } from '../../test/help
 
 const url = getTestDatabaseUrl()
 
-const TABLES = 'organization_audit_logs, organization_slug_history, organization_subscriptions, '
+const TABLES = 'subscription_seat_sync_jobs, organization_audit_logs, organization_slug_history, organization_subscriptions, '
   + 'organization_invoices, bachs_webhook_events, booking_hosts, event_type_hosts, invitations, members, email_outbox, api_rate_limits, rate_limits, sessions, accounts, '
   + 'verifications, bookings, event_types, date_overrides, availability_rules, schedules, users, organizations'
 
@@ -145,6 +145,11 @@ describe.skipIf(!url)('teams', () => {
       select role from members where organization_id = ${team!.id} and user_id = ${grace.id}
     `
     expect(membership?.role).toBe('admin')
+
+    const [seatSync] = await sql<{ status: string }[]>`
+      select status from subscription_seat_sync_jobs where organization_id = ${team!.id}
+    `
+    expect(seatSync?.status).toBe('pending')
 
     const actions = await sql<{ action: string }[]>`
       select action from organization_audit_logs where organization_id = ${team!.id} order by created_at
@@ -353,6 +358,10 @@ describe.skipIf(!url)('teams', () => {
       insert into event_type_hosts (event_type_id, member_id, user_id)
       values (${eventType!.id}, ${graceMember!.id}, ${grace.id})
     `
+    await sql`
+      update subscription_seat_sync_jobs set status = 'completed'
+      where organization_id = ${team!.id}
+    `
 
     expect(await sql`select id from event_type_hosts where event_type_id = ${eventType!.id}`).toHaveLength(1)
 
@@ -364,6 +373,10 @@ describe.skipIf(!url)('teams', () => {
     // The event survives; the departed member simply stops being assignable.
     expect(await sql`select id from event_type_hosts where event_type_id = ${eventType!.id}`).toHaveLength(0)
     expect(await sql`select id from event_types where id = ${eventType!.id}`).toHaveLength(1)
+    const [seatSync] = await sql<{ status: string }[]>`
+      select status from subscription_seat_sync_jobs where organization_id = ${team!.id}
+    `
+    expect(seatSync?.status).toBe('pending')
   })
 
   it('preserves the host order chosen for a team event', async () => {

@@ -1,11 +1,12 @@
 import { eq } from 'drizzle-orm'
 import { deleteAccountSchema } from '#shared/validation'
-import { users } from '../../database/schema'
+import { members, users } from '../../database/schema'
 import { useDatabase } from '../../database/index'
 import { requireAuthSession } from '../../services/session'
 import { disconnectGoogleCalendar } from '../../integrations/calendar/google'
 import { activeTeamsOwnedBy } from '../../services/organization'
 import { useAuth } from '../../services/auth'
+import { enqueueSubscriptionSeatSync } from '../../services/subscription-seat-sync'
 
 export default defineEventHandler(async (event) => {
   const session = await requireAuthSession(event)
@@ -25,8 +26,21 @@ export default defineEventHandler(async (event) => {
     })
   }
 
+  const db = useDatabase()
+  const memberships = await db.select({ organizationId: members.organizationId })
+    .from(members)
+    .where(eq(members.userId, session.user.id))
+
   await disconnectGoogleCalendar(session.user.id)
-  const deleted = await useDatabase().delete(users).where(eq(users.id, session.user.id)).returning({ id: users.id })
+  const deleted = await db.transaction(async (tx) => {
+    const rows = await tx.delete(users).where(eq(users.id, session.user.id)).returning({ id: users.id })
+    if (rows.length) {
+      for (const membership of memberships) {
+        await enqueueSubscriptionSeatSync(membership.organizationId, tx)
+      }
+    }
+    return rows
+  })
   if (!deleted.length) throw createError({ statusCode: 404, statusMessage: 'Your account could not be found.' })
 
   // Database cascades remove the session row, but Better Auth's signed cookie

@@ -3,7 +3,8 @@ import { z } from 'zod'
 /**
  * Personal teams stay free forever — they are the funnel. Organizations
  * are billed per occupied seat, so adding a member never blocks on a purchased
- * seat count; it just changes what the next invoice says.
+ * seat count. A joined member updates card subscriptions immediately with
+ * proration; pending invitations remain free.
  */
 export const TEAM_PLAN = {
   currency: 'USD',

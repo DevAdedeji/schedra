@@ -18,6 +18,7 @@ import {
 } from '../integrations/bachs'
 import { organizationEntitlement } from './entitlement'
 import { recordAudit } from './organization'
+import { enqueueSubscriptionSeatSync } from './subscription-seat-sync'
 import { useEnv } from '../config/env'
 
 // Bachs rejects NGN checkouts below ₦1,000. Even the smallest one-seat team
@@ -115,10 +116,12 @@ export async function startCheckout(input: {
   const session = method === 'charge_automatically'
     // USD by card: a recurring product makes Bachs open the session in
     // subscription mode and bill the saved card every period from then on.
-    ? await ensureTeamProduct(input.interval)
+    ? await ensureTeamProduct(input.interval, seats)
         .then(productId => createSubscriptionCheckout({
           productId,
-          quantity: seats,
+          // Bachs cannot mutate subscription quantity yet. The product itself
+          // represents the complete occupied-seat price, so quantity stays one.
+          quantity: 1,
           reference,
           customer: input.customer,
           successUrl,
@@ -246,6 +249,16 @@ export async function applySubscriptionState(subscription: BachsSubscription) {
   const periodEndAt = subscription.current_period_end ?? subscription.next_billed_at
   const status = subscription.status as OrganizationPlanStatus
 
+  const metadataSeats = Number.parseInt(
+    subscription.product?.metadata?.schedra_seats
+    ?? subscription.metadata?.seats
+    ?? '',
+    10
+  )
+  const billedSeats = Number.isInteger(metadataSeats) && metadataSeats > 0
+    ? metadataSeats
+    : subscription.quantity ?? null
+
   await useDatabase().update(organizationSubscriptions).set({
     status,
     collectionMethod: 'charge_automatically',
@@ -253,11 +266,17 @@ export async function applySubscriptionState(subscription: BachsSubscription) {
     currentPeriodEnd: periodEndAt ? new Date(periodEndAt) : null,
     trialEndsAt: subscription.trial_end ? new Date(subscription.trial_end) : null,
     cancelAtPeriodEnd: Boolean(subscription.cancel_at_period_end),
-    seatsAtLastInvoice: subscription.quantity ?? null,
+    seatsAtLastInvoice: billedSeats,
     // Bachs is doing the chasing, so our own grace clock does not apply.
     graceEndsAt: null,
     updatedAt: sql`now()`
   }).where(eq(organizationSubscriptions.organizationId, organizationId))
 
-  return { applied: true, organizationId, status }
+  // A subscription webhook is also a reconciliation signal. This covers the
+  // race where a member joined while the initial checkout was still pending,
+  // and repairs existing subscriptions after a deploy without making webhook
+  // delivery wait on an external plan-change request.
+  await enqueueSubscriptionSeatSync(organizationId)
+
+  return { applied: true, organizationId, status, billedSeats }
 }

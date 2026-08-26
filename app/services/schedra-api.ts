@@ -385,6 +385,13 @@ export interface TeamInvoiceRecord {
 export interface TeamBillingResponse {
   entitlement: OrganizationEntitlement
   configured: boolean
+  seatBilling: {
+    billedSeats: number | null
+    collectionMethod: 'charge_automatically' | 'invoice'
+    syncStatus: 'pending' | 'processing' | 'completed' | 'failed' | null
+    hasError: boolean
+    updatedAt: string | null
+  }
   invoices: TeamInvoiceRecord[]
 }
 
@@ -511,6 +518,10 @@ export const teamAuditApi = {
 
 export const billingApi = {
   summaryEndpoint: (slug: string) => resource('/api/teams', slug, '/billing'),
+  syncSeats: (slug: string) => $fetch<{ queued: true }>(
+    resource('/api/teams', slug, '/billing/sync-seats'),
+    { method: 'POST' }
+  ),
   checkout: (slug: string, body: { interval: BillingInterval, currency: CollectionCurrency }) =>
     $fetch<{ checkoutUrl: string, reference: string }>(
       resource('/api/teams', slug, '/billing/checkout'),
