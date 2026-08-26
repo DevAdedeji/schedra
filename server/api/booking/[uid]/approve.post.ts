@@ -1,10 +1,10 @@
 import { and, eq, gt, sql } from 'drizzle-orm'
 import { bookings } from '../../../database/schema'
-import { bookingNoticeFromManaged, queueBookingEmails } from '../../../utils/booking-emails'
-import { findBookingByUid } from '../../../utils/booking-manage'
-import { enqueueCalendarSync } from '../../../utils/calendar-sync'
-import { requireAuthSession } from '../../../utils/session'
-import { useDatabase } from '../../../utils/database'
+import { bookingNoticeFromManaged, queueBookingEmails } from '../../../services/booking-emails'
+import { assignedHostsForBooking, findBookingByUid } from '../../../repositories/booking'
+import { enqueueCalendarSync } from '../../../services/calendar-sync'
+import { requireAuthSession } from '../../../services/session'
+import { useDatabase } from '../../../database/index'
 
 export default defineEventHandler(async (event) => {
   const session = await requireAuthSession(event)
@@ -12,7 +12,11 @@ export default defineEventHandler(async (event) => {
   if (!uid) throw createError({ statusCode: 400, statusMessage: 'Missing booking.' })
 
   const booking = await findBookingByUid(uid)
-  if (!booking || booking.hostId !== session.user.id) {
+  if (!booking) {
+    throw createError({ statusCode: 404, statusMessage: 'No such booking request.' })
+  }
+  const hosts = await assignedHostsForBooking(booking.id)
+  if (!hosts.some(host => host.userId === session.user.id)) {
     throw createError({ statusCode: 404, statusMessage: 'No such booking request.' })
   }
   if (booking.status !== 'pending') {
@@ -32,7 +36,7 @@ export default defineEventHandler(async (event) => {
 
     if (!approved) throw createError({ statusCode: 409, statusMessage: 'This request expired or was already handled.' })
     await enqueueCalendarSync(booking.id, 'upsert', tx)
-    await queueBookingEmails(bookingNoticeFromManaged(booking), tx)
+    await queueBookingEmails(bookingNoticeFromManaged(booking, hosts), tx)
   })
 
   return { ok: true }

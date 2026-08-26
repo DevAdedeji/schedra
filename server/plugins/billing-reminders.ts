@@ -1,4 +1,4 @@
-import { expireLapsedTeams, processBillingReminders } from '../utils/billing-reminders'
+import { expireLapsedTeams, processBillingReminders } from '../services/billing-reminders'
 
 // Billing deadlines move in days, so this sweeps hourly rather than on the
 // seconds cadence the outbox and calendar workers use.

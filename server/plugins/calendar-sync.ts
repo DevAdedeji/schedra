@@ -1,4 +1,4 @@
-import { processCalendarSyncJobs } from '../utils/calendar-sync'
+import { processCalendarSyncJobs } from '../services/calendar-sync'
 
 export default defineNitroPlugin((nitro) => {
   if (import.meta.prerender) return

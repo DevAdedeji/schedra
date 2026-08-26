@@ -2,10 +2,11 @@ import { and, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { teamEventTypeSchema } from '#shared/validation'
 import { eventTypes } from '../../../../database/schema'
-import { useDatabase } from '../../../../utils/database'
-import { assertTeamWritable } from '../../../../utils/entitlement'
-import { recordAudit, requireOrganizationPermission } from '../../../../utils/organization'
-import { replaceHosts } from '../../../../utils/team-event-types'
+import { useDatabase } from '../../../../database/index'
+import { assertTeamWritable } from '../../../../services/entitlement'
+import { requireTeamLocationIntegrations } from '../../../../services/event-location'
+import { recordAudit, requireOrganizationPermission } from '../../../../services/organization'
+import { replaceHosts, resolveHosts } from '../../../../services/team-event-type'
 
 export default defineEventHandler(async (event) => {
   const slug = getRouterParam(event, 'slug') ?? ''
@@ -27,6 +28,12 @@ export default defineEventHandler(async (event) => {
 
   const { hosts, ...fields } = parsed.data
   const db = useDatabase()
+
+  const resolvedHosts = await resolveHosts(context.organization.id, hosts)
+  await requireTeamLocationIntegrations(
+    resolvedHosts.filter(host => host.enabled).map(host => host.userId),
+    fields.locationType
+  )
 
   await db.transaction(async (tx) => {
     const [existing] = await tx.select({ id: eventTypes.id })

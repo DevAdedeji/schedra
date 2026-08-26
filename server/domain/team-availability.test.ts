@@ -61,9 +61,10 @@ describe('round-robin fairness', () => {
     expect(chosen).toBe('zoe')
   })
 
-  it('is deterministic, so two simultaneous requests pick the same host', () => {
-    // Both then race for the same reservation and Postgres rejects the loser,
-    // which is far safer than each quietly picking a different free host.
+  it('is deterministic when all assignment history is tied', () => {
+    // The booking service serializes the surrounding load-read and write. Once
+    // the first request commits, the second sees its assignment and can choose
+    // the other host instead of racing on this identical snapshot.
     const load = [
       { userId: 'ada', recentCount: 0, lastAssignedAt: null },
       { userId: 'grace', recentCount: 0, lastAssignedAt: null }

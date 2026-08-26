@@ -1,4 +1,4 @@
-import { processEmailOutbox } from '../utils/email-outbox'
+import { processEmailOutbox } from '../services/email-outbox'
 
 export default defineNitroPlugin((nitro) => {
   if (import.meta.prerender) return

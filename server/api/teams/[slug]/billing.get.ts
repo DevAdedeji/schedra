@@ -1,9 +1,9 @@
 import { desc, eq } from 'drizzle-orm'
 import { organizationInvoices } from '../../../database/schema'
-import { useDatabase } from '../../../utils/database'
-import { bachsConfigured } from '../../../utils/bachs'
-import { organizationEntitlement } from '../../../utils/entitlement'
-import { requireOrganizationPermission } from '../../../utils/organization'
+import { useDatabase } from '../../../database/index'
+import { bachsConfigured } from '../../../integrations/bachs'
+import { organizationEntitlement } from '../../../services/entitlement'
+import { requireOrganizationPermission } from '../../../services/organization'
 
 export default defineEventHandler(async (event) => {
   const slug = getRouterParam(event, 'slug') ?? ''

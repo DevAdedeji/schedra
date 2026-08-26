@@ -1,7 +1,7 @@
-import { getAuthSession } from '../utils/session'
-import { useEnv } from '../utils/env'
-import { ensureStarterSetup } from '../utils/onboarding'
-import { profileForUser } from '../utils/profile'
+import { getAuthSession } from '../services/session'
+import { useEnv } from '../config/env'
+import { ensureStarterSetup } from '../services/onboarding'
+import { profileForUser } from '../repositories/profile'
 
 export default defineEventHandler(async (event) => {
   const env = useEnv()

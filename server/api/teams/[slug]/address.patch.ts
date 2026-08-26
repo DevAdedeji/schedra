@@ -2,8 +2,8 @@ import { eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { organizationSlugSchema } from '#shared/billing'
 import { organizationSlugHistory, organizations } from '../../../database/schema'
-import { useDatabase } from '../../../utils/database'
-import { recordAudit, requireOrganizationPermission } from '../../../utils/organization'
+import { useDatabase } from '../../../database/index'
+import { recordAudit, requireOrganizationPermission } from '../../../services/organization'
 
 const bodySchema = z.object({ slug: organizationSlugSchema })
 

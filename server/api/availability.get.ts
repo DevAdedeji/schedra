@@ -1,7 +1,7 @@
 import { z } from 'zod'
-import { findPublicEventType, slotsFor } from '../utils/booking-page'
-import { enforceRateLimit } from '../utils/rate-limit'
-import { CalendarUnavailableError } from '../utils/google-calendar'
+import { findPublicEventType, slotsFor } from '../services/booking-page'
+import { enforceRateLimit } from '../services/rate-limit'
+import { CalendarUnavailableError } from '../integrations/calendar/google'
 
 const query = z.object({
   username: z.string().min(1),

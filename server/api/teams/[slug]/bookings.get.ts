@@ -2,9 +2,9 @@ import { and, count, desc, eq, gte, ilike, inArray, lt, or, sql } from 'drizzle-
 import { z } from 'zod'
 import { paginationMeta, paginationQuerySchema } from '#shared/pagination'
 import { bookingHosts, bookings, eventTypes, users } from '../../../database/schema'
-import { useDatabase } from '../../../utils/database'
+import { useDatabase } from '../../../database/index'
 import { organizationAccessRoles } from '#shared/organization-access'
-import { requireOrganization } from '../../../utils/organization'
+import { requireOrganization } from '../../../services/organization'
 
 const querySchema = paginationQuerySchema.extend({
   filter: z.enum(['upcoming', 'pending', 'past', 'cancelled']).default('upcoming')

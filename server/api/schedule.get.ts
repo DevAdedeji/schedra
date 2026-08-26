@@ -1,8 +1,8 @@
 import { and, asc, desc, eq, gte } from 'drizzle-orm'
 import { availabilityRules, dateOverrides, schedules } from '../database/schema'
-import { useDatabase } from '../utils/database'
-import { requireAuthSession } from '../utils/session'
-import { ensureStarterSetup } from '../utils/onboarding'
+import { useDatabase } from '../database/index'
+import { requireAuthSession } from '../services/session'
+import { ensureStarterSetup } from '../services/onboarding'
 
 export default defineEventHandler(async (event) => {
   const session = await requireAuthSession(event)

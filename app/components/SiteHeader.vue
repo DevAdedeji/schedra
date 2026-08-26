@@ -8,7 +8,15 @@ const links = [
 
 const open = ref(false)
 const colorMode = useColorMode()
+const colorModeReady = ref(false)
+const isDark = computed(() => colorModeReady.value && colorMode.value === 'dark')
 const { isSignedIn, accountDestination } = await useLandingNavigation()
+
+onMounted(() => {
+  // The saved preference only exists in the browser. Keep the first client
+  // render identical to SSR, then reveal the resolved icon after hydration.
+  colorModeReady.value = true
+})
 
 function toggleColorMode() {
   colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark'
@@ -41,8 +49,8 @@ function toggleColorMode() {
             variant="ghost"
             size="sm"
             class="size-11 justify-center"
-            :icon="colorMode.value === 'dark' ? 'i-lucide-sun' : 'i-lucide-moon'"
-            :aria-label="colorMode.value === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
+            :icon="isDark ? 'i-lucide-sun' : 'i-lucide-moon'"
+            :aria-label="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
             @click="toggleColorMode"
           />
           <UButton

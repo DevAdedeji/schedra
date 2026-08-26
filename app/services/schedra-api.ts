@@ -52,6 +52,10 @@ export interface BookingDetail {
   durationMinutes: number
   hostName: string
   hostUsername: string
+  teamName: string | null
+  teamSlug: string | null
+  bookingPath: string
+  hosts: Array<{ name: string, isOrganizer: boolean }>
   notes: string | null
   answers: BookingAnswer[]
   canHostManage: boolean
@@ -463,6 +467,7 @@ export interface CreateTeamBookingInput {
   notes?: string
   answers?: Record<string, string>
   guestEmails?: string[]
+  rescheduleOf?: string
 }
 
 export interface TeamBookingRecord {

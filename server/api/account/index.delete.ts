@@ -1,11 +1,11 @@
 import { eq } from 'drizzle-orm'
 import { deleteAccountSchema } from '#shared/validation'
 import { users } from '../../database/schema'
-import { useDatabase } from '../../utils/database'
-import { requireAuthSession } from '../../utils/session'
-import { disconnectGoogleCalendar } from '../../utils/google-calendar'
-import { activeTeamsOwnedBy } from '../../utils/organization'
-import { useAuth } from '../../utils/auth'
+import { useDatabase } from '../../database/index'
+import { requireAuthSession } from '../../services/session'
+import { disconnectGoogleCalendar } from '../../integrations/calendar/google'
+import { activeTeamsOwnedBy } from '../../services/organization'
+import { useAuth } from '../../services/auth'
 
 export default defineEventHandler(async (event) => {
   const session = await requireAuthSession(event)

@@ -31,7 +31,7 @@ async function signUpAndSignIn(page: Page, account: {
   await page.getByLabel('Your name').fill(account.name)
   await page.getByLabel('Your booking link').fill(account.username)
   await page.getByLabel('Email').fill(account.email)
-  await page.getByLabel('Password').fill('a-production-grade-passphrase')
+  await page.locator('input[name="password"]').fill('a-production-grade-passphrase')
   await expect(page.getByText('Available', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Create my link' }).click()
   await expect(page).toHaveURL(/\/verify-email/)
@@ -41,7 +41,7 @@ async function signUpAndSignIn(page: Page, account: {
   await page.goto('/login')
   await page.waitForLoadState('networkidle')
   await page.getByLabel('Email').fill(account.email)
-  await page.getByLabel('Password').fill('a-production-grade-passphrase')
+  await page.locator('input[name="password"]').fill('a-production-grade-passphrase')
   await page.getByRole('button', { name: 'Sign in' }).click()
   await expect(page).toHaveURL(/\/dashboard$/)
 }
@@ -52,7 +52,7 @@ test('creates an event and completes the guest booking lifecycle', async ({ page
   await page.getByLabel('Your name').fill('E2E Host')
   await page.getByLabel('Your booking link').fill('e2e-host')
   await page.getByLabel('Email').fill('e2e-host@schedra.test')
-  await page.getByLabel('Password').fill('a-production-grade-passphrase')
+  await page.locator('input[name="password"]').fill('a-production-grade-passphrase')
   await expect(page.getByText('Available', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Create my link' }).click()
   await expect(page).toHaveURL(/\/verify-email/)
@@ -62,7 +62,7 @@ test('creates an event and completes the guest booking lifecycle', async ({ page
   await page.goto('/login')
   await page.waitForLoadState('networkidle')
   await page.getByLabel('Email').fill('e2e-host@schedra.test')
-  await page.getByLabel('Password').fill('a-production-grade-passphrase')
+  await page.locator('input[name="password"]').fill('a-production-grade-passphrase')
   await page.getByRole('button', { name: 'Sign in' }).click()
   await expect(page).toHaveURL(/\/dashboard$/)
   await expect(page.getByRole('heading', { name: 'Hello, E2E' })).toBeVisible()
@@ -127,6 +127,82 @@ test('creates an event and completes the guest booking lifecycle', async ({ page
     where category = 'booking_reminder' and status = 'pending'
   `
   expect(liveReminders[0]?.count).toBe(0)
+})
+
+test('lets a guest reschedule a team booking from its private management link', async ({ page }) => {
+  await signUpAndSignIn(page, {
+    name: 'Team Host',
+    username: 'team-host',
+    email: 'team-host@schedra.test'
+  })
+
+  const [host] = await sql<{ id: string }[]>`
+    select id from users where email = 'team-host@schedra.test'
+  `
+  const [schedule] = await sql<{ id: string }[]>`
+    select id from schedules where user_id = ${host!.id} and is_default = true
+  `
+  const [team] = await sql<{ id: string }[]>`
+    insert into organizations (name, slug) values ('E2E Team', 'e2e-team') returning id
+  `
+  const [member] = await sql<{ id: string }[]>`
+    insert into members (organization_id, user_id, role)
+    values (${team!.id}, ${host!.id}, 'owner') returning id
+  `
+  await sql`
+    insert into organization_subscriptions (organization_id, status, trial_ends_at)
+    values (${team!.id}, 'trialing', now() + interval '14 days')
+  `
+  const [eventType] = await sql<{ id: string }[]>`
+    insert into event_types (
+      organization_id, created_by_user_id, slug, title, duration_minutes,
+      assignment_mode, location_type, location_details
+    ) values (
+      ${team!.id}, ${host!.id}, 'team-consultation', 'Team consultation', 30,
+      'single', 'phone', 'The host will call you.'
+    ) returning id
+  `
+  await sql`
+    insert into event_type_hosts (
+      event_type_id, member_id, user_id, schedule_id, enabled, position
+    ) values (${eventType!.id}, ${member!.id}, ${host!.id}, ${schedule!.id}, true, 0)
+  `
+
+  await page.goto('/team/e2e-team/team-consultation')
+  await page.waitForLoadState('networkidle')
+  await page.getByTestId('booking-slot').first().click()
+  await page.getByLabel('Your name').fill('Team Guest')
+  await page.getByLabel('Email').fill('team-guest@schedra.test')
+  await page.getByRole('button', { name: 'Confirm booking' }).click()
+  await expect(page.getByTestId('booking-confirmation')).toContainText('You\'re booked')
+
+  await page.getByRole('link', { name: 'View or change booking' }).click()
+  await expect(page).toHaveURL(/\/booking\/[0-9a-f-]+$/)
+  const originalUid = new URL(page.url()).pathname.split('/').at(-1)!
+  await page.getByRole('link', { name: 'Move to another time' }).click()
+
+  await expect(page).toHaveURL(new RegExp(`/team/e2e-team/team-consultation\\?reschedule=${originalUid}$`))
+  await page.getByTestId('booking-slot').first().click()
+  await expect(page.getByLabel('Your name')).toHaveValue('Team Guest')
+  await expect(page.getByLabel('Email')).toHaveValue('team-guest@schedra.test')
+  await expect(page.getByLabel('Email')).toBeDisabled()
+  await page.getByRole('button', { name: 'Confirm new time' }).click()
+  await expect(page.getByTestId('booking-confirmation')).toContainText('You\'re booked')
+
+  const moved = await sql<{
+    uid: string
+    status: string
+    organization_id: string
+    rescheduled_from_id: string | null
+  }[]>`
+    select uid, status, organization_id, rescheduled_from_id
+    from bookings where attendee_email = 'team-guest@schedra.test'
+    order by created_at
+  `
+  expect(moved).toHaveLength(2)
+  expect(moved[0]).toMatchObject({ uid: originalUid, status: 'cancelled', organization_id: team!.id })
+  expect(moved[1]).toMatchObject({ status: 'confirmed', organization_id: team!.id })
+  expect(moved[1]!.rescheduled_from_id).toBeTruthy()
 })
 
 test('holds approval requests, invites additional guests and duplicates the event safely', async ({ page }) => {
@@ -234,7 +310,8 @@ test('holds approval requests, invites additional guests and duplicates the even
     select count(*)::int as count from email_outbox
     where dedupe_key like ${`booking:${declined!.uid}:rejected:%`}
   `
-  expect(declinedMessages[0]?.count).toBe(1)
+  // The guest and assigned host each receive the relevant rejection notice.
+  expect(declinedMessages[0]?.count).toBe(2)
 
   await page.goto('/event-types')
   await page.waitForLoadState('networkidle')

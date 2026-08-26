@@ -2,9 +2,9 @@ import { and, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { eventTypeSchema } from '#shared/validation'
 import { eventTypes, schedules } from '../../database/schema'
-import { useDatabase } from '../../utils/database'
-import { requireAuthSession } from '../../utils/session'
-import { requireLocationIntegration } from '../../utils/event-location'
+import { useDatabase } from '../../database/index'
+import { requireAuthSession } from '../../services/session'
+import { requireLocationIntegration } from '../../services/event-location'
 
 export default defineEventHandler(async (event) => {
   const session = await requireAuthSession(event)

@@ -27,7 +27,7 @@ describe.skipIf(!url)('profile persistence', () => {
       values ('profile@example.com', 'Original Name', 'profile', null, 'Africa/Lagos')
       returning id
     `
-    const { profileForUser } = await import('../utils/profile')
+    const { profileForUser } = await import('../repositories/profile')
 
     await sql`
       update users
@@ -50,7 +50,7 @@ describe.skipIf(!url)('profile persistence', () => {
     `
     const { eq } = await import('drizzle-orm')
     const { userAvatars, users } = await import('./schema')
-    const { useDatabase } = await import('../utils/database')
+    const { useDatabase } = await import('../database/index')
     const bytes = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
 
     await useDatabase().insert(userAvatars).values({

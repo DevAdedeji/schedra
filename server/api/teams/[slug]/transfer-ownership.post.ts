@@ -1,8 +1,8 @@
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { members, users } from '../../../database/schema'
-import { useDatabase } from '../../../utils/database'
-import { recordAudit, requireOrganizationPermission } from '../../../utils/organization'
+import { useDatabase } from '../../../database/index'
+import { recordAudit, requireOrganizationPermission } from '../../../services/organization'
 
 const bodySchema = z.object({ memberId: z.uuid() })
 

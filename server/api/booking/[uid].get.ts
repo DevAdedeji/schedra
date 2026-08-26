@@ -1,6 +1,6 @@
-import { findBookingByUid } from '../../utils/booking-manage'
-import { readBookingAnswers } from '../../utils/booking-answers'
-import { getAuthSession } from '../../utils/session'
+import { assignedHostsForBooking, findBookingByUid } from '../../repositories/booking'
+import { readBookingAnswers } from '../../domain/booking-answers'
+import { getAuthSession } from '../../services/session'
 
 export default defineEventHandler(async (event) => {
   const uid = getRouterParam(event, 'uid')
@@ -17,6 +17,10 @@ export default defineEventHandler(async (event) => {
 
   const answers = readBookingAnswers(booking.answers)
   const session = await getAuthSession(event)
+  const assignedHosts = await assignedHostsForBooking(booking.id)
+  const bookingPath = booking.organizationSlug
+    ? `/team/${encodeURIComponent(booking.organizationSlug)}/${encodeURIComponent(booking.eventSlug)}`
+    : `/${encodeURIComponent(booking.hostUsername)}/${encodeURIComponent(booking.eventSlug)}`
   return {
     uid: booking.uid,
     status: booking.status,
@@ -35,8 +39,12 @@ export default defineEventHandler(async (event) => {
     durationMinutes: booking.durationMinutes,
     hostName: booking.hostName,
     hostUsername: booking.hostUsername,
+    teamName: booking.organizationName,
+    teamSlug: booking.organizationSlug,
+    bookingPath,
+    hosts: assignedHosts.map(host => ({ name: host.name, isOrganizer: host.isOrganizer })),
     notes: answers.notes ?? null,
     answers: answers.responses,
-    canHostManage: session?.user.id === booking.hostId
+    canHostManage: assignedHosts.some(host => host.userId === session?.user.id)
   }
 })

@@ -2,9 +2,9 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import type { InvitableRole } from '#shared/billing'
 import { invitations, organizations, users } from '../../database/schema'
-import { useDatabase } from '../../utils/database'
-import { organizationEntitlement } from '../../utils/entitlement'
-import { enforceRateLimit } from '../../utils/rate-limit'
+import { useDatabase } from '../../database/index'
+import { organizationEntitlement } from '../../services/entitlement'
+import { enforceRateLimit } from '../../services/rate-limit'
 
 export type InvitationState
   = | 'pending'

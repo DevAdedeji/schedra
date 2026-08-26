@@ -1,5 +1,5 @@
-import { activeHostsFor, findPublicTeamEventType } from '../../../utils/team-booking-page'
-import { enforceRateLimit } from '../../../utils/rate-limit'
+import { activeHostsFor, findPublicTeamEventType } from '../../../services/team-booking'
+import { enforceRateLimit } from '../../../services/rate-limit'
 
 export default defineEventHandler(async (request) => {
   await enforceRateLimit(request, { namespace: 'team-booking-page', limit: 120, windowSeconds: 60 })

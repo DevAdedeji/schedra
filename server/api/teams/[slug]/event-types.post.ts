@@ -1,9 +1,10 @@
 import { teamEventTypeSchema } from '#shared/validation'
 import { eventTypes } from '../../../database/schema'
-import { useDatabase } from '../../../utils/database'
-import { assertTeamWritable } from '../../../utils/entitlement'
-import { recordAudit, requireOrganizationPermission } from '../../../utils/organization'
-import { replaceHosts } from '../../../utils/team-event-types'
+import { useDatabase } from '../../../database/index'
+import { assertTeamWritable } from '../../../services/entitlement'
+import { requireTeamLocationIntegrations } from '../../../services/event-location'
+import { recordAudit, requireOrganizationPermission } from '../../../services/organization'
+import { replaceHosts, resolveHosts } from '../../../services/team-event-type'
 
 export default defineEventHandler(async (event) => {
   const slug = getRouterParam(event, 'slug') ?? ''
@@ -21,12 +22,20 @@ export default defineEventHandler(async (event) => {
   const { hosts, ...fields } = parsed.data
   const db = useDatabase()
 
+  const resolvedHosts = await resolveHosts(context.organization.id, hosts)
+  await requireTeamLocationIntegrations(
+    resolvedHosts.filter(host => host.enabled).map(host => host.userId),
+    fields.locationType
+  )
+
   const created = await db.transaction(async (tx) => {
     const [row] = await tx.insert(eventTypes).values({
       ...fields,
       organizationId: context.organization.id,
-      // The creator owns the row; who actually hosts is the host set.
-      userId: context.userId
+      // The team owns the row. The creator is attribution only, so deleting
+      // their account cannot remove a shared booking link.
+      userId: null,
+      createdByUserId: context.userId
     }).returning({ id: eventTypes.id, slug: eventTypes.slug })
 
     if (!row) throw createError({ statusCode: 500, statusMessage: 'Could not create that event type.' })

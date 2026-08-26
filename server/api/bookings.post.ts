@@ -1,15 +1,15 @@
 import { createBookingSchema } from '#shared/validation'
 import { and, eq, gt, inArray, sql } from 'drizzle-orm'
 import { bookings } from '../database/schema'
-import { useDatabase } from '../utils/database'
-import { findPublicEventType, slotsFor } from '../utils/booking-page'
-import { findBookingByUid } from '../utils/booking-manage'
-import { queueBookingEmails, queueBookingRequestEmails } from '../utils/booking-emails'
-import { cancelBookingReminders } from '../utils/email-outbox'
-import { enforceRateLimit } from '../utils/rate-limit'
-import { enqueueCalendarSync } from '../utils/calendar-sync'
-import { CalendarUnavailableError } from '../utils/google-calendar'
-import { BookingAnswerValidationError, buildBookingAnswersSnapshot } from '../utils/booking-answers'
+import { useDatabase } from '../database/index'
+import { findPublicEventType, slotsFor } from '../services/booking-page'
+import { findBookingByUid } from '../repositories/booking'
+import { queueBookingEmails, queueBookingRequestEmails } from '../services/booking-emails'
+import { cancelBookingReminders } from '../services/email-outbox'
+import { enforceRateLimit } from '../services/rate-limit'
+import { enqueueCalendarSync } from '../services/calendar-sync'
+import { CalendarUnavailableError } from '../integrations/calendar/google'
+import { BookingAnswerValidationError, buildBookingAnswersSnapshot } from '../domain/booking-answers'
 
 const SLOT_TAKEN = '23P01'
 
@@ -91,6 +91,10 @@ export default defineEventHandler(async (event) => {
 
     if (!['pending', 'confirmed'].includes(previous.status) || previous.endsAt <= new Date()) {
       throw createError({ statusCode: 409, statusMessage: 'That booking can no longer be moved.' })
+    }
+
+    if (previous.attendeeEmail.toLowerCase() !== email.toLowerCase()) {
+      throw createError({ statusCode: 409, statusMessage: 'Use the email address already attached to this booking.' })
     }
   }
 

@@ -1,5 +1,5 @@
-import { enforceRateLimit } from '../../utils/rate-limit'
-import { publicTeamProfile } from '../../utils/team-booking-page'
+import { enforceRateLimit } from '../../services/rate-limit'
+import { publicTeamProfile } from '../../services/team-booking'
 
 export default defineEventHandler(async (event) => {
   await enforceRateLimit(event, { namespace: 'team-profile', limit: 120, windowSeconds: 60 })

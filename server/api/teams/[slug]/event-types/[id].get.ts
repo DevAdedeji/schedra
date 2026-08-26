@@ -1,9 +1,9 @@
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { eventTypes } from '../../../../database/schema'
-import { useDatabase } from '../../../../utils/database'
-import { requireOrganization } from '../../../../utils/organization'
-import { hostsForEventType } from '../../../../utils/team-event-types'
+import { useDatabase } from '../../../../database/index'
+import { requireOrganization } from '../../../../services/organization'
+import { hostsForEventType } from '../../../../services/team-event-type'
 
 export default defineEventHandler(async (event) => {
   const slug = getRouterParam(event, 'slug') ?? ''

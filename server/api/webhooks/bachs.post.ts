@@ -1,8 +1,8 @@
 import { bachsWebhookEvents } from '../../database/schema'
-import { useDatabase } from '../../utils/database'
-import { verifyWebhookSignature, type BachsSubscription } from '../../utils/bachs'
-import { applySubscriptionState, markInvoiceFailed, markInvoicePaid } from '../../utils/billing'
-import { recordAudit } from '../../utils/organization'
+import { useDatabase } from '../../database/index'
+import { verifyWebhookSignature, type BachsSubscription } from '../../integrations/bachs'
+import { applySubscriptionState, markInvoiceFailed, markInvoicePaid } from '../../services/billing'
+import { recordAudit } from '../../services/organization'
 
 interface BachsEvent {
   id?: string

@@ -440,8 +440,12 @@ export const dateOverrides = pgTable('date_overrides', {
 
 export const eventTypes = pgTable('event_types', {
   id: uuid('id').primaryKey().defaultRandom(),
-  organizationId: uuid('organization_id').references(() => organizations.id, { onDelete: 'set null' }),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  organizationId: uuid('organization_id').references(() => organizations.id, { onDelete: 'restrict' }),
+  // Personal event types belong to a user; team event types belong to an
+  // organization. Keeping this nullable prevents a creator deleting their
+  // account from deleting a shared team link.
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   scheduleId: uuid('schedule_id').references(() => schedules.id, { onDelete: 'set null' }),
 
   slug: text('slug').notNull(),
@@ -480,6 +484,10 @@ export const eventTypes = pgTable('event_types', {
   index('event_types_organization_hidden_idx')
     .on(table.organizationId, table.hidden, table.createdAt),
   index('event_types_user_hidden_created_at_idx').on(table.userId, table.hidden, table.createdAt),
+  check(
+    'event_types_exactly_one_owner',
+    sql`(${table.organizationId} is null) <> (${table.userId} is null)`
+  ),
   check('event_types_duration_positive', sql`${table.durationMinutes} > 0`),
   check(
     'event_types_increment_positive',
@@ -511,14 +519,18 @@ export const eventTypeHosts = pgTable('event_type_hosts', {
   // who reorganises their availability does not silently fall out of rotation.
   scheduleId: uuid('schedule_id').references(() => schedules.id, { onDelete: 'set null' }),
   enabled: boolean('enabled').notNull().default(true),
+  // Preserves the order chosen by the team admin. For collective events the
+  // first enabled host is the stable organizer and owns the primary invite.
+  position: integer('position').notNull().default(0),
   // Reserved for weighted round-robin; every host is equal until it is used.
   weight: integer('weight').notNull().default(100),
 
   ...timestamps
 }, table => [
   uniqueIndex('event_type_hosts_event_member_key').on(table.eventTypeId, table.memberId),
-  index('event_type_hosts_event_enabled_idx').on(table.eventTypeId, table.enabled),
+  index('event_type_hosts_event_enabled_idx').on(table.eventTypeId, table.enabled, table.position),
   index('event_type_hosts_user_idx').on(table.userId),
+  check('event_type_hosts_position_non_negative', sql`${table.position} >= 0`),
   check('event_type_hosts_weight_positive', sql`${table.weight} > 0`)
 ])
 
@@ -592,13 +604,16 @@ export const bookingHosts = pgTable('booking_hosts', {
 export const bookingCalendarEvents = pgTable('booking_calendar_events', {
   id: uuid('id').primaryKey().defaultRandom(),
   bookingId: uuid('booking_id').notNull().references(() => bookings.id, { onDelete: 'cascade' }),
+  // A collective booking can have one remote event per assigned host.
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   connectionId: uuid('connection_id').references(() => calendarConnections.id, { onDelete: 'set null' }),
   calendarId: text('calendar_id').notNull(),
   eventId: text('event_id').notNull(),
   syncedAt: timestamp('synced_at', { withTimezone: true }).notNull().defaultNow(),
   ...timestamps
 }, table => [
-  uniqueIndex('booking_calendar_events_booking_key').on(table.bookingId),
+  uniqueIndex('booking_calendar_events_booking_user_key').on(table.bookingId, table.userId),
+  index('booking_calendar_events_user_id_idx').on(table.userId),
   uniqueIndex('booking_calendar_events_remote_key').on(table.calendarId, table.eventId)
 ])
 

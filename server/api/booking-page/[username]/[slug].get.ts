@@ -1,5 +1,5 @@
-import { findPublicEventType } from '../../../utils/booking-page'
-import { enforceRateLimit } from '../../../utils/rate-limit'
+import { findPublicEventType } from '../../../services/booking-page'
+import { enforceRateLimit } from '../../../services/rate-limit'
 
 export default defineEventHandler(async (event) => {
   await enforceRateLimit(event, { namespace: 'booking-page', limit: 180, windowSeconds: 60 })

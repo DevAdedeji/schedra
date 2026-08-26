@@ -1,9 +1,9 @@
 import { and, asc, eq, isNull } from 'drizzle-orm'
 import type { OrganizationRole } from '#shared/billing'
 import { members, organizations } from '../database/schema'
-import { useDatabase } from '../utils/database'
-import { organizationEntitlement } from '../utils/entitlement'
-import { requireAuthSession } from '../utils/session'
+import { useDatabase } from '../database/index'
+import { organizationEntitlement } from '../services/entitlement'
+import { requireAuthSession } from '../services/session'
 
 export default defineEventHandler(async (event) => {
   const session = await requireAuthSession(event)

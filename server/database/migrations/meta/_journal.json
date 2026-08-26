@@ -134,6 +134,20 @@
       "when": 1787713189353,
       "tag": "0018_booking_host_reservations",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1787738995872,
+      "tag": "0019_small_tomorrow_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1787740850526,
+      "tag": "0020_safe_thundra",
+      "breakpoints": true
     }
   ]
 }

@@ -2,9 +2,9 @@ import { and, asc, count, desc, eq, gte, ilike, inArray, lt, lte, or, sql } from
 import { z } from 'zod'
 import { paginationMeta, paginationQuerySchema } from '#shared/pagination'
 import { bookings, eventTypes } from '../database/schema'
-import { useDatabase } from '../utils/database'
-import { requireAuthSession } from '../utils/session'
-import { readBookingAnswers } from '../utils/booking-answers'
+import { useDatabase } from '../database/index'
+import { requireAuthSession } from '../services/session'
+import { readBookingAnswers } from '../domain/booking-answers'
 
 const querySchema = paginationQuerySchema.extend({
   filter: z.enum(['all', 'upcoming', 'pending', 'past', 'cancelled']).default('upcoming')

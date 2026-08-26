@@ -1,7 +1,7 @@
 import { and, asc, eq } from 'drizzle-orm'
 import { eventTypes, users } from '../database/schema'
-import { useDatabase } from '../utils/database'
-import { useEnv } from '../utils/env'
+import { useDatabase } from '../database/index'
+import { useEnv } from '../config/env'
 
 interface SitemapPage {
   path: string

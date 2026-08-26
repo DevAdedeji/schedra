@@ -10,7 +10,7 @@ import {
 } from '~/services/schedra-api'
 
 /**
- * One booking flow for both the personal page and the team page. The two差
+ * One booking flow for both the personal page and the team page. The two
  * differ only in which endpoints they read and which creator they post to, so
  * duplicating 700 lines of calendar would guarantee they drift apart.
  */
@@ -25,10 +25,7 @@ const owner = computed(() => props.owner)
 const slug = computed(() => props.slug)
 const isTeam = computed(() => props.mode === 'team')
 
-// Rescheduling is a personal-page capability; a team booking is moved by the
-// team, not by re-running assignment from the guest's link.
 const rescheduleOf = computed(() => {
-  if (isTeam.value) return undefined
   const value = route.query.reschedule
   return typeof value === 'string' && value ? value : undefined
 })
@@ -251,7 +248,7 @@ async function confirm() {
     }
 
     const result = isTeam.value
-      ? await publicTeamApi.create({ ...shared, team: owner.value })
+      ? await publicTeamApi.create({ ...shared, team: owner.value, rescheduleOf: rescheduleOf.value })
       : await bookingsApi.create({ ...shared, username: owner.value, rescheduleOf: rescheduleOf.value })
     confirmed.value = {
       start: result.start,
@@ -263,10 +260,14 @@ async function confirm() {
     }
   } catch (failure) {
     const code = (failure as { statusCode?: number }).statusCode
-    bookingError.value = code === 409
-      ? 'Someone just took that time. Please pick another.'
-      : apiErrorMessage(failure, 'Could not book that just now. Check your details and try again.')
-    if (code === 409) {
+    const message = apiErrorMessage(failure, 'Could not book that just now. Check your details and try again.')
+    const slotConflict = code === 409 && (
+      message.includes('time is no longer available')
+      || message.includes('just booked')
+      || message.includes('just took')
+    )
+    bookingError.value = slotConflict ? 'Someone just took that time. Please pick another.' : message
+    if (slotConflict) {
       selectedSlot.value = null
       await refresh()
     }
@@ -284,7 +285,11 @@ const seoDescription = computed(() => page.value?.description
 useSeoMeta({
   title: () => page.value ? `${page.value.title} with ${page.value.hostName}` : 'Book a time',
   description: () => seoDescription.value,
-  robots: () => indexable.value && page.value ? 'index, follow' : 'noindex, nofollow',
+  // A move link is private, booking-specific state. Keep the canonical public
+  // booking page indexable while preventing reschedule URLs entering search.
+  robots: () => indexable.value && page.value && !rescheduleOf.value
+    ? 'index, follow'
+    : 'noindex, nofollow',
   ogType: 'website',
   ogTitle: () => page.value ? `${page.value.title} with ${page.value.hostName}` : 'Book a time with Schedra',
   ogDescription: () => seoDescription.value,
@@ -644,12 +649,14 @@ useSeoMeta({
               <UFormField
                 label="Email"
                 name="email"
+                :help="rescheduleOf ? 'This stays tied to the original booking.' : undefined"
               >
                 <UInput
                   v-model="booking.email"
                   type="email"
                   autocomplete="email"
                   required
+                  :disabled="Boolean(rescheduleOf)"
                   size="lg"
                   class="min-h-11 w-full"
                 />

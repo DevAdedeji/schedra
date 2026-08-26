@@ -3,6 +3,12 @@ const { data } = await useCurrentUser()
 const { signOut } = useAuthClient()
 const { host } = useSiteUrl()
 const colorMode = useColorMode()
+const colorModeReady = ref(false)
+const isDark = computed(() => colorModeReady.value && colorMode.value === 'dark')
+
+onMounted(() => {
+  colorModeReady.value = true
+})
 
 const user = computed(() => data.value?.user)
 const initials = computed(() => (user.value?.name ?? '')
@@ -58,8 +64,8 @@ const menu = computed(() => [
     { label: 'View your page', icon: 'i-lucide-eye', slot: 'view-page', to: `/${user.value?.username}`, target: '_blank' }
   ],
   [{
-    label: colorMode.value === 'dark' ? 'Light mode' : 'Dark mode',
-    icon: colorMode.value === 'dark' ? 'i-lucide-sun' : 'i-lucide-moon',
+    label: isDark.value ? 'Light mode' : 'Dark mode',
+    icon: isDark.value ? 'i-lucide-sun' : 'i-lucide-moon',
     onSelect: () => { colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark' }
   }],
   [{ label: 'Sign out', icon: 'i-lucide-log-out', onSelect: leave }]

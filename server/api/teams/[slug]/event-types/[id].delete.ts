@@ -1,8 +1,8 @@
 import { and, eq, gte, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import { bookings, eventTypes } from '../../../../database/schema'
-import { useDatabase } from '../../../../utils/database'
-import { recordAudit, requireOrganizationPermission } from '../../../../utils/organization'
+import { useDatabase } from '../../../../database/index'
+import { recordAudit, requireOrganizationPermission } from '../../../../services/organization'
 
 export default defineEventHandler(async (event) => {
   const slug = getRouterParam(event, 'slug') ?? ''

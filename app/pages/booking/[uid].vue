@@ -382,7 +382,7 @@ useSeoMeta({
               <div class="flex flex-col gap-3 sm:flex-row">
                 <UButton
                   v-if="!pendingApproval"
-                  :to="`/${booking?.hostUsername}/${booking?.eventSlug}?reschedule=${uid}`"
+                  :to="`${booking?.bookingPath}?reschedule=${encodeURIComponent(uid)}`"
                   size="lg"
                   class="justify-center rounded-full font-medium sm:flex-1"
                 >

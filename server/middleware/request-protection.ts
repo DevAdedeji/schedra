@@ -1,6 +1,6 @@
 import { getHeader, getRequestURL, setResponseHeader } from 'h3'
-import { useEnv } from '../utils/env'
-import { requestProtectionFailure } from '../utils/request-protection'
+import { useEnv } from '../config/env'
+import { requestProtectionFailure } from '../security/request-protection'
 
 export default defineEventHandler((event) => {
   const url = getRequestURL(event)

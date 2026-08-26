@@ -23,7 +23,7 @@ describe.skipIf(!url)('API rate limiter', () => {
 
   beforeEach(async () => {
     configureAppTestEnvironment(url!)
-    const { resetEnv } = await import('../utils/env')
+    const { resetEnv } = await import('../config/env')
     resetEnv()
     await sql`truncate table api_rate_limits`
     vi.stubGlobal('getHeader', (request: H3Event, name: string) => request.node.req.headers[name.toLowerCase()])
@@ -46,7 +46,7 @@ describe.skipIf(!url)('API rate limiter', () => {
 
   it('increments a database-clock window and returns rate-limit headers', async () => {
     const request = event()
-    const { enforceRateLimit } = await import('../utils/rate-limit')
+    const { enforceRateLimit } = await import('../services/rate-limit')
 
     await enforceRateLimit(request.value, { namespace: 'public-page', limit: 2, windowSeconds: 60 })
     await enforceRateLimit(request.value, { namespace: 'public-page', limit: 2, windowSeconds: 60 })
@@ -61,7 +61,7 @@ describe.skipIf(!url)('API rate limiter', () => {
 
   it('resets an expired window and rejects requests over the limit', async () => {
     const request = event()
-    const { enforceRateLimit } = await import('../utils/rate-limit')
+    const { enforceRateLimit } = await import('../services/rate-limit')
     const options = { namespace: 'booking', limit: 1, windowSeconds: 60 }
 
     await enforceRateLimit(request.value, options)

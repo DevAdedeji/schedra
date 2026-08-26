@@ -3,8 +3,8 @@ import { z } from 'zod'
 import { paginationMeta, paginationQuerySchema } from '#shared/pagination'
 import type { OrganizationRole } from '#shared/billing'
 import { members, users } from '../../../database/schema'
-import { useDatabase } from '../../../utils/database'
-import { requireOrganization } from '../../../utils/organization'
+import { useDatabase } from '../../../database/index'
+import { requireOrganization } from '../../../services/organization'
 
 const querySchema = paginationQuerySchema.extend({
   filter: z.enum(['all', 'owner', 'admin', 'member']).default('all')
