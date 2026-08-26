@@ -9,7 +9,9 @@ const route = useRoute()
 const { signIn } = useAuthClient()
 const { data: methods } = useCurrentUser()
 
-const state = reactive({ email: '', password: '' })
+// Prefilled when arriving from a team invitation, so the address the
+// invitation was sent to is the one they sign in with.
+const state = reactive({ email: String(route.query.email ?? ''), password: '' })
 const remember = ref(true)
 const pending = ref(false)
 const error = ref('')
@@ -34,6 +36,11 @@ async function onSubmit(event: FormSubmitEvent<SignInInput>) {
     })
 
     if (failure) {
+      if (failure.status === 429) {
+        error.value = 'Too many sign-in attempts. Wait a few seconds, then try again.'
+        return
+      }
+
       if (failure.code === 'EMAIL_NOT_VERIFIED') {
         unverified.value = true
         return
@@ -107,13 +114,10 @@ async function onSubmit(event: FormSubmitEvent<SignInInput>) {
         label="Password"
         name="password"
       >
-        <UInput
+        <PasswordField
           v-model="state.password"
-          type="password"
-          size="xl"
           autocomplete="current-password"
           placeholder="Your password"
-          class="w-full"
         />
       </UFormField>
 

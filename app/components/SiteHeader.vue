@@ -2,12 +2,20 @@
 const links = [
   { label: 'How it works', to: '#how' },
   { label: 'What you get', to: '#features' },
-  { label: 'For developers', to: '#developers' }
+  { label: 'Pricing', to: '/pricing' }
 ]
 
 const open = ref(false)
 const colorMode = useColorMode()
+const colorModeReady = ref(false)
+const isDark = computed(() => colorModeReady.value && colorMode.value === 'dark')
 const { isSignedIn, accountDestination } = await useLandingNavigation()
+
+onMounted(() => {
+  // The saved preference only exists in the browser. Keep the first client
+  // render identical to SSR, then reveal the resolved icon after hydration.
+  colorModeReady.value = true
+})
 
 function toggleColorMode() {
   colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark'
@@ -29,7 +37,7 @@ function toggleColorMode() {
           <a
             v-for="link in links"
             :key="link.label"
-            :href="link.to"
+            :href="link.to.startsWith('#') ? `/${link.to}` : link.to"
             class="text-[14px] text-muted transition-colors hover:text-highlighted"
           >{{ link.label }}</a>
         </nav>
@@ -40,8 +48,8 @@ function toggleColorMode() {
             variant="ghost"
             size="sm"
             class="size-11 justify-center"
-            :icon="colorMode.value === 'dark' ? 'i-lucide-sun' : 'i-lucide-moon'"
-            :aria-label="colorMode.value === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
+            :icon="isDark ? 'i-lucide-sun' : 'i-lucide-moon'"
+            :aria-label="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
             @click="toggleColorMode"
           />
           <UButton
@@ -72,7 +80,7 @@ function toggleColorMode() {
         <a
           v-for="link in links"
           :key="link.label"
-          :href="link.to"
+          :href="link.to.startsWith('#') ? `/${link.to}` : link.to"
           class="block py-2.5 text-[15px] text-muted transition-colors hover:text-highlighted"
           @click="open = false"
         >{{ link.label }}</a>

@@ -1,10 +1,10 @@
 import { and, count, desc, eq } from 'drizzle-orm'
 import { eventTypeSchema } from '#shared/validation'
 import { eventTypes, schedules } from '../database/schema'
-import { useDatabase } from '../utils/database'
-import { ensureStarterSetup } from '../utils/onboarding'
-import { requireLocationIntegration } from '../utils/event-location'
-import { requireAuthSession } from '../utils/session'
+import { useDatabase } from '../database/index'
+import { ensureStarterSetup } from '../services/onboarding'
+import { requireLocationIntegration } from '../services/event-location'
+import { requireAuthSession } from '../services/session'
 
 export default defineEventHandler(async (event) => {
   const session = await requireAuthSession(event)

@@ -1,5 +1,5 @@
 import { removeResponseHeader, setResponseHeaders } from 'h3'
-import { useEnv } from '../utils/env'
+import { useEnv } from '../config/env'
 
 export default defineNitroPlugin((nitro) => {
   if (import.meta.prerender) return

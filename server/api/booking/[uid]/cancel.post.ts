@@ -1,13 +1,13 @@
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { cancelBookingSchema } from '#shared/validation'
 import { bookings } from '../../../database/schema'
-import { useDatabase } from '../../../utils/database'
-import { findBookingByUid } from '../../../utils/booking-manage'
-import { queueCancellationEmails } from '../../../utils/booking-emails'
-import { getAuthSession } from '../../../utils/session'
-import { enforceRateLimit } from '../../../utils/rate-limit'
-import { enqueueCalendarSync } from '../../../utils/calendar-sync'
-import { cancelBookingReminders } from '../../../utils/email-outbox'
+import { useDatabase } from '../../../database/index'
+import { assignedHostsForBooking, findBookingByUid } from '../../../repositories/booking'
+import { queueCancellationEmails } from '../../../services/booking-emails'
+import { getAuthSession } from '../../../services/session'
+import { enforceRateLimit } from '../../../services/rate-limit'
+import { enqueueCalendarSync } from '../../../services/calendar-sync'
+import { cancelBookingReminders } from '../../../services/email-outbox'
 
 export default defineEventHandler(async (event) => {
   const uid = getRouterParam(event, 'uid')
@@ -38,7 +38,8 @@ export default defineEventHandler(async (event) => {
   }
 
   const session = await getAuthSession(event)
-  const actor = session?.user.id === booking.hostId ? 'host' : 'guest'
+  const hosts = await assignedHostsForBooking(booking.id)
+  const actor = hosts.some(host => host.userId === session?.user.id) ? 'host' : 'guest'
   const cancelled = await useDatabase().transaction(async (tx) => {
     const [updated] = await tx
       .update(bookings)
@@ -57,7 +58,7 @@ export default defineEventHandler(async (event) => {
 
     await enqueueCalendarSync(booking.id, 'delete', tx)
     await cancelBookingReminders(booking.uid, tx)
-    await queueCancellationEmails(booking, parsed.data.reason, actor, tx)
+    await queueCancellationEmails(booking, parsed.data.reason, actor, tx, hosts)
     return true
   })
 

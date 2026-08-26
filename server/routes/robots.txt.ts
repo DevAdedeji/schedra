@@ -1,4 +1,4 @@
-import { useEnv } from '../utils/env'
+import { useEnv } from '../config/env'
 
 const disallowed = ['/dashboard', '/signup', '/login', '/forgot-password', '/reset-password', '/verify-email', '/api/']
 

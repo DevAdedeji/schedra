@@ -17,9 +17,9 @@ describe.skipIf(!url)('authentication', () => {
 
   async function auth() {
     configureAppTestEnvironment(url!)
-    const { resetEnv } = await import('../utils/env')
+    const { resetEnv } = await import('../config/env')
     resetEnv()
-    const { useAuth } = await import('../utils/auth')
+    const { useAuth } = await import('../services/auth')
     return useAuth()
   }
 

@@ -70,7 +70,7 @@ const template = box(
     ]),
 
     box({ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }, [
-      text({ fontSize: 24, fontWeight: 600, color: MUTED }, 'Free · Open source · Self-hostable'),
+      text({ fontSize: 24, fontWeight: 600, color: MUTED }, 'Free personal scheduling · Built for teams'),
       box({ display: 'flex', gap: 10 }, [
         box({ width: 44, height: 10, backgroundColor: VERMILLION }, []),
         box({ width: 44, height: 10, backgroundColor: '#E7E5E4' }, []),

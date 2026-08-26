@@ -1,5 +1,5 @@
-import { CalendarUnavailableError, googleCalendarConnection, listGoogleCalendars } from '../../../utils/google-calendar'
-import { requireAuthSession } from '../../../utils/session'
+import { CalendarUnavailableError, googleCalendarConnection, listGoogleCalendars } from '../../../integrations/calendar/google'
+import { requireAuthSession } from '../../../services/session'
 
 export default defineEventHandler(async (event) => {
   const session = await requireAuthSession(event)

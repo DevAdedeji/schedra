@@ -1,10 +1,10 @@
 import { and, eq, sql } from 'drizzle-orm'
 import { rejectBookingSchema } from '#shared/validation'
 import { bookings } from '../../../database/schema'
-import { queueBookingRejectedEmails } from '../../../utils/booking-emails'
-import { findBookingByUid } from '../../../utils/booking-manage'
-import { requireAuthSession } from '../../../utils/session'
-import { useDatabase } from '../../../utils/database'
+import { queueBookingRejectedEmails } from '../../../services/booking-emails'
+import { assignedHostsForBooking, findBookingByUid } from '../../../repositories/booking'
+import { requireAuthSession } from '../../../services/session'
+import { useDatabase } from '../../../database/index'
 
 export default defineEventHandler(async (event) => {
   const session = await requireAuthSession(event)
@@ -15,7 +15,11 @@ export default defineEventHandler(async (event) => {
   }
 
   const booking = await findBookingByUid(uid)
-  if (!booking || booking.hostId !== session.user.id) {
+  if (!booking) {
+    throw createError({ statusCode: 404, statusMessage: 'No such booking request.' })
+  }
+  const hosts = await assignedHostsForBooking(booking.id)
+  if (!hosts.some(host => host.userId === session.user.id)) {
     throw createError({ statusCode: 404, statusMessage: 'No such booking request.' })
   }
   if (booking.status !== 'pending') {
@@ -30,7 +34,7 @@ export default defineEventHandler(async (event) => {
     }).where(and(eq(bookings.id, booking.id), eq(bookings.status, 'pending')))
       .returning({ id: bookings.id })
     if (!rejected) throw createError({ statusCode: 409, statusMessage: 'This request was already handled.' })
-    await queueBookingRejectedEmails(booking, parsed.data.reason, tx)
+    await queueBookingRejectedEmails(booking, parsed.data.reason, tx, hosts)
   })
 
   return { ok: true }

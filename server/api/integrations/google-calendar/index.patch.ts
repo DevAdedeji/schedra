@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { CalendarSelectionError, CalendarUnavailableError, updateGoogleCalendarSelection } from '../../../utils/google-calendar'
-import { requireAuthSession } from '../../../utils/session'
+import { CalendarSelectionError, CalendarUnavailableError, updateGoogleCalendarSelection } from '../../../integrations/calendar/google'
+import { requireAuthSession } from '../../../services/session'
 
 const selectionSchema = z.object({
   conflictCalendarIds: z.array(z.string().min(1).max(1024)).min(1, 'Choose at least one calendar.').max(50),

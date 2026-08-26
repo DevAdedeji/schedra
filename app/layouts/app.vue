@@ -3,12 +3,27 @@ const { data } = await useCurrentUser()
 const { signOut } = useAuthClient()
 const { host } = useSiteUrl()
 const colorMode = useColorMode()
+const colorModeReady = ref(false)
+const isDark = computed(() => colorModeReady.value && colorMode.value === 'dark')
+
+onMounted(() => {
+  colorModeReady.value = true
+})
 
 const user = computed(() => data.value?.user)
 const initials = computed(() => (user.value?.name ?? '')
   .split(' ').map(part => part[0]).filter(Boolean).slice(0, 2).join('').toUpperCase())
 
-const links = [
+const leaving = ref(false)
+const route = useRoute()
+
+// The team comes from the URL, never a stored "active team", so two
+// tabs open on different teams can never act on each other's data.
+const teamSlug = computed(() => (
+  route.path.startsWith('/t/') ? String(route.params.slug ?? '') : ''
+))
+
+const personalLinks = [
   { label: 'Overview', to: '/dashboard', icon: 'i-lucide-layout-dashboard' },
   { label: 'Event types', to: '/event-types', icon: 'i-lucide-link-2' },
   { label: 'Bookings', to: '/bookings', icon: 'i-lucide-calendar-days' },
@@ -16,8 +31,16 @@ const links = [
   { label: 'Integrations', to: '/integrations', icon: 'i-lucide-blocks' }
 ]
 
-const leaving = ref(false)
-const route = useRoute()
+const links = computed(() => (teamSlug.value
+  ? [
+      { label: 'Event types', to: `/t/${teamSlug.value}/event-types`, icon: 'i-lucide-link-2' },
+      { label: 'Bookings', to: `/t/${teamSlug.value}/bookings`, icon: 'i-lucide-calendar-days' },
+      { label: 'Members', to: `/t/${teamSlug.value}/members`, icon: 'i-lucide-users' },
+      { label: 'Activity log', to: `/t/${teamSlug.value}/history`, icon: 'i-lucide-activity' },
+      { label: 'Billing', to: `/t/${teamSlug.value}/billing`, icon: 'i-lucide-credit-card' },
+      { label: 'Settings', to: `/t/${teamSlug.value}/settings`, icon: 'i-lucide-settings' }
+    ]
+  : personalLinks))
 
 async function leave() {
   leaving.value = true
@@ -41,18 +64,44 @@ const menu = computed(() => [
     { label: 'View your page', icon: 'i-lucide-eye', slot: 'view-page', to: `/${user.value?.username}`, target: '_blank' }
   ],
   [{
-    label: colorMode.value === 'dark' ? 'Light mode' : 'Dark mode',
-    icon: colorMode.value === 'dark' ? 'i-lucide-sun' : 'i-lucide-moon',
+    label: isDark.value ? 'Light mode' : 'Dark mode',
+    icon: isDark.value ? 'i-lucide-sun' : 'i-lucide-moon',
     onSelect: () => { colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark' }
   }],
   [{ label: 'Sign out', icon: 'i-lucide-log-out', onSelect: leave }]
 ])
 
+// On mobile every destination lives in this one menu — nothing hides behind a
+// second control.
+const { data: teamList, refresh: refreshTeams } = await useTeams()
+const creatingTeam = ref(false)
+
 const mobileMenu = computed(() => [
   menu.value[0]!,
-  links.map(link => ({ ...link, active: route.path === link.to })),
+  links.value.map(link => ({ ...link, active: route.path === link.to })),
+  [
+    { label: 'Team', type: 'label' as const },
+    { label: 'Personal', icon: 'i-lucide-user', to: '/dashboard', active: !teamSlug.value },
+    ...(teamList.value?.items ?? []).map(team => ({
+      label: team.name,
+      icon: 'i-lucide-users',
+      to: `/t/${team.slug}`,
+      active: team.slug === teamSlug.value
+    })),
+    {
+      label: 'Create team',
+      icon: 'i-lucide-plus',
+      onSelect: () => { creatingTeam.value = true }
+    }
+  ],
   ...menu.value.slice(1)
 ])
+
+async function onTeamCreated(slug: string) {
+  creatingTeam.value = false
+  await refreshTeams()
+  await navigateTo(`/t/${slug}`)
+}
 
 const menuUi = {
   content: 'w-56',
@@ -79,6 +128,10 @@ const mobileMenuUi = {
         >
           <SchedraMark />
         </NuxtLink>
+      </div>
+
+      <div class="px-3 pb-4">
+        <TeamSwitcher />
       </div>
 
       <nav class="flex-1 space-y-2 px-3">
@@ -194,5 +247,10 @@ const mobileMenuUi = {
         <slot />
       </div>
     </main>
+
+    <TeamCreateModal
+      v-model:open="creatingTeam"
+      @created="onTeamCreated"
+    />
   </div>
 </template>

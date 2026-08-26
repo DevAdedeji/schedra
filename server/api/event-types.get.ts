@@ -2,9 +2,9 @@ import { and, asc, count, eq, ilike, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { paginationMeta, paginationQuerySchema } from '#shared/pagination'
 import { eventTypes, schedules } from '../database/schema'
-import { useDatabase } from '../utils/database'
-import { ensureStarterSetup } from '../utils/onboarding'
-import { requireAuthSession } from '../utils/session'
+import { useDatabase } from '../database/index'
+import { ensureStarterSetup } from '../services/onboarding'
+import { requireAuthSession } from '../services/session'
 
 const querySchema = paginationQuerySchema.extend({
   filter: z.enum(['all', 'active', 'hidden']).default('all')

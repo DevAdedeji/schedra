@@ -1,5 +1,19 @@
 import type { PaginationMeta } from '#shared/pagination'
-import type { BookingAnswer, BookingQuestion, EventTypeInput, MeetingLocationType } from '#shared/validation'
+import type {
+  BillingInterval,
+  CollectionCurrency,
+  InvitableRole,
+  OrganizationEntitlement,
+  OrganizationRole
+} from '#shared/billing'
+import type {
+  AssignmentMode,
+  BookingAnswer,
+  BookingQuestion,
+  EventTypeInput,
+  MeetingLocationType,
+  TeamEventTypeInput
+} from '#shared/validation'
 import type { EventTypeRecord } from '~/types/event-type'
 import type { ScheduleOverrideRecord, ScheduleRecord, ScheduleRuleRecord } from '~/types/schedule'
 
@@ -38,6 +52,10 @@ export interface BookingDetail {
   durationMinutes: number
   hostName: string
   hostUsername: string
+  teamName: string | null
+  teamSlug: string | null
+  bookingPath: string
+  hosts: Array<{ name: string, isOrganizer: boolean }>
   notes: string | null
   answers: BookingAnswer[]
   canHostManage: boolean
@@ -112,6 +130,7 @@ export interface CurrentProfile {
   id: string
   name: string
   email: string
+  emailVerified: boolean
   username: string
   bio: string | null
   avatarUrl: string | null
@@ -227,4 +246,279 @@ export const publicBookingApi = {
   profileEndpoint: (username: string) => resource('/api/profile', username),
   pageEndpoint: (username: string, slug: string) => resource(resource('/api/booking-page', username), slug),
   availabilityEndpoint: '/api/availability' as const
+}
+
+export interface TeamSummary {
+  id: string
+  name: string
+  slug: string
+  logo: string | null
+  role: OrganizationRole
+  joinedAt: string
+  entitlement: OrganizationEntitlement
+}
+
+export interface TeamPermissions {
+  inviteMembers: boolean
+  removeMembers: boolean
+  changeRoles: boolean
+  updateTeam: boolean
+  changeAddress: boolean
+  transferOwnership: boolean
+  manageBilling: boolean
+  archiveTeam: boolean
+  manageEventTypes: boolean
+  viewAllBookings: boolean
+}
+
+export interface TeamDetail {
+  organization: { id: string, name: string, slug: string, logo: string | null, archived: boolean }
+  role: OrganizationRole
+  entitlement: OrganizationEntitlement
+  permissions: TeamPermissions
+}
+
+export interface TeamMemberRecord {
+  id: string
+  userId: string
+  role: OrganizationRole
+  joinedAt: string
+  name: string
+  email: string
+  username: string
+  avatarUrl: string | null
+  timeZone: string
+  isYou: boolean
+}
+
+export interface TeamMembersResponse {
+  items: TeamMemberRecord[]
+  pagination: PaginationMeta
+  counts: { all: number, owner: number, admin: number, member: number }
+}
+
+export interface TeamInvitationRecord {
+  id: string
+  email: string
+  role: InvitableRole
+  expiresAt: string
+  createdAt: string
+  expired: boolean
+  inviterName: string
+  inviterEmail: string
+}
+
+export interface TeamInvitationsResponse {
+  items: TeamInvitationRecord[]
+  pagination: PaginationMeta
+}
+
+export interface TeamAuditRecord {
+  id: string
+  action: string
+  targetType: string | null
+  targetId: string | null
+  metadata: Record<string, unknown> | null
+  createdAt: string
+  actorName: string | null
+  actorEmail: string | null
+}
+
+export interface TeamAuditResponse {
+  items: TeamAuditRecord[]
+  pagination: PaginationMeta
+}
+
+export type InvitationState
+  = 'pending' | 'accepted' | 'rejected' | 'canceled' | 'expired' | 'archived' | 'team_full'
+
+export interface InvitationPreview {
+  state: InvitationState
+  email: string
+  role: InvitableRole
+  expiresAt: string
+  organization: { name: string, slug: string }
+  inviterName: string
+}
+
+export interface SlugAvailability {
+  available: boolean
+  reason: 'invalid' | 'taken' | null
+  message: string
+}
+
+export const teamsApi = {
+  listEndpoint: '/api/teams' as const,
+  detailEndpoint: (slug: string) => resource('/api/teams', slug),
+  membersEndpoint: (slug: string) => resource('/api/teams', slug, '/members'),
+  invitationsEndpoint: (slug: string) => resource('/api/teams', slug, '/invitations'),
+  auditEndpoint: (slug: string) => resource('/api/teams', slug, '/audit'),
+  slugAvailable: (slug: string) => $fetch<SlugAvailability>('/api/team-slug-available', { query: { slug } }),
+  updateAddress: (slug: string, next: string) => $fetch<{ slug: string }>(
+    resource('/api/teams', slug, '/address'),
+    { method: 'PATCH', body: { slug: next } }
+  ),
+  transferOwnership: (slug: string, memberId: string) => $fetch<{ ownerMemberId: string, yourRole: 'admin' }>(
+    resource('/api/teams', slug, '/transfer-ownership'),
+    { method: 'POST', body: { memberId } }
+  ),
+  archive: (slug: string, confirmation: string) => $fetch<{ archived: true, cancelledBookings: number }>(
+    resource('/api/teams', slug, '/archive'),
+    { method: 'POST', body: { confirmation } }
+  )
+}
+
+export interface TeamInvoiceRecord {
+  id: string
+  reference: string
+  status: 'pending' | 'paid' | 'failed' | 'expired'
+  interval: BillingInterval
+  seats: number
+  amountCents: number
+  collectionCurrency: CollectionCurrency
+  periodStart: string
+  periodEnd: string
+  paidAt: string | null
+  createdAt: string
+}
+
+export interface TeamBillingResponse {
+  entitlement: OrganizationEntitlement
+  configured: boolean
+  invoices: TeamInvoiceRecord[]
+}
+
+export interface TeamEventTypeHostRecord {
+  eventTypeId: string
+  memberId: string
+  enabled: boolean
+  name: string
+  avatarUrl: string | null
+}
+
+export interface TeamEventTypeRecord {
+  id: string
+  slug: string
+  title: string
+  description: string | null
+  durationMinutes: number
+  assignmentMode: AssignmentMode
+  locationType: MeetingLocationType
+  requiresConfirmation: boolean
+  hidden: boolean
+  createdAt: string
+  hosts: TeamEventTypeHostRecord[]
+}
+
+export interface TeamEventTypesResponse {
+  items: TeamEventTypeRecord[]
+  pagination: PaginationMeta
+  counts: { all: number, active: number, hidden: number }
+}
+
+export const teamEventTypesApi = {
+  listEndpoint: (slug: string) => resource('/api/teams', slug, '/event-types'),
+  detailEndpoint: (slug: string, id: string) =>
+    `${resource('/api/teams', slug, '/event-types')}/${encodeURIComponent(id)}`,
+  create: (slug: string, body: TeamEventTypeInput) =>
+    $fetch<{ id: string }>(resource('/api/teams', slug, '/event-types'), { method: 'POST', body }),
+  update: (slug: string, id: string, body: TeamEventTypeInput) =>
+    $fetch(`${resource('/api/teams', slug, '/event-types')}/${encodeURIComponent(id)}`, { method: 'PATCH', body }),
+  remove: (slug: string, id: string) =>
+    $fetch(`${resource('/api/teams', slug, '/event-types')}/${encodeURIComponent(id)}`, { method: 'DELETE' })
+}
+
+export interface PublicTeamProfile {
+  name: string
+  slug: string
+  logo: string | null
+  renamed: boolean
+  eventTypes: Array<{
+    slug: string
+    title: string
+    description: string | null
+    durationMinutes: number
+    assignmentMode: AssignmentMode
+  }>
+}
+
+export interface PublicTeamBookingPage {
+  hostName: string
+  teamName: string
+  teamSlug: string
+  title: string
+  description: string | null
+  durationMinutes: number
+  assignmentMode: AssignmentMode
+  locationType: MeetingLocationType
+  locationDetails: string
+  bookingQuestions: BookingQuestion[]
+  requiresConfirmation: boolean
+  hosts: Array<{ name: string, avatarUrl: string | null }>
+}
+
+export interface CreateTeamBookingInput {
+  team: string
+  slug: string
+  start: string
+  name: string
+  email: string
+  timeZone: string
+  notes?: string
+  answers?: Record<string, string>
+  guestEmails?: string[]
+  rescheduleOf?: string
+}
+
+export interface TeamBookingRecord {
+  uid: string
+  status: 'pending' | 'confirmed' | 'cancelled' | 'rejected'
+  startsAt: string
+  endsAt: string
+  attendeeName: string
+  attendeeEmail: string
+  eventTitle: string
+  assignmentMode: AssignmentMode
+  locationType: MeetingLocationType
+  meetingUrl: string | null
+  cancellationReason: string | null
+  hosts: Array<{ name: string, isOrganizer: boolean }>
+}
+
+export interface TeamBookingsResponse {
+  items: TeamBookingRecord[]
+  pagination: PaginationMeta
+  counts: { upcoming: number, pending: number, past: number, cancelled: number }
+  scope: 'team' | 'mine'
+}
+
+export const publicTeamApi = {
+  profileEndpoint: (slug: string) => resource('/api/team-profile', slug),
+  pageEndpoint: (slug: string, eventSlug: string) =>
+    resource(resource('/api/team-booking-page', slug), eventSlug),
+  availabilityEndpoint: '/api/team-availability' as const,
+  create: (body: CreateTeamBookingInput) =>
+    $fetch<CreateBookingResult & { hostNames: string[] }>('/api/team-bookings', { method: 'POST', body })
+}
+
+export const teamBookingsApi = {
+  listEndpoint: (slug: string) => resource('/api/teams', slug, '/bookings')
+}
+
+export const teamAuditApi = {
+  listEndpoint: (slug: string) => resource('/api/teams', slug, '/audit')
+}
+
+export const billingApi = {
+  summaryEndpoint: (slug: string) => resource('/api/teams', slug, '/billing'),
+  checkout: (slug: string, body: { interval: BillingInterval, currency: CollectionCurrency }) =>
+    $fetch<{ checkoutUrl: string, reference: string }>(
+      resource('/api/teams', slug, '/billing/checkout'),
+      { method: 'POST', body }
+    )
+}
+
+export const invitationsApi = {
+  previewEndpoint: (id: string) => resource('/api/invitations', id),
+  preview: (id: string) => $fetch<InvitationPreview>(resource('/api/invitations', id))
 }

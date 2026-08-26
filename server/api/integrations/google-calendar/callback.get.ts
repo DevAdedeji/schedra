@@ -4,9 +4,9 @@ import {
   exchangeGoogleCode,
   initializeGoogleCalendars,
   saveGoogleConnection
-} from '../../../utils/google-calendar'
-import { enqueueFutureBookingsForCalendarSync } from '../../../utils/calendar-sync'
-import { requireAuthSession } from '../../../utils/session'
+} from '../../../integrations/calendar/google'
+import { enqueueFutureBookingsForCalendarSync } from '../../../services/calendar-sync'
+import { requireAuthSession } from '../../../services/session'
 
 const callbackQuery = z.object({
   code: z.string().min(1),

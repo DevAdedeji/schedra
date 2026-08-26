@@ -1,8 +1,8 @@
 import { eq, sql } from 'drizzle-orm'
 import { userAvatars, users } from '../../database/schema'
 import { AVATAR_CONTENT_TYPES, avatarHash, MAX_AVATAR_BYTES, validAvatarBytes } from '../../utils/avatar'
-import { useDatabase } from '../../utils/database'
-import { requireAuthSession } from '../../utils/session'
+import { useDatabase } from '../../database/index'
+import { requireAuthSession } from '../../services/session'
 
 export default defineEventHandler(async (event) => {
   const session = await requireAuthSession(event)

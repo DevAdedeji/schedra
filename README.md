@@ -1,6 +1,6 @@
 # Schedra
 
-A source-available, self-hostable scheduling platform built around one app container and Postgres. A public-use license has not been selected yet.
+A proprietary scheduling platform for personal and team bookings, built with Nuxt and Postgres.
 
 > **Status: prelaunch.** Personal booking pages, race-safe booking, weekly
 > availability, timezone conversion, host booking management, cancellation,
@@ -116,7 +116,7 @@ no matter how content reflows.
 
 Near-monochrome with a single vermillion accent (`#FF3D00`), Instrument Serif
 for editorial display type and Figtree for the interface. Fonts are downloaded
-and self-hosted at build time, so the site makes no third-party font requests.
+and bundled locally at build time, so the site makes no third-party font requests.
 
 ## License
 

@@ -1,11 +1,20 @@
 import { defineConfig } from 'vitest/config'
 import { existsSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 
 if (existsSync('.env.test')) {
   process.loadEnvFile('.env.test')
 }
 
 export default defineConfig({
+  // Nuxt supplies #shared at build time. Tests import the server directly, so
+  // anything pulling a value (not just a type) out of shared/ needs it here.
+  resolve: {
+    alias: {
+      '#shared': fileURLToPath(new URL('./shared', import.meta.url))
+    }
+  },
+
   test: {
     environment: 'node',
     include: ['server/**/*.test.ts'],

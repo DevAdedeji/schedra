@@ -1,7 +1,7 @@
 import { and, asc, eq, sql } from 'drizzle-orm'
 import { eventTypes, users } from '../../database/schema'
-import { useDatabase } from '../../utils/database'
-import { enforceRateLimit } from '../../utils/rate-limit'
+import { useDatabase } from '../../database/index'
+import { enforceRateLimit } from '../../services/rate-limit'
 
 export default defineEventHandler(async (event) => {
   await enforceRateLimit(event, { namespace: 'public-profile', limit: 180, windowSeconds: 60 })

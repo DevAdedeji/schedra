@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { requestProtectionFailure } from '../utils/request-protection'
+import { requestProtectionFailure } from '../security/request-protection'
 
 const request = {
   pathname: '/api/profile',

@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { useDatabase } from '../utils/database'
+import { useDatabase } from '../database/index'
 
 export default defineEventHandler(async (event) => {
   const [readiness] = await useDatabase().execute<{

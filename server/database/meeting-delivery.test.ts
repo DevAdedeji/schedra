@@ -9,7 +9,7 @@ describe.skipIf(!url)('meeting delivery', () => {
 
   beforeEach(async () => {
     configureAppTestEnvironment(url!)
-    const { resetEnv } = await import('../utils/env')
+    const { resetEnv } = await import('../config/env')
     resetEnv()
     await sql`
       truncate table
@@ -85,8 +85,8 @@ describe.skipIf(!url)('meeting delivery', () => {
 
   it('schedules reminder messages and cancels them with the booking', async () => {
     await bookingFixture()
-    const { queueBookingEmails } = await import('../utils/booking-emails')
-    const { cancelBookingReminders, processEmailOutbox } = await import('../utils/email-outbox')
+    const { queueBookingEmails } = await import('../services/booking-emails')
+    const { cancelBookingReminders, processEmailOutbox } = await import('../services/email-outbox')
 
     await queueBookingEmails({
       uid: 'meeting-delivery-booking',
@@ -142,8 +142,8 @@ describe.skipIf(!url)('meeting delivery', () => {
 
   it('generates a standards-shaped calendar file with the booking snapshot', async () => {
     await bookingFixture()
-    const { findBookingByUid } = await import('../utils/booking-manage')
-    const { bookingCalendarFile } = await import('../utils/icalendar')
+    const { findBookingByUid } = await import('../repositories/booking')
+    const { bookingCalendarFile } = await import('../services/icalendar')
     const booking = await findBookingByUid('meeting-delivery-booking')
     const calendar = bookingCalendarFile(booking!, 'https://schedra.example')
 
@@ -157,7 +157,7 @@ describe.skipIf(!url)('meeting delivery', () => {
 
   it('notifies every additional guest without sharing the primary guest management link', async () => {
     await bookingFixture()
-    const { queueBookingRequestEmails } = await import('../utils/booking-emails')
+    const { queueBookingRequestEmails } = await import('../services/booking-emails')
     await queueBookingRequestEmails({
       uid: 'meeting-delivery-booking',
       eventTitle: 'Intro call',
