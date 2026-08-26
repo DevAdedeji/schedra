@@ -1,0 +1,4 @@
+ALTER TABLE "organization_subscriptions" DROP CONSTRAINT "organization_subscriptions_status_allowed";--> statement-breakpoint
+ALTER TABLE "organization_subscriptions" ADD COLUMN "collection_method" text DEFAULT 'invoice' NOT NULL;--> statement-breakpoint
+ALTER TABLE "organization_subscriptions" ADD CONSTRAINT "organization_subscriptions_collection_method_allowed" CHECK ("organization_subscriptions"."collection_method" in ('charge_automatically', 'invoice'));--> statement-breakpoint
+ALTER TABLE "organization_subscriptions" ADD CONSTRAINT "organization_subscriptions_status_allowed" CHECK ("organization_subscriptions"."status" in ('trialing', 'active', 'past_due', 'unpaid', 'paused', 'canceled'));

@@ -424,6 +424,86 @@ export const teamEventTypesApi = {
     $fetch(`${resource('/api/teams', slug, '/event-types')}/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
+export interface PublicTeamProfile {
+  name: string
+  slug: string
+  logo: string | null
+  renamed: boolean
+  eventTypes: Array<{
+    slug: string
+    title: string
+    description: string | null
+    durationMinutes: number
+    assignmentMode: AssignmentMode
+  }>
+}
+
+export interface PublicTeamBookingPage {
+  hostName: string
+  teamName: string
+  teamSlug: string
+  title: string
+  description: string | null
+  durationMinutes: number
+  assignmentMode: AssignmentMode
+  locationType: MeetingLocationType
+  locationDetails: string
+  bookingQuestions: BookingQuestion[]
+  requiresConfirmation: boolean
+  hosts: Array<{ name: string, avatarUrl: string | null }>
+}
+
+export interface CreateTeamBookingInput {
+  team: string
+  slug: string
+  start: string
+  name: string
+  email: string
+  timeZone: string
+  notes?: string
+  answers?: Record<string, string>
+  guestEmails?: string[]
+}
+
+export interface TeamBookingRecord {
+  uid: string
+  status: 'pending' | 'confirmed' | 'cancelled' | 'rejected'
+  startsAt: string
+  endsAt: string
+  attendeeName: string
+  attendeeEmail: string
+  eventTitle: string
+  assignmentMode: AssignmentMode
+  locationType: MeetingLocationType
+  meetingUrl: string | null
+  cancellationReason: string | null
+  hosts: Array<{ name: string, isOrganizer: boolean }>
+}
+
+export interface TeamBookingsResponse {
+  items: TeamBookingRecord[]
+  pagination: PaginationMeta
+  counts: { upcoming: number, pending: number, past: number, cancelled: number }
+  scope: 'team' | 'mine'
+}
+
+export const publicTeamApi = {
+  profileEndpoint: (slug: string) => resource('/api/team-profile', slug),
+  pageEndpoint: (slug: string, eventSlug: string) =>
+    resource(resource('/api/team-booking-page', slug), eventSlug),
+  availabilityEndpoint: '/api/team-availability' as const,
+  create: (body: CreateTeamBookingInput) =>
+    $fetch<CreateBookingResult & { hostNames: string[] }>('/api/team-bookings', { method: 'POST', body })
+}
+
+export const teamBookingsApi = {
+  listEndpoint: (slug: string) => resource('/api/teams', slug, '/bookings')
+}
+
+export const teamAuditApi = {
+  listEndpoint: (slug: string) => resource('/api/teams', slug, '/audit')
+}
+
 export const billingApi = {
   summaryEndpoint: (slug: string) => resource('/api/teams', slug, '/billing'),
   checkout: (slug: string, body: { interval: BillingInterval, currency: CollectionCurrency }) =>

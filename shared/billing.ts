@@ -27,10 +27,17 @@ export const billingIntervals = ['yearly', 'monthly'] as const
 export type BillingInterval = typeof billingIntervals[number]
 export const DEFAULT_BILLING_INTERVAL: BillingInterval = 'yearly'
 
+/**
+ * Mirrors Bachs' subscription lifecycle so a webhook can be mapped straight
+ * across. `past_due` still has access while Bachs retries the card; `unpaid`
+ * means retries are exhausted.
+ */
 export const organizationPlanStatuses = [
   'trialing',
   'active',
   'past_due',
+  'unpaid',
+  'paused',
   'canceled'
 ] as const
 export type OrganizationPlanStatus = typeof organizationPlanStatuses[number]
@@ -38,6 +45,17 @@ export type OrganizationPlanStatus = typeof organizationPlanStatuses[number]
 /** Currencies a customer may pay in. Prices are always quoted in USD. */
 export const collectionCurrencies = ['USD', 'NGN'] as const
 export type CollectionCurrency = typeof collectionCurrencies[number]
+
+/**
+ * Bachs subscriptions are USD-only today, and only a saved card can be charged
+ * automatically. Paying in NGN therefore means a fresh invoice each period.
+ */
+export const collectionMethods = ['charge_automatically', 'invoice'] as const
+export type CollectionMethod = typeof collectionMethods[number]
+
+export function collectionMethodFor(currency: CollectionCurrency): CollectionMethod {
+  return currency === 'USD' ? 'charge_automatically' : 'invoice'
+}
 
 export interface OrganizationEntitlement {
   status: OrganizationPlanStatus
@@ -53,6 +71,8 @@ export interface OrganizationEntitlement {
   currentPeriodEnd: string | null
   daysLeftInTrial: number | null
   nextInvoiceCents: number
+  /** True when Bachs renews this on a saved card without anyone acting. */
+  autoRenews: boolean
 }
 
 export function seatPriceCents(interval: BillingInterval) {

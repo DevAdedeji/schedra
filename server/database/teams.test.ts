@@ -5,7 +5,7 @@ import { configureAppTestEnvironment, getTestDatabaseUrl } from '../../test/help
 const url = getTestDatabaseUrl()
 
 const TABLES = 'organization_audit_logs, organization_slug_history, organization_subscriptions, '
-  + 'organization_invoices, bachs_webhook_events, event_type_hosts, invitations, members, email_outbox, api_rate_limits, rate_limits, sessions, accounts, '
+  + 'organization_invoices, bachs_webhook_events, booking_hosts, event_type_hosts, invitations, members, email_outbox, api_rate_limits, rate_limits, sessions, accounts, '
   + 'verifications, bookings, event_types, date_overrides, availability_rules, schedules, users, organizations'
 
 describe.skipIf(!url)('teams', () => {
@@ -384,6 +384,228 @@ describe.skipIf(!url)('teams', () => {
       insert into event_types (organization_id, user_id, slug, title, duration_minutes)
       values (${team!.id}, ${ada.id}, '30min', 'Duplicate', 30)
     `).rejects.toThrow()
+  })
+
+  it('lets Bachs own the lifecycle once a card subscription exists', async () => {
+    const ada = await signUp('Ada Lovelace', 'ada', 'ada@example.com')
+    const team = await createTeam(ada.headers)
+    const { applySubscriptionState } = await import('../utils/billing')
+    const { organizationEntitlement } = await import('../utils/entitlement')
+
+    const applied = await applySubscriptionState({
+      id: 'sub_test_1',
+      status: 'active',
+      quantity: 4,
+      current_period_end: new Date(Date.now() + 30 * 86_400_000).toISOString(),
+      cancel_at_period_end: false,
+      metadata: { organizationId: team!.id }
+    })
+    expect(applied.applied).toBe(true)
+
+    const active = await organizationEntitlement(team!.id)
+    expect(active.status).toBe('active')
+    expect(active.autoRenews).toBe(true)
+    expect(active.readOnly).toBe(false)
+
+    // past_due keeps access: Bachs is still retrying the card.
+    await applySubscriptionState({
+      id: 'sub_test_1', status: 'past_due', metadata: { organizationId: team!.id }
+    })
+    const retrying = await organizationEntitlement(team!.id)
+    expect(retrying.status).toBe('past_due')
+    expect(retrying.readOnly).toBe(false)
+
+    // unpaid means retries are exhausted, which is where access stops.
+    await applySubscriptionState({
+      id: 'sub_test_1', status: 'unpaid', metadata: { organizationId: team!.id }
+    })
+    const exhausted = await organizationEntitlement(team!.id)
+    expect(exhausted.status).toBe('unpaid')
+    expect(exhausted.readOnly).toBe(true)
+    expect(exhausted.canAddMembers).toBe(false)
+  })
+
+  it('ignores a subscription event that carries no team', async () => {
+    const { applySubscriptionState } = await import('../utils/billing')
+    const result = await applySubscriptionState({ id: 'sub_orphan', status: 'active' })
+    expect(result.applied).toBe(false)
+    expect(result.reason).toBe('no-organization')
+  })
+
+  it('picks the collection method from the currency', async () => {
+    const { collectionMethodFor } = await import('#shared/billing')
+    // Bachs subscriptions are USD-only, and only a saved card auto-charges.
+    expect(collectionMethodFor('USD')).toBe('charge_automatically')
+    expect(collectionMethodFor('NGN')).toBe('invoice')
+  })
+
+  it('reserves a host automatically and releases them on cancellation', async () => {
+    const ada = await signUp('Ada Lovelace', 'ada', 'ada@example.com')
+    const [eventType] = await sql<{ id: string }[]>`
+      select id from event_types where user_id = ${ada.id} limit 1
+    `
+
+    const [booking] = await sql<{ id: string }[]>`
+      insert into bookings (event_type_id, host_id, uid, starts_at, ends_at,
+                            attendee_name, attendee_email, attendee_time_zone)
+      values (${eventType!.id}, ${ada.id}, 'uid-1', now() + interval '2 days',
+              now() + interval '2 days 30 minutes', 'Guest', 'guest@example.com', 'UTC')
+      returning id
+    `
+
+    // The trigger reserved the host without the booking code doing anything.
+    const held = await sql<{ is_organizer: boolean, released_at: Date | null }[]>`
+      select is_organizer, released_at from booking_hosts where booking_id = ${booking!.id}
+    `
+    expect(held).toHaveLength(1)
+    expect(held[0]!.is_organizer).toBe(true)
+    expect(held[0]!.released_at).toBeNull()
+
+    await sql`update bookings set status = 'cancelled' where id = ${booking!.id}`
+    const [released] = await sql<{ released_at: Date | null }[]>`
+      select released_at from booking_hosts where booking_id = ${booking!.id}
+    `
+    expect(released!.released_at).not.toBeNull()
+  })
+
+  it('refuses to double-book a host, across personal and team meetings alike', async () => {
+    const ada = await signUp('Ada Lovelace', 'ada', 'ada@example.com')
+    const team = await createTeam(ada.headers)
+    const [personal] = await sql<{ id: string }[]>`
+      select id from event_types where user_id = ${ada.id} limit 1
+    `
+    const [teamEvent] = await sql<{ id: string }[]>`
+      insert into event_types (organization_id, user_id, slug, title, duration_minutes, assignment_mode)
+      values (${team!.id}, ${ada.id}, 'collective', 'Collective', 30, 'collective')
+      returning id
+    `
+
+    const start = new Date(Date.now() + 3 * 86_400_000)
+    const end = new Date(start.getTime() + 30 * 60_000)
+
+    await sql`
+      insert into bookings (event_type_id, host_id, uid, starts_at, ends_at,
+                            attendee_name, attendee_email, attendee_time_zone)
+      values (${personal!.id}, ${ada.id}, 'uid-personal', ${start}, ${end}, 'Guest', 'g@example.com', 'UTC')
+    `
+
+    // A team meeting landing on Ada's personal booking must be rejected by the
+    // database, not merely avoided by the availability query.
+    const [teamBooking] = await sql<{ id: string }[]>`
+      insert into bookings (organization_id, event_type_id, host_id, uid, starts_at, ends_at,
+                            attendee_name, attendee_email, attendee_time_zone)
+      values (${team!.id}, ${teamEvent!.id}, ${ada.id}, 'uid-team',
+              ${new Date(start.getTime() + 4 * 86_400_000)},
+              ${new Date(end.getTime() + 4 * 86_400_000)}, 'Guest', 'g2@example.com', 'UTC')
+      returning id
+    `
+
+    await expect(sql`
+      insert into booking_hosts (booking_id, user_id, starts_at, ends_at)
+      values (${teamBooking!.id}, ${ada.id}, ${start}, ${end})
+    `).rejects.toThrow()
+
+    // Back-to-back is fine: a meeting ending exactly when another starts.
+    const [adjacent] = await sql<{ id: string }[]>`
+      insert into bookings (event_type_id, host_id, uid, starts_at, ends_at,
+                            attendee_name, attendee_email, attendee_time_zone)
+      values (${personal!.id}, ${ada.id}, 'uid-adjacent', ${end},
+              ${new Date(end.getTime() + 30 * 60_000)}, 'Guest', 'g3@example.com', 'UTC')
+      returning id
+    `
+    expect(adjacent!.id).toBeTruthy()
+  })
+
+  it('frees the slot again once a booking is cancelled', async () => {
+    const ada = await signUp('Ada Lovelace', 'ada', 'ada@example.com')
+    const [eventType] = await sql<{ id: string }[]>`
+      select id from event_types where user_id = ${ada.id} limit 1
+    `
+    const start = new Date(Date.now() + 5 * 86_400_000)
+    const end = new Date(start.getTime() + 30 * 60_000)
+
+    const [first] = await sql<{ id: string }[]>`
+      insert into bookings (event_type_id, host_id, uid, starts_at, ends_at,
+                            attendee_name, attendee_email, attendee_time_zone)
+      values (${eventType!.id}, ${ada.id}, 'uid-a', ${start}, ${end}, 'A', 'a@example.com', 'UTC')
+      returning id
+    `
+
+    await sql`update bookings set status = 'cancelled' where id = ${first!.id}`
+
+    // Same host, same time — allowed now the first reservation is released.
+    await expect(sql`
+      insert into bookings (event_type_id, host_id, uid, starts_at, ends_at,
+                            attendee_name, attendee_email, attendee_time_zone)
+      values (${eventType!.id}, ${ada.id}, 'uid-b', ${start}, ${end}, 'B', 'b@example.com', 'UTC')
+    `).resolves.toBeDefined()
+  })
+
+  it('reminds only teams that pay by invoice, and only their owners', async () => {
+    const ada = await signUp('Ada Lovelace', 'ada', 'ada@example.com')
+    const team = await createTeam(ada.headers)
+    // The sweep is deliberately inert when billing is not configured, so a
+    // self-hosted deployment never nags anybody about a bill.
+    process.env.BACHS_SECRET_KEY = 'sk_sandbox_test'
+    process.env.BACHS_WEBHOOK_SECRET = 'whsec-test'
+    const { resetEnv } = await import('../utils/env')
+    resetEnv()
+    const { processBillingReminders } = await import('../utils/billing-reminders')
+
+    // A card subscription is chased by Bachs, so it must not be emailed.
+    await sql`
+      update organization_subscriptions
+      set collection_method = 'charge_automatically', trial_ends_at = now() + interval '2 days'
+      where organization_id = ${team!.id}
+    `
+    expect((await processBillingReminders()).sent).toBe(0)
+
+    await sql`
+      update organization_subscriptions
+      set collection_method = 'invoice', trial_ends_at = now() + interval '2 days'
+      where organization_id = ${team!.id}
+    `
+    const first = await processBillingReminders()
+    expect(first.sent).toBe(1)
+
+    const queued = await sql<{ subject: string }[]>`
+      select subject from email_outbox where recipient = 'ada@example.com'
+    `
+    expect(queued.some(row => row.subject.includes('trial'))).toBe(true)
+
+    // Running again in the same stage must not send a second copy.
+    const second = await processBillingReminders()
+    expect(second.sent).toBe(1)
+    const total = await sql<{ count: number }[]>`
+      select count(*)::int as count from email_outbox where recipient = 'ada@example.com'
+        and subject like '%trial%'
+    `
+    expect(total[0]!.count).toBe(1)
+  })
+
+  it('locks an invoice team only after the grace period', async () => {
+    const ada = await signUp('Ada Lovelace', 'ada', 'ada@example.com')
+    const team = await createTeam(ada.headers)
+    const { expireLapsedTeams } = await import('../utils/billing-reminders')
+
+    await sql`
+      update organization_subscriptions
+      set collection_method = 'invoice', trial_ends_at = now() - interval '3 days'
+      where organization_id = ${team!.id}
+    `
+    expect(await expireLapsedTeams()).toBe(0)
+
+    await sql`
+      update organization_subscriptions
+      set trial_ends_at = now() - interval '30 days'
+      where organization_id = ${team!.id}
+    `
+    expect(await expireLapsedTeams()).toBe(1)
+
+    const [row] = await sql<{ status: string }[]>`
+      select status from organization_subscriptions where organization_id = ${team!.id}
+    `
+    expect(row!.status).toBe('canceled')
   })
 
   it('gives owners more than admins, and members nothing', async () => {

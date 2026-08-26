@@ -28,7 +28,9 @@ const personalLinks = [
 const links = computed(() => (teamSlug.value
   ? [
       { label: 'Event types', to: `/t/${teamSlug.value}/event-types`, icon: 'i-lucide-link-2' },
+      { label: 'Bookings', to: `/t/${teamSlug.value}/bookings`, icon: 'i-lucide-calendar-days' },
       { label: 'Members', to: `/t/${teamSlug.value}/members`, icon: 'i-lucide-users' },
+      { label: 'History', to: `/t/${teamSlug.value}/history`, icon: 'i-lucide-history' },
       { label: 'Billing', to: `/t/${teamSlug.value}/billing`, icon: 'i-lucide-credit-card' },
       { label: 'Settings', to: `/t/${teamSlug.value}/settings`, icon: 'i-lucide-settings' }
     ]

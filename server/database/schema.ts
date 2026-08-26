@@ -122,15 +122,19 @@ export const invitations = pgTable('invitations', {
 ])
 
 /**
- * Billing is per occupied seat, so there is no purchased-seat column: the
- * member count at invoice time is the quantity. Bachs cannot auto-charge a
- * bank transfer, so a period ends by invoice-and-extend, not a silent renewal.
+ * Billing is per occupied seat: the member count at checkout is the Bachs
+ * subscription quantity. Bachs cannot change that quantity afterwards, so seats
+ * are counted at each renewal rather than prorated mid-period. Paying in USD by
+ * card auto-renews; NGN is bank transfer, which nothing can charge for us.
  */
 export const organizationSubscriptions = pgTable('organization_subscriptions', {
   organizationId: uuid('organization_id').primaryKey().references(() => organizations.id, { onDelete: 'cascade' }),
   status: text('status').notNull().default('trialing'),
   interval: text('interval').notNull().default('yearly'),
   collectionCurrency: text('collection_currency').notNull().default('USD'),
+  // 'charge_automatically' once a Bachs subscription is billing a saved card;
+  // 'invoice' for the NGN path, which nothing can charge on our behalf.
+  collectionMethod: text('collection_method').notNull().default('invoice'),
 
   trialEndsAt: timestamp('trial_ends_at', { withTimezone: true }),
   currentPeriodEnd: timestamp('current_period_end', { withTimezone: true }),
@@ -147,7 +151,11 @@ export const organizationSubscriptions = pgTable('organization_subscriptions', {
   index('organization_subscriptions_status_idx').on(table.status),
   check(
     'organization_subscriptions_status_allowed',
-    sql`${table.status} in ('trialing', 'active', 'past_due', 'canceled')`
+    sql`${table.status} in ('trialing', 'active', 'past_due', 'unpaid', 'paused', 'canceled')`
+  ),
+  check(
+    'organization_subscriptions_collection_method_allowed',
+    sql`${table.collectionMethod} in ('charge_automatically', 'invoice')`
   ),
   check('organization_subscriptions_interval_allowed', sql`${table.interval} in ('monthly', 'yearly')`),
   check(
@@ -175,6 +183,11 @@ export const organizationInvoices = pgTable('organization_invoices', {
   seats: integer('seats').notNull(),
   amountCents: integer('amount_cents').notNull(),
   collectionCurrency: text('collection_currency').notNull().default('USD'),
+  // What the customer was actually asked for, in the collection currency, plus
+  // the rate used. Kept as decimal strings because that is how Bachs states
+  // money, and reconciliation compares against Bachs, not against our cents.
+  collectionAmount: text('collection_amount'),
+  exchangeRate: text('exchange_rate'),
   // What actually reached the balance, which is not what the customer was
   // charged whenever the customer is bearing the fee.
   settlementAmountCents: integer('settlement_amount_cents'),
@@ -548,6 +561,32 @@ export const bookings = pgTable('bookings', {
   index('bookings_host_status_ends_at_idx').on(table.hostId, table.status, table.endsAt),
   index('bookings_event_type_id_idx').on(table.eventTypeId),
   check('bookings_ends_after_starts', sql`${table.endsAt} > ${table.startsAt}`)
+])
+
+/**
+ * Every booking reserves its hosts here — personal ones through a trigger, team
+ * ones with a row per host. One Postgres exclusion constraint over this table
+ * is therefore the single guard against double-booking anybody, whether the
+ * clash is between two team events or between a team event and a personal one.
+ */
+export const bookingHosts = pgTable('booking_hosts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  bookingId: uuid('booking_id').notNull().references(() => bookings.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // The organizer owns the calendar event and the meeting link; the rest attend.
+  isOrganizer: boolean('is_organizer').notNull().default(false),
+
+  startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+  endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
+  // Set when the booking stops holding time, which frees the slot without
+  // losing the record of who was assigned.
+  releasedAt: timestamp('released_at', { withTimezone: true }),
+
+  ...timestamps
+}, table => [
+  uniqueIndex('booking_hosts_booking_user_key').on(table.bookingId, table.userId),
+  index('booking_hosts_user_starts_idx').on(table.userId, table.startsAt),
+  check('booking_hosts_ends_after_starts', sql`${table.endsAt} > ${table.startsAt}`)
 ])
 
 export const bookingCalendarEvents = pgTable('booking_calendar_events', {

@@ -27,10 +27,11 @@ const yearlySavingMonths = Math.round(
 )
 
 /**
- * One list for the whole comparison. Adding a feature is a single row, and a
- * value can be `true`, `false` or any string when a plan needs a number.
+ * One list for the whole comparison. Adding a feature is a single row. A value
+ * is `true`, `false`, the literal `'soon'` for something on the way, or any
+ * other string when a plan needs a number instead of a tick.
  */
-type Availability = boolean | string
+type Availability = boolean | 'soon' | string
 
 interface ComparisonRow {
   label: string
@@ -62,24 +63,24 @@ const comparison: { group: string, rows: ComparisonRow[] }[] = [
   {
     group: 'Scheduling together',
     rows: [
-      { label: 'Shared team booking page', free: false, team: true },
+      { label: 'Shared team booking page', free: false, team: 'soon' },
       { label: 'Members', free: false, team: `Up to ${TEAM_PLAN.maxSeats}` },
       { label: 'Roles and permissions', free: false, team: 'Owner, admin, member' },
       {
         label: 'Round-robin assignment',
         detail: 'The free, fairest host takes the booking.',
         free: false,
-        team: true
+        team: 'soon'
       },
       {
         label: 'Collective meetings',
         detail: 'Offered only when every required host is free.',
         free: false,
-        team: true
+        team: 'soon'
       },
-      { label: 'Per-host availability and calendars', free: false, team: true },
-      { label: 'Team booking history', free: false, team: true },
-      { label: 'Audit log', free: false, team: true }
+      { label: 'Per-host availability and calendars', free: false, team: 'soon' },
+      { label: 'Team booking history', free: false, team: 'soon' },
+      { label: 'Audit log', free: false, team: 'soon' }
     ]
   },
   {
@@ -326,7 +327,16 @@ useHead({
                     :key="plan"
                     class="py-4 align-top"
                   >
-                    <template v-if="typeof row[plan] === 'string'">
+                    <template v-if="row[plan] === 'soon'">
+                      <UBadge
+                        color="neutral"
+                        variant="subtle"
+                        size="sm"
+                      >
+                        Soon
+                      </UBadge>
+                    </template>
+                    <template v-else-if="typeof row[plan] === 'string'">
                       <span class="text-[14px] text-toned">{{ row[plan] }}</span>
                     </template>
                     <template v-else-if="row[plan]">

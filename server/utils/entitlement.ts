@@ -24,6 +24,12 @@ function settle(
   row: typeof organizationSubscriptions.$inferSelect,
   now: Date
 ): { status: OrganizationPlanStatus, graceEndsAt: Date | null } {
+  // Once Bachs is billing a saved card it owns the lifecycle: it retries and
+  // moves the status itself, so second-guessing it here would fight the truth.
+  if (row.collectionMethod === 'charge_automatically') {
+    return { status: row.status as OrganizationPlanStatus, graceEndsAt: null }
+  }
+
   if (row.status === 'canceled') return { status: 'canceled', graceEndsAt: null }
 
   if (row.status === 'trialing') {
@@ -74,7 +80,8 @@ export async function organizationEntitlement(
       graceEndsAt: null,
       currentPeriodEnd: null,
       daysLeftInTrial: null,
-      nextInvoiceCents: 0
+      nextInvoiceCents: 0,
+      autoRenews: false
     }
   }
 
@@ -82,7 +89,12 @@ export async function organizationEntitlement(
   const interval = row.interval as BillingInterval
 
   const seatLimit = status === 'trialing' ? TEAM_PLAN.trialSeatLimit : TEAM_PLAN.maxSeats
-  const readOnly = status === 'canceled' || (status === 'past_due' && Boolean(graceEndsAt && now > graceEndsAt))
+  // `past_due` still has access while Bachs retries the card; `unpaid` means
+  // those retries are exhausted, which is where access actually stops.
+  const readOnly = status === 'canceled'
+    || status === 'unpaid'
+    || status === 'paused'
+    || (status === 'past_due' && Boolean(graceEndsAt && now > graceEndsAt))
   const canAddMembers = (status === 'trialing' || status === 'active')
     && seatsUsed < seatLimit
     && seatsUsed < TEAM_PLAN.maxSeats
@@ -98,7 +110,8 @@ export async function organizationEntitlement(
     graceEndsAt: graceEndsAt?.toISOString() ?? null,
     currentPeriodEnd: row.currentPeriodEnd?.toISOString() ?? null,
     daysLeftInTrial: status === 'trialing' ? daysUntil(row.trialEndsAt, now) : null,
-    nextInvoiceCents: invoiceTotalCents(seatsUsed, interval)
+    nextInvoiceCents: invoiceTotalCents(seatsUsed, interval),
+    autoRenews: row.collectionMethod === 'charge_automatically' && status === 'active'
   }
 }
 

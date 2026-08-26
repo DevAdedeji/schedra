@@ -1,7 +1,7 @@
 import { bachsWebhookEvents } from '../../database/schema'
 import { useDatabase } from '../../utils/database'
-import { verifyWebhookSignature } from '../../utils/bachs'
-import { markInvoiceFailed, markInvoicePaid } from '../../utils/billing'
+import { verifyWebhookSignature, type BachsSubscription } from '../../utils/bachs'
+import { applySubscriptionState, markInvoiceFailed, markInvoicePaid } from '../../utils/billing'
 import { recordAudit } from '../../utils/organization'
 
 interface BachsEvent {
@@ -20,6 +20,13 @@ interface BachsEvent {
 
 const PAID_EVENTS = new Set(['collection.succeeded', 'checkout.completed', 'invoice.paid'])
 const FAILED_EVENTS = new Set(['collection.failed', 'checkout.expired', 'invoice.payment_failed'])
+// Bachs moves a subscription through its own lifecycle as the saved card
+// succeeds or fails, so these events are the authority on access.
+const SUBSCRIPTION_EVENTS = new Set([
+  'customer.subscription.created',
+  'customer.subscription.updated',
+  'customer.subscription.deleted'
+])
 
 export default defineEventHandler(async (event) => {
   // The signature covers the bytes as sent. Parsing first and re-serialising
@@ -56,6 +63,23 @@ export default defineEventHandler(async (event) => {
     .returning({ id: bachsWebhookEvents.id })
 
   if (!claimed.length) return { received: true, duplicate: true }
+
+  if (SUBSCRIPTION_EVENTS.has(type)) {
+    const subscription = payload.data as unknown as BachsSubscription
+    if (!subscription?.id) return { received: true, ignored: 'no-subscription' }
+
+    const result = await applySubscriptionState(subscription)
+    if (result.applied && result.organizationId) {
+      await recordAudit({
+        organizationId: result.organizationId,
+        action: `billing.subscription_${subscription.status}`,
+        targetType: 'subscription',
+        targetId: subscription.id,
+        metadata: { type, quantity: subscription.quantity ?? null }
+      })
+    }
+    return { received: true, applied: result.applied, reason: result.reason }
+  }
 
   const reference = payload.data?.reference
   if (!reference) return { received: true, ignored: 'no-reference' }

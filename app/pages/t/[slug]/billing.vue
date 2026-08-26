@@ -3,6 +3,7 @@ import {
   TEAM_PLAN,
   billingIntervals,
   collectionCurrencies,
+  collectionMethodFor,
   formatUsd,
   invoiceTotalCents,
   type BillingInterval,
@@ -41,12 +42,15 @@ const currencyOptions = collectionCurrencies.map(value => ({
   value
 }))
 
+// USD by card becomes a Bachs subscription that renews itself. NGN is bank
+// transfer, which nothing can charge for us, so each period is a fresh invoice.
+const willAutoRenew = computed(() => collectionMethodFor(currency.value) === 'charge_automatically')
+
 const seats = computed(() => entitlement.value?.seatsUsed ?? 0)
 const total = computed(() => invoiceTotalCents(seats.value, interval.value))
 const belowMinimum = computed(() => seats.value < TEAM_PLAN.minimumSeats)
 
-// Bachs cannot re-charge a bank transfer, so there is no card on file and no
-// silent renewal: each period is a fresh invoice the team chooses to pay.
+// Bachs confirms payment by webhook; this redirect only tells us to re-read.
 const paidJustNow = computed(() => route.query.paid === '1')
 
 watch(paidJustNow, async (paid) => {
@@ -165,11 +169,18 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
             <template v-if="entitlement.status === 'trialing'">
               {{ entitlement.daysLeftInTrial }} days left in your trial. Pay any time to keep the team running.
             </template>
+            <template v-else-if="entitlement.status === 'past_due'">
+              A payment failed. It is being retried automatically and the team keeps working meanwhile.
+            </template>
+            <template v-else-if="entitlement.status === 'unpaid'">
+              Payment retries are exhausted, so the team is read-only. Paying below restores it immediately.
+            </template>
             <template v-else-if="entitlement.readOnly">
               This team is read-only. Team booking pages are not taking new bookings until an invoice is paid.
             </template>
             <template v-else-if="entitlement.currentPeriodEnd">
-              Paid through {{ formatDate(entitlement.currentPeriodEnd) }}.
+              {{ entitlement.autoRenews ? 'Renews' : 'Paid through' }}
+              {{ formatDate(entitlement.currentPeriodEnd) }}.
             </template>
           </p>
 
@@ -185,7 +196,9 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
             </UFormField>
             <UFormField
               label="Pay with"
-              help="Prices are always in USD. NGN settles over bank transfer."
+              :help="willAutoRenew
+                ? 'Renews automatically on the saved card each period.'
+                : 'Bank transfer cannot be charged automatically, so you will get an invoice each period.'"
             >
               <USelectMenu
                 v-model="currency"
