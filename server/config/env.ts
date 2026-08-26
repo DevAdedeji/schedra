@@ -8,6 +8,7 @@ export interface Env {
   googleClientSecret?: string
   zoomClientId?: string
   zoomClientSecret?: string
+  zoomWebhookSecret?: string
 
   bachsSecretKey?: string
   bachsWebhookSecret?: string
@@ -60,6 +61,7 @@ export function useEnv(): Env {
   const googleClientSecret = optional('GOOGLE_CLIENT_SECRET')
   const zoomClientId = optional('ZOOM_CLIENT_ID')
   const zoomClientSecret = optional('ZOOM_CLIENT_SECRET')
+  const zoomWebhookSecret = optional('ZOOM_WEBHOOK_SECRET')
   const integrationEncryptionKey = optional('INTEGRATION_ENCRYPTION_KEY')
   const bachsSecretKey = optional('BACHS_SECRET_KEY')
   const bachsWebhookSecret = optional('BACHS_WEBHOOK_SECRET')
@@ -87,6 +89,9 @@ export function useEnv(): Env {
 
   const schedraUrl = parseUrl('SCHEDRA_URL', process.env.SCHEDRA_URL!, ['http:', 'https:'])
   const local = ['localhost', '127.0.0.1', '::1'].includes(new URL(schedraUrl).hostname)
+  if (zoomClientId && !zoomWebhookSecret && !local) {
+    throw new Error('ZOOM_WEBHOOK_SECRET is required whenever Zoom is configured outside local development.')
+  }
   if (smtpUrl) parseUrl('SMTP_URL', smtpUrl, ['smtp:', 'smtps:'])
   if (!resendApiKey && !smtpUrl && !local) {
     throw new Error('Configure SMTP_URL or RESEND_API_KEY outside local development so account and booking emails are not lost.')
@@ -104,6 +109,7 @@ export function useEnv(): Env {
     googleClientSecret,
     zoomClientId,
     zoomClientSecret,
+    zoomWebhookSecret,
     resendApiKey,
     smtpUrl,
     emailDeliveryMode: smtpUrl ? 'smtp' : resendApiKey ? 'resend' : 'log',

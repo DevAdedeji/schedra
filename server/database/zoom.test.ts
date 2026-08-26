@@ -18,6 +18,7 @@ describe.skipIf(!url)('Zoom integration', () => {
     configureAppTestEnvironment(url!)
     process.env.ZOOM_CLIENT_ID = 'zoom-client-id'
     process.env.ZOOM_CLIENT_SECRET = 'zoom-client-secret'
+    process.env.ZOOM_WEBHOOK_SECRET = 'zoom-webhook-secret'
     process.env.INTEGRATION_ENCRYPTION_KEY = 'integration-test-key-that-is-at-least-32-characters'
     const { resetEnv } = await import('../config/env')
     resetEnv()
@@ -231,5 +232,44 @@ describe.skipIf(!url)('Zoom integration', () => {
     expect(await processCalendarSyncJobs()).toBe(1)
     expect(requests.some(request => request.method === 'DELETE' && request.url.endsWith('/meetings/987654321'))).toBe(true)
     expect(await sql`select id from booking_conference_meetings where booking_id = ${bookingId}`).toHaveLength(0)
+  })
+
+  it('deauthorization removes credentials and locally held Zoom meeting data', async () => {
+    const { hostId, bookingId } = await createHostAndBooking()
+    await connect(hostId)
+    const [connection] = await sql<{ id: string }[]>`
+      select id from video_conference_connections where user_id = ${hostId}
+    `
+    await sql`
+      update bookings
+      set meeting_url = 'https://zoom.us/j/123456789?pwd=private'
+      where id = ${bookingId}
+    `
+    await sql`
+      insert into booking_conference_meetings (
+        booking_id, user_id, connection_id, provider, meeting_id, join_url
+      ) values (
+        ${bookingId}, ${hostId}, ${connection!.id}, 'zoom', '123456789',
+        'https://zoom.us/j/123456789?pwd=private'
+      )
+    `
+
+    const { deauthorizeZoomUser } = await import('../services/zoom-connection')
+    await expect(deauthorizeZoomUser('zoom-account-id')).resolves.toEqual({
+      removedConnections: 1,
+      removedMeetings: 1
+    })
+
+    const [booking] = await sql<{ meetingUrl: string | null }[]>`
+      select meeting_url as "meetingUrl" from bookings where id = ${bookingId}
+    `
+    expect(booking?.meetingUrl).toBeNull()
+    expect(await sql`select id from booking_conference_meetings where booking_id = ${bookingId}`).toHaveLength(0)
+    expect(await sql`select id from video_conference_connections where user_id = ${hostId}`).toHaveLength(0)
+
+    await expect(deauthorizeZoomUser('zoom-account-id')).resolves.toEqual({
+      removedConnections: 0,
+      removedMeetings: 0
+    })
   })
 })

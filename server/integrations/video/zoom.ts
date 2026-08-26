@@ -4,6 +4,7 @@ import { useDatabase } from '../../database'
 import { useEnv } from '../../config/env'
 import { fetchWithTimeout } from '../fetch'
 import { decryptCredential, encryptCredential } from '../calendar/credential-crypto'
+import { deleteZoomConnectionData } from '../../services/zoom-connection'
 
 interface ZoomTokens {
   access_token: string
@@ -327,5 +328,5 @@ export async function disconnectZoom(userId: string) {
   } catch {
     // Local disconnection must succeed even when Zoom cannot be reached.
   }
-  await useDatabase().delete(videoConferenceConnections).where(eq(videoConferenceConnections.id, connection.id))
+  await deleteZoomConnectionData(connection)
 }
