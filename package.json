@@ -6,6 +6,7 @@
     "build": "nuxt build",
     "dev": "nuxt dev --port 3002",
     "preview": "nuxt preview",
+    "worker": "node scripts/start-worker.mjs",
     "postinstall": "nuxt prepare",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node scripts/migrate.mjs",

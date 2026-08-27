@@ -37,6 +37,7 @@ export default defineConfig({
         SCHEDRA_URL: baseURL,
         AUTH_SECRET: 'playwright-only-secret-with-at-least-thirty-two-characters',
         PLATFORM_ADMIN_EMAILS: 'ada-ops@schedra.test',
+        SCHEDRA_PROCESS_ROLE: 'web',
         // Playwright uses an isolated port and test database, so it is safe to
         // run alongside the developer's normal Nuxt process for this workspace.
         NUXT_IGNORE_LOCK: '1',

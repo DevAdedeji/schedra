@@ -7,5 +7,5 @@ dockerfilePath = "Dockerfile"
 # migration aborts the deploy instead of crashlooping the running version.
 preDeployCommand = "node scripts/migrate.mjs"
 startCommand = "node .output/server/index.mjs"
-healthcheckPath = "/api/healthz"
+healthcheckPath = "/api/readyz"
 restartPolicyType = "ON_FAILURE"

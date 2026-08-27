@@ -192,6 +192,14 @@ async function retry(jobKind: OperationKind, id: string) {
               <span class="text-muted">Database</span>
               <span class="font-medium text-highlighted">{{ diagnostics?.database.latencyMs ?? '—' }} ms</span>
             </div>
+            <div class="flex items-center justify-between">
+              <span class="text-muted">Background worker</span>
+              <UBadge
+                :label="diagnostics?.worker.ok ? `${diagnostics.worker.active} online` : 'Offline'"
+                :color="diagnostics?.worker.ok ? 'success' : 'error'"
+                variant="subtle"
+              />
+            </div>
             <div
               v-for="(configured, provider) in diagnostics?.configuration"
               :key="provider"

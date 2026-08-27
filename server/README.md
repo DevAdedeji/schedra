@@ -25,7 +25,8 @@ services → domain (pure scheduling rules)
 - `integrations/`: external provider adapters and credential handling.
 - `security/`: request and security policy helpers.
 - `config/`: validated runtime configuration.
+- `plugins/job-runtime.ts`: starts the consolidated durable worker when the process role is `worker` or `all`.
+- `services/worker-coordination.ts`: database leases, worker heartbeats and crash-safe ownership for scheduled tasks.
 - `utils/`: small, deterministic helpers only. Utilities must not query the database or call external services.
 
 ESLint enforces the pure-layer boundary for `server/utils`, `server/domain`, and `shared`. It rejects imports from Drizzle, Postgres, the database layer, or repositories in those directories.
-

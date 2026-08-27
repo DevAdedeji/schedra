@@ -12,6 +12,8 @@ services:
       DATABASE_URL: postgres://schedra:schedra@db:5432/schedra
       SCHEDRA_URL: http://localhost:3002
       AUTH_SECRET: local-compose-secret-change-before-production
+      # A single local container can serve requests and run durable jobs.
+      SCHEDRA_PROCESS_ROLE: all
       PORT: 3000
     ports:
       - '3002:3000'

@@ -323,6 +323,7 @@ export interface OperationsJobsResponse {
 
 export interface OperationsDiagnostics {
   database: { ok: boolean, latencyMs: number }
+  worker: { ok: boolean, active: number, lastSeenAt: string | null }
   configuration: {
     email: boolean
     google: boolean

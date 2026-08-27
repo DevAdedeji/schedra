@@ -8,7 +8,8 @@ import {
   operationsAlerts,
   organizations,
   subscriptionSeatSyncJobs,
-  webhookDeliveries
+  webhookDeliveries,
+  workerInstances
 } from '../database/schema'
 import { useDatabase } from '../database'
 import { completeWebhookDelivery, failWebhookDelivery, beginWebhookRetry, webhookPayload } from './webhook-delivery'
@@ -265,9 +266,18 @@ export async function retryOperation(kind: OperationKind, id: string) {
 export async function operationsDiagnostics() {
   const startedAt = performance.now()
   await useDatabase().execute(sql`select 1`)
+  const [worker] = await useDatabase().select({
+    active: sql<number>`count(*) filter (where ${workerInstances.stoppedAt} is null and ${workerInstances.lastSeenAt} >= now() - interval '45 seconds')`.mapWith(Number),
+    lastSeenAt: sql<Date | null>`max(${workerInstances.lastSeenAt})`.mapWith(workerInstances.lastSeenAt)
+  }).from(workerInstances)
   const env = useEnv()
   return {
     database: { ok: true, latencyMs: Math.round((performance.now() - startedAt) * 10) / 10 },
+    worker: {
+      ok: Boolean(worker?.active),
+      active: worker?.active ?? 0,
+      lastSeenAt: worker?.lastSeenAt?.toISOString() ?? null
+    },
     configuration: {
       email: env.emailDeliveryMode !== 'log',
       google: Boolean(env.googleClientId && env.googleClientSecret),

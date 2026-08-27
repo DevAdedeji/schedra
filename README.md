@@ -8,8 +8,9 @@ A proprietary scheduling platform for personal and team bookings, built with Nux
 > meeting locations, calendar-file downloads, configurable reminders, durable
 > SMTP/Resend email delivery and Google Calendar conflict/event/Meet sync
 > are implemented. Team workspaces, shared event types, invitations and
-> cross-site booking embeds are implemented; webhooks are not yet available. The
-> homepage slot picker is an explicitly labelled interactive preview.
+> cross-site booking embeds, durable provider webhooks and a private operations
+> dashboard are implemented. The homepage slot picker is an explicitly
+> labelled interactive preview.
 
 ## Stack
 
@@ -30,6 +31,7 @@ The dev server runs on `http://localhost:3002`.
 ```bash
 pnpm build         # production build (the landing page is prerendered)
 pnpm preview       # preview that build locally
+pnpm worker        # start the built bundle as a worker-only process
 pnpm lint          # eslint
 pnpm typecheck     # vue-tsc
 pnpm test          # vitest — database tests use TEST_DATABASE_URL only
@@ -51,6 +53,25 @@ TEST_DATABASE_URL=postgres://schedra:schedra@localhost:5442/schedra_test
 Railway runs migrations as a pre-deploy command, so a failed migration aborts
 the deploy before traffic moves. The Compose app service runs the same
 migrations before starting the server.
+
+Schedra has a PostgreSQL-backed job runtime for calendar updates, email,
+subscription seat reconciliation, billing reminders and operational alerts.
+`SCHEDRA_PROCESS_ROLE=all` is the safe default for development and a single
+service: database leases prevent duplicate scheduled work even when several
+instances overlap during a deploy.
+
+For independent production scaling, deploy the same image twice:
+
+| Service | Start command | Environment |
+|---|---|---|
+| Web | `node .output/server/index.mjs` | `SCHEDRA_PROCESS_ROLE=web` |
+| Worker | `node scripts/start-worker.mjs` | role is set to `worker` by the script |
+
+Do not expose the worker service publicly. It serves only `/api/healthz` and
+`/api/readyz`; all other routes return 404. Use `/api/readyz` for deployment
+health checks. During shutdown it stops claiming work, drains active tasks and
+releases its database leases. Jobs interrupted by a hard termination are
+reclaimed from their durable queue after their lock expires.
 
 Set these in the host's environment: `DATABASE_URL`, `SCHEDRA_URL`,
 `AUTH_SECRET`, and optionally `DIRECT_URL`, `GOOGLE_*`,
@@ -120,9 +141,11 @@ host (it contains `-pooler`) and `DIRECT_URL` at the direct one. Migrations use
 the direct endpoint because DDL through PgBouncer is unreliable, and the app
 disables prepared statements automatically when it detects a pooled host.
 
-`GET /api/healthz` returns 503 if the double-booking constraint is missing,
-which is the failure mode worth alerting on — the app would otherwise serve
-traffic happily while accepting overlapping bookings.
+`GET /api/healthz` is a process-only liveness check. `GET /api/readyz` checks
+Postgres and required safety migrations; on a worker-only service it also
+requires a fresh worker heartbeat. The public response stays deliberately
+generic, while detailed health is available to platform administrators at
+`/operations`.
 
 ## Layout
 

@@ -21,6 +21,7 @@ export interface Env {
   emailFrom: string
   platformAdminEmails: string[]
   operationsAlertEmails: string[]
+  processRole: 'web' | 'worker' | 'all'
 }
 
 let cached: Env | null = null
@@ -89,6 +90,11 @@ export function useEnv(): Env {
   const emailFrom = optional('EMAIL_FROM')
   const platformAdminEmails = emailList('PLATFORM_ADMIN_EMAILS')
   const operationsAlertEmails = emailList('OPERATIONS_ALERT_EMAILS')
+  const processRole = optional('SCHEDRA_PROCESS_ROLE') ?? 'all'
+
+  if (!['web', 'worker', 'all'].includes(processRole)) {
+    throw new Error('SCHEDRA_PROCESS_ROLE must be web, worker or all.')
+  }
 
   if (Boolean(googleClientId) !== Boolean(googleClientSecret)) {
     throw new Error('GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set together.')
@@ -141,7 +147,8 @@ export function useEnv(): Env {
     emailDeliveryMode: smtpUrl ? 'smtp' : resendApiKey ? 'resend' : 'log',
     emailFrom: emailFrom ?? 'Schedra <onboarding@resend.dev>',
     platformAdminEmails,
-    operationsAlertEmails: operationsAlertEmails.length ? operationsAlertEmails : platformAdminEmails
+    operationsAlertEmails: operationsAlertEmails.length ? operationsAlertEmails : platformAdminEmails,
+    processRole: processRole as Env['processRole']
   }
 
   return cached
