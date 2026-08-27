@@ -14,6 +14,7 @@ import {
   createCheckoutSession,
   createSubscriptionCheckout,
   ensureTeamProduct,
+  NGN_ONE_TIME_PAYMENT_METHOD_OPTIONS,
   quoteConversion,
   type BachsSubscription
 } from '../integrations/bachs'
@@ -170,10 +171,7 @@ export async function startCheckout(input: {
           return createCheckoutSession({
             amount: quote.to_amount,
             currency: input.collectionCurrency,
-            paymentMethodOptions: {
-              bank_transfer: { currencies: ['NGN'] },
-              ngn_card: { currencies: ['NGN'] }
-            },
+            paymentMethodOptions: NGN_ONE_TIME_PAYMENT_METHOD_OPTIONS,
             reference,
             customer: input.customer,
             successUrl,

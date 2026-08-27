@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   billingCheckoutReason,
   toDecimalString,
@@ -24,12 +24,17 @@ describe('bachs webhook signatures', () => {
     process.env.BACHS_SECRET_KEY = 'sk_sandbox_test'
     process.env.BACHS_WEBHOOK_SECRET = SECRET
 
+    vi.stubGlobal('createError', (input: { statusCode: number, statusMessage: string, data?: unknown }) => (
+      Object.assign(new Error(input.statusMessage), input)
+    ))
+
     const { resetEnv } = await import('../config/env')
     resetEnv()
     verify = (await import('./bachs')).verifyWebhookSignature
   })
 
   afterEach(async () => {
+    vi.unstubAllGlobals()
     delete process.env.BACHS_SECRET_KEY
     delete process.env.BACHS_WEBHOOK_SECRET
     const { resetEnv } = await import('../config/env')
@@ -121,5 +126,85 @@ describe('money at the bachs boundary', () => {
     expect(billingCheckoutReason('active', 'invoice', false)).toBeNull()
     expect(billingCheckoutReason('active', 'invoice', true)).toBe('manual_seat_change')
     expect(billingCheckoutReason('past_due', 'invoice', false)).toBe('manual_renewal')
+  })
+})
+
+describe('bachs checkout payment methods', () => {
+  beforeEach(async () => {
+    process.env.DATABASE_URL ||= 'postgres://localhost:5432/schedra_test'
+    process.env.SCHEDRA_URL ||= 'https://staging.schedra.xyz'
+    process.env.AUTH_SECRET ||= 'x'.repeat(32)
+    process.env.BACHS_SECRET_KEY = 'sk_sandbox_test'
+    process.env.BACHS_WEBHOOK_SECRET = SECRET
+
+    vi.stubGlobal('createError', (input: { statusCode: number, statusMessage: string, data?: unknown }) => (
+      Object.assign(new Error(input.statusMessage), input)
+    ))
+
+    const { resetEnv } = await import('../config/env')
+    resetEnv()
+  })
+
+  afterEach(async () => {
+    vi.unstubAllGlobals()
+    delete process.env.BACHS_SECRET_KEY
+    delete process.env.BACHS_WEBHOOK_SECRET
+    const { resetEnv } = await import('../config/env')
+    resetEnv()
+  })
+
+  it('lets Bachs select the eligible card rail for a subscription', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      checkout_id: 'chk_test',
+      checkout_url: 'https://checkout.bachs.io/c/test',
+      status: 'open'
+    }), { status: 200, headers: { 'content-type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { createSubscriptionCheckout } = await import('./bachs')
+    await createSubscriptionCheckout({
+      productId: 'prod_test',
+      quantity: 1,
+      reference: 'schedra-test',
+      customer: { email: 'owner@example.com', name: 'Example team' },
+      successUrl: 'https://staging.schedra.xyz/paid',
+      cancelUrl: 'https://staging.schedra.xyz/billing',
+      metadata: { organizationId: 'org_test' }
+    })
+
+    const request = fetchMock.mock.calls[0]?.[1] as RequestInit
+    const body = JSON.parse(String(request.body)) as Record<string, unknown>
+    expect(body.payment_method_options).toBeUndefined()
+  })
+
+  it('uses the documented card key for one-time NGN checkout restrictions', async () => {
+    const { NGN_ONE_TIME_PAYMENT_METHOD_OPTIONS } = await import('./bachs')
+
+    expect(NGN_ONE_TIME_PAYMENT_METHOD_OPTIONS).toEqual({
+      bank_transfer: { currencies: ['NGN'] },
+      card: { currencies: ['NGN'] }
+    })
+    expect(NGN_ONE_TIME_PAYMENT_METHOD_OPTIONS).not.toHaveProperty('ngn_card')
+  })
+
+  it('turns an unavailable live payment method into an actionable service error', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      detail: 'This restriction leaves no payment method available for this checkout',
+      error_code: 'CHECKOUT_RESTRICTION_LEAVES_NO_PAYMENT_METHOD'
+    }), { status: 400, headers: { 'content-type': 'application/json' } })))
+
+    const { createSubscriptionCheckout } = await import('./bachs')
+    await expect(createSubscriptionCheckout({
+      productId: 'prod_test',
+      quantity: 1,
+      reference: 'schedra-test-error',
+      customer: { email: 'owner@example.com', name: 'Example team' },
+      successUrl: 'https://staging.schedra.xyz/paid',
+      cancelUrl: 'https://staging.schedra.xyz/billing',
+      metadata: { organizationId: 'org_test' }
+    })).rejects.toMatchObject({
+      statusCode: 503,
+      data: { errorCode: 'CHECKOUT_RESTRICTION_LEAVES_NO_PAYMENT_METHOD' }
+    })
   })
 })

@@ -11,6 +11,11 @@ const LIVE_API = 'https://api.bachs.io/v1'
 /** Replay window for webhook timestamps, in seconds. */
 const WEBHOOK_TOLERANCE_SECONDS = 300
 
+export const NGN_ONE_TIME_PAYMENT_METHOD_OPTIONS: Record<string, { currencies: string[] }> = {
+  bank_transfer: { currencies: ['NGN'] },
+  card: { currencies: ['NGN'] }
+}
+
 export function bachsConfigured() {
   return Boolean(useEnv().bachsSecretKey)
 }
@@ -70,9 +75,16 @@ export async function bachsFetch<T>(path: string, options: BachsRequest = {}): P
       errorCode: payload?.error_code ?? null,
       detail
     })
+    const errorCode = String(payload?.error_code ?? '')
+    const unavailablePaymentMethod = [
+      'CHECKOUT_RESTRICTION_LEAVES_NO_PAYMENT_METHOD',
+      'CHECKOUT_HAS_NO_PAYMENT_METHOD'
+    ].includes(errorCode)
     throw createError({
-      statusCode: response.status === 422 ? 502 : response.status,
-      statusMessage: String(detail),
+      statusCode: unavailablePaymentMethod ? 503 : response.status === 422 ? 502 : response.status,
+      statusMessage: unavailablePaymentMethod
+        ? 'Checkout is temporarily unavailable because the billing account has no eligible payment method. Complete Bachs live verification and enable card payments, then try again.'
+        : String(detail),
       data: { errorCode: payload?.error_code }
     })
   }
@@ -312,9 +324,9 @@ export function createSubscriptionCheckout(input: SubscriptionCheckoutInput) {
       reference: input.reference,
       success_url: input.successUrl,
       cancel_url: input.cancelUrl,
-      // Only a saved card can be charged automatically, so the subscription
-      // path deliberately does not offer bank transfer.
-      payment_method_options: { card: { currencies: [TEAM_PLAN.currency] } },
+      // Recurring products are card-only at Bachs. Do not narrow the checkout
+      // again here: a redundant live-mode restriction can remove the card rail
+      // selected by the account's checkout and adaptive-pricing settings.
       metadata: input.metadata
     }
   })

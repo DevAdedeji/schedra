@@ -38,18 +38,15 @@ const [
   { data: microsoftConnection, refresh: refreshMicrosoftConnection },
   { data: zoomConnection, refresh: refreshZoomConnection }
 ] = await Promise.all([currentUserRequest, schedulesRequest, googleConnectionRequest, microsoftConnectionRequest, zoomConnectionRequest])
-const { host } = useSiteUrl()
 const form = reactive<EventTypeForm>(emptyForm())
 const initial = ref('')
 const slugTouched = ref(false)
+const moreSettingsOpen = ref(false)
 const saving = ref(false)
 const error = ref('')
 
 const isOpen = computed({ get: () => props.open, set: value => emit('update:open', value) })
 const username = computed(() => currentUser.value?.user?.username ?? '')
-const initials = computed(() => (currentUser.value?.user?.name ?? 'S')
-  .split(' ').map(part => part[0]).filter(Boolean).slice(0, 2).join('').toUpperCase())
-const bookingUrl = computed(() => `${host.value}/${username.value}/${form.slug || 'your-link'}`)
 const scheduleOptions = computed(() => (schedules.value?.items ?? []).map(schedule => ({
   label: schedule.isDefault ? `${schedule.name} (default)` : schedule.name,
   value: schedule.id
@@ -102,14 +99,30 @@ const selectedGeneratedProvider = computed(() => ({
     unavailable: 'Connect Zoom to create automatic meeting links.'
   }
 } as const)[form.locationType as 'google_meet' | 'microsoft_teams' | 'zoom'] ?? null)
-
-const previewDays = [
-  { day: 'MON', date: '24', active: true },
-  { day: 'TUE', date: '25', active: false },
-  { day: 'WED', date: '26', active: false },
-  { day: 'THU', date: '27', active: false },
-  { day: 'FRI', date: '28', active: false }
-]
+const breaksEnabled = computed({
+  get: () => form.bufferBeforeMinutes > 0 || form.bufferAfterMinutes > 0,
+  set: (enabled: boolean) => {
+    if (!enabled) {
+      form.bufferBeforeMinutes = 0
+      form.bufferAfterMinutes = 0
+    } else if (!form.bufferBeforeMinutes && !form.bufferAfterMinutes) {
+      form.bufferAfterMinutes = 15
+    }
+  }
+})
+const dailyLimitEnabled = computed({
+  get: () => typeof form.maxPerDay === 'number',
+  set: (enabled: boolean) => {
+    form.maxPerDay = enabled ? (form.maxPerDay ?? 1) : undefined
+  }
+})
+const settingsSummary = computed(() => {
+  const schedule = selectedSchedule.value?.name ?? 'Default schedule'
+  const notice = form.minimumNoticeMinutes >= 60 && form.minimumNoticeMinutes % 60 === 0
+    ? `${form.minimumNoticeMinutes / 60}h notice`
+    : `${form.minimumNoticeMinutes}m notice`
+  return `${schedule} · ${notice} · ${form.reminderMinutes.length} ${form.reminderMinutes.length === 1 ? 'reminder' : 'reminders'}`
+})
 
 function emptyForm(): EventTypeForm {
   return {
@@ -153,6 +166,7 @@ function loadForm() {
     : emptyForm())
   initial.value = JSON.stringify(form)
   slugTouched.value = Boolean(item)
+  moreSettingsOpen.value = Boolean(item)
   error.value = ''
 }
 
@@ -256,7 +270,7 @@ async function save() {
     :description="eventType ? 'Update how this meeting works for future bookings.' : 'Create a polished booking experience for your guests.'"
     scrollable
     :ui="{
-      content: 'h-[calc(100dvh-2rem)] w-full max-w-none sm:h-[min(92dvh,56rem)] sm:max-w-6xl',
+      content: 'h-auto max-h-[calc(100dvh-2rem)] w-full max-w-none sm:max-h-[min(92dvh,56rem)] sm:max-w-3xl',
       header: 'border-b border-default px-5 py-4 sm:px-6 sm:py-5',
       body: 'min-h-0 flex-1 overflow-y-auto p-0 sm:p-0',
       footer: 'border-t border-default px-5 py-4 sm:px-6'
@@ -265,11 +279,11 @@ async function save() {
     <template #body>
       <form
         id="event-type-form"
-        class="grid min-h-0 lg:grid-cols-[minmax(0,1fr)_22rem]"
+        class="min-h-0"
         @submit.prevent="save"
       >
-        <div class="space-y-5 px-5 py-5 sm:px-6 sm:py-6">
-          <section class="overflow-hidden rounded-xl border border-default bg-default">
+        <div class="flex flex-col gap-5 px-5 py-5 sm:px-6 sm:py-6">
+          <section class="order-1 overflow-hidden rounded-xl border border-default bg-default">
             <div class="flex gap-3 border-b border-default px-5 py-4">
               <span class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><UIcon
                 name="i-lucide-sparkles"
@@ -351,7 +365,11 @@ async function save() {
             </div>
           </section>
 
-          <section class="overflow-hidden rounded-xl border border-default bg-default">
+          <section
+            v-if="moreSettingsOpen"
+            id="event-type-guest-settings"
+            class="order-4 overflow-hidden rounded-xl border border-default bg-default"
+          >
             <div class="flex flex-col gap-4 border-b border-default px-5 py-4 sm:flex-row sm:items-start sm:justify-between">
               <div class="flex min-w-0 gap-3">
                 <span class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><UIcon
@@ -524,7 +542,7 @@ async function save() {
             </div>
           </section>
 
-          <section class="overflow-hidden rounded-xl border border-default bg-default">
+          <section class="order-2 overflow-hidden rounded-xl border border-default bg-default">
             <div class="flex gap-3 border-b border-default px-5 py-4">
               <span class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><UIcon
                 name="i-lucide-map-pinned"
@@ -599,36 +617,38 @@ async function save() {
                 />
               </UFormField>
             </div>
-
-            <div class="surface-secondary border-t border-default px-5 py-4">
-              <p class="text-[13px] font-semibold text-highlighted">
-                Email reminders
-              </p>
-              <p class="mt-0.5 text-[12px] text-muted">
-                Guests can reschedule or cancel from every reminder.
-              </p>
-              <div class="mt-3 grid gap-2 sm:grid-cols-2">
-                <label class="flex cursor-pointer items-center gap-3 rounded-lg border border-default bg-default px-3.5 py-3">
-                  <UCheckbox
-                    :model-value="reminderEnabled(1440)"
-                    aria-label="Send a reminder one day before"
-                    @update:model-value="toggleReminder(1440, Boolean($event))"
-                  />
-                  <span class="text-[13px] text-toned">1 day before</span>
-                </label>
-                <label class="flex cursor-pointer items-center gap-3 rounded-lg border border-default bg-default px-3.5 py-3">
-                  <UCheckbox
-                    :model-value="reminderEnabled(60)"
-                    aria-label="Send a reminder one hour before"
-                    @update:model-value="toggleReminder(60, Boolean($event))"
-                  />
-                  <span class="text-[13px] text-toned">1 hour before</span>
-                </label>
-              </div>
-            </div>
           </section>
 
-          <section class="overflow-hidden rounded-xl border border-default bg-default">
+          <button
+            type="button"
+            class="order-3 flex w-full items-center gap-4 rounded-xl border border-default bg-default px-5 py-4 text-left transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            :aria-expanded="moreSettingsOpen"
+            aria-controls="event-type-advanced-settings"
+            @click="moreSettingsOpen = !moreSettingsOpen"
+          >
+            <span class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <UIcon
+                name="i-lucide-sliders-horizontal"
+                class="size-4"
+              />
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="block text-[14px] font-semibold text-highlighted">More settings</span>
+              <span class="mt-0.5 block text-[12px] leading-relaxed text-muted">Availability and limits, guest questions, reminders, approval and visibility.</span>
+              <span class="mt-1 block truncate text-[11px] text-dimmed">Current defaults: {{ settingsSummary }}</span>
+            </span>
+            <UIcon
+              name="i-lucide-chevron-down"
+              class="size-4 shrink-0 text-muted transition-transform"
+              :class="moreSettingsOpen ? 'rotate-180' : ''"
+            />
+          </button>
+
+          <section
+            v-if="moreSettingsOpen"
+            id="event-type-advanced-settings"
+            class="order-5 overflow-hidden rounded-xl border border-default bg-default"
+          >
             <div class="flex gap-3 border-b border-default px-5 py-4">
               <span class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><UIcon
                 name="i-lucide-calendar-range"
@@ -697,60 +717,89 @@ async function save() {
                   </template>
                 </UInput>
               </UFormField>
-              <UFormField
-                label="Time before each meeting"
-                name="bufferBeforeMinutes"
-                help="Keep this time free to get ready."
-              >
-                <UInput
-                  v-model.number="form.bufferBeforeMinutes"
-                  type="number"
-                  min="0"
-                  max="1440"
-                  step="5"
-                  size="lg"
-                  class="w-full"
+              <div class="rounded-xl border border-default bg-muted/40 sm:col-span-2">
+                <label class="flex cursor-pointer items-start justify-between gap-4 px-4 py-4">
+                  <span>
+                    <span class="block text-[13px] font-medium text-highlighted">Add time between meetings</span>
+                    <span class="mt-0.5 block text-[12px] text-muted">Protect time to prepare or wrap up.</span>
+                  </span>
+                  <USwitch
+                    v-model="breaksEnabled"
+                    aria-label="Add time between meetings"
+                  />
+                </label>
+                <div
+                  v-if="breaksEnabled"
+                  class="grid gap-4 border-t border-default px-4 py-4 sm:grid-cols-2"
                 >
-                  <template #trailing>
-                    <span class="text-xs text-dimmed">minutes</span>
-                  </template>
-                </UInput>
-              </UFormField>
-              <UFormField
-                label="Time after each meeting"
-                name="bufferAfterMinutes"
-                help="Keep this time free to wrap up or take a break."
-              >
-                <UInput
-                  v-model.number="form.bufferAfterMinutes"
-                  type="number"
-                  min="0"
-                  max="1440"
-                  step="5"
-                  size="lg"
-                  class="w-full"
+                  <UFormField
+                    label="Before the meeting"
+                    name="bufferBeforeMinutes"
+                  >
+                    <UInput
+                      v-model.number="form.bufferBeforeMinutes"
+                      type="number"
+                      min="0"
+                      max="1440"
+                      step="5"
+                      size="lg"
+                      class="w-full"
+                    >
+                      <template #trailing>
+                        <span class="text-xs text-dimmed">minutes</span>
+                      </template>
+                    </UInput>
+                  </UFormField>
+                  <UFormField
+                    label="After the meeting"
+                    name="bufferAfterMinutes"
+                  >
+                    <UInput
+                      v-model.number="form.bufferAfterMinutes"
+                      type="number"
+                      min="0"
+                      max="1440"
+                      step="5"
+                      size="lg"
+                      class="w-full"
+                    >
+                      <template #trailing>
+                        <span class="text-xs text-dimmed">minutes</span>
+                      </template>
+                    </UInput>
+                  </UFormField>
+                </div>
+              </div>
+              <div class="rounded-xl border border-default bg-muted/40 sm:col-span-2">
+                <label class="flex cursor-pointer items-start justify-between gap-4 px-4 py-4">
+                  <span>
+                    <span class="block text-[13px] font-medium text-highlighted">Limit bookings per day</span>
+                    <span class="mt-0.5 block text-[12px] text-muted">Stop offering times after this event reaches its daily limit.</span>
+                  </span>
+                  <USwitch
+                    v-model="dailyLimitEnabled"
+                    aria-label="Limit bookings per day"
+                  />
+                </label>
+                <div
+                  v-if="dailyLimitEnabled"
+                  class="border-t border-default px-4 py-4"
                 >
-                  <template #trailing>
-                    <span class="text-xs text-dimmed">minutes</span>
-                  </template>
-                </UInput>
-              </UFormField>
-              <UFormField
-                label="Daily booking limit"
-                name="maxPerDay"
-                hint="Optional"
-                help="Leave empty for no daily limit."
-              >
-                <UInput
-                  v-model.number="form.maxPerDay"
-                  type="number"
-                  min="1"
-                  max="100"
-                  size="lg"
-                  placeholder="No limit"
-                  class="w-full"
-                />
-              </UFormField>
+                  <UFormField
+                    label="Maximum bookings each day"
+                    name="maxPerDay"
+                  >
+                    <UInput
+                      v-model.number="form.maxPerDay"
+                      type="number"
+                      min="1"
+                      max="100"
+                      size="lg"
+                      class="w-full sm:max-w-48"
+                    />
+                  </UFormField>
+                </div>
+              </div>
             </div>
             <div class="surface-secondary flex flex-wrap items-center justify-between gap-3 border-t border-default px-5 py-4">
               <div>
@@ -774,7 +823,42 @@ async function save() {
             </div>
           </section>
 
-          <section class="overflow-hidden rounded-xl border border-default bg-default">
+          <section
+            v-if="moreSettingsOpen"
+            class="order-6 overflow-hidden rounded-xl border border-default bg-default"
+          >
+            <div class="border-b border-default px-5 py-4">
+              <h3 class="text-[14px] font-semibold text-highlighted">
+                Notifications
+              </h3>
+              <p class="mt-0.5 text-[12px] text-muted">
+                Send useful reminders without making them part of initial setup.
+              </p>
+            </div>
+            <div class="grid gap-2 px-5 py-5 sm:grid-cols-2">
+              <label class="flex cursor-pointer items-center gap-3 rounded-lg border border-default bg-muted/40 px-3.5 py-3">
+                <UCheckbox
+                  :model-value="reminderEnabled(1440)"
+                  aria-label="Send a reminder one day before"
+                  @update:model-value="toggleReminder(1440, Boolean($event))"
+                />
+                <span class="text-[13px] text-toned">1 day before</span>
+              </label>
+              <label class="flex cursor-pointer items-center gap-3 rounded-lg border border-default bg-muted/40 px-3.5 py-3">
+                <UCheckbox
+                  :model-value="reminderEnabled(60)"
+                  aria-label="Send a reminder one hour before"
+                  @update:model-value="toggleReminder(60, Boolean($event))"
+                />
+                <span class="text-[13px] text-toned">1 hour before</span>
+              </label>
+            </div>
+          </section>
+
+          <section
+            v-if="moreSettingsOpen"
+            class="order-7 overflow-hidden rounded-xl border border-default bg-default"
+          >
             <label class="flex cursor-pointer items-start justify-between gap-5 border-b border-default px-5 py-5">
               <span>
                 <span class="flex items-center gap-2 text-[14px] font-semibold text-highlighted"><UIcon
@@ -805,83 +889,12 @@ async function save() {
 
           <p
             v-if="error"
-            class="rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-[13px] text-error"
+            class="order-8 rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-[13px] text-error"
             role="alert"
           >
             {{ error }}
           </p>
         </div>
-
-        <aside class="surface-secondary hidden border-l border-default px-5 py-6 lg:block">
-          <div class="sticky top-0">
-            <div class="mb-3 flex items-center justify-between">
-              <p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-dimmed">
-                Guest preview
-              </p>
-              <span class="flex items-center gap-1.5 text-[10px] text-dimmed"><span class="size-1.5 rounded-full bg-primary" />Live</span>
-            </div>
-            <div class="overflow-hidden rounded-2xl border border-default bg-default shadow-sm">
-              <div class="border-b border-default px-5 py-5">
-                <div class="flex items-center gap-3">
-                  <span class="flex size-10 items-center justify-center rounded-full bg-primary text-[12px] font-semibold text-white">{{ initials }}</span>
-                  <div class="min-w-0">
-                    <p class="truncate text-[12px] text-muted">
-                      {{ currentUser?.user?.name }}
-                    </p><h3 class="truncate text-[16px] font-semibold text-highlighted">
-                      {{ form.title || 'Untitled event' }}
-                    </h3>
-                  </div>
-                </div>
-                <p class="mt-4 line-clamp-3 min-h-10 text-[12px] leading-relaxed text-muted">
-                  {{ form.description || 'Your event description will appear here for guests.' }}
-                </p>
-                <div class="mt-4 flex items-center gap-4 text-[11px] text-toned">
-                  <span class="flex items-center gap-1.5"><UIcon
-                    name="i-lucide-clock-3"
-                    class="size-3.5 text-dimmed"
-                  />{{ form.durationMinutes || 0 }} min</span>
-                  <span class="flex items-center gap-1.5"><UIcon
-                    name="i-lucide-globe-2"
-                    class="size-3.5 text-dimmed"
-                  />Local time</span>
-                </div>
-              </div>
-              <div class="px-4 py-4">
-                <div class="flex items-center justify-between px-1">
-                  <p class="text-[12px] font-semibold text-highlighted">
-                    August 2026
-                  </p><span class="flex gap-2 text-dimmed"><UIcon name="i-lucide-chevron-left" /><UIcon name="i-lucide-chevron-right" /></span>
-                </div>
-                <div class="mt-3 grid grid-cols-5 gap-1">
-                  <div
-                    v-for="day in previewDays"
-                    :key="day.date"
-                    class="rounded-lg py-2 text-center"
-                    :class="day.active ? 'bg-primary text-white' : 'bg-muted text-muted'"
-                  >
-                    <span class="block text-[8px] font-semibold tracking-wider opacity-70">{{ day.day }}</span><span class="tnum mt-0.5 block text-[13px] font-semibold">{{ day.date }}</span>
-                  </div>
-                </div>
-                <div class="mt-4 grid grid-cols-3 gap-2">
-                  <span
-                    v-for="time in ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30']"
-                    :key="time"
-                    class="tnum rounded-lg border border-default py-2 text-center text-[11px] font-medium text-toned"
-                  >{{ time }}</span>
-                </div>
-              </div>
-              <div class="surface-secondary truncate border-t border-default px-4 py-3 text-center font-mono text-[9px] text-dimmed">
-                {{ bookingUrl }}
-              </div>
-            </div>
-            <div class="mt-4 flex gap-2 rounded-xl border border-default bg-default px-3.5 py-3 text-[11px] leading-relaxed text-muted">
-              <UIcon
-                name="i-lucide-info"
-                class="mt-0.5 size-3.5 shrink-0 text-primary"
-              />Guests see times in their own time zone. Your working hours and break times are applied automatically.
-            </div>
-          </div>
-        </aside>
       </form>
     </template>
 
