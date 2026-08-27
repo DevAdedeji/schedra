@@ -174,6 +174,7 @@ describe('bachs checkout payment methods', () => {
 
     const request = fetchMock.mock.calls[0]?.[1] as RequestInit
     const body = JSON.parse(String(request.body)) as Record<string, unknown>
+    expect(body.billing_currency).toBe('USD')
     expect(body.payment_method_options).toBeUndefined()
   })
 

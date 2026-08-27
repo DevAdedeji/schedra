@@ -83,7 +83,7 @@ export async function bachsFetch<T>(path: string, options: BachsRequest = {}): P
     throw createError({
       statusCode: unavailablePaymentMethod ? 503 : response.status === 422 ? 502 : response.status,
       statusMessage: unavailablePaymentMethod
-        ? 'Checkout is temporarily unavailable because the billing account has no eligible payment method. Complete Bachs live verification and enable card payments, then try again.'
+        ? 'Checkout is temporarily unavailable because Bachs found no compatible payment method for this currency and plan. Check the live payment-method configuration, then try again.'
         : String(detail),
       data: { errorCode: payload?.error_code }
     })
@@ -320,13 +320,11 @@ export function createSubscriptionCheckout(input: SubscriptionCheckoutInput) {
     idempotencyKey: input.reference,
     body: {
       product_cart: [{ product_id: input.productId, quantity: input.quantity }],
+      billing_currency: TEAM_PLAN.currency,
       customer: input.customer,
       reference: input.reference,
       success_url: input.successUrl,
       cancel_url: input.cancelUrl,
-      // Recurring products are card-only at Bachs. Do not narrow the checkout
-      // again here: a redundant live-mode restriction can remove the card rail
-      // selected by the account's checkout and adaptive-pricing settings.
       metadata: input.metadata
     }
   })
