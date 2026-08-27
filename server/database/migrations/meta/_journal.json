@@ -169,6 +169,20 @@
       "when": 1787763569987,
       "tag": "0023_zoom_video_conferencing",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1787795573272,
+      "tag": "0024_regular_proemial_gods",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1787798252212,
+      "tag": "0025_numerous_daredevil",
+      "breakpoints": true
     }
   ]
 }

@@ -6,6 +6,13 @@ import {
   googleEventId,
   upsertGoogleCalendarEvent
 } from './google'
+import {
+  deleteMicrosoftCalendarEvent,
+  microsoftBusyTimes,
+  microsoftConnectionFor,
+  microsoftEventId,
+  upsertMicrosoftCalendarEvent
+} from './microsoft'
 
 const googleProvider: CalendarProvider = {
   id: 'google',
@@ -16,7 +23,19 @@ const googleProvider: CalendarProvider = {
   deleteEvent: deleteGoogleCalendarEvent
 }
 
-const providers = new Map<string, CalendarProvider>([[googleProvider.id, googleProvider]])
+const microsoftProvider: CalendarProvider = {
+  id: 'microsoft',
+  busyTimes: microsoftBusyTimes,
+  connectionFor: microsoftConnectionFor,
+  eventId: microsoftEventId,
+  upsertEvent: upsertMicrosoftCalendarEvent,
+  deleteEvent: deleteMicrosoftCalendarEvent
+}
+
+const providers = new Map<string, CalendarProvider>([
+  [googleProvider.id, googleProvider],
+  [microsoftProvider.id, microsoftProvider]
+])
 
 export function calendarProvider(id: string) {
   return providers.get(id) ?? null
@@ -28,6 +47,11 @@ export async function connectedCalendarProviders(userId: string) {
     connection: await provider.connectionFor(userId)
   })))
   return connections.filter((entry): entry is { provider: CalendarProvider, connection: NonNullable<typeof entry.connection> } => Boolean(entry.connection))
+}
+
+export async function calendarDestinationProvider(userId: string) {
+  const connected = await connectedCalendarProviders(userId)
+  return connected.find(entry => Boolean(entry.connection.writeCalendarId)) ?? null
 }
 
 export async function calendarBusyTimes(userId: string, from: string, to: string) {

@@ -5,6 +5,7 @@ import { useEnv } from '../../config/env'
 import { fetchWithTimeout } from '../fetch'
 import { decryptCredential, encryptCredential } from '../calendar/credential-crypto'
 import { deleteZoomConnectionData } from '../../services/zoom-connection'
+import { IntegrationUnavailableError, retryAfterMilliseconds } from '../errors'
 
 interface ZoomTokens {
   access_token: string
@@ -40,7 +41,12 @@ export interface ZoomMeetingInput {
   attendeeName: string
 }
 
-export class ZoomUnavailableError extends Error {}
+export class ZoomUnavailableError extends IntegrationUnavailableError {
+  constructor(message: string, options: { retryable?: boolean, retryAfterMs?: number, cause?: unknown } = {}) {
+    super(message, { provider: 'zoom', ...options })
+    this.name = 'ZoomUnavailableError'
+  }
+}
 
 function credentials() {
   const env = useEnv()
@@ -98,14 +104,26 @@ async function tokenRequest(tokens: ZoomTokens | { refresh_token: string }) {
     method: 'POST',
     headers: { authorization: `Basic ${basic}` }
   })
-  if (!response.ok) throw new ZoomUnavailableError('Zoom authorization has expired. Reconnect Zoom to continue.')
+  if (!response.ok) {
+    throw new ZoomUnavailableError(
+      response.status === 429 || response.status >= 500
+        ? 'Zoom is temporarily unavailable.'
+        : 'Zoom authorization has expired. Reconnect Zoom to continue.',
+      {
+        retryable: response.status === 429 || response.status >= 500,
+        retryAfterMs: retryAfterMilliseconds(response)
+      }
+    )
+  }
   return response.json() as Promise<ZoomTokens>
 }
 
 async function accessToken(userId: string, forceRefresh = false) {
   const connection = await zoomConnectionFor(userId)
   if (!connection) return null
-  if (connection.status !== 'active') throw new ZoomUnavailableError('Zoom needs to be reconnected.')
+  if (connection.status !== 'active') {
+    throw new ZoomUnavailableError('Zoom needs to be reconnected.', { retryable: false })
+  }
   if (!forceRefresh && connection.accessTokenExpiresAt.getTime() > Date.now() + 60_000) {
     return { connection, token: decryptCredential(connection.accessTokenEncrypted) }
   }
@@ -138,6 +156,7 @@ async function accessToken(userId: string, forceRefresh = false) {
     }
     return { connection: { ...connection, accessTokenExpiresAt: expiresAt }, token: tokens.access_token }
   } catch (error) {
+    if (error instanceof IntegrationUnavailableError && error.retryable) throw error
     const latest = await zoomConnectionFor(userId)
     if (latest?.status === 'active' && latest.refreshTokenEncrypted !== connection.refreshTokenEncrypted) {
       return { connection: latest, token: decryptCredential(latest.accessTokenEncrypted) }
@@ -150,13 +169,16 @@ async function accessToken(userId: string, forceRefresh = false) {
       eq(videoConferenceConnections.id, connection.id),
       eq(videoConferenceConnections.refreshTokenEncrypted, connection.refreshTokenEncrypted)
     ))
-    throw error
+    throw new ZoomUnavailableError('Zoom authorization has expired. Reconnect Zoom to continue.', {
+      retryable: false,
+      cause: error
+    })
   }
 }
 
 async function zoomResponse(userId: string, path: string, init: RequestInit = {}) {
   let auth = await accessToken(userId)
-  if (!auth) throw new ZoomUnavailableError('Zoom is not connected.')
+  if (!auth) throw new ZoomUnavailableError('Zoom is not connected.', { retryable: false })
   const request = (token: string) => fetchWithTimeout(`https://api.zoom.us/v2${path}`, {
     ...init,
     headers: {
@@ -168,7 +190,7 @@ async function zoomResponse(userId: string, path: string, init: RequestInit = {}
   let response = await request(auth.token)
   if (response.status === 401) {
     auth = await accessToken(userId, true)
-    if (!auth) throw new ZoomUnavailableError('Zoom is not connected.')
+    if (!auth) throw new ZoomUnavailableError('Zoom is not connected.', { retryable: false })
     response = await request(auth.token)
   }
   if (!response.ok && response.status !== 404) {
@@ -178,7 +200,10 @@ async function zoomResponse(userId: string, path: string, init: RequestInit = {}
       lastCheckedAt: sql`now()`,
       updatedAt: sql`now()`
     }).where(eq(videoConferenceConnections.id, auth.connection.id))
-    throw new ZoomUnavailableError(message)
+    throw new ZoomUnavailableError(message, {
+      retryable: response.status === 429 || response.status >= 500,
+      retryAfterMs: retryAfterMilliseconds(response)
+    })
   }
   return response
 }
@@ -239,8 +264,22 @@ export async function zoomConnection(userId: string) {
     configured,
     status: connection.status,
     accountLabel: connection.accountLabel,
-    lastError: connection.lastError
+    lastError: connection.lastError,
+    lastCheckedAt: connection.lastCheckedAt?.toISOString() ?? null
   }
+}
+
+export async function checkZoomConnection(userId: string) {
+  await zoomRequest<ZoomUser>(userId, '/users/me')
+  await useDatabase().update(videoConferenceConnections).set({
+    lastError: null,
+    lastCheckedAt: sql`now()`,
+    updatedAt: sql`now()`
+  }).where(and(
+    eq(videoConferenceConnections.userId, userId),
+    eq(videoConferenceConnections.provider, 'zoom')
+  ))
+  return zoomConnection(userId)
 }
 
 function marker(uid: string) {

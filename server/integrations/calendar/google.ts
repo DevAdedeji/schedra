@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, isNotNull, ne, sql } from 'drizzle-orm'
 import { calendarConnections } from '../../database/schema'
 import { useDatabase } from '../../database'
 import { decryptCredential, encryptCredential } from './credential-crypto'
 import { useEnv } from '../../config/env'
 import { fetchWithTimeout } from '../fetch'
 import type { CalendarEventInput } from './provider'
+import { IntegrationUnavailableError, retryAfterMilliseconds } from '../errors'
 
 export const GOOGLE_CALENDAR_SCOPES = [
   'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
@@ -37,7 +38,12 @@ interface GoogleEventResponse {
   }
 }
 
-export class CalendarUnavailableError extends Error {}
+export class CalendarUnavailableError extends IntegrationUnavailableError {
+  constructor(message: string, options: { retryable?: boolean, retryAfterMs?: number, cause?: unknown } = {}) {
+    super(message, { provider: 'google', ...options })
+    this.name = 'CalendarUnavailableError'
+  }
+}
 export class CalendarSelectionError extends Error {}
 
 export function googleAuthorizationUrl(state: string, email: string) {
@@ -109,7 +115,9 @@ export async function googleConnectionFor(userId: string) {
 async function accessToken(userId: string, forceRefresh = false) {
   const connection = await googleConnectionFor(userId)
   if (!connection) return null
-  if (connection.status !== 'active') throw new CalendarUnavailableError('The host calendar needs to be reconnected.')
+  if (connection.status !== 'active') {
+    throw new CalendarUnavailableError('The host calendar needs to be reconnected.', { retryable: false })
+  }
   if (!forceRefresh && connection.accessTokenExpiresAt.getTime() > Date.now() + 60_000) {
     return { connection, token: decryptCredential(connection.accessTokenEncrypted) }
   }
@@ -126,12 +134,19 @@ async function accessToken(userId: string, forceRefresh = false) {
     })
   })
   if (!response.ok) {
+    if (response.status === 429 || response.status >= 500) {
+      throw new CalendarUnavailableError('Google Calendar is temporarily unavailable.', {
+        retryable: true,
+        retryAfterMs: retryAfterMilliseconds(response)
+      })
+    }
     await useDatabase().update(calendarConnections).set({
       status: 'needs_reauthorization',
       lastError: 'Google authorization expired.',
+      lastCheckedAt: sql`now()`,
       updatedAt: sql`now()`
     }).where(eq(calendarConnections.id, connection.id))
-    throw new CalendarUnavailableError('The host calendar needs to be reconnected.')
+    throw new CalendarUnavailableError('The host calendar needs to be reconnected.', { retryable: false })
   }
   const tokens = await response.json() as GoogleTokens
   const expiresAt = new Date(Date.now() + tokens.expires_in * 1000)
@@ -139,6 +154,7 @@ async function accessToken(userId: string, forceRefresh = false) {
     accessTokenEncrypted: encryptCredential(tokens.access_token),
     accessTokenExpiresAt: expiresAt,
     lastError: null,
+    lastCheckedAt: sql`now()`,
     updatedAt: sql`now()`
   }).where(eq(calendarConnections.id, connection.id))
   return { connection: { ...connection, accessTokenExpiresAt: expiresAt }, token: tokens.access_token }
@@ -146,7 +162,7 @@ async function accessToken(userId: string, forceRefresh = false) {
 
 async function googleResponse(userId: string, path: string, init?: RequestInit) {
   let auth = await accessToken(userId)
-  if (!auth) throw new CalendarUnavailableError('Google Calendar is not connected.')
+  if (!auth) throw new CalendarUnavailableError('Google Calendar is not connected.', { retryable: false })
   const request = (token: string) => fetchWithTimeout(`https://www.googleapis.com/calendar/v3${path}`, {
     ...init,
     headers: { 'authorization': `Bearer ${token}`, 'content-type': 'application/json', ...init?.headers }
@@ -154,14 +170,21 @@ async function googleResponse(userId: string, path: string, init?: RequestInit) 
   let response = await request(auth.token)
   if (response.status === 401) {
     auth = await accessToken(userId, true)
-    if (!auth) throw new CalendarUnavailableError('Google Calendar is not connected.')
+    if (!auth) throw new CalendarUnavailableError('Google Calendar is not connected.', { retryable: false })
     response = await request(auth.token)
   }
   if (!response.ok && ![404, 410].includes(response.status)) {
     const message = `Google Calendar request failed (${response.status}).`
-    await useDatabase().update(calendarConnections).set({ lastError: message, updatedAt: sql`now()` })
+    await useDatabase().update(calendarConnections).set({
+      lastError: message,
+      lastCheckedAt: sql`now()`,
+      updatedAt: sql`now()`
+    })
       .where(eq(calendarConnections.id, auth.connection.id))
-    throw new CalendarUnavailableError(message)
+    throw new CalendarUnavailableError(message, {
+      retryable: response.status === 429 || response.status >= 500,
+      retryAfterMs: retryAfterMilliseconds(response)
+    })
   }
   return response
 }
@@ -201,10 +224,17 @@ export async function initializeGoogleCalendars(userId: string) {
   const primary = calendars.find(calendar => calendar.primary) ?? calendars[0]
   if (!primary) throw new CalendarUnavailableError('No Google calendars were found.')
   const writable = [primary, ...calendars].find(calendar => ['writer', 'owner'].includes(calendar.accessRole))
+  const [otherDestination] = await useDatabase().select({ id: calendarConnections.id })
+    .from(calendarConnections)
+    .where(and(
+      eq(calendarConnections.userId, userId),
+      ne(calendarConnections.provider, 'google'),
+      isNotNull(calendarConnections.writeCalendarId)
+    )).limit(1)
   await useDatabase().update(calendarConnections).set({
     accountLabel: primary.id,
     conflictCalendarIds: [primary.id],
-    writeCalendarId: writable?.id ?? null,
+    writeCalendarId: otherDestination ? null : writable?.id ?? null,
     lastCheckedAt: sql`now()`,
     updatedAt: sql`now()`
   }).where(and(eq(calendarConnections.userId, userId), eq(calendarConnections.provider, 'google')))
@@ -253,7 +283,9 @@ function failedFreeBusyCalendarIds(result: FreeBusyResponse) {
 export async function googleBusyTimes(userId: string, from: string, to: string) {
   const connection = await googleConnectionFor(userId)
   if (!connection) return []
-  if (connection.status !== 'active') throw new CalendarUnavailableError('The host calendar needs to be reconnected.')
+  if (connection.status !== 'active') {
+    throw new CalendarUnavailableError('The host calendar needs to be reconnected.', { retryable: false })
+  }
   if (!connection.conflictCalendarIds.length) return []
   const requestedFrom = Date.parse(from)
   const requestedTo = Date.parse(to)
@@ -325,7 +357,8 @@ export async function googleCalendarConnection(userId: string) {
     accountLabel: connection.accountLabel,
     conflictCalendarIds: connection.conflictCalendarIds,
     writeCalendarId: connection.writeCalendarId,
-    lastError: connection.lastError
+    lastError: connection.lastError,
+    lastCheckedAt: connection.lastCheckedAt?.toISOString() ?? null
   }
 }
 
@@ -348,14 +381,24 @@ export async function updateGoogleCalendarSelection(userId: string, conflictCale
       `Google cannot check busy times on ${labels.join(', ')}. Leave ${failedIds.length === 1 ? 'that calendar' : 'those calendars'} unchecked.`
     )
   }
-  await useDatabase().update(calendarConnections).set({
-    conflictCalendarIds,
-    writeCalendarId,
-    accountLabel: calendars.find(calendar => calendar.primary)?.id ?? writeCalendarId,
-    lastCheckedAt: sql`now()`,
-    lastError: null,
-    updatedAt: sql`now()`
-  }).where(and(eq(calendarConnections.userId, userId), eq(calendarConnections.provider, 'google')))
+  await useDatabase().transaction(async (tx) => {
+    await tx.update(calendarConnections).set({
+      writeCalendarId: null,
+      updatedAt: sql`now()`
+    }).where(and(
+      eq(calendarConnections.userId, userId),
+      ne(calendarConnections.provider, 'google'),
+      isNotNull(calendarConnections.writeCalendarId)
+    ))
+    await tx.update(calendarConnections).set({
+      conflictCalendarIds,
+      writeCalendarId,
+      accountLabel: calendars.find(calendar => calendar.primary)?.id ?? writeCalendarId,
+      lastCheckedAt: sql`now()`,
+      lastError: null,
+      updatedAt: sql`now()`
+    }).where(and(eq(calendarConnections.userId, userId), eq(calendarConnections.provider, 'google')))
+  })
 }
 
 function eventBody(input: CalendarEventInput) {

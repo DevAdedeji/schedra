@@ -14,6 +14,10 @@ export default defineConfig({
   workers: 1,
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? 'github' : 'list',
+  // Nuxt's first development request may spend a few seconds compiling before
+  // client hydration completes. Keep assertions deterministic on a cold server
+  // without adding fixed sleeps to individual tests.
+  expect: { timeout: 10_000 },
   use: {
     baseURL,
     trace: 'retain-on-failure',

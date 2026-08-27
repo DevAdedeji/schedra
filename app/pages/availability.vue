@@ -235,7 +235,7 @@ function timeMinutes(value: string) {
 
         <div
           v-else-if="refreshing"
-          class="flex items-center gap-2 border-b border-default bg-muted/50 px-4 py-2 text-[11px] text-muted sm:px-5"
+          class="surface-secondary flex items-center gap-2 border-b border-default px-4 py-2 text-[11px] text-muted sm:px-5"
           role="status"
           aria-live="polite"
         >

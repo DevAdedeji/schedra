@@ -1,11 +1,15 @@
 import { z } from 'zod'
-import { CalendarSelectionError, CalendarUnavailableError, updateGoogleCalendarSelection } from '../../../integrations/calendar/google'
+import {
+  MicrosoftCalendarSelectionError,
+  MicrosoftCalendarUnavailableError,
+  updateMicrosoftCalendarSelection
+} from '../../../integrations/calendar/microsoft'
 import { enqueueFutureBookingsForCalendarSync } from '../../../services/calendar-sync'
 import { requireAuthSession } from '../../../services/session'
 
 const selectionSchema = z.object({
-  conflictCalendarIds: z.array(z.string().min(1).max(1024)).min(1, 'Choose at least one calendar.').max(50),
-  writeCalendarId: z.string().min(1).max(1024)
+  conflictCalendarIds: z.array(z.string().min(1).max(1024)).min(1, 'Choose at least one calendar.').max(20),
+  writeCalendarId: z.string().min(1).max(1024).nullable()
 }).refine(value => new Set(value.conflictCalendarIds).size === value.conflictCalendarIds.length, {
   message: 'Each conflict calendar may only be selected once.',
   path: ['conflictCalendarIds']
@@ -17,22 +21,22 @@ export default defineEventHandler(async (event) => {
   if (!parsed.success) {
     throw createError({
       statusCode: 400,
-      statusMessage: parsed.error.issues[0]?.message ?? 'Those calendar settings are not valid.'
+      statusMessage: parsed.error.issues[0]?.message ?? 'Those Microsoft calendar settings are not valid.'
     })
   }
 
   try {
-    await updateGoogleCalendarSelection(
+    await updateMicrosoftCalendarSelection(
       session.user.id,
       parsed.data.conflictCalendarIds,
       parsed.data.writeCalendarId
     )
     await enqueueFutureBookingsForCalendarSync(session.user.id)
   } catch (error) {
-    if (error instanceof CalendarSelectionError) {
+    if (error instanceof MicrosoftCalendarSelectionError) {
       throw createError({ statusCode: 400, statusMessage: error.message })
     }
-    if (error instanceof CalendarUnavailableError) {
+    if (error instanceof MicrosoftCalendarUnavailableError) {
       throw createError({ statusCode: 502, statusMessage: error.message })
     }
     throw error

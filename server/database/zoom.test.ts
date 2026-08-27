@@ -223,7 +223,7 @@ describe.skipIf(!url)('Zoom integration', () => {
     `
     await sql`
       update calendar_sync_jobs set status = 'pending', attempts = 0, available_at = now()
-      where dedupe_key = ${`upsert:${bookingId}`}
+      where dedupe_key = ${`booking:${bookingId}`}
     `
     expect(await processCalendarSyncJobs()).toBe(1)
     expect(requests.some(request => request.method === 'PATCH' && request.body.includes('2026-09-07T09:00:00.000Z'))).toBe(true)

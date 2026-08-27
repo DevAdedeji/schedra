@@ -8,7 +8,7 @@ const emit = defineEmits<{ change: [page: number] }>()
 <template>
   <div
     v-if="totalPages > 1"
-    class="flex items-center justify-between gap-3 border-t border-default bg-muted px-4 py-3 sm:px-5"
+    class="surface-secondary flex items-center justify-between gap-3 border-t border-default px-4 py-3 sm:px-5"
     :class="disabled && 'cursor-wait opacity-60'"
     :aria-busy="disabled"
   >

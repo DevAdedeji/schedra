@@ -15,7 +15,7 @@
         <USkeleton class="h-3 w-full max-w-md rounded" />
         <USkeleton class="mt-5 h-16 w-full max-w-2xl rounded-xl" />
       </div>
-      <div class="space-y-3 border-t border-default bg-muted px-5 py-5 lg:border-l lg:border-t-0">
+      <div class="surface-secondary space-y-3 border-t border-default px-5 py-5 lg:border-l lg:border-t-0">
         <USkeleton class="size-9 rounded-lg" />
         <USkeleton class="h-4 w-36 rounded" />
         <USkeleton class="h-3 w-full rounded" />

@@ -9,7 +9,8 @@ import {
   eventTypes
 } from '../database/schema'
 import { useDatabase } from '../database'
-import { connectedCalendarProviders } from '../integrations/calendar/providers'
+import { calendarDestinationProvider, calendarProvider } from '../integrations/calendar/providers'
+import { IntegrationUnavailableError } from '../integrations/errors'
 import { bookingAnswersText } from '../domain/booking-answers'
 import {
   deleteZoomMeeting,
@@ -28,8 +29,22 @@ export async function enqueueCalendarSync(
   await executor.insert(calendarSyncJobs).values({
     bookingId,
     action,
-    dedupeKey: `${action}:${bookingId}`
-  }).onConflictDoNothing({ target: calendarSyncJobs.dedupeKey })
+    dedupeKey: `booking:${bookingId}`
+  }).onConflictDoUpdate({
+    target: calendarSyncJobs.bookingId,
+    set: {
+      action,
+      dedupeKey: `booking:${bookingId}`,
+      revision: sql`${calendarSyncJobs.revision} + 1`,
+      status: sql`case when ${calendarSyncJobs.status} = 'processing' then 'processing'::calendar_sync_status else 'pending'::calendar_sync_status end`,
+      attempts: sql`case when ${calendarSyncJobs.status} = 'processing' then ${calendarSyncJobs.attempts} else 0 end`,
+      availableAt: sql`now()`,
+      completedAt: null,
+      lastError: null,
+      failureProvider: null,
+      updatedAt: sql`now()`
+    }
+  })
 }
 
 export async function enqueueFutureBookingsForCalendarSync(userId: string) {
@@ -38,20 +53,23 @@ export async function enqueueFutureBookingsForCalendarSync(userId: string) {
   // installed receive their first durable job.
   await useDatabase().execute(sql`
     insert into calendar_sync_jobs (booking_id, action, dedupe_key)
-    select distinct ${bookings.id}, 'upsert', 'upsert:' || ${bookings.id}::text
+    select distinct ${bookings.id}, 'upsert', 'booking:' || ${bookings.id}::text
     from ${bookings}
     inner join ${bookingHosts} on ${bookingHosts.bookingId} = ${bookings.id}
     where ${bookingHosts.userId} = ${userId}
       and ${bookingHosts.releasedAt} is null
       and ${bookings.status} = 'confirmed'
       and ${bookings.endsAt} > now()
-    on conflict (dedupe_key) do update set
-      status = 'pending',
-      attempts = 0,
+    on conflict (booking_id) do update set
+      action = 'upsert',
+      dedupe_key = excluded.dedupe_key,
+      revision = ${calendarSyncJobs.revision} + 1,
+      status = case when ${calendarSyncJobs.status} = 'processing' then 'processing' else 'pending' end,
+      attempts = case when ${calendarSyncJobs.status} = 'processing' then ${calendarSyncJobs.attempts} else 0 end,
       available_at = now(),
-      locked_at = null,
       completed_at = null,
       last_error = null,
+      failure_provider = null,
       updated_at = now()
   `)
 }
@@ -157,31 +175,38 @@ async function syncBooking(bookingId: string, action: CalendarSyncAction) {
   const mappingByUser = new Map(mappings.map(mapping => [mapping.userId, mapping]))
   const hostConnections = (await Promise.all(hosts.map(async host => ({
     ...host,
-    connected: (await connectedCalendarProviders(host.userId))[0] ?? null
+    connected: await calendarDestinationProvider(host.userId)
   })))).filter(host => host.connected?.connection.writeCalendarId)
 
   // Revoking a connection intentionally ends future synchronization. Existing
   // remote events are left in place, which the disconnect confirmation explains.
-  if (!hostConnections.length) return
-
   if (deleting) {
-    for (const host of hostConnections) {
-      const { connection, provider } = host.connected!
+    for (const host of hosts) {
       const mapping = mappingByUser.get(host.userId)
       if (mapping) {
-        await provider.deleteEvent(host.userId, mapping.calendarId, mapping.eventId)
+        const provider = calendarProvider(mapping.provider)
+        const connection = provider ? await provider.connectionFor(host.userId) : null
+        if (provider && connection?.status === 'active') {
+          await provider.deleteEvent(host.userId, mapping.calendarId, mapping.eventId)
+        }
         await db.delete(bookingCalendarEvents).where(eq(bookingCalendarEvents.id, mapping.id))
-      } else if (connection.writeCalendarId) {
+        continue
+      }
+
+      const destination = await calendarDestinationProvider(host.userId)
+      if (destination?.connection.writeCalendarId) {
         const calendarKey = host.isOrganizer ? booking.uid : `${booking.uid}:${host.userId}`
-        await provider.deleteEvent(
+        await destination.provider.deleteEvent(
           host.userId,
-          connection.writeCalendarId,
-          provider.eventId(calendarKey)
+          destination.connection.writeCalendarId,
+          destination.provider.eventId(calendarKey)
         )
       }
     }
     return
   }
+
+  if (!hostConnections.length) return
 
   // Exactly one remote event sends guest invitations and, for Google Meet,
   // creates the conference. Every co-host still receives their own private
@@ -195,8 +220,12 @@ async function syncBooking(bookingId: string, action: CalendarSyncAction) {
     const writeCalendarId = connection.writeCalendarId!
 
     let current = mappingByUser.get(host.userId)
-    if (current && current.calendarId !== writeCalendarId) {
-      await provider.deleteEvent(host.userId, current.calendarId, current.eventId)
+    if (current && (current.provider !== provider.id || current.calendarId !== writeCalendarId)) {
+      const previousProvider = calendarProvider(current.provider)
+      const previousConnection = previousProvider ? await previousProvider.connectionFor(host.userId) : null
+      if (previousProvider && previousConnection?.status === 'active') {
+        await previousProvider.deleteEvent(host.userId, current.calendarId, current.eventId)
+      }
       await db.delete(bookingCalendarEvents).where(eq(bookingCalendarEvents.id, current.id))
       current = undefined
     }
@@ -242,12 +271,14 @@ async function syncBooking(bookingId: string, action: CalendarSyncAction) {
       bookingId: booking.id,
       userId: host.userId,
       connectionId: connection.id,
+      provider: provider.id,
       calendarId: writeCalendarId,
       eventId: remote.id
     }).onConflictDoUpdate({
       target: [bookingCalendarEvents.bookingId, bookingCalendarEvents.userId],
       set: {
         connectionId: connection.id,
+        provider: provider.id,
         calendarId: writeCalendarId,
         eventId: remote.id,
         syncedAt: sql`now()`,
@@ -294,23 +325,67 @@ export async function processCalendarSyncJobs(batchSize = 10) {
   for (const job of jobs) {
     try {
       await syncBooking(job.bookingId, job.action)
-      await db.update(calendarSyncJobs).set({
+      const completed = await db.update(calendarSyncJobs).set({
         status: 'completed',
         completedAt: sql`now()`,
         lockedAt: null,
         lastError: null,
+        failureProvider: null,
         updatedAt: sql`now()`
-      }).where(eq(calendarSyncJobs.id, job.id))
+      }).where(and(
+        eq(calendarSyncJobs.id, job.id),
+        eq(calendarSyncJobs.revision, job.revision),
+        eq(calendarSyncJobs.status, 'processing')
+      )).returning({ id: calendarSyncJobs.id })
+
+      if (!completed.length) {
+        await db.update(calendarSyncJobs).set({
+          status: 'pending',
+          attempts: 0,
+          availableAt: sql`now()`,
+          lockedAt: null,
+          completedAt: null,
+          lastError: null,
+          failureProvider: null,
+          updatedAt: sql`now()`
+        }).where(and(
+          eq(calendarSyncJobs.id, job.id),
+          eq(calendarSyncJobs.status, 'processing')
+        ))
+      }
     } catch (error) {
-      const failed = job.attempts >= 8
-      const delaySeconds = Math.min(3600, 15 * 2 ** Math.max(0, job.attempts - 1))
-      await db.update(calendarSyncJobs).set({
+      const integrationError = error instanceof IntegrationUnavailableError ? error : null
+      const failed = integrationError?.retryable === false || job.attempts >= 8
+      const exponentialDelayMs = Math.min(3_600_000, 15_000 * 2 ** Math.max(0, job.attempts - 1))
+      const delayMs = Math.min(3_600_000, Math.max(exponentialDelayMs, integrationError?.retryAfterMs ?? 0))
+      const failedUpdate = await db.update(calendarSyncJobs).set({
         status: failed ? 'failed' : 'pending',
-        availableAt: new Date(Date.now() + delaySeconds * 1000),
+        availableAt: new Date(Date.now() + delayMs + Math.floor(Math.random() * 1000)),
         lockedAt: null,
         lastError: String(error instanceof Error ? error.message : error).slice(0, 1000),
+        failureProvider: integrationError?.provider ?? null,
         updatedAt: sql`now()`
-      }).where(eq(calendarSyncJobs.id, job.id))
+      }).where(and(
+        eq(calendarSyncJobs.id, job.id),
+        eq(calendarSyncJobs.revision, job.revision),
+        eq(calendarSyncJobs.status, 'processing')
+      )).returning({ id: calendarSyncJobs.id })
+
+      if (!failedUpdate.length) {
+        await db.update(calendarSyncJobs).set({
+          status: 'pending',
+          attempts: 0,
+          availableAt: sql`now()`,
+          lockedAt: null,
+          completedAt: null,
+          lastError: null,
+          failureProvider: null,
+          updatedAt: sql`now()`
+        }).where(and(
+          eq(calendarSyncJobs.id, job.id),
+          eq(calendarSyncJobs.status, 'processing')
+        ))
+      }
 
       console.error(JSON.stringify({
         level: 'error',

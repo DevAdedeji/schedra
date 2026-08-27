@@ -192,7 +192,7 @@ async function copySnippet() {
           </details>
         </div>
 
-        <div class="min-w-0 space-y-4 bg-muted/30 px-5 py-5 sm:px-6">
+        <div class="surface-secondary min-w-0 space-y-4 px-5 py-5 sm:px-6">
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p class="text-[13px] font-medium text-highlighted">
