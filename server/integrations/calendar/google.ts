@@ -100,6 +100,7 @@ export async function saveGoogleConnection(userId: string, tokens: GoogleTokens)
       accessTokenExpiresAt: expiresAt,
       scope: tokens.scope ?? GOOGLE_CALENDAR_SCOPES.join(' '),
       status: 'active',
+      preferencesConfiguredAt: null,
       lastError: null,
       updatedAt: sql`now()`
     }
@@ -354,6 +355,7 @@ export async function googleCalendarConnection(userId: string) {
     connected: connection.status === 'active',
     configured: Boolean(useEnv().googleClientId),
     status: connection.status,
+    setupRequired: connection.status === 'active' && !connection.preferencesConfiguredAt,
     accountLabel: connection.accountLabel,
     conflictCalendarIds: connection.conflictCalendarIds,
     writeCalendarId: connection.writeCalendarId,
@@ -393,6 +395,7 @@ export async function updateGoogleCalendarSelection(userId: string, conflictCale
     await tx.update(calendarConnections).set({
       conflictCalendarIds,
       writeCalendarId,
+      preferencesConfiguredAt: sql`now()`,
       accountLabel: calendars.find(calendar => calendar.primary)?.id ?? writeCalendarId,
       lastCheckedAt: sql`now()`,
       lastError: null,
@@ -403,10 +406,12 @@ export async function updateGoogleCalendarSelection(userId: string, conflictCale
 
 function eventBody(input: CalendarEventInput) {
   const manageUrl = `${useEnv().schedraUrl}/booking/${input.uid}`
-  const generatedMeeting = ['google_meet', 'zoom'].includes(input.locationType)
+  const generatedMeeting = ['google_meet', 'microsoft_teams', 'zoom'].includes(input.locationType)
   const location = input.locationType === 'google_meet'
     ? 'Google Meet'
-    : input.locationType === 'zoom' ? 'Zoom' : input.locationDetails
+    : input.locationType === 'microsoft_teams'
+      ? 'Microsoft Teams'
+      : input.locationType === 'zoom' ? 'Zoom' : input.locationDetails
   const description = [
     input.description,
     `Guest: ${input.attendeeName} (${input.attendeeEmail})`,

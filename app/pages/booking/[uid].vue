@@ -38,6 +38,7 @@ const joinUrl = computed(() => booking.value?.status === 'confirmed'
 
 const locationPresentation = computed(() => ({
   google_meet: { label: 'Google Meet', icon: 'i-simple-icons-googlemeet' },
+  microsoft_teams: { label: 'Microsoft Teams', icon: 'i-simple-icons-microsoftteams' },
   zoom: { label: 'Zoom', icon: 'i-simple-icons-zoom' },
   video_link: { label: 'Video call', icon: 'i-lucide-video' },
   phone: { label: 'Phone call', icon: 'i-lucide-phone' },
@@ -230,7 +231,7 @@ useSeoMeta({
                   <span
                     v-else
                     class="mt-0.5 block text-[13px] leading-relaxed text-muted"
-                  >{{ ['google_meet', 'zoom'].includes(booking?.locationType ?? '') ? 'The private join link is being prepared. Refresh this page shortly.' : booking?.locationDetails }}</span>
+                  >{{ ['google_meet', 'microsoft_teams', 'zoom'].includes(booking?.locationType ?? '') ? 'The private join link is being prepared. Refresh this page shortly.' : booking?.locationDetails }}</span>
                 </dd>
               </div>
               <div class="flex items-start gap-3">
@@ -365,7 +366,7 @@ useSeoMeta({
                   size="lg"
                   class="justify-center rounded-full font-medium"
                 >
-                  Join {{ booking?.locationType === 'google_meet' ? 'Google Meet' : booking?.locationType === 'zoom' ? 'Zoom' : 'meeting' }}
+                  Join {{ booking?.locationType === 'google_meet' ? 'Google Meet' : booking?.locationType === 'microsoft_teams' ? 'Microsoft Teams' : booking?.locationType === 'zoom' ? 'Zoom' : 'meeting' }}
                 </UButton>
                 <UButton
                   v-if="!pendingApproval"

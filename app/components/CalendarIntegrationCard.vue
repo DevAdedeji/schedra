@@ -100,11 +100,18 @@ async function save() {
   saving.value = true
   pageError.value = ''
   try {
-    await api.update({ conflictCalendarIds: selectedConflictIds.value, writeCalendarId: writeCalendarId.value })
+    const result = await api.update({ conflictCalendarIds: selectedConflictIds.value, writeCalendarId: writeCalendarId.value })
     baseline.value = currentSnapshot.value
     await refreshConnection()
     emit('saved')
-    feedback.success({ title: `${props.name} preferences saved` })
+    if (result.syncQueued) {
+      feedback.success({ title: `${props.name} preferences saved` })
+    } else {
+      feedback.warning({
+        title: `${props.name} preferences saved`,
+        description: 'Existing bookings could not be queued for sync yet. Schedra will keep the saved preferences.'
+      })
+    }
   } catch (failure) {
     pageError.value = apiErrorMessage(failure, 'Could not save your calendar preferences just now.')
   } finally {
@@ -155,7 +162,11 @@ watch(() => props.refreshSignal, async (next, previous) => {
         />
       </span>
       <span
-        v-if="connection?.connected"
+        v-if="connection?.connected && connection.setupRequired"
+        class="inline-flex items-center gap-1.5 rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-warning"
+      ><span class="size-1.5 rounded-full bg-warning" />Setup required</span>
+      <span
+        v-else-if="connection?.connected"
         class="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-2 py-0.5 text-[11px] font-medium text-success"
       ><span class="size-1.5 rounded-full bg-success" />Connected</span>
       <span
@@ -180,7 +191,7 @@ watch(() => props.refreshSignal, async (next, previous) => {
         class="min-h-10"
         @click="settingsOpen = true"
       >
-        Manage settings
+        {{ connection.setupRequired ? 'Finish setup' : 'Manage settings' }}
       </UButton>
       <UButton
         v-else-if="connection?.configured"
@@ -373,7 +384,7 @@ watch(() => props.refreshSignal, async (next, previous) => {
           </UButton>
           <UButton
             :loading="saving"
-            :disabled="!dirty || !selectedConflictIds.length || !writeCalendarId || writeCalendarMissing"
+            :disabled="(!dirty && !connection?.setupRequired) || !selectedConflictIds.length || !writeCalendarId || writeCalendarMissing"
             @click="save"
           >
             Save preferences

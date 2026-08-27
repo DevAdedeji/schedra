@@ -5,7 +5,7 @@ import type { OrganizationRole } from '#shared/billing'
 import { members, users } from '../../../database/schema'
 import { useDatabase } from '../../../database/index'
 import { requireOrganization } from '../../../services/organization'
-import { writableGoogleCalendarUserIds } from '../../../repositories/calendar-connection'
+import { writableGoogleCalendarUserIds, writableMicrosoftTeamsCalendarUserIds } from '../../../repositories/calendar-connection'
 import { connectedZoomUserIds } from '../../../repositories/video-conference-connection'
 
 const querySchema = paginationQuerySchema.extend({
@@ -55,11 +55,13 @@ export default defineEventHandler(async (event) => {
       .offset((page - 1) * pageSize)
   ])
 
-  const [googleUsers, zoomUsers] = await Promise.all([
+  const [googleUsers, microsoftTeamsUsers, zoomUsers] = await Promise.all([
     writableGoogleCalendarUserIds(items.map(item => item.userId)),
+    writableMicrosoftTeamsCalendarUserIds(items.map(item => item.userId)),
     connectedZoomUserIds(items.map(item => item.userId))
   ])
   const googleSet = new Set(googleUsers)
+  const microsoftTeamsSet = new Set(microsoftTeamsUsers)
   const zoomSet = new Set(zoomUsers)
 
   return {
@@ -70,6 +72,7 @@ export default defineEventHandler(async (event) => {
       isYou: item.userId === context.userId,
       integrations: {
         googleMeet: googleSet.has(item.userId),
+        microsoftTeams: microsoftTeamsSet.has(item.userId),
         zoom: zoomSet.has(item.userId)
       }
     })),

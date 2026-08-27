@@ -83,12 +83,15 @@ const meetingOwners = computed(() => form.assignmentMode === 'collective'
   : selectedMembers.value)
 const googleMeetReady = computed(() => selectedMembers.value.length > 0
   && selectedMembers.value.every(member => member.integrations.googleMeet))
+const microsoftTeamsReady = computed(() => selectedMembers.value.length > 0
+  && selectedMembers.value.every(member => member.integrations.microsoftTeams))
 const zoomReady = computed(() => meetingOwners.value.length > 0
   && meetingOwners.value.every(member => member.integrations.zoom))
 
 const locationOptions = computed(() => meetingLocationTypeSchema.options.map(value => ({
   label: {
     google_meet: 'Google Meet',
+    microsoft_teams: 'Microsoft Teams',
     zoom: 'Zoom',
     video_link: 'Video link',
     phone: 'Phone call',
@@ -98,7 +101,9 @@ const locationOptions = computed(() => meetingLocationTypeSchema.options.map(val
   value,
   disabled: value === 'google_meet'
     ? !googleMeetReady.value
-    : value === 'zoom' ? !zoomReady.value : false
+    : value === 'microsoft_teams'
+      ? !microsoftTeamsReady.value
+      : value === 'zoom' ? !zoomReady.value : false
 })))
 
 // Reload whenever the modal opens so a stale edit never overwrites fresh data.
@@ -266,7 +271,7 @@ function initials(name: string) {
           </div>
 
           <UFormField
-            v-if="!['google_meet', 'zoom'].includes(form.locationType)"
+            v-if="!['google_meet', 'microsoft_teams', 'zoom'].includes(form.locationType)"
             label="Meeting details"
             required
           >
@@ -278,16 +283,18 @@ function initials(name: string) {
           </UFormField>
 
           <div
-            v-if="form.locationType === 'google_meet' || form.locationType === 'zoom'"
+            v-if="['google_meet', 'microsoft_teams', 'zoom'].includes(form.locationType)"
             class="rounded-lg border border-default bg-muted px-4 py-3 text-[12px] leading-relaxed text-muted"
           >
             {{ form.locationType === 'zoom'
               ? 'Schedra creates and maintains one Zoom meeting through the assigned organizer’s connected account.'
-              : 'Schedra creates the meeting through each assigned host’s writable Google Calendar.' }}
+              : form.locationType === 'microsoft_teams'
+                ? 'Schedra creates one Teams meeting through the organizer’s Microsoft calendar and shares that link with every host.'
+                : 'Schedra creates the meeting through each assigned host’s writable Google Calendar.' }}
           </div>
 
           <div
-            v-else-if="selectedMembers.length && (!googleMeetReady || !zoomReady)"
+            v-else-if="selectedMembers.length && (!googleMeetReady || !microsoftTeamsReady || !zoomReady)"
             class="rounded-lg border border-default bg-muted px-4 py-3 text-[12px] leading-relaxed text-muted"
           >
             Generated meeting providers become available after the required hosts connect them from Integrations.

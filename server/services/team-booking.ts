@@ -41,7 +41,7 @@ export interface PublicTeamEventType {
   bookingWindowDays: number | null
   maxPerDay: number | null
   assignmentMode: AssignmentMode
-  locationType: 'google_meet' | 'zoom' | 'video_link' | 'phone' | 'in_person' | 'custom'
+  locationType: 'google_meet' | 'microsoft_teams' | 'zoom' | 'video_link' | 'phone' | 'in_person' | 'custom'
   locationDetails: string
   reminderMinutes: number[]
   bookingQuestions: BookingQuestion[]

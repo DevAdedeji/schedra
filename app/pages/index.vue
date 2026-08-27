@@ -21,6 +21,7 @@ useHead({
         'Booking pages',
         'Timezone-correct scheduling',
         'Weekly availability',
+        'Embeddable booking overlays',
         'Booking confirmation emails',
         'Cancellation and rescheduling'
       ]
@@ -34,6 +35,7 @@ useHead({
     <LandingHero />
     <LandingHowItWorks />
     <LandingFeatures />
+    <LandingEmbedShowcase />
     <LandingTimezones />
     <LandingCta />
   </div>

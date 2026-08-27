@@ -36,6 +36,12 @@ const callbackNotice = computed(() => {
   ].find(item => item.value)
   if (!result) return null
   if (result.value === 'connected') return { tone: 'success', text: `${result.name} is connected and ready to configure.` }
+  if (result.value === 'setup-incomplete') {
+    return {
+      tone: 'warning',
+      text: `${result.name} is connected, but its calendars could not be loaded yet. Open Manage settings and try again.`
+    }
+  }
   if (result.value === 'invalid-request') return { tone: 'error', text: `That ${result.name} connection request expired. Please start again.` }
   return { tone: 'error', text: `${result.name} could not be connected. Check its credentials, scopes and callback URL, then try again.` }
 })
@@ -117,7 +123,11 @@ async function disconnectZoom() {
     <div
       v-if="callbackNotice"
       class="flex items-start gap-3 rounded-xl border px-4 py-3 text-[12px]"
-      :class="callbackNotice.tone === 'success' ? 'border-success/25 bg-success/10 text-success' : 'border-error/25 bg-error/10 text-error'"
+      :class="callbackNotice.tone === 'success'
+        ? 'border-success/25 bg-success/10 text-success'
+        : callbackNotice.tone === 'warning'
+          ? 'border-warning/25 bg-warning/10 text-warning'
+          : 'border-error/25 bg-error/10 text-error'"
       role="status"
     >
       <UIcon

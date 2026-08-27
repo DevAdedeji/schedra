@@ -53,7 +53,7 @@ export async function enqueueFutureBookingsForCalendarSync(userId: string) {
   // installed receive their first durable job.
   await useDatabase().execute(sql`
     insert into calendar_sync_jobs (booking_id, action, dedupe_key)
-    select distinct ${bookings.id}, 'upsert', 'booking:' || ${bookings.id}::text
+    select distinct ${bookings.id}, 'upsert'::calendar_sync_action, 'booking:' || ${bookings.id}::text
     from ${bookings}
     inner join ${bookingHosts} on ${bookingHosts.bookingId} = ${bookings.id}
     where ${bookingHosts.userId} = ${userId}
@@ -61,10 +61,13 @@ export async function enqueueFutureBookingsForCalendarSync(userId: string) {
       and ${bookings.status} = 'confirmed'
       and ${bookings.endsAt} > now()
     on conflict (booking_id) do update set
-      action = 'upsert',
+      action = 'upsert'::calendar_sync_action,
       dedupe_key = excluded.dedupe_key,
       revision = ${calendarSyncJobs.revision} + 1,
-      status = case when ${calendarSyncJobs.status} = 'processing' then 'processing' else 'pending' end,
+      status = case
+        when ${calendarSyncJobs.status} = 'processing' then 'processing'::calendar_sync_status
+        else 'pending'::calendar_sync_status
+      end,
       attempts = case when ${calendarSyncJobs.status} = 'processing' then ${calendarSyncJobs.attempts} else 0 end,
       available_at = now(),
       completed_at = null,
@@ -287,8 +290,11 @@ async function syncBooking(bookingId: string, action: CalendarSyncAction) {
     })
   }
 
-  if (['google_meet', 'zoom'].includes(booking.locationType) && !sharedMeetingUrl) {
-    throw new Error(`${booking.locationType === 'zoom' ? 'Zoom' : 'Google Meet'} is still preparing the join link.`)
+  if (['google_meet', 'microsoft_teams', 'zoom'].includes(booking.locationType) && !sharedMeetingUrl) {
+    const providerName = booking.locationType === 'zoom'
+      ? 'Zoom'
+      : booking.locationType === 'microsoft_teams' ? 'Microsoft Teams' : 'Google Meet'
+    throw new Error(`${providerName} is still preparing the join link.`)
   }
 }
 

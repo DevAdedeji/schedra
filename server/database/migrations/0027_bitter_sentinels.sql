@@ -1,0 +1,2 @@
+ALTER TYPE "public"."meeting_location_type" ADD VALUE 'microsoft_teams' BEFORE 'zoom';--> statement-breakpoint
+ALTER TABLE "calendar_connections" ADD COLUMN "supports_microsoft_teams" boolean DEFAULT false NOT NULL;

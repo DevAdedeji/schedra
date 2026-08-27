@@ -17,7 +17,7 @@ export interface PublicEventType {
   description: string | null
   durationMinutes: number
   scheduleTimeZone: string
-  locationType: 'google_meet' | 'zoom' | 'video_link' | 'phone' | 'in_person' | 'custom'
+  locationType: 'google_meet' | 'microsoft_teams' | 'zoom' | 'video_link' | 'phone' | 'in_person' | 'custom'
   locationDetails: string
   reminderMinutes: number[]
   bookingQuestions: BookingQuestion[]

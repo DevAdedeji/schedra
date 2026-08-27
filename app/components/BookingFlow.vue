@@ -209,6 +209,7 @@ const confirmedWhen = computed(() => confirmed.value
 function locationLabel(type?: string) {
   return ({
     google_meet: 'Google Meet',
+    microsoft_teams: 'Microsoft Teams',
     zoom: 'Zoom',
     video_link: 'Video call',
     phone: 'Phone call',
@@ -220,6 +221,7 @@ function locationLabel(type?: string) {
 function locationIcon(type?: string) {
   return ({
     google_meet: 'i-simple-icons-googlemeet',
+    microsoft_teams: 'i-simple-icons-microsoftteams',
     zoom: 'i-simple-icons-zoom',
     video_link: 'i-lucide-video',
     phone: 'i-lucide-phone',
@@ -475,7 +477,7 @@ useSeoMeta({
                   v-else
                   class="mt-0.5 text-[12px] leading-relaxed text-muted"
                 >
-                  {{ ['google_meet', 'zoom'].includes(confirmed.locationType) ? `Your private ${confirmed.locationType === 'zoom' ? 'Zoom' : 'Google Meet'} link is being prepared and will appear in the booking details.` : confirmed.locationDetails }}
+                  {{ ['google_meet', 'microsoft_teams', 'zoom'].includes(confirmed.locationType) ? `Your private ${confirmed.locationType === 'zoom' ? 'Zoom' : confirmed.locationType === 'microsoft_teams' ? 'Microsoft Teams' : 'Google Meet'} link is being prepared and will appear in the booking details.` : confirmed.locationDetails }}
                 </p>
               </div>
             </template>

@@ -10,7 +10,7 @@ export interface CalendarEventInput {
   attendeeEmail: string
   additionalGuestEmails: string[]
   notes?: string | null
-  locationType: 'google_meet' | 'zoom' | 'video_link' | 'phone' | 'in_person' | 'custom'
+  locationType: 'google_meet' | 'microsoft_teams' | 'zoom' | 'video_link' | 'phone' | 'in_person' | 'custom'
   locationDetails: string
   meetingUrl?: string | null
   /** Only one host event invites guests; co-host copies stay private. */

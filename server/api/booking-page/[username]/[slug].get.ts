@@ -24,8 +24,8 @@ export default defineEventHandler(async (event) => {
     bookingQuestions: found.bookingQuestions,
     requiresConfirmation: found.requiresConfirmation,
     locationType: found.locationType,
-    locationDetails: ['google_meet', 'zoom'].includes(found.locationType)
-      ? `A private ${found.locationType === 'zoom' ? 'Zoom' : 'Google Meet'} link will be created when you book.`
+    locationDetails: ['google_meet', 'microsoft_teams', 'zoom'].includes(found.locationType)
+      ? `A private ${found.locationType === 'zoom' ? 'Zoom' : found.locationType === 'microsoft_teams' ? 'Microsoft Teams' : 'Google Meet'} link will be created when you book.`
       : found.locationType === 'video_link'
         ? 'The meeting link will be shared after you book.'
         : found.locationDetails

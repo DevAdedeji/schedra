@@ -366,6 +366,8 @@ export const calendarConnections = pgTable('calendar_connections', {
   conflictCalendarIds: jsonb('conflict_calendar_ids').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
   writeCalendarId: text('write_calendar_id'),
   status: calendarConnectionStatus('status').notNull().default('active'),
+  preferencesConfiguredAt: timestamp('preferences_configured_at', { withTimezone: true }),
+  supportsMicrosoftTeams: boolean('supports_microsoft_teams').notNull().default(false),
   lastError: text('last_error'),
   lastCheckedAt: timestamp('last_checked_at', { withTimezone: true }),
   ...timestamps
@@ -400,6 +402,7 @@ export const calendarSyncAction = pgEnum('calendar_sync_action', ['upsert', 'del
 export const calendarSyncStatus = pgEnum('calendar_sync_status', ['pending', 'processing', 'completed', 'failed'])
 export const meetingLocationType = pgEnum('meeting_location_type', [
   'google_meet',
+  'microsoft_teams',
   'zoom',
   'video_link',
   'phone',

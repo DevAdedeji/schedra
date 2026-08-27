@@ -93,7 +93,7 @@ function whenRange(startsAt: string, endsAt: string, timeZone: string) {
 }
 
 function locationUrl(type: MeetingLocationType, details: string, meetingUrl?: string | null) {
-  if (['google_meet', 'zoom'].includes(type)) return meetingUrl ?? undefined
+  if (['google_meet', 'microsoft_teams', 'zoom'].includes(type)) return meetingUrl ?? undefined
   if (type === 'video_link') return details
   return undefined
 }
@@ -104,6 +104,7 @@ export function meetingLocationText(
   meetingUrl?: string | null
 ) {
   if (type === 'google_meet') return meetingUrl ? `Google Meet: ${meetingUrl}` : 'Google Meet — the join link will appear in the booking details.'
+  if (type === 'microsoft_teams') return meetingUrl ? `Microsoft Teams: ${meetingUrl}` : 'Microsoft Teams — the join link will appear in the booking details.'
   if (type === 'zoom') return meetingUrl ? `Zoom: ${meetingUrl}` : 'Zoom — the join link will appear in the booking details.'
   if (type === 'video_link') return `Video call: ${details}`
   if (type === 'phone') return `Phone call: ${details}`

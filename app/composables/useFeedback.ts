@@ -26,5 +26,15 @@ export function useFeedback() {
     })
   }
 
-  return { success, error }
+  function warning({ title, description }: FeedbackOptions) {
+    toast.add({
+      title,
+      description,
+      color: 'warning',
+      icon: 'i-lucide-triangle-alert',
+      duration: 5000
+    })
+  }
+
+  return { success, warning, error }
 }

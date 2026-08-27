@@ -70,7 +70,7 @@ export default defineEventHandler(async (event) => {
     offered = await slotsFor(eventType, day(-1), day(1), now)
   } catch (error) {
     if (error instanceof CalendarUnavailableError || (
-      ['google_meet', 'zoom'].includes(eventType.locationType)
+      ['google_meet', 'microsoft_teams', 'zoom'].includes(eventType.locationType)
       && (error as { statusCode?: number }).statusCode === 409
     )) {
       throw createError({

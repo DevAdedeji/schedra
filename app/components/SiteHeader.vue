@@ -2,6 +2,7 @@
 const links = [
   { label: 'How it works', to: '#how' },
   { label: 'What you get', to: '#features' },
+  { label: 'Website embeds', to: '#embed' },
   { label: 'Pricing', to: '/pricing' }
 ]
 

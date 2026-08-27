@@ -158,7 +158,7 @@ export default defineEventHandler(async (event) => {
           eventType.locationType
         )
       } catch (error) {
-        if (['google_meet', 'zoom'].includes(eventType.locationType)) {
+        if (['google_meet', 'microsoft_teams', 'zoom'].includes(eventType.locationType)) {
           throw createError({
             statusCode: 503,
             statusMessage: 'Booking times are temporarily unavailable. Please try again shortly.',

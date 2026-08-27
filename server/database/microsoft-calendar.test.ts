@@ -84,14 +84,18 @@ describe.skipIf(!url)('Microsoft Calendar integration', () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(json({ id: 'microsoft-user-id', mail: 'host@example.com' }))
       .mockResolvedValueOnce(json({ value: [
-        { id: 'primary-calendar', name: 'Calendar', isDefaultCalendar: true, canEdit: true, hexColor: '#0078d4' },
-        { id: 'shared-calendar', name: 'Shared', canEdit: false, isShared: true }
+        {
+          id: 'primary-calendar', name: 'Calendar', isDefaultCalendar: true, canEdit: true,
+          canShare: true, hexColor: '#0078d4', allowedOnlineMeetingProviders: ['teamsForBusiness']
+        },
+        { id: 'shared-calendar', name: 'Shared', canEdit: false, canShare: false }
       ] }))
     vi.stubGlobal('fetch', fetchMock)
 
     const {
       MICROSOFT_CALENDAR_SCOPES,
       initializeMicrosoftCalendars,
+      microsoftCalendarConnection,
       microsoftAuthorizationUrl,
       saveMicrosoftConnection
     } = await import('../integrations/calendar/microsoft')
@@ -108,6 +112,16 @@ describe.skipIf(!url)('Microsoft Calendar integration', () => {
       expires_in: 3600
     })
     await initializeMicrosoftCalendars(hostId)
+
+    const { enqueueFutureBookingsForCalendarSync } = await import('../services/calendar-sync')
+    await expect(enqueueFutureBookingsForCalendarSync(hostId)).resolves.toBeUndefined()
+
+    const calendarListUrl = String(fetchMock.mock.calls[1]?.[0])
+    expect(calendarListUrl).toContain('/me/calendars?')
+    expect(calendarListUrl).toContain('canShare')
+    expect(calendarListUrl).toContain('allowedOnlineMeetingProviders')
+    expect(calendarListUrl).not.toContain('isShared')
+    await expect(microsoftCalendarConnection(hostId)).resolves.toMatchObject({ supportsMicrosoftTeams: true })
 
     const [connection] = await sql<{
       provider: string
@@ -183,6 +197,41 @@ describe.skipIf(!url)('Microsoft Calendar integration', () => {
     expect(fetchMock.mock.calls[1]?.[1]?.method).toBe('PATCH')
     await deleteMicrosoftCalendarEvent(hostId, 'primary-calendar', 'event-id')
     expect(fetchMock.mock.calls[2]?.[1]?.method).toBe('DELETE')
+  })
+
+  it('creates a Teams-enabled Outlook event and returns its private join link', async () => {
+    const hostId = await createHost()
+    await connect(hostId)
+    const fetchMock = vi.fn().mockResolvedValue(json({
+      id: 'teams-event-id',
+      onlineMeeting: { joinUrl: 'https://teams.microsoft.com/l/meetup-join/test' }
+    }, 201))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { upsertMicrosoftCalendarEvent } = await import('../integrations/calendar/microsoft')
+    const remote = await upsertMicrosoftCalendarEvent(hostId, 'primary-calendar', null, {
+      uid: 'teams-booking',
+      title: 'Teams call',
+      startsAt: new Date('2026-09-07T09:00:00Z'),
+      endsAt: new Date('2026-09-07T09:30:00Z'),
+      attendeeName: 'Guest',
+      attendeeEmail: 'guest@example.com',
+      additionalGuestEmails: [],
+      locationType: 'microsoft_teams',
+      locationDetails: '',
+      meetingUrl: null
+    })
+
+    expect(remote).toEqual({
+      id: 'teams-event-id',
+      meetingUrl: 'https://teams.microsoft.com/l/meetup-join/test'
+    })
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))
+    expect(body).toMatchObject({
+      isOnlineMeeting: true,
+      onlineMeetingProvider: 'teamsForBusiness',
+      location: { displayName: 'Microsoft Teams' }
+    })
   })
 
   it('makes Microsoft the only booking destination while keeping Google connected for conflicts', async () => {

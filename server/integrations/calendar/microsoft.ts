@@ -40,14 +40,22 @@ interface MicrosoftCalendar {
   name: string
   isDefaultCalendar?: boolean
   canEdit?: boolean
+  canShare?: boolean
   hexColor?: string
-  isShared?: boolean
-  isSharedWithMe?: boolean
+  allowedOnlineMeetingProviders?: string[]
   owner?: { name?: string, address?: string }
+}
+
+interface MicrosoftGraphErrorResponse {
+  error?: {
+    code?: string
+    message?: string
+  }
 }
 
 interface MicrosoftEvent {
   id: string
+  onlineMeeting?: { joinUrl?: string }
   showAs?: string
   isCancelled?: boolean
   start?: { dateTime?: string, timeZone?: string }
@@ -67,6 +75,7 @@ export interface MicrosoftCalendarItem {
   backgroundColor?: string
   shared?: boolean
   owner?: string
+  supportsMicrosoftTeams?: boolean
 }
 
 interface BusyPeriod { start: string, end: string }
@@ -257,7 +266,18 @@ async function graphResponse(userId: string, path: string, init: RequestInit = {
   }
 
   if (!response.ok && response.status !== 404) {
-    const message = `Microsoft Calendar request failed (${response.status}).`
+    const graphFailure = await response.clone().json().catch(() => null) as MicrosoftGraphErrorResponse | null
+    const graphCode = graphFailure?.error?.code
+    const message = response.status === 403
+      ? 'Microsoft Calendar permission is missing. Reconnect Microsoft Calendar and approve calendar access.'
+      : `Microsoft Calendar request failed (${response.status}).`
+    console.error(JSON.stringify({
+      level: 'error',
+      event: 'microsoft_graph_request_failed',
+      status: response.status,
+      graphCode: graphCode ?? null,
+      requestId: response.headers.get('request-id') ?? response.headers.get('client-request-id')
+    }))
     await useDatabase().update(calendarConnections).set({
       lastError: message,
       lastCheckedAt: sql`now()`,
@@ -316,6 +336,7 @@ export async function saveMicrosoftConnection(userId: string, tokens: MicrosoftT
       accessTokenExpiresAt: expiresAt,
       scope: tokens.scope ?? MICROSOFT_CALENDAR_SCOPES.join(' '),
       status: 'active',
+      preferencesConfiguredAt: null,
       lastError: null,
       lastCheckedAt: sql`now()`,
       updatedAt: sql`now()`
@@ -332,20 +353,26 @@ function mapCalendar(calendar: MicrosoftCalendar): MicrosoftCalendarItem {
       ? calendar.isDefaultCalendar ? 'owner' : 'writer'
       : 'reader',
     backgroundColor: calendar.hexColor || undefined,
-    shared: Boolean(calendar.isShared || calendar.isSharedWithMe),
-    owner: calendar.owner?.address ?? calendar.owner?.name
+    // Graph has no `isShared` calendar property. Only a calendar's creator can
+    // share it, so a non-default calendar the current user cannot share is a
+    // shared or subscribed calendar from this user's perspective.
+    shared: calendar.canShare === false && !calendar.isDefaultCalendar,
+    owner: calendar.owner?.address ?? calendar.owner?.name,
+    supportsMicrosoftTeams: calendar.allowedOnlineMeetingProviders?.includes('teamsForBusiness') ?? false
   }
 }
 
 export async function listMicrosoftCalendars(userId: string) {
   const calendars: MicrosoftCalendarItem[] = []
-  let next: string | undefined = '/me/calendars?$select=id,name,isDefaultCalendar,canEdit,hexColor,isShared,isSharedWithMe,owner&$top=100'
+  let next: string | undefined = '/me/calendars?$select=id,name,isDefaultCalendar,canEdit,canShare,hexColor,owner,allowedOnlineMeetingProviders&$top=100'
   while (next) {
     const page: GraphPage<MicrosoftCalendar> = await graphRequest<GraphPage<MicrosoftCalendar>>(userId, next)
     calendars.push(...(page.value ?? []).map(mapCalendar))
     next = page['@odata.nextLink']
   }
   await useDatabase().update(calendarConnections).set({
+    supportsMicrosoftTeams: calendars.some(calendar =>
+      calendar.supportsMicrosoftTeams && ['writer', 'owner'].includes(calendar.accessRole)),
     lastCheckedAt: sql`now()`,
     lastError: null,
     updatedAt: sql`now()`
@@ -465,6 +492,8 @@ export async function microsoftCalendarConnection(userId: string) {
     connected: connection.status === 'active',
     configured,
     status: connection.status,
+    setupRequired: connection.status === 'active' && !connection.preferencesConfiguredAt,
+    supportsMicrosoftTeams: connection.supportsMicrosoftTeams,
     accountLabel: connection.accountLabel,
     conflictCalendarIds: connection.conflictCalendarIds,
     writeCalendarId: connection.writeCalendarId,
@@ -513,6 +542,7 @@ export async function updateMicrosoftCalendarSelection(
     await tx.update(calendarConnections).set({
       conflictCalendarIds,
       writeCalendarId,
+      preferencesConfiguredAt: sql`now()`,
       lastCheckedAt: sql`now()`,
       lastError: null,
       updatedAt: sql`now()`
@@ -526,7 +556,9 @@ export async function updateMicrosoftCalendarSelection(
 function eventDescription(input: CalendarEventInput) {
   const location = input.locationType === 'google_meet'
     ? 'Google Meet'
-    : input.locationType === 'zoom' ? 'Zoom' : input.locationDetails
+    : input.locationType === 'microsoft_teams'
+      ? 'Microsoft Teams'
+      : input.locationType === 'zoom' ? 'Zoom' : input.locationDetails
   return [
     input.description,
     `Guest: ${input.attendeeName} (${input.attendeeEmail})`,
@@ -543,9 +575,11 @@ function transactionId(value: string) {
 }
 
 function eventBody(input: CalendarEventInput, includeTransactionId: boolean) {
-  const generatedMeeting = ['google_meet', 'zoom'].includes(input.locationType)
+  const generatedMeeting = ['google_meet', 'microsoft_teams', 'zoom'].includes(input.locationType)
   const location = generatedMeeting
-    ? input.meetingUrl ?? (input.locationType === 'zoom' ? 'Zoom' : 'Google Meet')
+    ? input.meetingUrl ?? (input.locationType === 'zoom'
+      ? 'Zoom'
+      : input.locationType === 'microsoft_teams' ? 'Microsoft Teams' : 'Google Meet')
     : input.locationDetails
   return {
     subject: `${input.title} with ${input.attendeeName}`.slice(0, 255),
@@ -565,6 +599,9 @@ function eventBody(input: CalendarEventInput, includeTransactionId: boolean) {
     responseRequested: input.inviteGuests !== false,
     allowNewTimeProposals: false,
     showAs: 'busy',
+    ...input.locationType === 'microsoft_teams' && !input.meetingUrl
+      ? { isOnlineMeeting: true, onlineMeetingProvider: 'teamsForBusiness' }
+      : {},
     ...includeTransactionId
       ? { transactionId: transactionId(`schedra:${input.calendarEventKey ?? input.uid}`) }
       : {}
@@ -590,7 +627,7 @@ export async function upsertMicrosoftCalendarEvent(
     )
     if (response.ok) {
       const event = await response.json() as MicrosoftEvent
-      return { id: event.id || eventId, meetingUrl: null }
+      return { id: event.id || eventId, meetingUrl: event.onlineMeeting?.joinUrl ?? input.meetingUrl ?? null }
     }
   }
 
@@ -598,7 +635,7 @@ export async function upsertMicrosoftCalendarEvent(
     method: 'POST',
     body: JSON.stringify(eventBody(input, true))
   })
-  return { id: event.id, meetingUrl: null }
+  return { id: event.id, meetingUrl: event.onlineMeeting?.joinUrl ?? null }
 }
 
 export async function deleteMicrosoftCalendarEvent(userId: string, calendarId: string, eventId: string) {

@@ -55,7 +55,7 @@ export default defineEventHandler(async (event) => {
     }
   } catch (error) {
     if (error instanceof CalendarUnavailableError || (
-      ['google_meet', 'zoom'].includes(eventType.locationType)
+      ['google_meet', 'microsoft_teams', 'zoom'].includes(eventType.locationType)
       && (error as { statusCode?: number }).statusCode === 409
     )) {
       throw createError({

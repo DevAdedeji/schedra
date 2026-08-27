@@ -92,6 +92,8 @@ export interface CalendarConnection {
   connected: boolean
   configured: boolean
   status?: 'active' | 'needs_reauthorization' | 'disconnected'
+  setupRequired?: boolean
+  supportsMicrosoftTeams?: boolean
   accountLabel?: string | null
   conflictCalendarIds?: string[]
   writeCalendarId?: string | null
@@ -257,7 +259,7 @@ export function calendarIntegrationApi(provider: CalendarIntegrationProvider) {
     connectEndpoint: `${endpoint}/connect`,
     calendars: () => $fetch<CalendarsResponse>(`${endpoint}/calendars`),
     update: (body: { conflictCalendarIds: string[], writeCalendarId: string | null }) =>
-      $fetch(endpoint, { method: 'PATCH', body }),
+      $fetch<{ ok: true, syncQueued: boolean }>(endpoint, { method: 'PATCH', body }),
     disconnect: () => $fetch(endpoint, { method: 'DELETE' })
   }
 }
@@ -332,7 +334,7 @@ export interface TeamMemberRecord {
   avatarUrl: string | null
   timeZone: string
   isYou: boolean
-  integrations: { googleMeet: boolean, zoom: boolean }
+  integrations: { googleMeet: boolean, microsoftTeams: boolean, zoom: boolean }
 }
 
 export interface TeamMembersResponse {

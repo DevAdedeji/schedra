@@ -27,7 +27,6 @@ export default defineEventHandler(async (event) => {
       parsed.data.conflictCalendarIds,
       parsed.data.writeCalendarId
     )
-    await enqueueFutureBookingsForCalendarSync(session.user.id)
   } catch (error) {
     if (error instanceof CalendarSelectionError) {
       throw createError({ statusCode: 400, statusMessage: error.message })
@@ -37,5 +36,17 @@ export default defineEventHandler(async (event) => {
     }
     throw error
   }
-  return { ok: true }
+
+  try {
+    await enqueueFutureBookingsForCalendarSync(session.user.id)
+    return { ok: true, syncQueued: true }
+  } catch (error) {
+    console.error(JSON.stringify({
+      level: 'error',
+      event: 'google_calendar_booking_backfill_failed',
+      userId: session.user.id,
+      message: error instanceof Error ? error.message : String(error)
+    }))
+    return { ok: true, syncQueued: false }
+  }
 })

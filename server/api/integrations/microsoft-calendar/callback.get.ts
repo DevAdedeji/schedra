@@ -32,9 +32,11 @@ export default defineEventHandler(async (event) => {
     return sendRedirect(event, '/integrations?microsoft=invalid-request')
   }
 
+  let connectionSaved = false
   try {
     const tokens = await exchangeMicrosoftCode(parsed.data.code)
     await saveMicrosoftConnection(session.user.id, tokens)
+    connectionSaved = true
     await initializeMicrosoftCalendars(session.user.id)
   } catch (error) {
     console.error(JSON.stringify({
@@ -43,7 +45,9 @@ export default defineEventHandler(async (event) => {
       userId: session.user.id,
       message: error instanceof Error ? error.message : String(error)
     }))
-    return sendRedirect(event, '/integrations?microsoft=connection-failed')
+    return sendRedirect(event, connectionSaved
+      ? '/integrations?microsoft=setup-incomplete'
+      : '/integrations?microsoft=connection-failed')
   }
 
   try {

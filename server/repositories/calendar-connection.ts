@@ -19,3 +19,22 @@ export async function writableGoogleCalendarUserIds(userIds: string[]) {
 
   return [...new Set(rows.map(row => row.userId))]
 }
+
+/** Users whose selected Microsoft destination can create Teams-enabled events. */
+export async function writableMicrosoftTeamsCalendarUserIds(userIds: string[]) {
+  const uniqueUserIds = [...new Set(userIds)]
+  if (!uniqueUserIds.length) return []
+
+  const rows = await useDatabase()
+    .select({ userId: calendarConnections.userId })
+    .from(calendarConnections)
+    .where(and(
+      inArray(calendarConnections.userId, uniqueUserIds),
+      eq(calendarConnections.provider, 'microsoft'),
+      eq(calendarConnections.status, 'active'),
+      eq(calendarConnections.supportsMicrosoftTeams, true),
+      isNotNull(calendarConnections.writeCalendarId)
+    ))
+
+  return [...new Set(rows.map(row => row.userId))]
+}

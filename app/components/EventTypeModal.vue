@@ -5,7 +5,7 @@ import {
   type BookingQuestionType,
   type EventTypeInput
 } from '#shared/validation'
-import { apiErrorMessage, calendarApi, eventTypesApi, schedulesApi, zoomApi, type CalendarConnection, type SchedulesResponse, type VideoConferenceConnection } from '~/services/schedra-api'
+import { apiErrorMessage, calendarIntegrationApi, eventTypesApi, schedulesApi, zoomApi, type CalendarConnection, type SchedulesResponse, type VideoConferenceConnection } from '~/services/schedra-api'
 import type { EventTypeRecord } from '~/types/event-type'
 
 const props = defineProps<{ open: boolean, eventType?: EventTypeRecord | null }>()
@@ -20,7 +20,12 @@ const schedulesRequest = useFetch<SchedulesResponse>(schedulesApi.listEndpoint, 
   query: { pageSize: 10 },
   immediate: false
 })
-const calendarConnectionRequest = useFetch<CalendarConnection>(calendarApi.connectionEndpoint, {
+const googleCalendarApi = calendarIntegrationApi('google-calendar')
+const microsoftCalendarApi = calendarIntegrationApi('microsoft-calendar')
+const googleConnectionRequest = useFetch<CalendarConnection>(googleCalendarApi.connectionEndpoint, {
+  immediate: false
+})
+const microsoftConnectionRequest = useFetch<CalendarConnection>(microsoftCalendarApi.connectionEndpoint, {
   immediate: false
 })
 const zoomConnectionRequest = useFetch<VideoConferenceConnection>(zoomApi.connectionEndpoint, {
@@ -29,9 +34,10 @@ const zoomConnectionRequest = useFetch<VideoConferenceConnection>(zoomApi.connec
 const [
   { data: currentUser },
   { data: schedules, refresh: refreshSchedules },
-  { data: calendarConnection, refresh: refreshCalendarConnection },
+  { data: googleConnection, refresh: refreshGoogleConnection },
+  { data: microsoftConnection, refresh: refreshMicrosoftConnection },
   { data: zoomConnection, refresh: refreshZoomConnection }
-] = await Promise.all([currentUserRequest, schedulesRequest, calendarConnectionRequest, zoomConnectionRequest])
+] = await Promise.all([currentUserRequest, schedulesRequest, googleConnectionRequest, microsoftConnectionRequest, zoomConnectionRequest])
 const { host } = useSiteUrl()
 const form = reactive<EventTypeForm>(emptyForm())
 const initial = ref('')
@@ -51,11 +57,10 @@ const scheduleOptions = computed(() => (schedules.value?.items ?? []).map(schedu
 const selectedSchedule = computed(() => schedules.value?.items.find(schedule => schedule.id === form.scheduleId))
 const valid = computed(() => eventTypeSchema.safeParse(form).success && Boolean(form.scheduleId))
 const dirty = computed(() => JSON.stringify(form) !== initial.value)
-const googleMeetReady = computed(() => Boolean(calendarConnection.value?.connected && calendarConnection.value.writeCalendarId))
-const zoomReady = computed(() => Boolean(zoomConnection.value?.connected))
 const locationOptions = computed(() => [
-  { label: 'Google Meet', value: 'google_meet', icon: 'i-simple-icons-googlemeet', disabled: !googleMeetReady.value },
-  { label: 'Zoom', value: 'zoom', icon: 'i-simple-icons-zoom', disabled: !zoomReady.value },
+  { label: 'Google Meet', value: 'google_meet', icon: 'i-simple-icons-googlemeet' },
+  { label: 'Microsoft Teams', value: 'microsoft_teams', icon: 'i-simple-icons-microsoftteams' },
+  { label: 'Zoom', value: 'zoom', icon: 'i-simple-icons-zoom' },
   { label: 'Video link', value: 'video_link', icon: 'i-lucide-video' },
   { label: 'Phone call', value: 'phone', icon: 'i-lucide-phone' },
   { label: 'In person', value: 'in_person', icon: 'i-lucide-map-pin' },
@@ -73,10 +78,30 @@ const locationFields = {
   custom: { label: 'Meeting instructions', help: 'Tell guests exactly how or where you will meet.', placeholder: 'I will share the meeting details before the call.' }
 } as const
 const locationField = computed(() => locationFields[
-  ['google_meet', 'zoom'].includes(form.locationType)
+  ['google_meet', 'microsoft_teams', 'zoom'].includes(form.locationType)
     ? 'custom'
     : form.locationType as keyof typeof locationFields
 ])
+const selectedGeneratedProvider = computed(() => ({
+  google_meet: {
+    connected: Boolean(googleConnection.value?.connected),
+    unavailable: googleConnection.value?.connected
+      ? 'Choose Google Calendar as the calendar for new bookings to create Meet links.'
+      : 'Connect Google Calendar and choose a calendar for new bookings to create Meet links.'
+  },
+  microsoft_teams: {
+    connected: Boolean(microsoftConnection.value?.connected),
+    unavailable: microsoftConnection.value?.connected && !microsoftConnection.value.supportsMicrosoftTeams
+      ? 'This Microsoft calendar does not support Teams meetings. A Microsoft 365 calendar with Teams enabled is required.'
+      : microsoftConnection.value?.connected
+        ? 'Choose Microsoft Calendar as the calendar for new bookings to create Teams links.'
+        : 'Connect a Microsoft calendar with Teams enabled to create Teams links.'
+  },
+  zoom: {
+    connected: Boolean(zoomConnection.value?.connected),
+    unavailable: 'Connect Zoom to create automatic meeting links.'
+  }
+} as const)[form.locationType as 'google_meet' | 'microsoft_teams' | 'zoom'] ?? null)
 
 const previewDays = [
   { day: 'MON', date: '24', active: true },
@@ -187,7 +212,12 @@ function removeQuestionOption(question: BookingQuestion, index: number) {
 
 watch(() => props.open, (open) => {
   if (open) {
-    Promise.allSettled([refreshSchedules(), refreshCalendarConnection(), refreshZoomConnection()]).then(loadForm)
+    Promise.allSettled([
+      refreshSchedules(),
+      refreshGoogleConnection(),
+      refreshMicrosoftConnection(),
+      refreshZoomConnection()
+    ]).then(loadForm)
   }
 })
 watch(() => props.eventType, () => {
@@ -525,48 +555,11 @@ async function save() {
               </UFormField>
 
               <div
-                v-if="['google_meet', 'zoom'].includes(form.locationType)"
-                class="flex items-start gap-3 rounded-lg border border-success/20 bg-success/5 px-4 py-3"
-              >
-                <UIcon
-                  :name="form.locationType === 'zoom' ? 'i-simple-icons-zoom' : 'i-simple-icons-googlemeet'"
-                  class="mt-0.5 size-4 shrink-0 text-success"
-                />
-                <div>
-                  <p class="text-[13px] font-medium text-highlighted">
-                    A private {{ form.locationType === 'zoom' ? 'Zoom' : 'Meet' }} link will be created for every booking.
-                  </p>
-                  <p class="mt-1 text-[12px] leading-relaxed text-muted">
-                    It will be added to the calendar event, confirmation and booking details automatically.
-                  </p>
-                </div>
-              </div>
-
-              <div
-                v-else-if="!googleMeetReady"
+                v-if="selectedGeneratedProvider && !selectedGeneratedProvider.connected"
                 class="flex items-center justify-between gap-3 rounded-lg border border-default bg-muted px-4 py-3"
               >
                 <p class="text-[12px] leading-relaxed text-muted">
-                  Want automatic Google Meet links? Connect a writable Google Calendar first.
-                </p>
-                <UButton
-                  to="/integrations"
-                  target="_blank"
-                  color="neutral"
-                  variant="outline"
-                  size="xs"
-                  class="shrink-0"
-                >
-                  Connect
-                </UButton>
-              </div>
-
-              <div
-                v-if="form.locationType !== 'zoom' && !zoomReady"
-                class="flex items-center justify-between gap-3 rounded-lg border border-default bg-muted px-4 py-3"
-              >
-                <p class="text-[12px] leading-relaxed text-muted">
-                  Want automatic Zoom links? Connect your Zoom account first.
+                  {{ selectedGeneratedProvider.unavailable }}
                 </p>
                 <UButton
                   to="/integrations"
@@ -581,7 +574,7 @@ async function save() {
               </div>
 
               <UFormField
-                v-if="!['google_meet', 'zoom'].includes(form.locationType)"
+                v-if="!selectedGeneratedProvider"
                 :label="locationField?.label"
                 name="locationDetails"
                 :help="locationField?.help"
