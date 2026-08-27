@@ -10,6 +10,7 @@ const password = 'a-production-grade-passphrase'
 test.beforeEach(async () => {
   await sql`
     truncate table
+      operations_alerts, webhook_deliveries, subscription_seat_sync_jobs,
       organization_audit_logs, organization_slug_history, organization_invoices,
       organization_subscriptions, booking_hosts, event_type_hosts, invitations,
       members, calendar_sync_jobs, booking_calendar_events, calendar_connections,

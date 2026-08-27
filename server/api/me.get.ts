@@ -1,4 +1,4 @@
-import { getAuthSession } from '../services/session'
+import { getAuthSession, isPlatformAdminEmail } from '../services/session'
 import { useEnv } from '../config/env'
 import { ensureStarterSetup } from '../services/onboarding'
 import { profileForUser } from '../repositories/profile'
@@ -9,11 +9,11 @@ export default defineEventHandler(async (event) => {
   const google = Boolean(env.googleClientId && env.googleClientSecret)
 
   const session = await getAuthSession(event)
-  if (!session) return { user: null, google }
+  if (!session) return { user: null, google, isPlatformAdmin: false }
 
   const profile = await profileForUser(session.user.id)
-  if (!profile) return { user: null, google }
+  if (!profile) return { user: null, google, isPlatformAdmin: false }
   await ensureStarterSetup(profile.id, profile.timeZone || 'UTC')
 
-  return { user: profile, google }
+  return { user: profile, google, isPlatformAdmin: isPlatformAdminEmail(profile.email) }
 })

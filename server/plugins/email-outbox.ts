@@ -1,4 +1,5 @@
 import { processEmailOutbox } from '../services/email-outbox'
+import { logEvent } from '../observability/logger'
 
 export default defineNitroPlugin((nitro) => {
   if (import.meta.prerender) return
@@ -10,11 +11,7 @@ export default defineNitroPlugin((nitro) => {
     try {
       await processEmailOutbox()
     } catch (error) {
-      console.error(JSON.stringify({
-        level: 'error',
-        event: 'email_outbox_worker_failed',
-        message: error instanceof Error ? error.message : String(error)
-      }))
+      logEvent('error', 'email_outbox_worker_failed', { error })
     } finally {
       running = false
     }

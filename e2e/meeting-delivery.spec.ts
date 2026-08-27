@@ -9,6 +9,7 @@ const sql = postgres(databaseUrl, { max: 2, onnotice: () => {} })
 test.beforeEach(async () => {
   await sql`
     truncate table
+      operations_alerts, webhook_deliveries, subscription_seat_sync_jobs,
       calendar_sync_jobs, booking_calendar_events, calendar_connections,
       email_outbox, api_rate_limits, rate_limits, sessions, accounts,
       verifications, bookings, event_types, date_overrides,

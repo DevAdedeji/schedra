@@ -9,6 +9,7 @@ const disallowed = [
   '/event-types',
   '/forgot-password',
   '/integrations',
+  '/operations',
   '/invite/',
   '/login',
   '/reset-password',

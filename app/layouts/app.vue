@@ -23,13 +23,16 @@ const teamSlug = computed(() => (
   route.path.startsWith('/t/') ? String(route.params.slug ?? '') : ''
 ))
 
-const personalLinks = [
+const personalLinks = computed(() => [
   { label: 'Overview', to: '/dashboard', icon: 'i-lucide-layout-dashboard' },
   { label: 'Event types', to: '/event-types', icon: 'i-lucide-link-2' },
   { label: 'Bookings', to: '/bookings', icon: 'i-lucide-calendar-days' },
   { label: 'Availability', to: '/availability', icon: 'i-lucide-clock' },
-  { label: 'Integrations', to: '/integrations', icon: 'i-lucide-blocks' }
-]
+  { label: 'Integrations', to: '/integrations', icon: 'i-lucide-blocks' },
+  ...(data.value?.isPlatformAdmin
+    ? [{ label: 'Operations', to: '/operations', icon: 'i-lucide-activity' }]
+    : [])
+])
 
 const links = computed(() => (teamSlug.value
   ? [
@@ -40,7 +43,7 @@ const links = computed(() => (teamSlug.value
       { label: 'Billing', to: `/t/${teamSlug.value}/billing`, icon: 'i-lucide-credit-card' },
       { label: 'Settings', to: `/t/${teamSlug.value}/settings`, icon: 'i-lucide-settings' }
     ]
-  : personalLinks))
+  : personalLinks.value))
 
 async function leave() {
   leaving.value = true

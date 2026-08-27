@@ -5,6 +5,7 @@ import { useDatabase } from '../../database'
 import { useEnv } from '../../config/env'
 import { fetchWithTimeout } from '../fetch'
 import { IntegrationUnavailableError, retryAfterMilliseconds } from '../errors'
+import { logEvent } from '../../observability/logger'
 import { decryptCredential, encryptCredential } from './credential-crypto'
 import type { CalendarEventInput } from './provider'
 
@@ -278,13 +279,11 @@ async function graphResponse(userId: string, path: string, init: RequestInit = {
     const message = response.status === 403
       ? 'Microsoft Calendar permission is missing. Reconnect Microsoft Calendar and approve calendar access.'
       : `Microsoft Calendar request failed (${response.status}).`
-    console.error(JSON.stringify({
-      level: 'error',
-      event: 'microsoft_graph_request_failed',
+    logEvent('error', 'microsoft_graph_request_failed', {
       status: response.status,
       graphCode: graphCode ?? null,
       requestId: response.headers.get('request-id') ?? response.headers.get('client-request-id')
-    }))
+    })
     await useDatabase().update(calendarConnections).set({
       lastError: message,
       lastCheckedAt: sql`now()`,

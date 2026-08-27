@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { CalendarSelectionError, CalendarUnavailableError, updateGoogleCalendarSelection } from '../../../integrations/calendar/google'
 import { enqueueFutureBookingsForCalendarSync } from '../../../services/calendar-sync'
 import { requireAuthSession } from '../../../services/session'
+import { logEvent } from '../../../observability/logger'
 
 const selectionSchema = z.object({
   conflictCalendarIds: z.array(z.string().min(1).max(1024)).min(1, 'Choose at least one calendar.').max(50),
@@ -41,12 +42,10 @@ export default defineEventHandler(async (event) => {
     await enqueueFutureBookingsForCalendarSync(session.user.id)
     return { ok: true, syncQueued: true }
   } catch (error) {
-    console.error(JSON.stringify({
-      level: 'error',
-      event: 'google_calendar_booking_backfill_failed',
+    logEvent('error', 'google_calendar_booking_backfill_failed', {
       userId: session.user.id,
-      message: error instanceof Error ? error.message : String(error)
-    }))
+      error
+    }, event)
     return { ok: true, syncQueued: false }
   }
 })

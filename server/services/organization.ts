@@ -12,6 +12,7 @@ import {
 } from '../repositories/organization'
 import { organizationEntitlement } from './entitlement'
 import { requireAuthSession } from './session'
+import { logEvent } from '../observability/logger'
 
 type PermissionRequest = Partial<{
   [K in keyof typeof organizationStatements]: Array<(typeof organizationStatements)[K][number]>
@@ -148,6 +149,6 @@ export async function recordAudit(entry: AuditEntry) {
       metadata: entry.metadata ?? null
     })
   } catch (error) {
-    console.error('failed to record organization audit entry', entry.action, error)
+    logEvent('error', 'organization_audit_write_failed', { action: entry.action, error })
   }
 }

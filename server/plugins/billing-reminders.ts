@@ -1,4 +1,5 @@
 import { expireLapsedTeams, processBillingReminders } from '../services/billing-reminders'
+import { logEvent } from '../observability/logger'
 
 // Billing deadlines move in days, so this sweeps hourly rather than on the
 // seconds cadence the outbox and calendar workers use.
@@ -15,11 +16,7 @@ export default defineNitroPlugin((nitro) => {
       await processBillingReminders()
       await expireLapsedTeams()
     } catch (error) {
-      console.error(JSON.stringify({
-        level: 'error',
-        event: 'billing_reminder_worker_failed',
-        message: error instanceof Error ? error.message : String(error)
-      }))
+      logEvent('error', 'billing_reminder_worker_failed', { error })
     } finally {
       running = false
     }

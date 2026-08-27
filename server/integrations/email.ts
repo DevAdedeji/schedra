@@ -1,6 +1,7 @@
 import { useEnv } from '../config/env'
 import { fetchWithTimeout } from './fetch'
 import nodemailer from 'nodemailer'
+import { logEvent } from '../observability/logger'
 
 let smtpTransport: ReturnType<typeof nodemailer.createTransport> | null = null
 
@@ -133,11 +134,9 @@ export async function sendEmail(email: Email, idempotencyKey?: string) {
   const env = useEnv()
 
   if (env.emailDeliveryMode === 'log') {
-    console.info(JSON.stringify({
-      level: 'info',
-      event: 'email_delivery_skipped',
+    logEvent('info', 'email_delivery_skipped', {
       reason: 'No transactional email transport is configured'
-    }))
+    })
     return
   }
 

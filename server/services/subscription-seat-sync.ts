@@ -14,6 +14,7 @@ import {
 } from '../integrations/bachs'
 import { billableSeats, type BillingInterval } from '#shared/billing'
 import { recordAudit } from './organization'
+import { logEvent } from '../observability/logger'
 
 type SeatSyncExecutor = Pick<Database, 'insert'>
 
@@ -205,13 +206,12 @@ export async function processSubscriptionSeatSyncJobs(batchSize = 10) {
         eq(subscriptionSeatSyncJobs.status, 'processing')
       ))
 
-      console.error(JSON.stringify({
-        level: 'error',
-        event: 'subscription_seat_sync_failed',
+      logEvent('error', 'subscription_seat_sync_failed', {
         organizationId: job.organizationId,
         attempt: job.attempts,
-        terminal: failed
-      }))
+        terminal: failed,
+        error
+      })
     }
   }
 
