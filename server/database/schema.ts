@@ -753,6 +753,34 @@ export const operationsAlerts = pgTable('operations_alerts', {
 ])
 
 /**
+ * Short-lived database leases make scheduled work safe when several app or
+ * worker instances are running. A crashed process stops heartbeating and its
+ * lease becomes claimable after expiresAt.
+ */
+export const workerLeases = pgTable('worker_leases', {
+  name: text('name').primaryKey(),
+  ownerId: uuid('owner_id').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  heartbeatAt: timestamp('heartbeat_at', { withTimezone: true }).notNull().defaultNow(),
+  ...timestamps
+}, table => [
+  index('worker_leases_expires_at_idx').on(table.expiresAt)
+])
+
+/** Worker heartbeats let readiness checks distinguish an idle queue from a dead worker. */
+export const workerInstances = pgTable('worker_instances', {
+  id: uuid('id').primaryKey(),
+  role: text('role').notNull(),
+  startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
+  stoppedAt: timestamp('stopped_at', { withTimezone: true }),
+  ...timestamps
+}, table => [
+  index('worker_instances_last_seen_idx').on(table.lastSeenAt),
+  check('worker_instances_role_allowed', sql`${table.role} in ('worker', 'all')`)
+])
+
+/**
  * Membership changes must not depend on Bachs being reachable. Each accepted
  * or removed membership creates a durable job; workers derive the current seat
  * count when they run, making rapid or out-of-order changes converge safely.
