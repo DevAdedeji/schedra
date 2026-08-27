@@ -20,6 +20,46 @@ test.beforeEach(async () => {
   `
 })
 
+test('shows an interactive overlay preview on the landing page', async ({ page }) => {
+  await page.goto('/#embed')
+  await expect(page.locator('#embed')).toHaveAttribute('data-ready', 'true')
+  await expect(page.getByRole('button', { name: 'Close booking preview' })).toBeVisible()
+  const previewTime = page.getByRole('button', { name: '10:30' })
+  await previewTime.click()
+  await expect(previewTime).toHaveAttribute('aria-pressed', 'true')
+
+  await page.getByRole('button', { name: 'Close booking preview' }).click()
+  await expect(page.getByRole('button', { name: 'Close booking preview' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Book a call' }).click()
+  await expect(page.getByRole('button', { name: 'Close booking preview' })).toBeVisible()
+})
+
+test('keeps marketing links, pricing controls and public security headers usable', async ({ page, request }) => {
+  for (const path of ['/', '/pricing', '/support', '/privacy', '/terms', '/docs/integrations/zoom']) {
+    const response = await request.get(path)
+    expect(response.ok(), `${path} should load`).toBe(true)
+    expect(response.headers()['x-frame-options']).toBe('DENY')
+    expect(response.headers()['x-content-type-options']).toBe('nosniff')
+  }
+
+  await page.goto('/pricing')
+  await expect(page.locator('[data-ready]')).toHaveAttribute('data-ready', 'true')
+  const monthly = page.getByRole('button', { name: 'Monthly' })
+  await monthly.click()
+  await expect(monthly).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByText('Booking overlay for your website', { exact: true })).toBeVisible()
+  await expect(page.getByText('Microsoft Calendar conflict checks and sync', { exact: true })).toBeVisible()
+  await expect(page.getByText('Round-robin assignment', { exact: true })).toBeVisible()
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/')
+  await expect(page.locator('#embed')).toHaveAttribute('data-ready', 'true')
+  await page.getByRole('button', { name: 'Toggle navigation' }).click()
+  await expect(page.getByRole('link', { name: 'Sign up free' })).toBeVisible()
+  await page.locator('header nav').last().getByRole('link', { name: 'Website embeds' }).click()
+  await expect(page.locator('#embed')).toBeInViewport()
+})
+
 test.afterAll(async () => {
   await sql.end()
 })
@@ -81,6 +121,10 @@ test('generates an embed and completes a personal booking without leaving the cu
   await page.getByLabel('Description').fill('A meeting booked from an embedded overlay.')
   await page.getByRole('button', { name: 'Create event type' }).click()
   await expect(page.getByRole('heading', { name: 'Website demo' })).toBeVisible()
+
+  const personalSitemap = await request.get('/sitemap.xml')
+  expect(personalSitemap.ok()).toBe(true)
+  expect(await personalSitemap.text()).toContain('/embed-host/website-demo</loc>')
 
   const websiteDemo = page.getByRole('listitem').filter({
     has: page.getByRole('heading', { name: 'Website demo' })
@@ -160,7 +204,7 @@ test('generates an embed and completes a personal booking without leaving the cu
   await page.keyboard.press('Escape')
 })
 
-test('books a team event through the same cross-origin overlay', async ({ page }) => {
+test('books a team event through the same cross-origin overlay', async ({ page, request }) => {
   test.setTimeout(90_000)
   await signUpAndSignIn(page, {
     name: 'Team Embed Owner',
@@ -182,6 +226,12 @@ test('books a team event through the same cross-origin overlay', async ({ page }
   await page.getByRole('checkbox').first().check()
   await page.getByRole('button', { name: 'Create', exact: true }).click()
   await expect(page.getByText('Team demo', { exact: true })).toBeVisible()
+
+  const teamSitemap = await request.get('/sitemap.xml')
+  expect(teamSitemap.ok()).toBe(true)
+  const teamSitemapXml = await teamSitemap.text()
+  expect(teamSitemapXml).toContain('/team/embed-team</loc>')
+  expect(teamSitemapXml).toContain('/team/embed-team/team-demo</loc>')
 
   await page.getByRole('button', { name: 'Actions for Team demo' }).click()
   await page.getByText('Embed on website', { exact: true }).click()

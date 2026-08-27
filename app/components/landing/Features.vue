@@ -1,11 +1,11 @@
 <script setup lang="ts">
 const features = [
-  ['A page of your own', 'Share one memorable link. Guests see what they are booking, how long it takes and when you are free.'],
+  ['Book from anywhere', 'Share a memorable link or open the same booking flow over your own website without redirecting visitors.'],
   ['Timezones sorted', 'Schedra detects each guest’s timezone and lets them change it. Every slot is recalculated for that view.'],
-  ['Hours you control', 'Choose the working days, exact hours and timezone that should power your booking page.'],
-  ['Race-safe booking', 'Availability is checked again at confirmation and Postgres prevents two people taking the same slot.'],
-  ['Changes stay simple', 'Guests can return to one private link to cancel or move a future booking.'],
-  ['Durable email delivery', 'Confirmations and cancellations retry safely if the email provider is temporarily unavailable.']
+  ['Your calendars protected', 'Google and Microsoft calendars block busy times, receive bookings and stay current after a change.'],
+  ['A room created for you', 'Create a private Google Meet, Microsoft Teams or Zoom link automatically for each confirmed booking.'],
+  ['Schedule alone or together', 'Keep your personal page private, then add round-robin or collective event types in a shared team workspace.'],
+  ['Reliable when services wobble', 'Race-safe confirmation, durable email delivery and calendar retries protect every booking workflow.']
 ]
 </script>
 
@@ -24,8 +24,8 @@ const features = [
             Everything you need. Nothing you don't.
           </h2>
           <p class="mt-6 max-w-[38ch] text-[16px] leading-relaxed text-muted">
-            The launch foundation is deliberately focused: personal scheduling,
-            done reliably and without hidden workflow.
+            Personal and team scheduling, calendar and video integrations, and
+            a booking flow that works on your page or inside your website.
           </p>
         </div>
 

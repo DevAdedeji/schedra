@@ -35,13 +35,17 @@ const accentStyle = computed(() => accent.value
   : undefined)
 
 function send(type: EmbedMessage['type'], payload?: EmbedMessage['payload']) {
-  if (!import.meta.client || window.parent === window) return
+  // Embed events can include private booking identifiers. Never fall back to
+  // a wildcard recipient: the loader always provides its exact host origin,
+  // and a hand-authored iframe without one still works without messaging.
+  const targetOrigin = parentOrigin.value
+  if (!import.meta.client || window.parent === window || !targetOrigin) return
   window.parent.postMessage({
     source: EMBED_MESSAGE_SOURCE,
     version: EMBED_MESSAGE_VERSION,
     type,
     payload
-  } satisfies EmbedMessage, parentOrigin.value ?? '*')
+  } satisfies EmbedMessage, targetOrigin)
 }
 
 function applyTheme() {

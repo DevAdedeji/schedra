@@ -1,4 +1,3 @@
-import { timingSafeEqual } from 'node:crypto'
 import { z } from 'zod'
 import {
   exchangeGoogleCode,
@@ -7,31 +6,27 @@ import {
 } from '../../../integrations/calendar/google'
 import { enqueueFutureBookingsForCalendarSync } from '../../../services/calendar-sync'
 import { requireAuthSession } from '../../../services/session'
+import { matchesOAuthState } from '../../../security/oauth'
 
 const callbackQuery = z.object({
   code: z.string().min(1),
   state: z.string().min(32).max(128)
 })
 
-function matchesState(received: string, expected?: string) {
-  if (!expected) return false
-  const left = Buffer.from(received)
-  const right = Buffer.from(expected)
-  return left.length === right.length && timingSafeEqual(left, right)
-}
-
 export default defineEventHandler(async (event) => {
   const session = await requireAuthSession(event)
   const parsed = await getValidatedQuery(event, callbackQuery.safeParse)
   const expected = getCookie(event, 'schedra_google_calendar_state')
+  const codeVerifier = getCookie(event, 'schedra_google_calendar_pkce')
   deleteCookie(event, 'schedra_google_calendar_state', { path: '/api/integrations/google-calendar' })
+  deleteCookie(event, 'schedra_google_calendar_pkce', { path: '/api/integrations/google-calendar' })
 
-  if (!parsed.success || !matchesState(parsed.data.state, expected)) {
+  if (!parsed.success || !codeVerifier || !matchesOAuthState(parsed.data.state, expected)) {
     return sendRedirect(event, '/integrations?calendar=invalid-request')
   }
 
   try {
-    const tokens = await exchangeGoogleCode(parsed.data.code)
+    const tokens = await exchangeGoogleCode(parsed.data.code, codeVerifier)
     await saveGoogleConnection(session.user.id, tokens)
     await initializeGoogleCalendars(session.user.id)
   } catch (error) {

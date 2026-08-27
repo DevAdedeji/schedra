@@ -106,10 +106,12 @@ describe.skipIf(!url)('Zoom integration', () => {
   it('builds a state-bound OAuth request and stores credentials encrypted', async () => {
     const { hostId } = await createHostAndBooking()
     const { zoomAuthorizationUrl, saveZoomConnection, zoomConnection } = await import('../integrations/video/zoom')
-    const authorization = new URL(zoomAuthorizationUrl('safe-state'))
+    const authorization = new URL(zoomAuthorizationUrl('safe-state', 'pkce-challenge'))
 
     expect(authorization.origin).toBe('https://zoom.us')
     expect(authorization.searchParams.get('state')).toBe('safe-state')
+    expect(authorization.searchParams.get('code_challenge')).toBe('pkce-challenge')
+    expect(authorization.searchParams.get('code_challenge_method')).toBe('S256')
     expect(authorization.searchParams.get('redirect_uri')).toBe('http://localhost:3002/api/integrations/zoom/callback')
 
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({

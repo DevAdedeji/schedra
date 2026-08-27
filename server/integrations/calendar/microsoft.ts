@@ -114,7 +114,7 @@ function callbackUrl() {
   return `${useEnv().schedraUrl}/api/integrations/microsoft-calendar/callback`
 }
 
-export function microsoftAuthorizationUrl(state: string, email: string) {
+export function microsoftAuthorizationUrl(state: string, email: string, codeChallenge?: string) {
   const env = credentials()
   const url = new URL(`${MICROSOFT_AUTHORITY}/authorize`)
   url.search = new URLSearchParams({
@@ -125,7 +125,13 @@ export function microsoftAuthorizationUrl(state: string, email: string) {
     scope: MICROSOFT_CALENDAR_SCOPES.join(' '),
     state,
     login_hint: email,
-    prompt: 'select_account'
+    prompt: 'select_account',
+    ...(codeChallenge
+      ? {
+          code_challenge: codeChallenge,
+          code_challenge_method: 'S256'
+        }
+      : {})
   }).toString()
   return url.toString()
 }
@@ -145,7 +151,7 @@ async function tokenRequest(body: URLSearchParams) {
   return response.json() as Promise<MicrosoftTokens>
 }
 
-export async function exchangeMicrosoftCode(code: string) {
+export async function exchangeMicrosoftCode(code: string, codeVerifier?: string) {
   const env = credentials()
   return tokenRequest(new URLSearchParams({
     client_id: env.microsoftClientId!,
@@ -153,7 +159,8 @@ export async function exchangeMicrosoftCode(code: string) {
     code,
     redirect_uri: callbackUrl(),
     grant_type: 'authorization_code',
-    scope: MICROSOFT_CALENDAR_SCOPES.join(' ')
+    scope: MICROSOFT_CALENDAR_SCOPES.join(' '),
+    ...(codeVerifier ? { code_verifier: codeVerifier } : {})
   }))
 }
 

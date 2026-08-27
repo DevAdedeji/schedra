@@ -62,6 +62,35 @@ describe('booking answer snapshots', () => {
     }, undefined)).toThrow('The booking form changed')
   })
 
+  it('skips blank optional answers and rejects overlong text safely', () => {
+    const optionalShort: BookingQuestion = {
+      id: 'a0e81573-f9f7-40ef-ab93-3435c7127260',
+      label: 'Short context',
+      type: 'short_text',
+      required: false,
+      options: []
+    }
+    const optionalLong: BookingQuestion = {
+      id: '48df28d2-5746-4c4a-a4b3-16ddfa3cf015',
+      label: 'Long context',
+      type: 'long_text',
+      required: false,
+      options: []
+    }
+
+    expect(buildBookingAnswersSnapshot([optionalShort], undefined, '  ')).toBeNull()
+    expect(() => buildBookingAnswersSnapshot(
+      [optionalShort],
+      { [optionalShort.id]: 'x'.repeat(501) },
+      undefined
+    )).toThrow('under 500 characters')
+    expect(() => buildBookingAnswersSnapshot(
+      [optionalLong],
+      { [optionalLong.id]: 'x'.repeat(2001) },
+      undefined
+    )).toThrow('under 2,000 characters')
+  })
+
   it('reads legacy notes and renders useful calendar context', () => {
     expect(readBookingAnswers({ notes: 'Legacy note' })).toEqual({
       version: 1,
@@ -78,5 +107,27 @@ describe('booking answer snapshots', () => {
       }],
       notes: 'Bring metrics'
     })).toBe('What would you like to discuss?: Review onboarding\nNotes: Bring metrics')
+  })
+
+  it('normalizes malformed stored answers instead of exposing unsafe values', () => {
+    expect(readBookingAnswers(null)).toEqual({ version: 1, responses: [] })
+    expect(readBookingAnswers({
+      responses: [
+        null,
+        {},
+        { questionId: 'one', label: 'Unsafe', type: 'html', value: '<b>bad</b>' },
+        { questionId: 'two', label: 'Safe', type: 'short_text', value: 'Plain text' }
+      ],
+      notes: 42
+    })).toEqual({
+      version: 1,
+      responses: [{
+        questionId: 'two',
+        label: 'Safe',
+        type: 'short_text',
+        value: 'Plain text'
+      }]
+    })
+    expect(bookingAnswersText(undefined)).toBe('')
   })
 })

@@ -13,6 +13,11 @@ const personalCta = computed(() => isSignedIn.value ? 'Go to your dashboard' : '
 const teamCta = computed(() => isSignedIn.value ? 'Create a team' : 'Start a team free')
 
 const interval = ref<BillingInterval>('yearly')
+const hydrated = ref(false)
+
+onMounted(() => {
+  hydrated.value = true
+})
 
 // The headline is always the amount that actually gets charged. Leading with a
 // monthly-equivalent for a yearly plan reads as a $6.67 debit that never happens.
@@ -53,8 +58,6 @@ const comparison: { group: string, rows: ComparisonRow[] }[] = [
       { label: 'Custom booking questions', free: true, team: true },
       { label: 'Booking approvals', free: true, team: true },
       { label: 'Additional guests on a booking', free: true, team: true },
-      { label: 'Google Calendar two-way sync', free: true, team: true },
-      { label: 'Google Meet links', free: true, team: true },
       { label: 'Reminder emails', free: true, team: true },
       { label: 'Cancel and reschedule links', free: true, team: true },
       { label: 'Export your data', free: true, team: true }
@@ -63,24 +66,38 @@ const comparison: { group: string, rows: ComparisonRow[] }[] = [
   {
     group: 'Scheduling together',
     rows: [
-      { label: 'Shared team booking page', free: false, team: 'soon' },
+      { label: 'Shared team booking page', free: false, team: true },
+      { label: 'Shared team event types', free: false, team: true },
       { label: 'Members', free: false, team: `Up to ${TEAM_PLAN.maxSeats}` },
       { label: 'Roles and permissions', free: false, team: 'Owner, admin, member' },
       {
         label: 'Round-robin assignment',
         detail: 'The free, fairest host takes the booking.',
         free: false,
-        team: 'soon'
+        team: true
       },
       {
         label: 'Collective meetings',
         detail: 'Offered only when every required host is free.',
         free: false,
-        team: 'soon'
+        team: true
       },
-      { label: 'Per-host availability and calendars', free: false, team: 'soon' },
-      { label: 'Team booking history', free: false, team: 'soon' },
-      { label: 'Audit log', free: false, team: 'soon' }
+      { label: 'Per-host availability and calendars', free: false, team: true },
+      { label: 'Guest rescheduling for team bookings', free: false, team: true },
+      { label: 'Team bookings and activity log', free: false, team: true },
+      { label: 'Ownership transfer and team archiving', free: false, team: true }
+    ]
+  },
+  {
+    group: 'Integrations and distribution',
+    rows: [
+      { label: 'Booking overlay for your website', free: true, team: true },
+      { label: 'Google Calendar conflict checks and sync', free: true, team: true },
+      { label: 'Microsoft Calendar conflict checks and sync', free: true, team: true },
+      { label: 'Google Meet links', free: true, team: true },
+      { label: 'Microsoft Teams links', free: true, team: true },
+      { label: 'Zoom meeting links', free: true, team: true },
+      { label: 'Automatic calendar-sync retries', free: true, team: true }
     ]
   },
   {
@@ -99,7 +116,7 @@ const faqs = [
   },
   {
     q: 'Is my personal booking page affected?',
-    a: 'No. Your own page, hours, event types and calendar connection stay free forever, whether or not you ever join a team. Joining a team never moves or shares any of it — a team only ever sees whether you are free or busy, never what you are doing.'
+    a: 'No. Your own page, hours, event types and calendar integrations stay free forever, whether or not you ever join a team. Joining a team never moves or shares any of it — a team only ever sees whether you are free or busy, never what you are doing.'
   },
   {
     q: 'What happens when the trial ends?',
@@ -152,7 +169,7 @@ useHead({
 </script>
 
 <template>
-  <div>
+  <div :data-ready="hydrated">
     <section class="border-b border-default">
       <div class="mx-auto max-w-312 px-6 py-20 lg:px-10 lg:py-28">
         <p class="eyebrow text-dimmed">
@@ -213,8 +230,8 @@ useHead({
               Forever, for one person. No card, no expiry.
             </p>
             <p class="mt-6 max-w-[40ch] text-[15px] leading-relaxed text-muted">
-              Everything you need to share a link and get booked: your own page,
-              your hours, timezone-correct slots and calendar sync.
+              Everything you need to share a link or add booking to your website:
+              flexible hours, timezone-correct slots, calendar sync and video links.
             </p>
             <UButton
               :to="accountDestination"

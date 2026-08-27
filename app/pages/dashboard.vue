@@ -72,6 +72,7 @@ function initials(name: string) {
         <UButton
           :to="`/${user?.username}`"
           target="_blank"
+          rel="noopener noreferrer"
           color="neutral"
           variant="outline"
           trailing-icon="i-lucide-external-link"
@@ -254,6 +255,7 @@ function initials(name: string) {
               <UButton
                 :to="`/${user?.username}`"
                 target="_blank"
+                rel="noopener noreferrer"
                 color="neutral"
                 variant="outline"
                 trailing-icon="i-lucide-external-link"

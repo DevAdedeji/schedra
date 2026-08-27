@@ -362,6 +362,7 @@ useSeoMeta({
                   v-if="joinUrl && !pendingApproval"
                   :to="joinUrl"
                   target="_blank"
+                  rel="noopener noreferrer"
                   trailing-icon="i-lucide-external-link"
                   size="lg"
                   class="justify-center rounded-full font-medium"

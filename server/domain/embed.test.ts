@@ -24,5 +24,7 @@ describe('embed configuration', () => {
     expect(normalizeParentOrigin('https://example.com/path')).toBe('https://example.com')
     expect(normalizeParentOrigin('http://localhost:3000')).toBe('http://localhost:3000')
     expect(normalizeParentOrigin('javascript:alert(1)')).toBeNull()
+    expect(normalizeParentOrigin('*')).toBeNull()
+    expect(normalizeParentOrigin('null')).toBeNull()
   })
 })

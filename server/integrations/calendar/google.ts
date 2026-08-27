@@ -46,7 +46,7 @@ export class CalendarUnavailableError extends IntegrationUnavailableError {
 }
 export class CalendarSelectionError extends Error {}
 
-export function googleAuthorizationUrl(state: string, email: string) {
+export function googleAuthorizationUrl(state: string, email: string, codeChallenge?: string) {
   const env = useEnv()
   if (!env.googleClientId || !env.googleClientSecret) throw new CalendarUnavailableError('Google Calendar is not configured.')
   const url = new URL('https://accounts.google.com/o/oauth2/v2/auth')
@@ -59,12 +59,18 @@ export function googleAuthorizationUrl(state: string, email: string) {
     include_granted_scopes: 'true',
     prompt: 'consent',
     login_hint: email,
-    state
+    state,
+    ...(codeChallenge
+      ? {
+          code_challenge: codeChallenge,
+          code_challenge_method: 'S256'
+        }
+      : {})
   }).toString()
   return url.toString()
 }
 
-export async function exchangeGoogleCode(code: string): Promise<GoogleTokens> {
+export async function exchangeGoogleCode(code: string, codeVerifier?: string): Promise<GoogleTokens> {
   const env = useEnv()
   const response = await fetchWithTimeout('https://oauth2.googleapis.com/token', {
     method: 'POST',
@@ -74,7 +80,8 @@ export async function exchangeGoogleCode(code: string): Promise<GoogleTokens> {
       client_id: env.googleClientId!,
       client_secret: env.googleClientSecret!,
       redirect_uri: `${env.schedraUrl}/api/integrations/google-calendar/callback`,
-      grant_type: 'authorization_code'
+      grant_type: 'authorization_code',
+      ...(codeVerifier ? { code_verifier: codeVerifier } : {})
     })
   })
   if (!response.ok) throw new CalendarUnavailableError('Google did not complete the calendar connection.')

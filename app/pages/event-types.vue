@@ -390,6 +390,7 @@ function locationIcon(item: EventTypeRecord) {
                 v-if="!item.hidden"
                 :to="bookingPath(item)"
                 target="_blank"
+                rel="noopener noreferrer"
                 color="neutral"
                 variant="ghost"
                 size="xs"

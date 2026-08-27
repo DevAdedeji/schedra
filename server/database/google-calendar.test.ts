@@ -143,12 +143,14 @@ describe.skipIf(!url)('Google Calendar integration', () => {
       initializeGoogleCalendars
     } = await import('../integrations/calendar/google')
     const state = 'csrf-state-value'
-    const authorization = new URL(googleAuthorizationUrl(state, 'host@example.com'))
+    const authorization = new URL(googleAuthorizationUrl(state, 'host@example.com', 'pkce-challenge'))
 
     expect(authorization.origin).toBe('https://accounts.google.com')
     expect(authorization.searchParams.get('state')).toBe(state)
     expect(authorization.searchParams.get('access_type')).toBe('offline')
     expect(authorization.searchParams.get('prompt')).toBe('consent')
+    expect(authorization.searchParams.get('code_challenge')).toBe('pkce-challenge')
+    expect(authorization.searchParams.get('code_challenge_method')).toBe('S256')
     expect(authorization.searchParams.get('redirect_uri')).toBe(
       'http://localhost:3002/api/integrations/google-calendar/callback'
     )

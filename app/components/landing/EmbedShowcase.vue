@@ -1,22 +1,34 @@
 <script setup lang="ts">
 const previewOpen = ref(true)
+const selectedPreviewTime = ref('09:30')
+const selectedPreviewDay = ref('27')
+const hydrated = ref(false)
 const { isSignedIn, accountDestination } = await useLandingNavigation()
 const embedDestination = computed(() => isSignedIn.value ? '/event-types' : accountDestination.value)
 
-const benefits = [
-  ['Stay on your website', 'Visitors choose a time in a focused overlay instead of being sent to another tab.'],
-  ['One snippet to install', 'Paste the generated code once. Updates to your event type appear everywhere automatically.'],
-  ['Designed to belong', 'Match the light or dark theme and accent colour to the site your visitors already know.']
+const previewDays = [
+  { weekday: 'Mo', day: '24', disabled: true },
+  { weekday: 'Tu', day: '25', disabled: true },
+  { weekday: 'We', day: '26', disabled: true },
+  { weekday: 'Th', day: '27' },
+  { weekday: 'Fr', day: '28' },
+  { weekday: 'Sa', day: '29', disabled: true },
+  { weekday: 'Su', day: '30', disabled: true }
 ]
+
+onMounted(() => {
+  hydrated.value = true
+})
 </script>
 
 <template>
   <section
     id="embed"
+    :data-ready="hydrated"
     class="overflow-hidden border-y border-default bg-default"
   >
-    <div class="mx-auto max-w-312 px-6 py-20 lg:px-10 lg:py-28">
-      <div class="grid items-center gap-14 lg:grid-cols-[0.82fr_1.18fr] lg:gap-20">
+    <div class="mx-auto max-w-312 px-6 py-16 lg:px-10 lg:py-20">
+      <div class="grid items-center gap-12 lg:grid-cols-[0.72fr_1.28fr] lg:gap-16">
         <div>
           <p class="eyebrow text-primary">
             Embedded booking
@@ -24,35 +36,13 @@ const benefits = [
           <h2 class="mt-6 max-w-[13ch] font-editorial text-[clamp(2.4rem,5vw,4rem)] leading-[1.02] tracking-[-0.02em] text-highlighted">
             Let them book without leaving your site.
           </h2>
-          <p class="mt-7 max-w-[44ch] text-[16px] leading-[1.65] text-toned">
-            Open the complete Schedra booking flow over any website. Your visitor
-            stays in context, your availability stays current, and the booking
-            still reaches every calendar and reminder you configured.
+          <p class="mt-7 max-w-[40ch] text-[16px] leading-[1.65] text-toned">
+            Add one snippet to your website. Visitors get the same timezone-aware
+            booking flow in a focused overlay, while your calendars and reminders
+            continue working normally.
           </p>
 
-          <dl class="mt-9 space-y-6">
-            <div
-              v-for="[title, body] in benefits"
-              :key="title"
-              class="grid grid-cols-[1.5rem_1fr] gap-3"
-            >
-              <UIcon
-                name="i-lucide-check"
-                class="mt-1 size-4 text-primary"
-                aria-hidden="true"
-              />
-              <div>
-                <dt class="text-[15px] font-semibold tracking-tight text-highlighted">
-                  {{ title }}
-                </dt>
-                <dd class="mt-1 max-w-[42ch] text-[14px] leading-relaxed text-muted">
-                  {{ body }}
-                </dd>
-              </div>
-            </div>
-          </dl>
-
-          <div class="mt-10 flex flex-wrap items-center gap-3">
+          <div class="mt-9 flex flex-wrap items-center gap-3">
             <UButton
               :to="embedDestination"
               prefetch
@@ -61,16 +51,6 @@ const benefits = [
               trailing-icon="i-lucide-arrow-right"
             >
               {{ isSignedIn ? 'Create an embed' : 'Create your booking page' }}
-            </UButton>
-            <UButton
-              type="button"
-              size="lg"
-              color="neutral"
-              variant="outline"
-              class="rounded-full px-6 font-medium"
-              @click="previewOpen = true"
-            >
-              Preview the overlay
             </UButton>
           </div>
         </div>
@@ -123,6 +103,9 @@ const benefits = [
                 >
                   Book a call
                 </UButton>
+                <p class="mt-3 text-[10px] text-dimmed">
+                  Opens the booking flow on this page
+                </p>
               </div>
 
               <Transition
@@ -137,19 +120,11 @@ const benefits = [
                   v-if="previewOpen"
                   class="absolute inset-0 grid place-items-center bg-black/55 p-4 backdrop-blur-[2px] sm:p-7"
                 >
-                  <div class="w-full max-w-md overflow-hidden rounded-2xl border border-default bg-default shadow-2xl">
-                    <div class="flex items-start justify-between gap-6 border-b border-default px-5 py-4">
-                      <div>
-                        <p class="text-[11px] font-medium uppercase tracking-[0.13em] text-primary">
-                          Schedra booking
-                        </p>
-                        <h4 class="mt-1 text-[18px] font-semibold tracking-tight text-highlighted">
-                          Design introduction
-                        </h4>
-                        <p class="mt-1 text-[12px] text-muted">
-                          30 minutes · Video call
-                        </p>
-                      </div>
+                  <div class="w-full max-w-2xl overflow-hidden rounded-2xl border border-default bg-default shadow-2xl">
+                    <div class="flex items-center justify-between gap-6 border-b border-default px-5 py-3">
+                      <p class="text-[11px] font-medium uppercase tracking-[0.13em] text-primary">
+                        Scheduling by Schedra
+                      </p>
                       <button
                         type="button"
                         class="grid size-9 shrink-0 place-items-center rounded-full text-muted transition-colors hover:bg-muted hover:text-highlighted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
@@ -163,36 +138,82 @@ const benefits = [
                       </button>
                     </div>
 
-                    <div class="grid gap-5 p-5 sm:grid-cols-[0.82fr_1.18fr]">
-                      <div>
-                        <p class="text-[11px] font-semibold uppercase tracking-[0.1em] text-dimmed">
+                    <div class="grid sm:grid-cols-[13rem_1fr]">
+                      <aside class="border-b border-default p-5 text-left sm:border-b-0 sm:border-r">
+                        <p class="text-[12px] text-muted">
+                          Adedeji T.
+                        </p>
+                        <h4 class="mt-1 font-editorial text-[23px] leading-tight text-highlighted">
+                          30mins
+                        </h4>
+                        <div class="mt-5 space-y-2 text-[12px] text-toned">
+                          <p class="flex items-center gap-2">
+                            <UIcon
+                              name="i-lucide-clock"
+                              class="size-3.5 text-dimmed"
+                            />
+                            30 minutes
+                          </p>
+                          <p class="flex items-center gap-2">
+                            <UIcon
+                              name="i-lucide-video"
+                              class="size-3.5 text-dimmed"
+                            />
+                            Google Meet
+                          </p>
+                          <p class="flex items-center gap-2">
+                            <UIcon
+                              name="i-lucide-globe"
+                              class="size-3.5 text-dimmed"
+                            />
+                            Africa/Lagos
+                          </p>
+                        </div>
+                      </aside>
+                      <div class="surface-secondary p-5 text-left">
+                        <p class="text-[12px] font-semibold text-highlighted">
                           August 2026
                         </p>
-                        <div class="mt-4 grid grid-cols-4 gap-2">
-                          <span class="rounded-lg bg-muted py-2 text-center text-[11px] text-muted">24</span>
-                          <span class="rounded-lg bg-primary py-2 text-center text-[11px] font-semibold text-inverted">25</span>
-                          <span class="rounded-lg bg-muted py-2 text-center text-[11px] text-muted">26</span>
-                          <span class="rounded-lg bg-muted py-2 text-center text-[11px] text-muted">27</span>
+                        <div class="mt-3 grid grid-cols-7 gap-1">
+                          <button
+                            v-for="day in previewDays"
+                            :key="day.day"
+                            type="button"
+                            class="rounded-lg py-1.5 text-center transition-colors"
+                            :class="selectedPreviewDay === day.day
+                              ? 'bg-primary text-inverted'
+                              : day.disabled
+                                ? 'cursor-not-allowed text-dimmed opacity-40'
+                                : 'text-highlighted hover:bg-muted'"
+                            :disabled="day.disabled"
+                            :aria-label="`${day.weekday} August ${day.day}`"
+                            :aria-pressed="selectedPreviewDay === day.day"
+                            @click="selectedPreviewDay = day.day; selectedPreviewTime = ''"
+                          >
+                            <span class="block text-[8px] font-semibold uppercase opacity-70">{{ day.weekday }}</span>
+                            <span class="mt-0.5 block text-[11px] font-semibold">{{ day.day }}</span>
+                          </button>
                         </div>
-                        <p class="mt-4 text-[11px] leading-relaxed text-muted">
-                          Times shown in your timezone
+                        <p class="mt-4 text-[11px] font-medium text-muted">
+                          {{ selectedPreviewDay === '27' ? 'Thursday, August 27' : 'Friday, August 28' }}
                         </p>
-                      </div>
-                      <div class="grid grid-cols-2 gap-2 content-start">
-                        <button
-                          v-for="time in ['09:00', '09:30', '10:30', '11:00', '13:30', '15:00']"
-                          :key="time"
-                          type="button"
-                          class="h-9 rounded-lg border border-default bg-muted text-[12px] font-medium text-highlighted transition-colors hover:border-primary hover:text-primary"
-                        >
-                          {{ time }}
-                        </button>
+                        <div class="mt-2 grid grid-cols-3 gap-2 content-start">
+                          <button
+                            v-for="time in ['09:00', '09:30', '10:30', '11:00', '13:30', '15:00']"
+                            :key="time"
+                            type="button"
+                            class="h-9 rounded-lg border text-[11px] font-medium transition-colors"
+                            :class="selectedPreviewTime === time
+                              ? 'border-primary bg-primary text-inverted'
+                              : 'border-default text-toned hover:border-primary'"
+                            :aria-pressed="selectedPreviewTime === time"
+                            @click="selectedPreviewTime = time"
+                          >
+                            {{ time }}
+                          </button>
+                        </div>
                       </div>
                     </div>
-
-                    <p class="border-t border-default px-5 py-3 text-center text-[10px] text-dimmed">
-                      Secure booking by Schedra · no redirect
-                    </p>
                   </div>
                 </div>
               </Transition>

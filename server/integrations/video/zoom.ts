@@ -56,25 +56,32 @@ function credentials() {
   return { env, basic: Buffer.from(`${env.zoomClientId}:${env.zoomClientSecret}`).toString('base64') }
 }
 
-export function zoomAuthorizationUrl(state: string) {
+export function zoomAuthorizationUrl(state: string, codeChallenge?: string) {
   const { env } = credentials()
   const url = new URL('https://zoom.us/oauth/authorize')
   url.search = new URLSearchParams({
     response_type: 'code',
     client_id: env.zoomClientId!,
     redirect_uri: `${env.schedraUrl}/api/integrations/zoom/callback`,
-    state
+    state,
+    ...(codeChallenge
+      ? {
+          code_challenge: codeChallenge,
+          code_challenge_method: 'S256'
+        }
+      : {})
   }).toString()
   return url.toString()
 }
 
-export async function exchangeZoomCode(code: string): Promise<ZoomTokens> {
+export async function exchangeZoomCode(code: string, codeVerifier?: string): Promise<ZoomTokens> {
   const { env, basic } = credentials()
   const url = new URL('https://zoom.us/oauth/token')
   url.search = new URLSearchParams({
     grant_type: 'authorization_code',
     code,
-    redirect_uri: `${env.schedraUrl}/api/integrations/zoom/callback`
+    redirect_uri: `${env.schedraUrl}/api/integrations/zoom/callback`,
+    ...(codeVerifier ? { code_verifier: codeVerifier } : {})
   }).toString()
   const response = await fetchWithTimeout(url, {
     method: 'POST',

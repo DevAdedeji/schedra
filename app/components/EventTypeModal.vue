@@ -564,6 +564,7 @@ async function save() {
                 <UButton
                   to="/integrations"
                   target="_blank"
+                  rel="noopener noreferrer"
                   color="neutral"
                   variant="outline"
                   size="xs"
@@ -766,6 +767,7 @@ async function save() {
                 size="sm"
                 icon="i-lucide-arrow-up-right"
                 target="_blank"
+                rel="noopener noreferrer"
               >
                 Review schedule
               </UButton>

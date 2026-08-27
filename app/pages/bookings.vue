@@ -347,6 +347,7 @@ async function reject(uid: string) {
                       v-if="isUpcoming(item) && item.status === 'confirmed' && item.meetingUrl"
                       :to="item.meetingUrl"
                       target="_blank"
+                      rel="noopener noreferrer"
                       color="neutral"
                       variant="outline"
                       size="sm"

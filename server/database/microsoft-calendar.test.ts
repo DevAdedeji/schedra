@@ -99,10 +99,16 @@ describe.skipIf(!url)('Microsoft Calendar integration', () => {
       microsoftAuthorizationUrl,
       saveMicrosoftConnection
     } = await import('../integrations/calendar/microsoft')
-    const authorization = new URL(microsoftAuthorizationUrl('csrf-state', 'host@example.com'))
+    const authorization = new URL(microsoftAuthorizationUrl(
+      'csrf-state',
+      'host@example.com',
+      'pkce-challenge'
+    ))
     expect(authorization.origin).toBe('https://login.microsoftonline.com')
     expect(authorization.pathname).toBe('/common/oauth2/v2.0/authorize')
     expect(authorization.searchParams.get('state')).toBe('csrf-state')
+    expect(authorization.searchParams.get('code_challenge')).toBe('pkce-challenge')
+    expect(authorization.searchParams.get('code_challenge_method')).toBe('S256')
     expect(authorization.searchParams.get('scope')?.split(' ')).toEqual(MICROSOFT_CALENDAR_SCOPES)
     expect(authorization.searchParams.get('redirect_uri')).toBe('http://localhost:3002/api/integrations/microsoft-calendar/callback')
 

@@ -1,6 +1,22 @@
 import { useEnv } from '../config/env'
 
-const disallowed = ['/dashboard', '/signup', '/login', '/forgot-password', '/reset-password', '/verify-email', '/api/']
+const disallowed = [
+  '/api/',
+  '/availability',
+  '/booking/',
+  '/bookings',
+  '/dashboard',
+  '/event-types',
+  '/forgot-password',
+  '/integrations',
+  '/invite/',
+  '/login',
+  '/reset-password',
+  '/settings',
+  '/signup',
+  '/t/',
+  '/verify-email'
+]
 
 const PRODUCTION_HOST = 'schedra.xyz'
 
