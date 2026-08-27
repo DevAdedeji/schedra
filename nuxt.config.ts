@@ -42,6 +42,7 @@ export default defineNuxtConfig({
     '/bookings': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
     '/availability': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
     '/integrations': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
+    '/operations': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
     '/settings': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
     '/booking/**': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
     '/t/**': { prerender: false, headers: { 'cache-control': 'private, no-store' } },

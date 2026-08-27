@@ -7,6 +7,7 @@ import {
 import { enqueueFutureBookingsForCalendarSync } from '../../../services/calendar-sync'
 import { requireAuthSession } from '../../../services/session'
 import { matchesOAuthState } from '../../../security/oauth'
+import { logEvent } from '../../../observability/logger'
 
 const callbackQuery = z.object({
   code: z.string().min(1),
@@ -36,12 +37,10 @@ export default defineEventHandler(async (event) => {
     connectionSaved = true
     await initializeMicrosoftCalendars(session.user.id)
   } catch (error) {
-    console.error(JSON.stringify({
-      level: 'error',
-      event: 'microsoft_calendar_connection_failed',
+    logEvent('error', 'microsoft_calendar_connection_failed', {
       userId: session.user.id,
-      message: error instanceof Error ? error.message : String(error)
-    }))
+      error
+    }, event)
     return sendRedirect(event, connectionSaved
       ? '/integrations?microsoft=setup-incomplete'
       : '/integrations?microsoft=connection-failed')
@@ -50,12 +49,10 @@ export default defineEventHandler(async (event) => {
   try {
     await enqueueFutureBookingsForCalendarSync(session.user.id)
   } catch (error) {
-    console.error(JSON.stringify({
-      level: 'error',
-      event: 'microsoft_calendar_booking_backfill_failed',
+    logEvent('error', 'microsoft_calendar_booking_backfill_failed', {
       userId: session.user.id,
-      message: error instanceof Error ? error.message : String(error)
-    }))
+      error
+    }, event)
   }
 
   return sendRedirect(event, '/integrations?microsoft=connected')

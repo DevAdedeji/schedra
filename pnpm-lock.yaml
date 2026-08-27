@@ -9,6 +9,7 @@ overrides:
   brace-expansion@>=2.0.0 <3: 2.1.4
   brace-expansion@>=5.0.0 <6: 5.0.9
   esbuild@>=0.18.0 <0.28.2: 0.28.2
+  js-yaml@>=4.0.0 <4.3.1: 4.3.1
   nanoid@>=3.0.0 <4: 3.3.18
   svgo@>=4.0.0 <5: 4.0.2
   tar@>=7.0.0 <7.5.21: 7.5.22
@@ -3886,8 +3887,8 @@ packages:
   js-tokens@9.0.1:
     resolution: {integrity: sha512-mxa9E9ITFOt0ban3j6L5MpjwegGz6lBQmM1IJkWeBZGcMxto50+eWdjC/52xDbS2vy0k7vIMK0Fe2wfL9OQSpQ==}
 
-  js-yaml@4.1.1:
-    resolution: {integrity: sha512-qQKT4zQxXl8lLwBtHMWwaTcGfFOZviOJet3Oy/xmGk2gZH677CJM9EvtfdSkgWcATZhj/55JZ0rmy3myCT5lsA==}
+  js-yaml@4.3.1:
+    resolution: {integrity: sha512-CY6crGq313MX8GkwvB7tzgp99vjQxY1++5y10/BKN/GUfHqWaOGQMNZkBvqSzsZKWk/ijwHlWzzkLulsGHhjWQ==}
     hasBin: true
 
   jsbi@4.3.2:
@@ -5878,7 +5879,7 @@ snapshots:
   '@apidevtools/json-schema-ref-parser@14.2.1(@types/json-schema@7.0.15)':
     dependencies:
       '@types/json-schema': 7.0.15
-      js-yaml: 4.1.1
+      js-yaml: 4.3.1
 
   '@babel/code-frame@7.29.7':
     dependencies:
@@ -9850,7 +9851,7 @@ snapshots:
 
   js-tokens@9.0.1: {}
 
-  js-yaml@4.1.1:
+  js-yaml@4.3.1:
     dependencies:
       argparse: 2.0.1
 

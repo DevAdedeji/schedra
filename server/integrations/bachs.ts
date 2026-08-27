@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { BillingInterval } from '#shared/billing'
 import { TEAM_PLAN, seatPriceCents, toDecimalString } from '#shared/billing'
 import { fetchWithTimeout } from './fetch'
+import { logEvent } from '../observability/logger'
 import { useEnv } from '../config/env'
 
 const SANDBOX_API = 'https://sandbox-api.bachs.io/v1'
@@ -62,7 +63,13 @@ export async function bachsFetch<T>(path: string, options: BachsRequest = {}): P
     // Bachs returns { detail, error_code, doc_url } — reading `message` first
     // turns every failure into a useless "request failed".
     const detail = payload?.detail ?? payload?.message ?? `Bachs request failed (${response.status})`
-    console.error(`Bachs ${method} ${path} [${payload?.error_code ?? '?'}]:`, detail)
+    logEvent('error', 'bachs_request_failed', {
+      method,
+      path,
+      status: response.status,
+      errorCode: payload?.error_code ?? null,
+      detail
+    })
     throw createError({
       statusCode: response.status === 422 ? 502 : response.status,
       statusMessage: String(detail),

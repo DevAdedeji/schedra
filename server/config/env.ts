@@ -19,6 +19,8 @@ export interface Env {
   smtpUrl?: string
   emailDeliveryMode: 'resend' | 'smtp' | 'log'
   emailFrom: string
+  platformAdminEmails: string[]
+  operationsAlertEmails: string[]
 }
 
 let cached: Env | null = null
@@ -41,6 +43,19 @@ function parseUrl(name: string, value: string, protocols: string[]) {
 function optional(name: string) {
   const value = process.env[name]?.trim()
   return value || undefined
+}
+
+function emailList(name: string) {
+  const values = (optional(name) ?? '')
+    .split(',')
+    .map(value => value.trim().toLowerCase())
+    .filter(Boolean)
+  for (const value of values) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+      throw new Error(`${name} contains an invalid email address.`)
+    }
+  }
+  return [...new Set(values)]
 }
 
 export function useEnv(): Env {
@@ -72,6 +87,8 @@ export function useEnv(): Env {
   const resendApiKey = optional('RESEND_API_KEY')
   const smtpUrl = optional('SMTP_URL')
   const emailFrom = optional('EMAIL_FROM')
+  const platformAdminEmails = emailList('PLATFORM_ADMIN_EMAILS')
+  const operationsAlertEmails = emailList('OPERATIONS_ALERT_EMAILS')
 
   if (Boolean(googleClientId) !== Boolean(googleClientSecret)) {
     throw new Error('GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set together.')
@@ -122,7 +139,9 @@ export function useEnv(): Env {
     resendApiKey,
     smtpUrl,
     emailDeliveryMode: smtpUrl ? 'smtp' : resendApiKey ? 'resend' : 'log',
-    emailFrom: emailFrom ?? 'Schedra <onboarding@resend.dev>'
+    emailFrom: emailFrom ?? 'Schedra <onboarding@resend.dev>',
+    platformAdminEmails,
+    operationsAlertEmails: operationsAlertEmails.length ? operationsAlertEmails : platformAdminEmails
   }
 
   return cached

@@ -692,6 +692,66 @@ export const billingSyncStatus = pgEnum('billing_sync_status', [
   'failed'
 ])
 
+export const webhookDeliveryStatus = pgEnum('webhook_delivery_status', [
+  'processing',
+  'completed',
+  'ignored',
+  'failed'
+])
+
+export const operationsAlertStatus = pgEnum('operations_alert_status', [
+  'active',
+  'resolved'
+])
+
+/**
+ * Verified provider events are retained in encrypted form so a platform
+ * operator can safely retry failed processing without asking the provider to
+ * resend it. Invalid signatures are deliberately not persisted: accepting
+ * attacker-controlled bodies here would turn this table into free storage.
+ */
+export const webhookDeliveries = pgTable('webhook_deliveries', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  provider: text('provider').notNull(),
+  providerEventId: text('provider_event_id'),
+  eventType: text('event_type').notNull(),
+  status: webhookDeliveryStatus('status').notNull().default('processing'),
+  attempts: integer('attempts').notNull().default(1),
+  payloadEncrypted: text('payload_encrypted'),
+  requestId: text('request_id'),
+  lastError: text('last_error'),
+  receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+  processedAt: timestamp('processed_at', { withTimezone: true }),
+  ...timestamps
+}, table => [
+  uniqueIndex('webhook_deliveries_provider_event_key')
+    .on(table.provider, table.providerEventId)
+    .where(sql`${table.providerEventId} is not null`),
+  index('webhook_deliveries_status_received_idx').on(table.status, table.receivedAt),
+  index('webhook_deliveries_provider_received_idx').on(table.provider, table.receivedAt),
+  check('webhook_deliveries_attempts_positive', sql`${table.attempts} > 0`)
+])
+
+/** A durable incident state prevents one broken provider from spamming email. */
+export const operationsAlerts = pgTable('operations_alerts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  key: text('key').notNull(),
+  type: text('type').notNull(),
+  severity: text('severity').notNull(),
+  status: operationsAlertStatus('status').notNull().default('active'),
+  summary: text('summary').notNull(),
+  details: jsonb('details').$type<Record<string, unknown>>(),
+  firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
+  lastNotifiedAt: timestamp('last_notified_at', { withTimezone: true }),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  ...timestamps
+}, table => [
+  uniqueIndex('operations_alerts_key_key').on(table.key),
+  index('operations_alerts_status_seen_idx').on(table.status, table.lastSeenAt),
+  check('operations_alerts_severity_allowed', sql`${table.severity} in ('warning', 'critical')`)
+])
+
 /**
  * Membership changes must not depend on Bachs being reachable. Each accepted
  * or removed membership creates a durable job; workers derive the current seat

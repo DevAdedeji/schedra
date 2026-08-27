@@ -281,6 +281,71 @@ export const integrationHealthApi = {
   })
 }
 
+export type OperationKind = 'calendar' | 'billing' | 'email' | 'webhook'
+export type OperationStatus = 'all' | 'pending' | 'processing' | 'completed' | 'failed' | 'ignored'
+
+export interface OperationsOverview {
+  queues: {
+    calendar: { pending: number, processing: number, failed: number, stale: number }
+    billing: { pending: number, processing: number, failed: number, stale: number }
+    email: { pending: number, processing: number, failed: number, stale: number }
+    webhook: { processing: number, completed: number, failed: number, ignored: number, stale: number }
+  }
+  alerts: Array<{
+    id: string
+    type: string
+    severity: 'warning' | 'critical'
+    summary: string
+    details: Record<string, unknown> | null
+    firstSeenAt: string
+    lastSeenAt: string
+  }>
+}
+
+export interface OperationsJob {
+  id: string
+  kind: OperationKind
+  status: string
+  attempts: number
+  availableAt: string
+  lastError: string | null
+  provider: string | null
+  label: string
+  retryable: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface OperationsJobsResponse {
+  items: OperationsJob[]
+  pagination: PaginationMeta
+}
+
+export interface OperationsDiagnostics {
+  database: { ok: boolean, latencyMs: number }
+  configuration: {
+    email: boolean
+    google: boolean
+    microsoft: boolean
+    zoom: boolean
+    bachs: boolean
+    alertRecipients: number
+  }
+}
+
+export const operationsApi = {
+  overviewEndpoint: '/api/operations/overview' as const,
+  jobsEndpoint: '/api/operations/jobs' as const,
+  diagnosticsEndpoint: '/api/operations/diagnostics' as const,
+  overview: () => $fetch<OperationsOverview>('/api/operations/overview'),
+  jobs: (query: { kind: OperationKind, status: OperationStatus, page: number, pageSize?: number }) =>
+    $fetch<OperationsJobsResponse>('/api/operations/jobs', { query: { pageSize: 10, ...query } }),
+  diagnostics: () => $fetch<OperationsDiagnostics>('/api/operations/diagnostics'),
+  retry: (kind: OperationKind, id: string) => $fetch<{ retried: true }>('/api/operations/retry', {
+    method: 'POST', body: { kind, id }
+  })
+}
+
 export const zoomApi = {
   connectionEndpoint: '/api/integrations/zoom' as const,
   check: () => $fetch<VideoConferenceConnection>('/api/integrations/zoom/check', { method: 'POST' }),

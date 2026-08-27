@@ -7,6 +7,7 @@ import {
 import { enqueueFutureBookingsForCalendarSync } from '../../../services/calendar-sync'
 import { requireAuthSession } from '../../../services/session'
 import { matchesOAuthState } from '../../../security/oauth'
+import { logEvent } from '../../../observability/logger'
 
 const callbackQuery = z.object({
   code: z.string().min(1),
@@ -30,24 +31,20 @@ export default defineEventHandler(async (event) => {
     await saveGoogleConnection(session.user.id, tokens)
     await initializeGoogleCalendars(session.user.id)
   } catch (error) {
-    console.error(JSON.stringify({
-      level: 'error',
-      event: 'google_calendar_connection_failed',
+    logEvent('error', 'google_calendar_connection_failed', {
       userId: session.user.id,
-      message: error instanceof Error ? error.message : String(error)
-    }))
+      error
+    }, event)
     return sendRedirect(event, '/integrations?calendar=connection-failed')
   }
 
   try {
     await enqueueFutureBookingsForCalendarSync(session.user.id)
   } catch (error) {
-    console.error(JSON.stringify({
-      level: 'error',
-      event: 'google_calendar_booking_backfill_failed',
+    logEvent('error', 'google_calendar_booking_backfill_failed', {
       userId: session.user.id,
-      message: error instanceof Error ? error.message : String(error)
-    }))
+      error
+    }, event)
   }
 
   return sendRedirect(event, '/integrations?calendar=connected')

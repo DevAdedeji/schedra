@@ -3,6 +3,7 @@ import { exchangeZoomCode, saveZoomConnection } from '../../../integrations/vide
 import { enqueueFutureBookingsForCalendarSync } from '../../../services/calendar-sync'
 import { requireAuthSession } from '../../../services/session'
 import { matchesOAuthState } from '../../../security/oauth'
+import { logEvent } from '../../../observability/logger'
 
 const callbackQuery = z.object({
   code: z.string().min(1),
@@ -25,12 +26,10 @@ export default defineEventHandler(async (event) => {
     const tokens = await exchangeZoomCode(parsed.data.code, codeVerifier)
     await saveZoomConnection(session.user.id, tokens)
   } catch (error) {
-    console.error(JSON.stringify({
-      level: 'error',
-      event: 'zoom_connection_failed',
+    logEvent('error', 'zoom_connection_failed', {
       userId: session.user.id,
-      message: error instanceof Error ? error.message : String(error)
-    }))
+      error
+    }, event)
     return sendRedirect(event, '/integrations?zoom=connection-failed')
   }
 
@@ -40,12 +39,10 @@ export default defineEventHandler(async (event) => {
   try {
     await enqueueFutureBookingsForCalendarSync(session.user.id)
   } catch (error) {
-    console.error(JSON.stringify({
-      level: 'error',
-      event: 'zoom_booking_backfill_failed',
+    logEvent('error', 'zoom_booking_backfill_failed', {
       userId: session.user.id,
-      message: error instanceof Error ? error.message : String(error)
-    }))
+      error
+    }, event)
   }
 
   return sendRedirect(event, '/integrations?zoom=connected')

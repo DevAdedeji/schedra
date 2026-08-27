@@ -4,6 +4,7 @@ import type { Database } from '../database/client'
 import { bookings, emailOutbox } from '../database/schema'
 import { useDatabase } from '../database'
 import { type Email, sendEmail } from '../integrations/email'
+import { logEvent } from '../observability/logger'
 
 interface OutboxEmail {
   dedupeKey: string
@@ -134,13 +135,12 @@ export async function processEmailOutbox(batchSize = 10) {
         })
         .where(eq(emailOutbox.id, job.id))
 
-      console.error(JSON.stringify({
-        level: 'error',
-        event: 'email_delivery_failed',
+      logEvent('error', 'email_delivery_failed', {
         jobId: job.id,
         attempt: job.attempts,
-        terminal: failed
-      }))
+        terminal: failed,
+        error
+      })
     }
   }
 

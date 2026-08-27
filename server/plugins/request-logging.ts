@@ -1,4 +1,5 @@
 import { getRequestURL, getResponseStatus, setResponseHeader } from 'h3'
+import { logEvent } from '../observability/logger'
 
 function safePath(pathname: string) {
   return pathname
@@ -22,15 +23,13 @@ export default defineNitroPlugin((nitro) => {
     const status = getResponseStatus(event)
     const durationMs = Math.round((performance.now() - event.context.requestStartedAt) * 10) / 10
     const level = status >= 500 ? 'error' : status >= 400 || durationMs >= 1000 ? 'warn' : 'info'
-    console.info(JSON.stringify({
-      level,
-      event: 'http_request',
+    logEvent(level, 'http_request', {
       requestId: event.context.requestId,
       method: event.method,
       path: safePath(getRequestURL(event).pathname),
       status,
       durationMs,
       slow: durationMs >= 1000
-    }))
+    }, event)
   })
 })

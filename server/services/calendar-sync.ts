@@ -17,6 +17,7 @@ import {
   upsertZoomMeeting,
   zoomConnectionFor
 } from '../integrations/video/zoom'
+import { logEvent } from '../observability/logger'
 
 export type CalendarSyncExecutor = Pick<Database, 'insert'>
 export type CalendarSyncAction = 'upsert' | 'delete'
@@ -393,13 +394,13 @@ export async function processCalendarSyncJobs(batchSize = 10) {
         ))
       }
 
-      console.error(JSON.stringify({
-        level: 'error',
-        event: 'calendar_sync_failed',
+      logEvent('error', 'calendar_sync_failed', {
         jobId: job.id,
         attempt: job.attempts,
-        terminal: failed
-      }))
+        terminal: failed,
+        provider: integrationError?.provider ?? null,
+        error
+      })
     }
   }
 

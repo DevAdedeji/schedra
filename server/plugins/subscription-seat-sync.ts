@@ -1,4 +1,5 @@
 import { processSubscriptionSeatSyncJobs } from '../services/subscription-seat-sync'
+import { logEvent } from '../observability/logger'
 
 const DRAIN_INTERVAL_MS = 10_000
 
@@ -12,11 +13,7 @@ export default defineNitroPlugin((nitro) => {
     try {
       await processSubscriptionSeatSyncJobs()
     } catch (error) {
-      console.error(JSON.stringify({
-        level: 'error',
-        event: 'subscription_seat_sync_worker_failed',
-        message: error instanceof Error ? error.message : String(error)
-      }))
+      logEvent('error', 'subscription_seat_sync_worker_failed', { error })
     } finally {
       running = false
     }
