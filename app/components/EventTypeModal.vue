@@ -606,7 +606,7 @@ async function save() {
               </UFormField>
             </div>
 
-            <div class="border-t border-default bg-muted px-5 py-4">
+            <div class="surface-secondary border-t border-default px-5 py-4">
               <p class="text-[13px] font-semibold text-highlighted">
                 Email reminders
               </p>
@@ -758,7 +758,7 @@ async function save() {
                 />
               </UFormField>
             </div>
-            <div class="flex flex-wrap items-center justify-between gap-3 border-t border-default bg-muted px-5 py-4">
+            <div class="surface-secondary flex flex-wrap items-center justify-between gap-3 border-t border-default px-5 py-4">
               <div>
                 <p class="text-[13px] font-medium text-highlighted">
                   {{ selectedSchedule?.name ?? 'Availability schedule' }}
@@ -817,7 +817,7 @@ async function save() {
           </p>
         </div>
 
-        <aside class="hidden border-l border-default bg-muted px-5 py-6 lg:block">
+        <aside class="surface-secondary hidden border-l border-default px-5 py-6 lg:block">
           <div class="sticky top-0">
             <div class="mb-3 flex items-center justify-between">
               <p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-dimmed">
@@ -875,7 +875,7 @@ async function save() {
                   >{{ time }}</span>
                 </div>
               </div>
-              <div class="truncate border-t border-default bg-muted px-4 py-3 text-center font-mono text-[9px] text-dimmed">
+              <div class="surface-secondary truncate border-t border-default px-4 py-3 text-center font-mono text-[9px] text-dimmed">
                 {{ bookingUrl }}
               </div>
             </div>

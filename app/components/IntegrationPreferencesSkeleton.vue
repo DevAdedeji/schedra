@@ -43,7 +43,7 @@
     </div>
 
     <div
-      class="flex items-center justify-between gap-4 bg-muted/30 px-5 py-5 sm:px-7"
+      class="surface-secondary flex items-center justify-between gap-4 px-5 py-5 sm:px-7"
       aria-hidden="true"
     >
       <USkeleton class="h-3 w-52 rounded" />

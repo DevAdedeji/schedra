@@ -6,6 +6,8 @@ export interface Env {
 
   googleClientId?: string
   googleClientSecret?: string
+  microsoftClientId?: string
+  microsoftClientSecret?: string
   zoomClientId?: string
   zoomClientSecret?: string
   zoomWebhookSecret?: string
@@ -59,6 +61,8 @@ export function useEnv(): Env {
 
   const googleClientId = optional('GOOGLE_CLIENT_ID')
   const googleClientSecret = optional('GOOGLE_CLIENT_SECRET')
+  const microsoftClientId = optional('MICROSOFT_CLIENT_ID')
+  const microsoftClientSecret = optional('MICROSOFT_CLIENT_SECRET')
   const zoomClientId = optional('ZOOM_CLIENT_ID')
   const zoomClientSecret = optional('ZOOM_CLIENT_SECRET')
   const zoomWebhookSecret = optional('ZOOM_WEBHOOK_SECRET')
@@ -71,6 +75,9 @@ export function useEnv(): Env {
 
   if (Boolean(googleClientId) !== Boolean(googleClientSecret)) {
     throw new Error('GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set together.')
+  }
+  if (Boolean(microsoftClientId) !== Boolean(microsoftClientSecret)) {
+    throw new Error('MICROSOFT_CLIENT_ID and MICROSOFT_CLIENT_SECRET must be set together.')
   }
   if (Boolean(zoomClientId) !== Boolean(zoomClientSecret)) {
     throw new Error('ZOOM_CLIENT_ID and ZOOM_CLIENT_SECRET must be set together.')
@@ -107,6 +114,8 @@ export function useEnv(): Env {
     bachsWebhookSecret,
     googleClientId,
     googleClientSecret,
+    microsoftClientId,
+    microsoftClientSecret,
     zoomClientId,
     zoomClientSecret,
     zoomWebhookSecret,

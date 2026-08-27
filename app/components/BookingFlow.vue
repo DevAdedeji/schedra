@@ -562,7 +562,7 @@ useSeoMeta({
             </p>
           </aside>
 
-          <div class="px-6 py-7 sm:px-7">
+          <div class="surface-secondary px-6 py-7 sm:px-7">
             <div class="flex items-center justify-between">
               <h2 class="text-sm font-semibold text-highlighted">
                 {{ monthLabel }}

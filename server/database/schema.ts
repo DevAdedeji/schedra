@@ -371,6 +371,9 @@ export const calendarConnections = pgTable('calendar_connections', {
   ...timestamps
 }, table => [
   uniqueIndex('calendar_connections_user_provider_key').on(table.userId, table.provider),
+  uniqueIndex('calendar_connections_one_write_destination_per_user')
+    .on(table.userId)
+    .where(sql`${table.writeCalendarId} is not null`),
   index('calendar_connections_user_id_idx').on(table.userId)
 ])
 
@@ -630,6 +633,7 @@ export const bookingCalendarEvents = pgTable('booking_calendar_events', {
   // A collective booking can have one remote event per assigned host.
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   connectionId: uuid('connection_id').references(() => calendarConnections.id, { onDelete: 'set null' }),
+  provider: text('provider').notNull().default('google'),
   calendarId: text('calendar_id').notNull(),
   eventId: text('event_id').notNull(),
   syncedAt: timestamp('synced_at', { withTimezone: true }).notNull().defaultNow(),
@@ -637,7 +641,7 @@ export const bookingCalendarEvents = pgTable('booking_calendar_events', {
 }, table => [
   uniqueIndex('booking_calendar_events_booking_user_key').on(table.bookingId, table.userId),
   index('booking_calendar_events_user_id_idx').on(table.userId),
-  uniqueIndex('booking_calendar_events_remote_key').on(table.calendarId, table.eventId)
+  uniqueIndex('booking_calendar_events_remote_key').on(table.provider, table.calendarId, table.eventId)
 ])
 
 export const bookingConferenceMeetings = pgTable('booking_conference_meetings', {
@@ -661,17 +665,21 @@ export const calendarSyncJobs = pgTable('calendar_sync_jobs', {
   bookingId: uuid('booking_id').notNull().references(() => bookings.id, { onDelete: 'cascade' }),
   action: calendarSyncAction('action').notNull(),
   dedupeKey: text('dedupe_key').notNull(),
+  revision: integer('revision').notNull().default(1),
   status: calendarSyncStatus('status').notNull().default('pending'),
   attempts: integer('attempts').notNull().default(0),
   availableAt: timestamp('available_at', { withTimezone: true }).notNull().defaultNow(),
   lockedAt: timestamp('locked_at', { withTimezone: true }),
   completedAt: timestamp('completed_at', { withTimezone: true }),
   lastError: text('last_error'),
+  failureProvider: text('failure_provider'),
   ...timestamps
 }, table => [
   uniqueIndex('calendar_sync_jobs_dedupe_key_key').on(table.dedupeKey),
+  uniqueIndex('calendar_sync_jobs_booking_id_key').on(table.bookingId),
   index('calendar_sync_jobs_claim_idx').on(table.status, table.availableAt),
-  check('calendar_sync_jobs_attempts_non_negative', sql`${table.attempts} >= 0`)
+  check('calendar_sync_jobs_attempts_non_negative', sql`${table.attempts} >= 0`),
+  check('calendar_sync_jobs_revision_positive', sql`${table.revision} > 0`)
 ])
 
 export const billingSyncStatus = pgEnum('billing_sync_status', [

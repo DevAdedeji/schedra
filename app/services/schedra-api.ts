@@ -96,6 +96,7 @@ export interface CalendarConnection {
   conflictCalendarIds?: string[]
   writeCalendarId?: string | null
   lastError?: string | null
+  lastCheckedAt?: string | null
 }
 
 export type VideoConferenceConnection = Pick<CalendarConnection,
@@ -108,6 +109,8 @@ export interface CalendarItem {
   accessRole: 'freeBusyReader' | 'reader' | 'writer' | 'owner'
   backgroundColor?: string
   unavailable?: boolean
+  shared?: boolean
+  owner?: string
 }
 
 export interface CalendarsResponse {
@@ -245,8 +248,40 @@ export const calendarApi = {
   disconnect: () => $fetch('/api/integrations/google-calendar', { method: 'DELETE' })
 }
 
+export type CalendarIntegrationProvider = 'google-calendar' | 'microsoft-calendar'
+
+export function calendarIntegrationApi(provider: CalendarIntegrationProvider) {
+  const endpoint = `/api/integrations/${provider}` as const
+  return {
+    connectionEndpoint: endpoint,
+    connectEndpoint: `${endpoint}/connect`,
+    calendars: () => $fetch<CalendarsResponse>(`${endpoint}/calendars`),
+    update: (body: { conflictCalendarIds: string[], writeCalendarId: string | null }) =>
+      $fetch(endpoint, { method: 'PATCH', body }),
+    disconnect: () => $fetch(endpoint, { method: 'DELETE' })
+  }
+}
+
+export interface IntegrationSyncHealth {
+  pending: number
+  processing: number
+  failed: number
+  lastError: string | null
+  failureProvider: 'google' | 'microsoft' | 'zoom' | null
+  retryableProviderCounts: Partial<Record<'google' | 'microsoft' | 'zoom', number>>
+}
+
+export const integrationHealthApi = {
+  endpoint: '/api/integrations/health' as const,
+  retry: (provider?: 'google' | 'microsoft' | 'zoom') => $fetch<{ retried: number }>('/api/integrations/retry', {
+    method: 'POST',
+    body: provider ? { provider } : {}
+  })
+}
+
 export const zoomApi = {
   connectionEndpoint: '/api/integrations/zoom' as const,
+  check: () => $fetch<VideoConferenceConnection>('/api/integrations/zoom/check', { method: 'POST' }),
   disconnect: () => $fetch('/api/integrations/zoom', { method: 'DELETE' })
 }
 

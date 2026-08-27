@@ -151,7 +151,7 @@ function initials(name: string) {
             />{{ copied ? 'Copied' : 'Copy' }}</span>
           </button>
         </div>
-        <div class="border-t border-default bg-muted px-5 py-5 lg:border-l lg:border-t-0">
+        <div class="surface-secondary border-t border-default px-5 py-5 lg:border-l lg:border-t-0">
           <span
             class="flex size-9 items-center justify-center rounded-lg"
             :class="activeEventTypeCount ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'"
@@ -296,7 +296,7 @@ function initials(name: string) {
                 >{{ day.rules.length ? day.rules.length : '—' }}</span>
               </div>
             </div>
-            <p class="border-t border-default bg-muted px-4 py-3 text-[11px] leading-relaxed text-muted">
+            <p class="surface-secondary border-t border-default px-4 py-3 text-[11px] leading-relaxed text-muted">
               Numbers show how many availability windows are open each day.
             </p>
           </section>
