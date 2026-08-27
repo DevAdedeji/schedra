@@ -23,6 +23,17 @@ const teamSlug = computed(() => (
   route.path.startsWith('/t/') ? String(route.params.slug ?? '') : ''
 ))
 
+const { data: teamList, refresh: refreshTeams } = await useTeams()
+const activeTeam = computed(() => (teamList.value?.items ?? []).find(team => team.slug === teamSlug.value) ?? null)
+const trialNotice = computed(() => {
+  const team = activeTeam.value
+  if (!team || team.role !== 'owner' || team.entitlement.status !== 'trialing') return null
+  return {
+    label: `${team.entitlement.daysLeftInTrial ?? 0} days left in trial`,
+    to: `/t/${team.slug}/billing`
+  }
+})
+
 const personalLinks = computed(() => [
   { label: 'Overview', to: '/dashboard', icon: 'i-lucide-layout-dashboard' },
   { label: 'Event types', to: '/event-types', icon: 'i-lucide-link-2' },
@@ -40,7 +51,9 @@ const links = computed(() => (teamSlug.value
       { label: 'Bookings', to: `/t/${teamSlug.value}/bookings`, icon: 'i-lucide-calendar-days' },
       { label: 'Members', to: `/t/${teamSlug.value}/members`, icon: 'i-lucide-users' },
       { label: 'Activity log', to: `/t/${teamSlug.value}/history`, icon: 'i-lucide-activity' },
-      { label: 'Billing', to: `/t/${teamSlug.value}/billing`, icon: 'i-lucide-credit-card' },
+      ...(activeTeam.value?.role === 'owner'
+        ? [{ label: 'Billing', to: `/t/${teamSlug.value}/billing`, icon: 'i-lucide-credit-card' }]
+        : []),
       { label: 'Settings', to: `/t/${teamSlug.value}/settings`, icon: 'i-lucide-settings' }
     ]
   : personalLinks.value))
@@ -76,11 +89,17 @@ const menu = computed(() => [
 
 // On mobile every destination lives in this one menu — nothing hides behind a
 // second control.
-const { data: teamList, refresh: refreshTeams } = await useTeams()
 const creatingTeam = ref(false)
 
 const mobileMenu = computed(() => [
   menu.value[0]!,
+  ...(trialNotice.value
+    ? [[{
+        label: trialNotice.value.label,
+        icon: 'i-lucide-sparkles',
+        to: trialNotice.value.to
+      }]]
+    : []),
   links.value.map(link => ({ ...link, active: route.path === link.to })),
   [
     { label: 'Team', type: 'label' as const },
@@ -156,7 +175,28 @@ const mobileMenuUi = {
         </NuxtLink>
       </nav>
 
-      <div class="p-3">
+      <div class="space-y-2 p-3">
+        <NuxtLink
+          v-if="trialNotice"
+          :to="trialNotice.to"
+          class="group flex items-center gap-2.5 rounded-xl border border-primary/20 bg-primary/5 px-3 py-3 transition-colors hover:border-primary/35 hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        >
+          <span class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+            <UIcon
+              name="i-lucide-sparkles"
+              class="size-3.5"
+            />
+          </span>
+          <span class="min-w-0 flex-1">
+            <span class="block text-[12px] font-semibold text-highlighted">{{ trialNotice.label }}</span>
+            <span class="mt-0.5 block text-[10px] text-muted">View billing</span>
+          </span>
+          <UIcon
+            name="i-lucide-arrow-right"
+            class="size-3.5 shrink-0 text-dimmed transition-transform group-hover:translate-x-0.5 group-hover:text-primary"
+          />
+        </NuxtLink>
+
         <UDropdownMenu
           :items="menu"
           :ui="menuUi"

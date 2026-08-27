@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { TEAM_PLAN, formatUsd, invitableRoles, seatPriceCents, type InvitableRole, type OrganizationRole } from '#shared/billing'
+import { TEAM_PLAN, invitableRoles, type InvitableRole, type OrganizationRole } from '#shared/billing'
 import {
   apiErrorMessage,
   teamsApi,
@@ -217,25 +217,7 @@ async function retry() {
     </PageHeader>
 
     <div
-      v-if="entitlement && entitlement.status === 'trialing'"
-      class="flex flex-wrap items-center gap-3 rounded-xl border border-default bg-muted/50 px-4 py-3"
-    >
-      <UIcon
-        name="i-lucide-sparkles"
-        class="size-4 shrink-0 text-primary"
-      />
-      <p class="min-w-0 flex-1 text-[13px] text-muted">
-        <span class="font-medium text-highlighted">
-          {{ entitlement.daysLeftInTrial }} days left in your trial.
-        </span>
-        After that it is {{ formatUsd(seatPriceCents(entitlement.interval)) }} per member
-        {{ entitlement.interval === 'yearly' ? 'per year, billed annually' : 'each month' }}.
-        At your current team size, your first invoice will be {{ formatUsd(entitlement.nextInvoiceCents) }}.
-      </p>
-    </div>
-
-    <div
-      v-else-if="entitlement && entitlement.readOnly"
+      v-if="entitlement && entitlement.readOnly"
       class="flex flex-wrap items-center gap-3 rounded-xl border border-error/30 bg-error/5 px-4 py-3"
       role="alert"
     >

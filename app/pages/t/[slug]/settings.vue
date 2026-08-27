@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { TEAM_PLAN, formatUsd, organizationNameSchema, organizationSlugSchema } from '#shared/billing'
+import { organizationNameSchema, organizationSlugSchema } from '#shared/billing'
 import {
   apiErrorMessage,
   teamsApi,
@@ -35,29 +35,9 @@ watch(team, (value) => {
   address.value = value.organization.slug
 }, { immediate: true })
 
-const savingName = ref(false)
+const savingProfile = ref(false)
 const nameDirty = computed(() => name.value.trim() !== team.value?.organization.name)
 const nameValid = computed(() => organizationNameSchema.safeParse(name.value).success)
-
-async function saveName() {
-  if (!nameValid.value || savingName.value) return
-  savingName.value = true
-  try {
-    const result = await authClient.organization.update({
-      organizationId: team.value?.organization.id,
-      data: { name: name.value.trim() }
-    })
-    if (result.error) throw new Error(result.error.message ?? 'Could not rename this team.')
-    feedback.success({ title: 'Team renamed' })
-    await refreshTeam()
-  } catch (failure) {
-    feedback.error({ title: 'Could not rename', description: apiErrorMessage(failure, 'Please try again.') })
-  } finally {
-    savingName.value = false
-  }
-}
-
-const savingAddress = ref(false)
 const checking = ref(false)
 const availability = ref<SlugAvailability | null>(null)
 let debounce: ReturnType<typeof setTimeout> | undefined
@@ -96,21 +76,38 @@ const addressState = computed<'ok' | 'bad' | 'busy' | null>(() => {
 const addressValid = computed(() =>
   organizationSlugSchema.safeParse(address.value).success && availability.value?.available === true
 )
+const profileDirty = computed(() => nameDirty.value || addressDirty.value)
+const profileValid = computed(() =>
+  (!nameDirty.value || nameValid.value)
+  && (!addressDirty.value || addressValid.value)
+)
 
-async function saveAddress() {
-  if (!addressValid.value || savingAddress.value) return
-  savingAddress.value = true
+async function saveProfile() {
+  if (!profileDirty.value || !profileValid.value || savingProfile.value) return
+  savingProfile.value = true
   try {
-    const result = await teamsApi.updateAddress(slug.value, address.value)
+    if (nameDirty.value) {
+      const result = await authClient.organization.update({
+        organizationId: team.value?.organization.id,
+        data: { name: name.value.trim() }
+      })
+      if (result.error) throw new Error(result.error.message ?? 'Could not update this team.')
+    }
+
+    const result = addressDirty.value
+      ? await teamsApi.updateAddress(slug.value, address.value)
+      : null
+
     feedback.success({
-      title: 'Address changed',
-      description: 'Links using the old address still work.'
+      title: 'Team profile saved',
+      description: result ? 'The old public address will continue to work.' : undefined
     })
-    await navigateTo(`/t/${result.slug}/settings`)
+    if (result) await navigateTo(`/t/${result.slug}/settings`)
+    else await refreshTeam()
   } catch (failure) {
-    feedback.error({ title: 'Could not change address', description: apiErrorMessage(failure, 'Please try again.') })
+    feedback.error({ title: 'Could not save team profile', description: apiErrorMessage(failure, 'Please try again.') })
   } finally {
-    savingAddress.value = false
+    savingProfile.value = false
   }
 }
 
@@ -195,7 +192,7 @@ async function leave() {
   <div class="space-y-6">
     <PageHeader
       title="Team settings"
-      :description="team?.organization.name"
+      description="Manage your team's identity, public address and ownership."
     >
       <template #actions>
         <UButton
@@ -219,80 +216,70 @@ async function leave() {
     <template v-else-if="team">
       <section
         v-if="entitlement && permissions?.manageBilling"
-        class="overflow-hidden rounded-xl border border-default bg-default"
+        class="flex flex-col gap-4 rounded-xl border border-default bg-default px-5 py-5 sm:flex-row sm:items-center"
       >
-        <header class="border-b border-default px-5 py-4">
-          <h2 class="text-[14px] font-semibold text-highlighted">
-            Plan
-          </h2>
-        </header>
-        <div class="space-y-4 px-5 py-5">
-          <div class="flex flex-wrap items-center gap-3">
+        <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <UIcon
+            name="i-lucide-credit-card"
+            class="size-4.5"
+          />
+        </span>
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="text-[14px] font-semibold text-highlighted">
+              Billing and plan
+            </h2>
             <UBadge
               :color="entitlement.status === 'active' ? 'success' : entitlement.status === 'trialing' ? 'info' : 'error'"
               variant="subtle"
+              class="capitalize"
             >
               {{ entitlement.status.replace('_', ' ') }}
             </UBadge>
-            <p class="text-[13px] text-muted">
-              <template v-if="entitlement.status === 'trialing'">
-                {{ entitlement.daysLeftInTrial }} days left in your trial.
-              </template>
-              <template v-else-if="entitlement.readOnly">
-                Read-only until the subscription is renewed.
-              </template>
-              <template v-else-if="entitlement.currentPeriodEnd">
-                Renews {{ new Date(entitlement.currentPeriodEnd).toLocaleDateString() }}.
-              </template>
-            </p>
           </div>
-
-          <dl class="grid gap-4 sm:grid-cols-3">
-            <div>
-              <dt class="text-[11px] uppercase tracking-wide text-dimmed">
-                Members billed
-              </dt>
-              <dd class="mt-1 text-[15px] font-medium text-highlighted">
-                {{ entitlement.seatsUsed }}
-              </dd>
-            </div>
-            <div>
-              <dt class="text-[11px] uppercase tracking-wide text-dimmed">
-                Per member
-              </dt>
-              <dd class="mt-1 text-[15px] font-medium text-highlighted">
-                {{ formatUsd(entitlement.interval === 'yearly' ? TEAM_PLAN.yearlyCentsPerSeat : TEAM_PLAN.monthlyCentsPerSeat) }}
-                <span class="text-[12px] font-normal text-muted">/{{ entitlement.interval === 'yearly' ? 'year' : 'month' }}</span>
-              </dd>
-            </div>
-            <div>
-              <dt class="text-[11px] uppercase tracking-wide text-dimmed">
-                Next invoice
-              </dt>
-              <dd class="mt-1 text-[15px] font-medium text-highlighted">
-                {{ formatUsd(entitlement.nextInvoiceCents) }}
-              </dd>
-            </div>
-          </dl>
-
-          <p class="text-[12px] leading-relaxed text-muted">
-            You are billed only for members who have actually joined — pending invitations cost nothing.
+          <p class="mt-1 text-[12px] leading-relaxed text-muted">
+            <template v-if="entitlement.status === 'trialing'">
+              {{ entitlement.daysLeftInTrial }} days remain in the trial.
+            </template>
+            <template v-else-if="entitlement.readOnly">
+              The team is read-only until billing is restored.
+            </template>
+            <template v-else>
+              {{ entitlement.seatsUsed }} active {{ entitlement.seatsUsed === 1 ? 'member' : 'members' }} on the {{ entitlement.interval }} plan.
+            </template>
           </p>
         </div>
+        <UButton
+          :to="`/t/${slug}/billing`"
+          color="neutral"
+          variant="outline"
+          trailing-icon="i-lucide-arrow-right"
+          class="shrink-0"
+        >
+          Manage billing
+        </UButton>
       </section>
 
       <section
-        v-if="permissions?.updateTeam"
+        v-if="permissions?.updateTeam || permissions?.changeAddress"
         class="overflow-hidden rounded-xl border border-default bg-default"
       >
         <header class="border-b border-default px-5 py-4">
           <h2 class="text-[14px] font-semibold text-highlighted">
-            Name
+            Team profile
           </h2>
+          <p class="mt-1 text-[12px] text-muted">
+            The name and address people see on your public team booking page.
+          </p>
         </header>
-        <div class="flex flex-wrap items-end gap-3 px-5 py-5">
+
+        <div
+          v-if="permissions?.updateTeam"
+          class="px-5 py-5"
+        >
           <UFormField
             label="Team name"
+            help="Shown to members and guests."
             class="min-w-0 flex-1"
           >
             <UInput
@@ -301,31 +288,15 @@ async function leave() {
               class="w-full"
             />
           </UFormField>
-          <UButton
-            :loading="savingName"
-            :disabled="!nameDirty || !nameValid"
-            @click="saveName"
-          >
-            Save
-          </UButton>
         </div>
-      </section>
 
-      <section
-        v-if="permissions?.changeAddress"
-        class="overflow-hidden rounded-xl border border-default bg-default"
-      >
-        <header class="border-b border-default px-5 py-4">
-          <h2 class="text-[14px] font-semibold text-highlighted">
-            Address
-          </h2>
-          <p class="mt-1 text-[12px] text-muted">
-            Links shared with the old address keep working.
-          </p>
-        </header>
-        <div class="flex flex-wrap items-end gap-3 px-5 py-5">
+        <div
+          v-if="permissions?.changeAddress"
+          class="border-t border-default px-5 py-5"
+        >
           <UFormField
             label="Public address"
+            help="Old links continue to work after a change."
             class="min-w-0 flex-1"
           >
             <UsernameField
@@ -341,14 +312,16 @@ async function leave() {
               {{ availability.message }}
             </p>
           </UFormField>
-          <UButton
-            :loading="savingAddress"
-            :disabled="!addressDirty || !addressValid"
-            @click="saveAddress"
-          >
-            Change
-          </UButton>
         </div>
+        <footer class="flex justify-end border-t border-default bg-muted/30 px-5 py-4">
+          <UButton
+            :loading="savingProfile"
+            :disabled="!profileDirty || !profileValid"
+            @click="saveProfile"
+          >
+            Save changes
+          </UButton>
+        </footer>
       </section>
 
       <section class="overflow-hidden rounded-xl border border-default bg-default">
@@ -357,13 +330,21 @@ async function leave() {
             Your membership
           </h2>
         </header>
-        <div class="space-y-4 px-5 py-5">
-          <p class="text-[13px] text-muted">
-            You are {{ team.role === 'owner' ? 'the owner' : `an ${team.role}` }} of this team.
-            Leaving does not touch your personal booking page, schedules or calendar.
-          </p>
+        <div class="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center">
+          <div class="min-w-0 flex-1">
+            <p class="text-[13px] text-muted">
+              You are {{ team.role === 'owner' ? 'the owner' : `an ${team.role}` }} of this team.
+              Leaving does not touch your personal booking page, schedules or calendar.
+            </p>
+            <p
+              v-if="team.role === 'owner'"
+              class="mt-2 text-[12px] text-muted"
+            >
+              An owner cannot leave. Transfer ownership first, or archive the team.
+            </p>
+          </div>
 
-          <div class="flex flex-wrap gap-2">
+          <div class="flex shrink-0 flex-wrap gap-2 sm:justify-end">
             <UButton
               v-if="permissions?.transferOwnership"
               color="neutral"
@@ -384,13 +365,6 @@ async function leave() {
               Leave team
             </UButton>
           </div>
-
-          <p
-            v-if="team.role === 'owner'"
-            class="text-[12px] text-muted"
-          >
-            An owner cannot leave. Transfer ownership first, or archive the team.
-          </p>
         </div>
       </section>
 
@@ -403,8 +377,8 @@ async function leave() {
             Archive team
           </h2>
         </header>
-        <div class="space-y-4 px-5 py-5">
-          <p class="text-[13px] leading-relaxed text-muted">
+        <div class="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center">
+          <p class="min-w-0 flex-1 text-[13px] leading-relaxed text-muted">
             Archiving closes the team for everyone and cancels upcoming team bookings, notifying their guests.
             Nothing is deleted — bookings, history and exports are retained, and the address stays reserved so
             nobody else can claim it.
@@ -413,6 +387,7 @@ async function leave() {
             color="error"
             variant="outline"
             icon="i-lucide-archive"
+            class="shrink-0 self-start sm:self-auto"
             @click="archiving = true"
           >
             Archive this team

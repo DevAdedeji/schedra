@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import {
+  billableSeats,
+  seatPriceCents,
   billingIntervals,
   billingCheckoutReason,
   collectionCurrencies,
@@ -73,7 +75,62 @@ const currencyOptions = collectionCurrencies.map(value => ({
 const willAutoRenew = computed(() => collectionMethodFor(currency.value) === 'charge_automatically')
 
 const seats = computed(() => entitlement.value?.seatsUsed ?? 0)
+// What the picker currently adds up to, used for the checkout button.
 const total = computed(() => invoiceTotalCents(seats.value, interval.value))
+
+// The headline is what will actually be charged on the current subscription, not
+// what the picker says — changing the picker must not rewrite the plan summary.
+const headlineCents = computed(() => entitlement.value?.nextInvoiceCents ?? total.value)
+const headlinePeriod = computed(() => entitlement.value?.interval === 'monthly' ? 'month' : 'year')
+const perSeatCents = computed(() => seatPriceCents(entitlement.value?.interval ?? 'yearly'))
+const billedSeats = computed(() => billableSeats(seats.value))
+
+const payingByCard = computed(() => seatBilling.value?.collectionMethod === 'charge_automatically')
+
+/**
+ * Until a payment succeeds there is no chosen method — the columns still hold
+ * their database defaults, which would otherwise render as a method the team
+ * never picked (and as impossible pairings like bank transfer in USD).
+ */
+const hasBillingHistory = computed(() => Boolean(
+  seatBilling.value?.billedSeats != null || invoices.value.some(invoice => invoice.status === 'paid')
+))
+
+const paymentMethod = computed(() => payingByCard.value
+  ? {
+      label: `Card · ${seatBilling.value?.collectionCurrency ?? 'USD'}`,
+      detail: 'Renews on its own each period',
+      icon: 'i-lucide-credit-card'
+    }
+  : {
+      label: `Bank transfer · ${seatBilling.value?.collectionCurrency ?? 'NGN'}`,
+      detail: 'Invoiced each period — nothing is charged automatically',
+      icon: 'i-lucide-landmark'
+    })
+
+// Status colours always ship with a word and an icon, never colour alone.
+const statusTone = computed(() => {
+  const status = entitlement.value?.status
+  if (status === 'active') return { color: 'success' as const, icon: 'i-lucide-circle-check', label: 'Active' }
+  if (status === 'trialing') return { color: 'info' as const, icon: 'i-lucide-sparkles', label: 'Trialing' }
+  if (status === 'past_due') return { color: 'warning' as const, icon: 'i-lucide-clock-alert', label: 'Past due' }
+  if (status === 'paused') return { color: 'warning' as const, icon: 'i-lucide-circle-pause', label: 'Paused' }
+  if (status === 'unpaid') return { color: 'error' as const, icon: 'i-lucide-circle-alert', label: 'Unpaid' }
+  return { color: 'neutral' as const, icon: 'i-lucide-circle-minus', label: 'Canceled' }
+})
+
+const nextEvent = computed(() => {
+  const value = entitlement.value
+  if (!value) return null
+  if (value.status === 'trialing') {
+    return { label: 'Trial ends', value: value.trialEndsAt ? formatDate(value.trialEndsAt) : '—' }
+  }
+  if (!value.currentPeriodEnd) return null
+  return {
+    label: value.autoRenews ? 'Renews on' : 'Paid through',
+    value: formatDate(value.currentPeriodEnd)
+  }
+})
 
 // Bachs confirms payment by webhook; this redirect only tells us to re-read.
 const paidJustNow = computed(() => route.query.paid === '1')
@@ -140,19 +197,8 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
   <div class="space-y-6">
     <PageHeader
       title="Billing"
-      description="Members who have joined are what you pay for. Pending invitations are free."
-    >
-      <template #actions>
-        <UButton
-          color="neutral"
-          variant="outline"
-          icon="i-lucide-arrow-left"
-          :to="`/t/${slug}/settings`"
-        >
-          Settings
-        </UButton>
-      </template>
-    </PageHeader>
+      description="Plan, payment method and invoice history for this team."
+    />
 
     <div
       v-if="paidJustNow"
@@ -249,117 +295,154 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
         </p>
       </div>
 
-      <section class="overflow-hidden rounded-xl border border-default bg-default">
-        <header class="flex flex-wrap items-center justify-between gap-3 border-b border-default px-5 py-4">
-          <h2 class="text-[14px] font-semibold text-highlighted">
-            Current plan
-          </h2>
-          <UBadge
-            :color="entitlement.status === 'active' ? 'success' : entitlement.status === 'trialing' ? 'info' : 'error'"
-            variant="subtle"
-          >
-            {{ entitlement.status.replace('_', ' ') }}
-          </UBadge>
-        </header>
-
-        <div class="space-y-5 px-5 py-5">
-          <p class="text-[13px] text-muted">
-            <template v-if="entitlement.status === 'trialing'">
-              {{ entitlement.daysLeftInTrial }} days left in your trial. Pay any time to keep the team running.
-            </template>
-            <template v-else-if="entitlement.status === 'past_due'">
-              A payment failed. It is being retried automatically and the team keeps working meanwhile.
-            </template>
-            <template v-else-if="entitlement.status === 'unpaid'">
-              Payment retries are exhausted, so the team is read-only. Paying below restores it immediately.
-            </template>
-            <template v-else-if="entitlement.readOnly">
-              This team is read-only. Team booking pages are not taking new bookings until an invoice is paid.
-            </template>
-            <template v-else-if="entitlement.currentPeriodEnd">
-              {{ entitlement.autoRenews ? 'Renews' : 'Paid through' }}
-              {{ formatDate(entitlement.currentPeriodEnd) }}.
-            </template>
-          </p>
-
-          <div class="grid gap-4 sm:grid-cols-2">
-            <UFormField label="Billing period">
-              <USelectMenu
-                v-model="interval"
-                :items="intervalOptions"
-                value-key="value"
-                size="lg"
-                :disabled="!checkoutReason"
-                class="w-full"
+      <section class="overflow-hidden rounded-2xl border border-default bg-default">
+        <div class="grid gap-6 px-5 py-6 sm:px-6 lg:grid-cols-[1.1fr_1fr] lg:gap-10">
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <UIcon
+                :name="statusTone.icon"
+                class="size-4"
+                :class="{
+                  'text-success': statusTone.color === 'success',
+                  'text-info': statusTone.color === 'info',
+                  'text-warning': statusTone.color === 'warning',
+                  'text-error': statusTone.color === 'error',
+                  'text-dimmed': statusTone.color === 'neutral'
+                }"
               />
-            </UFormField>
-            <UFormField
-              label="Pay with"
-              :help="willAutoRenew
-                ? 'Renews automatically on the saved card each period.'
-                : 'Bank transfer cannot be charged automatically, so you will get an invoice each period.'"
+              <span class="text-[12px] font-medium text-toned">{{ statusTone.label }}</span>
+              <span
+                v-if="entitlement.status === 'trialing' && entitlement.daysLeftInTrial !== null"
+                class="text-[12px] text-muted"
+              >· {{ entitlement.daysLeftInTrial }} days left</span>
+            </div>
+
+            <!-- The one number this page leads with. Proportional figures: at this
+                 size tabular digits read loose. -->
+            <p class="mt-3 flex items-baseline gap-1.5">
+              <span class="text-[44px] font-semibold leading-none tracking-[-0.02em] text-highlighted">
+                {{ formatUsd(headlineCents) }}
+              </span>
+              <span class="text-[14px] text-muted">/{{ headlinePeriod }}</span>
+            </p>
+
+            <p class="mt-3 text-[13px] leading-relaxed text-muted">
+              {{ billedSeats }} {{ billedSeats === 1 ? 'member' : 'members' }} ×
+              {{ formatUsd(perSeatCents) }}/{{ headlinePeriod }}<template v-if="billedSeats !== seats">
+                — billed at the {{ billedSeats }}-member minimum
+              </template>.
+              Only members who have joined are counted.
+            </p>
+
+            <p
+              v-if="entitlement.status === 'past_due'"
+              class="mt-3 text-[13px] leading-relaxed text-muted"
             >
-              <USelectMenu
-                v-model="currency"
-                :items="currencyOptions"
-                value-key="value"
-                size="lg"
-                :disabled="!checkoutReason"
-                class="w-full"
-              />
-            </UFormField>
+              A payment failed. It is being retried automatically and the team keeps working meanwhile.
+            </p>
+            <p
+              v-else-if="entitlement.status === 'unpaid'"
+              class="mt-3 text-[13px] leading-relaxed text-muted"
+            >
+              Payment retries are exhausted, so the team is read-only. Paying below restores it immediately.
+            </p>
+            <p
+              v-else-if="entitlement.readOnly"
+              class="mt-3 text-[13px] leading-relaxed text-muted"
+            >
+              This team is read-only. Team booking pages are not taking new bookings until an invoice is paid.
+            </p>
           </div>
 
-          <div class="rounded-xl border border-default bg-muted/50 px-4 py-4">
-            <div class="flex flex-wrap items-baseline justify-between gap-2">
-              <p class="text-[13px] text-muted">
-                {{ seats }} {{ seats === 1 ? 'member' : 'members' }}
-              </p>
-              <p class="text-[20px] font-semibold text-highlighted">
-                {{ formatUsd(total) }}
-                <span class="text-[13px] font-normal text-muted">/{{ interval === 'yearly' ? 'year' : 'month' }}</span>
+          <dl class="grid h-fit gap-px self-start overflow-hidden rounded-xl border border-default bg-border sm:grid-cols-2 lg:grid-cols-1">
+            <div
+              v-if="nextEvent"
+              class="bg-default px-4 py-3.5"
+            >
+              <dt class="text-[11px] font-medium uppercase tracking-wide text-dimmed">
+                {{ nextEvent.label }}
+              </dt>
+              <dd class="mt-1 text-[14px] font-medium text-highlighted">
+                {{ nextEvent.value }}
+              </dd>
+            </div>
+            <div
+              v-if="hasBillingHistory"
+              class="bg-default px-4 py-3.5"
+            >
+              <dt class="text-[11px] font-medium uppercase tracking-wide text-dimmed">
+                Paying with
+              </dt>
+              <dd class="mt-1 flex items-start gap-2">
+                <UIcon
+                  :name="paymentMethod.icon"
+                  class="mt-0.5 size-3.5 shrink-0 text-dimmed"
+                />
+                <span class="min-w-0">
+                  <span class="block text-[14px] font-medium text-highlighted">{{ paymentMethod.label }}</span>
+                  <span class="mt-0.5 block text-[11px] leading-snug text-muted">{{ paymentMethod.detail }}</span>
+                </span>
+              </dd>
+            </div>
+          </dl>
+        </div>
+
+        <!-- Only rendered when there is something to do. A healthy auto-renewing
+             plan already says everything it needs to above. -->
+        <div
+          v-if="checkoutReason || (automaticSeatBilling && ['past_due', 'unpaid', 'paused'].includes(entitlement.status))"
+          class="space-y-6 border-t border-default px-5 py-5 sm:px-6 sm:py-6"
+        >
+          <div
+            v-if="checkoutReason"
+            class="space-y-5 rounded-xl border border-default bg-muted/30 p-4 sm:p-5"
+          >
+            <div>
+              <h3 class="text-[14px] font-semibold text-highlighted">
+                Choose how to pay
+              </h3>
+              <p class="mt-1 text-[12px] text-muted">
+                Review the billing period and payment method before opening secure checkout.
               </p>
             </div>
-            <p
-              v-if="seatBilling?.billedSeats != null"
-              class="mt-2 text-[11px] text-muted"
+            <div class="grid gap-4 sm:grid-cols-2">
+              <UFormField label="Billing period">
+                <USelectMenu
+                  v-model="interval"
+                  :items="intervalOptions"
+                  value-key="value"
+                  size="lg"
+                  class="w-full"
+                />
+              </UFormField>
+              <UFormField
+                label="Pay with"
+                :help="willAutoRenew
+                  ? 'Renews automatically on the saved card each period.'
+                  : 'Bank transfer requires a new invoice each period.'"
+              >
+                <USelectMenu
+                  v-model="currency"
+                  :items="currencyOptions"
+                  value-key="value"
+                  size="lg"
+                  class="w-full"
+                />
+              </UFormField>
+            </div>
+            <UButton
+              size="lg"
+              block
+              :loading="starting"
+              :disabled="!data?.configured"
+              @click="startCheckout"
             >
-              Current subscription: {{ seatBilling.billedSeats }}
-              {{ seatBilling.billedSeats === 1 ? 'seat' : 'seats' }}.
-              Pending invitations remain free until accepted.
-            </p>
-          </div>
-
-          <UButton
-            v-if="checkoutReason"
-            size="lg"
-            block
-            :loading="starting"
-            :disabled="!data?.configured"
-            @click="startCheckout"
-          >
-            {{ checkoutLabel }}
-          </UButton>
-
-          <div
-            v-else-if="entitlement.autoRenews"
-            class="flex items-start gap-3 rounded-xl border border-success/30 bg-success/5 px-4 py-3"
-            role="status"
-          >
-            <UIcon
-              name="i-lucide-circle-check"
-              class="mt-0.5 size-4 shrink-0 text-success"
-            />
-            <p class="text-[13px] leading-relaxed text-muted">
-              No payment action is needed. This subscription will renew automatically
-              <template v-if="entitlement.currentPeriodEnd">
-                on {{ formatDate(entitlement.currentPeriodEnd) }}
-              </template>.
-            </p>
+              {{ checkoutLabel }} · {{ formatUsd(total) }}
+            </UButton>
           </div>
 
           <div
-            v-else-if="automaticSeatBilling && ['past_due', 'unpaid', 'paused'].includes(entitlement.status)"
+            v-else
             class="flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/5 px-4 py-3"
             role="status"
           >
@@ -375,11 +458,19 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
         </div>
       </section>
 
-      <section class="overflow-hidden rounded-xl border border-default bg-default">
-        <header class="border-b border-default px-5 py-4">
-          <h2 class="text-[14px] font-semibold text-highlighted">
-            Invoices
-          </h2>
+      <section class="overflow-hidden rounded-2xl border border-default bg-default">
+        <header class="flex items-center justify-between gap-3 border-b border-default px-5 py-4 sm:px-6">
+          <div>
+            <h2 class="text-[14px] font-semibold text-highlighted">
+              Invoice history
+            </h2>
+            <p class="mt-1 text-[12px] text-muted">
+              A record of attempted and completed team payments.
+            </p>
+          </div>
+          <span class="tnum rounded-lg bg-muted px-2 py-1 text-[11px] text-muted">
+            {{ invoices.length }}
+          </span>
         </header>
 
         <ListEmptyState
@@ -396,28 +487,35 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
           <li
             v-for="invoice in invoices"
             :key="invoice.id"
-            class="flex flex-wrap items-center gap-3 px-4 py-4 sm:px-5"
+            class="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 px-5 py-3.5 sm:grid-cols-[1fr_auto_6.5rem] sm:px-6"
           >
-            <div class="min-w-0 flex-1">
-              <p class="text-[13px] font-medium text-highlighted">
-                {{ formatUsd(invoice.amountCents) }}
-                <span class="font-normal text-muted">
-                  · {{ invoice.seats }} {{ invoice.seats === 1 ? 'member' : 'members' }}
-                  · {{ invoice.interval }}
-                </span>
+            <div class="min-w-0">
+              <p class="truncate text-[13px] text-highlighted">
+                {{ formatDate(invoice.periodStart) }} – {{ formatDate(invoice.periodEnd) }}
               </p>
               <p class="mt-0.5 text-[11px] text-muted">
-                {{ formatDate(invoice.periodStart) }} – {{ formatDate(invoice.periodEnd) }}
-                <span v-if="invoice.collectionCurrency !== 'USD'"> · paid in {{ invoice.collectionCurrency }}</span>
+                {{ invoice.seats }} {{ invoice.seats === 1 ? 'member' : 'members' }} · {{ invoice.interval }}
+                <template v-if="invoice.collectionCurrency !== 'USD'">
+                  · charged in {{ invoice.collectionCurrency }}
+                </template>
               </p>
             </div>
-            <UBadge
-              :color="statusColor[invoice.status] ?? 'neutral'"
-              variant="subtle"
-              size="sm"
-            >
-              {{ invoice.status }}
-            </UBadge>
+
+            <!-- A column of figures, so these get tabular digits to align. -->
+            <p class="tnum text-right text-[14px] font-medium text-highlighted">
+              {{ formatUsd(invoice.amountCents) }}
+            </p>
+
+            <div class="col-span-2 sm:col-span-1 sm:justify-self-end">
+              <UBadge
+                :color="statusColor[invoice.status] ?? 'neutral'"
+                variant="subtle"
+                size="sm"
+                class="capitalize"
+              >
+                {{ invoice.status }}
+              </UBadge>
+            </div>
           </li>
         </ul>
       </section>
