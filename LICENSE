@@ -1,7 +1,17 @@
+Schedra Source-Available Proprietary License
+
 Copyright (c) 2026 Schedra. All rights reserved.
 
-This source code and its associated documentation are proprietary and
-confidential. No permission is granted to use, copy, modify, publish,
-distribute, sublicense, sell, or create derivative works from any part of this
-software without prior written authorization from the copyright holder.
+The source code in this repository is made publicly available for viewing and
+evaluation only. Public availability does not place the software in the public
+domain and does not make it open source.
 
+Unless you have prior written authorization from Schedra, you may not use,
+copy, modify, publish, distribute, sublicense, sell, host, deploy, create
+derivative works from, or commercially exploit any part of this software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE COPYRIGHT
+HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY ARISING FROM THE
+SOFTWARE OR ITS USE.

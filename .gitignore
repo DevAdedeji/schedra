@@ -33,3 +33,6 @@ playwright-report
 
 # Internal planning docs — not for the public repo
 FEATURES.md
+.internal/
+docs/internal/
+*.private.md
