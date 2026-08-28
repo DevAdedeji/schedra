@@ -48,7 +48,7 @@ onMounted(async () => {
 
 <template>
   <div class="space-y-6">
-    <PageHeading
+    <PageHeader
       title="Payments"
       description="Accept payment when a guest books. Schedra handles checkout and sends your share to your connected payout account."
     />
@@ -90,13 +90,13 @@ onMounted(async () => {
           {{ data?.configured ? 'Continue setup' : 'Set up payouts' }}
         </UButton>
       </div>
-      <div class="surface-secondary grid gap-px border-t border-default sm:grid-cols-3">
+      <div class="surface-secondary grid gap-px border-t border-default sm:grid-cols-2 lg:grid-cols-4">
         <div class="p-5">
           <p class="text-xs font-medium uppercase tracking-wide text-dimmed">
             Guest checkout
           </p>
           <p class="mt-2 text-sm text-toned">
-            Hosted securely by Bachs.
+            The listed event price is what the guest pays.
           </p>
         </div>
         <div class="p-5">
@@ -109,10 +109,18 @@ onMounted(async () => {
         </div>
         <div class="p-5">
           <p class="text-xs font-medium uppercase tracking-wide text-dimmed">
-            Refunds
+            Bachs processing
           </p>
           <p class="mt-2 text-sm text-toned">
-            Started automatically when a paid booking is cancelled.
+            Deducted from the charge at the rate for the payment method used.
+          </p>
+        </div>
+        <div class="p-5">
+          <p class="text-xs font-medium uppercase tracking-wide text-dimmed">
+            Withdrawals
+          </p>
+          <p class="mt-2 text-sm text-toned">
+            Bachs applies the payout account's withdrawal fee when funds are withdrawn.
           </p>
         </div>
       </div>

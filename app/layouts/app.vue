@@ -98,6 +98,13 @@ const menu = computed(() => [
 // On mobile every destination lives in this one menu — nothing hides behind a
 // second control.
 const creatingTeam = ref(false)
+const accountMenuOpen = ref(false)
+const mobileMenuOpen = ref(false)
+
+watch(() => route.fullPath, () => {
+  accountMenuOpen.value = false
+  mobileMenuOpen.value = false
+})
 
 const mobileMenu = computed(() => [
   menu.value[0]!,
@@ -206,9 +213,11 @@ const mobileMenuUi = {
         </NuxtLink>
 
         <UDropdownMenu
+          v-model:open="accountMenuOpen"
           :items="menu"
           :ui="menuUi"
           :external-icon="false"
+          :modal="false"
           :content="{ side: 'top', align: 'start' }"
         >
           <button
@@ -255,9 +264,11 @@ const mobileMenuUi = {
           <SchedraMark />
         </NuxtLink>
         <UDropdownMenu
+          v-model:open="mobileMenuOpen"
           :items="mobileMenu"
           :ui="mobileMenuUi"
           :external-icon="false"
+          :modal="false"
           :content="{ align: 'end', side: 'bottom', sideOffset: 8 }"
         >
           <button

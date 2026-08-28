@@ -277,7 +277,7 @@ function sourcePercentage(value: number) {
           </div>
           <div class="mt-7 border-t border-default pt-5">
             <p class="text-[12px] font-medium text-muted">
-              Collected revenue
+              Gross revenue
             </p>
             <div
               v-if="data.revenue.length"
@@ -298,7 +298,7 @@ function sourcePercentage(value: number) {
               —
             </p>
             <p class="mt-1 text-[11px] text-dimmed">
-              Paid bookings only; refunded payments are excluded.
+              Paid bookings before Schedra, Bachs processing and withdrawal fees. Refunds are excluded.
             </p>
           </div>
         </section>

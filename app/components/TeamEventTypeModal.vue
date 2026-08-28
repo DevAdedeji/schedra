@@ -241,6 +241,7 @@ function initials(name: string) {
 <template>
   <UModal
     v-model:open="isOpen"
+    :dismissible="false"
     :title="eventType ? 'Edit team event type' : 'New team event type'"
     description="A shared booking link your team hosts together."
     scrollable

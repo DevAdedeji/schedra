@@ -6,12 +6,17 @@ const props = defineProps<{ collapsedLabel?: string }>()
 const route = useRoute()
 const { data, refresh } = await useTeams()
 const creating = ref(false)
+const menuOpen = ref(false)
 
 const teams = computed<TeamSummary[]>(() => data.value?.items ?? [])
 const activeSlug = computed(() => (
   route.path.startsWith('/t/') ? String(route.params.slug ?? '') : ''
 ))
 const active = computed(() => teams.value.find(item => item.slug === activeSlug.value) ?? null)
+
+watch(() => route.fullPath, () => {
+  menuOpen.value = false
+})
 
 function initials(name: string) {
   return name.split(' ').map(part => part[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
@@ -57,9 +62,11 @@ async function onCreated(slug: string) {
 <template>
   <div>
     <UDropdownMenu
+      v-model:open="menuOpen"
       :items="items"
       :ui="menuUi"
       :external-icon="false"
+      :modal="false"
       :content="{ align: 'start', side: 'bottom', sideOffset: 6 }"
     >
       <button
