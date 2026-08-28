@@ -24,6 +24,7 @@ const {
   refresh: refreshSummary
 } = await useLazyFetch<PaymentSummary>(summaryEndpoint)
 const starting = ref(false)
+const payoutDestinationOpen = ref(false)
 
 function money(totals: PaymentMoneyTotal[]) {
   return totals.map(total => formatMoney(total.amountCents, total.currency))
@@ -35,27 +36,66 @@ function pendingText(totals: PaymentMoneyTotal[]) {
 }
 
 const statusCopy = computed(() => ({
-  not_started: ['Set up payouts', 'Bachs securely verifies your identity and payout destination. Schedra never stores your bank details.'],
-  onboarding: ['Finish setup', 'Continue the secure Bachs flow to provide any remaining identity or bank details.'],
+  not_started: ['Set up payouts', 'Bachs securely verifies your identity. You will add the bank account for your payouts as the final step.'],
+  onboarding: data.value?.nextAction === 'add_payout_destination'
+    ? ['Add payout account', 'Your identity details are complete. Add the bank account where you want to receive payouts.']
+    : ['Finish setup', 'Continue the secure Bachs flow to provide any remaining identity details.'],
   pending_review: ['Under review', 'Your information was submitted. We will enable paid bookings when Bachs approves payouts.'],
   active: ['Ready for paid bookings', 'Guests can pay securely and your share is routed to this payout account.'],
   restricted: ['Action required', 'Update your payment account before accepting new paid bookings.'],
   disabled: ['Payments unavailable', 'This payout account is disabled. Contact support if this was unexpected.']
 } as const)[data.value?.status ?? 'not_started'])
 
+const actionLabel = computed(() => data.value?.nextAction === 'add_payout_destination'
+  ? 'Add payout account'
+  : data.value?.configured ? 'Continue setup' : 'Set up payouts')
+
+const actionIcon = computed(() => data.value?.nextAction === 'add_payout_destination'
+  ? 'i-lucide-landmark'
+  : 'i-lucide-external-link')
+
+function takeNextAction() {
+  if (data.value?.nextAction === 'add_payout_destination') {
+    payoutDestinationOpen.value = true
+    return
+  }
+  void start()
+}
+
 async function start() {
   starting.value = true
+  const setupWindow = window.open('about:blank', '_blank')
+  if (setupWindow) setupWindow.opener = null
   try {
     const link = await paymentsApi.start(props.teamSlug)
-    window.location.assign(link.url)
+    if (setupWindow) setupWindow.location.replace(link.url)
+    else window.location.assign(link.url)
   } catch (failure) {
+    setupWindow?.close()
     toast.add({ title: 'Could not open payment setup', description: apiErrorMessage(failure, 'Try again in a moment.'), color: 'error' })
   } finally {
     starting.value = false
   }
 }
 
+async function checkSetupOnReturn() {
+  if (document.visibilityState !== 'visible' || !data.value?.configured || data.value.ready) return
+  await refresh()
+}
+
+async function payoutDestinationSaved() {
+  await Promise.all([refresh(), refreshSummary()])
+  toast.add({
+    title: data.value?.ready ? 'Payout account added' : 'Payout account submitted',
+    description: data.value?.ready
+      ? 'Paid bookings are now ready to use.'
+      : 'Bachs is reviewing the bank details. We will update the status when the review finishes.',
+    color: data.value?.ready ? 'success' : 'neutral'
+  })
+}
+
 onMounted(async () => {
+  document.addEventListener('visibilitychange', checkSetupOnReturn)
   if (route.query.payments === 'returned') {
     await refresh()
     toast.add({
@@ -67,6 +107,8 @@ onMounted(async () => {
     await start()
   }
 })
+
+onBeforeUnmount(() => document.removeEventListener('visibilitychange', checkSetupOnReturn))
 </script>
 
 <template>
@@ -103,14 +145,14 @@ onMounted(async () => {
           </div>
         </div>
         <UButton
-          v-if="!data?.ready"
+          v-if="!data?.ready && data?.nextAction !== 'none'"
           :loading="starting"
-          icon="i-lucide-external-link"
+          :icon="actionIcon"
           size="lg"
           class="mobile-compact-action min-h-11 shrink-0 text-center"
-          @click="start"
+          @click="takeNextAction"
         >
-          {{ data?.configured ? 'Continue setup' : 'Set up payouts' }}
+          {{ actionLabel }}
         </UButton>
       </div>
       <div class="surface-secondary grid gap-px border-t border-default sm:grid-cols-2 lg:grid-cols-4">
@@ -299,5 +341,11 @@ onMounted(async () => {
     </section>
 
     <PaymentActivityList :team-slug="teamSlug" />
+
+    <PayoutDestinationModal
+      v-model:open="payoutDestinationOpen"
+      :team-slug="teamSlug"
+      @saved="payoutDestinationSaved"
+    />
   </div>
 </template>

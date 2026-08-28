@@ -237,6 +237,59 @@ export function updateConnectedAccountRepresentative(input: {
   })
 }
 
+export interface BachsBank {
+  name: string
+  code: string
+}
+
+export function listBachsBanks(country = 'NG') {
+  return bachsFetch<{ country: string, banks: BachsBank[] }>('/reference/banks', {
+    query: { country }
+  })
+}
+
+export interface BachsResolvedBankAccount {
+  resolved: boolean
+  account_name: string | null
+  account_number: string | null
+  message: string
+}
+
+export function resolveBachsBankAccount(input: {
+  bankCode: string
+  accountNumber: string
+}) {
+  return bachsFetch<BachsResolvedBankAccount>('/misc/bank-accounts/resolve', {
+    method: 'POST',
+    body: {
+      bank_code: input.bankCode,
+      account_number: input.accountNumber
+    }
+  })
+}
+
+export function updateConnectedAccountPayoutDestination(input: {
+  accountId: string
+  bankCode: string
+  accountNumber: string
+  accountName: string
+}) {
+  return bachsFetch<BachsConnectedAccount>(`/accounts/${encodeURIComponent(input.accountId)}`, {
+    method: 'POST',
+    body: {
+      fields: {
+        payout_destination: {
+          currency: 'NGN',
+          type: 'bank_account',
+          account_number: input.accountNumber,
+          account_name: input.accountName,
+          bank_code: input.bankCode
+        }
+      }
+    }
+  })
+}
+
 export interface BachsBalanceBucket {
   currency: string
   available_balance: string
