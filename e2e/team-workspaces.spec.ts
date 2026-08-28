@@ -130,10 +130,8 @@ test('creates a team, invites an existing admin and completes a shared booking',
   await page.getByLabel('Title').fill('Architecture review')
   await page.getByLabel('Description').fill('A shared review with the engineering team.')
 
-  const hostCheckboxes = page.getByRole('checkbox')
-  await expect(hostCheckboxes).toHaveCount(4)
-  await hostCheckboxes.nth(0).check()
-  await hostCheckboxes.nth(1).check()
+  await page.getByRole('checkbox', { name: 'Ada Lovelace as host' }).check()
+  await page.getByRole('checkbox', { name: 'Grace Hopper as host' }).check()
   await page.getByRole('button', { name: 'Create', exact: true }).click()
 
   const eventRow = page.getByRole('listitem').filter({ hasText: 'Architecture review' })
@@ -153,6 +151,11 @@ test('creates a team, invites an existing admin and completes a shared booking',
   await page.goto('/t/quality-labs/bookings')
   await expect(page.getByText('Architecture review', { exact: true })).toBeVisible()
   await expect(page.getByText(/E2E Team Guest/)).toBeVisible()
+
+  await page.getByRole('link', { name: 'Activity log', exact: true }).click()
+  await expect(page).toHaveURL(/\/t\/quality-labs\/history$/)
+  await expect(page.getByRole('heading', { name: 'Activity log' })).toBeVisible()
+  await expect(page.getByText('created an event type')).toBeVisible()
 
   const [booking] = await sql<{ organizationId: string, hostCount: number }[]>`
     select b.organization_id as "organizationId", count(bh.id)::int as "hostCount"

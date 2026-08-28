@@ -23,6 +23,13 @@ const props = defineProps<{
   prefillEmail?: string
 }>()
 
+// Availability and reschedule links are request-specific. In particular, an
+// opaque reschedule capability can prefill attendee data into the rendered
+// page, so neither a browser proxy nor a CDN may retain this HTML.
+if (import.meta.server) {
+  useResponseHeader('Cache-Control').value = 'private, no-store'
+}
+
 const emit = defineEmits<{
   booked: [booking: { uid: string, start: string, status: 'pending' | 'confirmed' | 'cancelled' | 'rejected' }]
 }>()
@@ -312,6 +319,9 @@ async function confirm() {
 }
 
 const { url: siteUrl, indexable } = useSiteUrl()
+const canonicalUrl = computed(() => isTeam.value
+  ? `${siteUrl.value}/team/${encodeURIComponent(owner.value)}/${encodeURIComponent(slug.value)}`
+  : `${siteUrl.value}/${encodeURIComponent(owner.value)}/${encodeURIComponent(slug.value)}`)
 const seoDescription = computed(() => page.value?.description
   || (page.value
     ? `${page.value.durationMinutes}-minute meeting with ${page.value.hostName}. Choose an available time online.`
@@ -322,18 +332,19 @@ useSeoMeta({
   description: () => seoDescription.value,
   // A move link is private, booking-specific state. Keep the canonical public
   // booking page indexable while preventing reschedule URLs entering search.
-  robots: () => indexable.value && page.value && !rescheduleOf.value && !props.embedded
+  robots: () => indexable.value && page.value && !loadingFailure.value && !rescheduleOf.value && !props.embedded
     ? 'index, follow'
     : 'noindex, nofollow',
   ogType: 'website',
   ogTitle: () => page.value ? `${page.value.title} with ${page.value.hostName}` : 'Book a time with Schedra',
   ogDescription: () => seoDescription.value,
-  ogUrl: () => isTeam.value
-    ? `${siteUrl.value}/team/${encodeURIComponent(owner.value)}/${encodeURIComponent(slug.value)}`
-    : `${siteUrl.value}/${encodeURIComponent(owner.value)}/${encodeURIComponent(slug.value)}`,
+  ogUrl: () => canonicalUrl.value,
   twitterCard: 'summary_large_image',
   twitterTitle: () => page.value ? `${page.value.title} with ${page.value.hostName}` : 'Book a time with Schedra',
   twitterDescription: () => seoDescription.value
+})
+useHead({
+  link: [{ key: 'canonical', rel: 'canonical', href: canonicalUrl }]
 })
 </script>
 

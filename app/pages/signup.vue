@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { FormSubmitEvent } from '@nuxt/ui'
 import { signUpFormSchema, type SignUpFormInput } from '#shared/validation'
-import { invitationsApi } from '~/services/schedra-api'
+import { invitationsApi, usernameApi, type UsernameAvailability } from '~/services/schedra-api'
 
 definePageMeta({ layout: 'auth', middleware: 'guest' })
 useSeoMeta({ title: 'Create your Schedra link', robots: 'noindex, nofollow' })
@@ -54,10 +54,8 @@ watch(() => state.name, (value) => {
   if (!touched.value) state.username = normalise(value)
 })
 
-interface Availability { available: boolean, reason: 'invalid' | 'taken' | null, message: string }
-
 const checking = ref(false)
-const availability = ref<Availability | null>(null)
+const availability = ref<UsernameAvailability | null>(null)
 let debounce: ReturnType<typeof setTimeout> | undefined
 let availabilityRequest = 0
 let availabilityController: AbortController | undefined
@@ -75,10 +73,7 @@ watch(() => state.username, (value) => {
     availabilityController = new AbortController()
 
     try {
-      const result = await $fetch<Availability>('/api/username-available', {
-        query: { username: value },
-        signal: availabilityController.signal
-      })
+      const result = await usernameApi.check(value, availabilityController.signal)
 
       if (request === availabilityRequest && value === state.username) {
         availability.value = result

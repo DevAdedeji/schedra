@@ -16,14 +16,28 @@ const props = defineProps<{
   open: boolean
   teamSlug: string
   members: TeamMemberRecord[]
+  memberPage: number
+  memberSearch: string
+  memberTotal: number
+  memberTotalPages: number
+  membersLoading: boolean
+  membersError: boolean
   eventType?: TeamEventTypeRecord | null
 }>()
-const emit = defineEmits<{ 'update:open': [value: boolean], 'saved': [action: 'created' | 'updated'] }>()
+const emit = defineEmits<{
+  'update:open': [value: boolean]
+  'update:memberPage': [value: number]
+  'update:memberSearch': [value: string]
+  'retryMembers': []
+  'saved': [action: 'created' | 'updated']
+}>()
 
 const { host } = useSiteUrl()
 const feedback = useFeedback()
 
 const isOpen = computed({ get: () => props.open, set: value => emit('update:open', value) })
+const memberPageModel = computed({ get: () => props.memberPage, set: value => emit('update:memberPage', value) })
+const memberSearchModel = computed({ get: () => props.memberSearch, set: value => emit('update:memberSearch', value) })
 const saving = ref(false)
 const error = ref('')
 const slugTouched = ref(false)
@@ -74,9 +88,19 @@ const assignmentOptions = [
   }
 ]
 
+const knownMembers = shallowRef(new Map<string, TeamMemberRecord>())
+watch(() => props.members, (members) => {
+  const next = new Map(knownMembers.value)
+  for (const member of members) next.set(member.id, member)
+  knownMembers.value = next
+}, { immediate: true })
+watch(() => props.teamSlug, () => {
+  knownMembers.value = new Map()
+})
+
 const selectedMembers = computed(() => form.hosts
   .filter(host => host.enabled)
-  .map(host => props.members.find(member => member.id === host.memberId))
+  .map(host => knownMembers.value.get(host.memberId))
   .filter((member): member is TeamMemberRecord => Boolean(member)))
 const meetingOwners = computed(() => form.assignmentMode === 'collective'
   ? selectedMembers.value.slice(0, 1)
@@ -118,9 +142,7 @@ watch(() => props.open, async (open) => {
   }
 
   try {
-    const detail = await $fetch<TeamEventTypeInput & { hosts: Array<{ memberId: string, scheduleId: string | null, enabled: boolean, weight: number }> }>(
-      teamEventTypesApi.detailEndpoint(props.teamSlug, props.eventType.id)
-    )
+    const detail = await teamEventTypesApi.get(props.teamSlug, props.eventType.id)
     Object.assign(form, { ...emptyForm(), ...detail, hosts: detail.hosts ?? [] })
   } catch (failure) {
     error.value = apiErrorMessage(failure, 'Could not load that event type.')
@@ -337,11 +359,61 @@ function initials(name: string) {
               Hosts
             </h3>
             <p class="text-[11px] text-muted">
-              Each host uses their own availability and calendar.
+              {{ form.hosts.length }} selected · each host uses their own availability and calendar.
             </p>
           </div>
 
-          <ul class="divide-y divide-default overflow-hidden rounded-xl border border-default">
+          <UInput
+            v-model="memberSearchModel"
+            icon="i-lucide-search"
+            placeholder="Search team members"
+            aria-label="Search team members"
+            class="w-full"
+          />
+
+          <div
+            v-if="membersError"
+            class="flex items-center justify-between gap-3 rounded-xl border border-error/30 bg-error/5 px-4 py-3"
+            role="alert"
+          >
+            <p class="text-[12px] text-error">
+              Could not load team members.
+            </p>
+            <UButton
+              color="neutral"
+              variant="outline"
+              size="xs"
+              icon="i-lucide-refresh-cw"
+              @click="emit('retryMembers')"
+            >
+              Try again
+            </UButton>
+          </div>
+
+          <div
+            v-else-if="membersLoading && !members.length"
+            class="space-y-2"
+            aria-label="Loading team members"
+          >
+            <USkeleton
+              v-for="index in 3"
+              :key="index"
+              class="h-14 w-full rounded-xl"
+            />
+          </div>
+
+          <ListEmptyState
+            v-else-if="!members.length"
+            icon="i-lucide-users"
+            :title="memberSearch ? 'No matching team members' : 'No team members available'"
+            :description="memberSearch ? 'Try another name or email.' : 'Invite someone to the team before assigning them as a host.'"
+            class="border border-default"
+          />
+
+          <ul
+            v-else
+            class="divide-y divide-default overflow-hidden rounded-xl border border-default"
+          >
             <li
               v-for="member in members"
               :key="member.id"
@@ -349,6 +421,7 @@ function initials(name: string) {
             >
               <UCheckbox
                 :model-value="selectedIds.has(member.id)"
+                :aria-label="`${member.name} as host`"
                 @update:model-value="toggleHost(member)"
               />
               <span class="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary/10 text-[11px] font-semibold text-primary">
@@ -372,6 +445,15 @@ function initials(name: string) {
               </div>
             </li>
           </ul>
+
+          <ListPagination
+            v-if="memberTotalPages > 1"
+            :page="memberPageModel"
+            :total-pages="memberTotalPages"
+            :total="memberTotal"
+            :disabled="membersLoading"
+            @change="memberPageModel = $event"
+          />
         </section>
 
         <section class="space-y-3">

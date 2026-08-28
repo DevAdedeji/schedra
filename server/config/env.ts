@@ -31,7 +31,9 @@ function parseUrl(name: string, value: string, protocols: string[]) {
   try {
     url = new URL(value)
   } catch {
-    throw new Error(`${name} is not a valid URL: ${value}`)
+    // Environment URLs can contain database passwords or SMTP credentials.
+    // Never echo the rejected value into deploy logs.
+    throw new Error(`${name} is not a valid URL.`)
   }
 
   if (!protocols.includes(url.protocol)) {

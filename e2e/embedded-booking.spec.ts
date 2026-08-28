@@ -225,7 +225,7 @@ test('books a team event through the same cross-origin overlay', async ({ page, 
   await page.locator('header').getByRole('button', { name: 'New event type' }).click()
   await page.getByLabel('Title').fill('Team demo')
   await page.getByLabel('Description').fill('A team booking from another website.')
-  await page.getByRole('checkbox').first().check()
+  await page.getByRole('checkbox', { name: 'Team Embed Owner as host' }).check()
   await page.getByRole('button', { name: 'Create', exact: true }).click()
   await expect(page.getByText('Team demo', { exact: true })).toBeVisible()
 

@@ -15,7 +15,7 @@ useSeoMeta({
 const page = ref(1)
 const { data, refresh, status, error: loadFailure } = await useLazyFetch<TeamAuditResponse>(
   () => teamAuditApi.listEndpoint(slug.value),
-  { query: computed(() => ({ page: page.value, pageSize: 20 })) }
+  { query: computed(() => ({ page: page.value, pageSize: 10 })) }
 )
 
 const list = computed(() => data.value?.items ?? [])

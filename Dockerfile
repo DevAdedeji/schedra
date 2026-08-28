@@ -5,20 +5,16 @@ FROM node:22-alpine AS base
 WORKDIR /app
 RUN npm install -g pnpm@11.20.0
 
-# --trust-lockfile skips pnpm's per-entry supply-chain re-verification, which
-# costs ~4 minutes of network traffic per install. The lockfile is committed
-# and already verified locally, which is the case that flag exists for.
-
 # Production dependencies only, kept apart so the runtime image does not carry
 # the build toolchain. Scripts are skipped because the postinstall hook runs
 # `nuxt prepare`, which needs devDependencies that are deliberately absent here.
 FROM base AS deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile --prod --ignore-scripts --trust-lockfile
+RUN pnpm install --frozen-lockfile --prod --ignore-scripts
 
 FROM base AS builder
 COPY . .
-RUN pnpm install --frozen-lockfile --trust-lockfile
+RUN pnpm install --frozen-lockfile
 RUN pnpm build
 
 FROM node:22-alpine AS runtime

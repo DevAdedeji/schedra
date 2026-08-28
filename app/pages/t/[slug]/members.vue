@@ -35,9 +35,11 @@ const membersQuery = computed(() => ({
 const { data: members, refresh: refreshMembers, status, error: membersFailure }
   = await useLazyFetch<TeamMembersResponse>(() => teamsApi.membersEndpoint(slug.value), { query: membersQuery })
 
+const invitationPage = ref(1)
+const invitationsQuery = computed(() => ({ page: invitationPage.value, pageSize: 10 }))
 const { data: invitations, refresh: refreshInvitations }
   = await useLazyFetch<TeamInvitationsResponse>(() => teamsApi.invitationsEndpoint(slug.value), {
-    query: { pageSize: 50 },
+    query: invitationsQuery,
     immediate: false
   })
 
@@ -48,6 +50,10 @@ const pendingInvites = computed(() => invitations.value?.items ?? [])
 const initialLoading = computed(() => status.value === 'pending' && !members.value)
 const refreshing = computed(() => status.value === 'pending' && Boolean(members.value))
 const blockingFailure = computed(() => Boolean((membersFailure.value || teamFailure.value) && !members.value))
+
+watch(() => invitations.value?.pagination.totalPages, (totalPages) => {
+  if (totalPages && invitationPage.value > totalPages) invitationPage.value = totalPages
+})
 
 watch(() => permissions.value?.inviteMembers, (allowed) => {
   if (allowed) refreshInvitations()
@@ -254,7 +260,7 @@ async function retry() {
           Pending invitations
         </h2>
         <span class="tnum rounded-md bg-muted px-1.5 py-0.5 text-[11px] text-dimmed">
-          {{ pendingInvites.length }}
+          {{ invitations?.pagination.total ?? pendingInvites.length }}
         </span>
       </header>
       <ul class="divide-y divide-default">
@@ -289,6 +295,13 @@ async function retry() {
           </UButton>
         </li>
       </ul>
+      <ListPagination
+        v-if="(invitations?.pagination.totalPages ?? 1) > 1"
+        :page="invitations?.pagination.page ?? 1"
+        :total-pages="invitations?.pagination.totalPages ?? 1"
+        :total="invitations?.pagination.total ?? 0"
+        @change="invitationPage = $event"
+      />
     </section>
 
     <section class="overflow-hidden rounded-xl border border-default bg-default">

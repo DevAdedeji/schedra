@@ -33,7 +33,7 @@ useSeoMeta({
   ogUrl: canonical
 })
 
-useHead({ link: [{ rel: 'canonical', href: canonical }] })
+useHead({ link: [{ key: 'canonical', rel: 'canonical', href: canonical }] })
 </script>
 
 <template>

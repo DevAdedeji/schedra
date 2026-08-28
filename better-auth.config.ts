@@ -1,3 +1,3 @@
-import { useAuth } from './server/utils/auth'
+import { useAuth } from './server/services/auth'
 
 export const auth = useAuth()

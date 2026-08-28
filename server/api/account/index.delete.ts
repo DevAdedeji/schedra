@@ -4,6 +4,7 @@ import { members, users } from '../../database/schema'
 import { useDatabase } from '../../database/index'
 import { requireAuthSession } from '../../services/session'
 import { disconnectGoogleCalendar } from '../../integrations/calendar/google'
+import { disconnectMicrosoftCalendar } from '../../integrations/calendar/microsoft'
 import { disconnectZoom } from '../../integrations/video/zoom'
 import { activeTeamsOwnedBy } from '../../services/organization'
 import { useAuth } from '../../services/auth'
@@ -33,6 +34,7 @@ export default defineEventHandler(async (event) => {
     .where(eq(members.userId, session.user.id))
 
   await disconnectGoogleCalendar(session.user.id)
+  await disconnectMicrosoftCalendar(session.user.id)
   await disconnectZoom(session.user.id)
   const deleted = await db.transaction(async (tx) => {
     const rows = await tx.delete(users).where(eq(users.id, session.user.id)).returning({ id: users.id })

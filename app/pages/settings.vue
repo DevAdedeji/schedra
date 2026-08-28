@@ -103,6 +103,7 @@ const initials = computed(() => (profile.name || '')
         <UButton
           :to="`/${user?.username}`"
           target="_blank"
+          rel="noopener noreferrer"
           color="neutral"
           variant="outline"
           trailing-icon="i-lucide-external-link"

@@ -22,7 +22,7 @@ useHead({
   link: [
     { rel: 'icon', href: '/favicon.ico', sizes: '48x48' },
     { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
-    { rel: 'canonical', href: canonical }
+    { key: 'canonical', rel: 'canonical', href: canonical }
   ]
 })
 

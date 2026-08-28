@@ -113,14 +113,31 @@ async function saveProfile() {
 
 const transferring = ref(false)
 const transferTarget = ref('')
+const transferSearchInput = ref('')
+const transferSearch = ref('')
 const transferBusy = ref(false)
+let transferSearchTimer: ReturnType<typeof setTimeout> | undefined
+watch(transferSearchInput, (value) => {
+  clearTimeout(transferSearchTimer)
+  transferSearchTimer = setTimeout(() => {
+    transferSearch.value = value.trim()
+  }, 250)
+})
+onBeforeUnmount(() => clearTimeout(transferSearchTimer))
+
+const transferMembersQuery = computed(() => ({ pageSize: 10, search: transferSearch.value }))
 const { data: members, refresh: refreshMembers } = await useLazyFetch<TeamMembersResponse>(
   () => teamsApi.membersEndpoint(slug.value),
-  { query: { pageSize: 50 }, immediate: false }
+  { query: transferMembersQuery, immediate: false }
 )
 
 watch(transferring, (open) => {
   if (open) refreshMembers()
+  else {
+    transferTarget.value = ''
+    transferSearchInput.value = ''
+    transferSearch.value = ''
+  }
 })
 
 const transferOptions = computed(() => (members.value?.items ?? [])
@@ -409,8 +426,10 @@ async function leave() {
         >
           <USelectMenu
             v-model="transferTarget"
+            v-model:search-term="transferSearchInput"
             :items="transferOptions"
             value-key="value"
+            :ignore-filter="true"
             placeholder="Choose a member"
             aria-label="New owner"
             size="lg"

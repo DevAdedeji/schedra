@@ -243,6 +243,27 @@ export const accountApi = {
   remove: (body: { email: string, confirmation: 'DELETE' }) => $fetch('/api/account', { method: 'DELETE', body })
 }
 
+export interface UsernameAvailability {
+  available: boolean
+  reason: 'invalid' | 'taken' | null
+  message: string
+}
+
+export const usernameApi = {
+  check: (username: string, signal?: AbortSignal) => $fetch<UsernameAvailability>('/api/username-available', {
+    query: { username },
+    signal
+  })
+}
+
+export const authApi = {
+  resendVerification: (email: string, callbackURL: string) =>
+    $fetch('/api/auth/send-verification-email', {
+      method: 'POST',
+      body: { email, callbackURL }
+    })
+}
+
 export const calendarApi = {
   connectionEndpoint: '/api/integrations/google-calendar' as const,
   calendars: () => $fetch<CalendarsResponse>('/api/integrations/google-calendar/calendars'),
@@ -530,6 +551,15 @@ export interface TeamEventTypeRecord {
   hosts: TeamEventTypeHostRecord[]
 }
 
+export type TeamEventTypeDetail = TeamEventTypeInput & {
+  hosts: Array<{
+    memberId: string
+    scheduleId: string | null
+    enabled: boolean
+    weight: number
+  }>
+}
+
 export interface TeamEventTypesResponse {
   items: TeamEventTypeRecord[]
   pagination: PaginationMeta
@@ -540,6 +570,9 @@ export const teamEventTypesApi = {
   listEndpoint: (slug: string) => resource('/api/teams', slug, '/event-types'),
   detailEndpoint: (slug: string, id: string) =>
     `${resource('/api/teams', slug, '/event-types')}/${encodeURIComponent(id)}`,
+  get: (slug: string, id: string) => $fetch<TeamEventTypeDetail>(
+    `${resource('/api/teams', slug, '/event-types')}/${encodeURIComponent(id)}`
+  ),
   create: (slug: string, body: TeamEventTypeInput) =>
     $fetch<{ id: string }>(resource('/api/teams', slug, '/event-types'), { method: 'POST', body }),
   update: (slug: string, id: string, body: TeamEventTypeInput) =>

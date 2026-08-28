@@ -31,9 +31,33 @@ const listQuery = computed(() => ({ filter: filter.value, page: page.value, page
 const { data, refresh, status, error: loadFailure }
   = await useLazyFetch<TeamEventTypesResponse>(() => teamEventTypesApi.listEndpoint(slug.value), { query: listQuery })
 
-const { data: members } = await useLazyFetch<TeamMembersResponse>(
+const memberPage = ref(1)
+const memberSearchInput = ref('')
+const memberSearch = ref('')
+let memberSearchTimer: ReturnType<typeof setTimeout> | undefined
+
+watch(memberSearchInput, (value) => {
+  clearTimeout(memberSearchTimer)
+  memberSearchTimer = setTimeout(() => {
+    memberSearch.value = value.trim()
+    memberPage.value = 1
+  }, 250)
+})
+onBeforeUnmount(() => clearTimeout(memberSearchTimer))
+
+const membersQuery = computed(() => ({
+  page: memberPage.value,
+  pageSize: 10,
+  search: memberSearch.value
+}))
+const {
+  data: members,
+  status: membersStatus,
+  error: membersFailure,
+  refresh: refreshMembers
+} = await useFetch<TeamMembersResponse>(
   () => teamsApi.membersEndpoint(slug.value),
-  { query: { pageSize: 50 } }
+  { query: membersQuery }
 )
 
 const list = computed(() => data.value?.items ?? [])
@@ -274,9 +298,16 @@ function activeHosts(eventType: TeamEventTypeRecord) {
 
     <TeamEventTypeModal
       v-model:open="modalOpen"
+      v-model:member-page="memberPage"
+      v-model:member-search="memberSearchInput"
       :team-slug="slug"
       :members="memberList"
+      :member-total="members?.pagination.total ?? 0"
+      :member-total-pages="members?.pagination.totalPages ?? 1"
+      :members-loading="membersStatus === 'pending'"
+      :members-error="Boolean(membersFailure)"
       :event-type="editing"
+      @retry-members="refreshMembers"
       @saved="() => refresh()"
     />
 

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { authApi } from '~/services/schedra-api'
+
 definePageMeta({ layout: 'auth' })
 useSeoMeta({ title: 'Confirm your email', robots: 'noindex, nofollow' })
 
@@ -24,10 +26,7 @@ async function resend() {
   error.value = ''
 
   try {
-    await $fetch('/api/auth/send-verification-email', {
-      method: 'POST',
-      body: { email: email.value, callbackURL: callbackURL.value }
-    })
+    await authApi.resendVerification(email.value, callbackURL.value)
     sent.value = true
   } catch {
     error.value = 'Could not send just now. Try again in a moment.'

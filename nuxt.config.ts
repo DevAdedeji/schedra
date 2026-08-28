@@ -31,6 +31,7 @@ export default defineNuxtConfig({
         'x-content-type-options': 'nosniff'
       }
     },
+    '/embed/**': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
     '/api/**': { headers: { 'cache-control': 'no-store' } },
     '/signup': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
     '/login': { prerender: false, headers: { 'cache-control': 'private, no-store' } },

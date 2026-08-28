@@ -386,6 +386,7 @@ async function retry(jobKind: OperationKind, id: string) {
               :icon="item.icon"
               color="neutral"
               :variant="kind === item.value ? 'soft' : 'ghost'"
+              :aria-pressed="kind === item.value"
               @click="kind = item.value"
             />
           </div>
@@ -396,6 +397,7 @@ async function retry(jobKind: OperationKind, id: string) {
               type="button"
               class="rounded-lg px-3 py-1.5 text-[12px] font-medium capitalize transition-colors"
               :class="filter === value ? 'bg-primary/15 text-primary' : 'text-muted hover:bg-muted hover:text-highlighted'"
+              :aria-pressed="filter === value"
               @click="filter = value"
             >
               {{ value }}
