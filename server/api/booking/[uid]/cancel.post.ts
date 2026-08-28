@@ -1,6 +1,6 @@
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { cancelBookingSchema } from '#shared/validation'
-import { bookings } from '../../../database/schema'
+import { bookingPayments, bookings } from '../../../database/schema'
 import { useDatabase } from '../../../database/index'
 import { assignedHostsForBooking, findBookingByUid } from '../../../repositories/booking'
 import { queueCancellationEmails } from '../../../services/booking-emails'
@@ -9,6 +9,7 @@ import { enforceRateLimit } from '../../../services/rate-limit'
 import { enqueueCalendarSync } from '../../../services/calendar-sync'
 import { cancelBookingReminders } from '../../../services/email-outbox'
 import { cancelPendingAutomationRuns, publishBookingEvent } from '../../../services/workflows'
+import { requestPaidBookingRefund } from '../../../services/paid-booking'
 
 export default defineEventHandler(async (event) => {
   const uid = getRouterParam(event, 'uid')
@@ -41,6 +42,10 @@ export default defineEventHandler(async (event) => {
   const session = await getAuthSession(event)
   const hosts = await assignedHostsForBooking(booking.id)
   const actor = hosts.some(host => host.userId === session?.user.id) ? 'host' : 'guest'
+  const refund = await requestPaidBookingRefund(
+    booking.id,
+    parsed.data.reason || `Booking cancelled by ${actor}`
+  )
   const cancelled = await useDatabase().transaction(async (tx) => {
     const [updated] = await tx
       .update(bookings)
@@ -51,23 +56,36 @@ export default defineEventHandler(async (event) => {
       })
       .where(and(
         eq(bookings.id, booking.id),
-        inArray(bookings.status, ['pending', 'confirmed'])
+        inArray(bookings.status, ['awaiting_payment', 'pending', 'confirmed'])
       ))
       .returning({ id: bookings.id })
 
     if (!updated) return false
 
-    await enqueueCalendarSync(booking.id, 'delete', tx)
+    if (booking.status === 'awaiting_payment') {
+      await tx.update(bookingPayments).set({
+        status: 'expired',
+        lastError: 'The guest cancelled before checkout completed.',
+        updatedAt: sql`now()`
+      }).where(and(
+        eq(bookingPayments.bookingId, booking.id),
+        eq(bookingPayments.status, 'pending')
+      ))
+    }
+
+    if (booking.status === 'confirmed') await enqueueCalendarSync(booking.id, 'delete', tx)
     await cancelBookingReminders(booking.uid, tx)
     await cancelPendingAutomationRuns(booking.id, tx)
-    await publishBookingEvent({
+    if (booking.status !== 'awaiting_payment') await publishBookingEvent({
       type: 'booking_cancelled',
       ...(booking.organizationId ? { organizationId: booking.organizationId } : { userId: booking.hostId }),
       bookingId: booking.id,
       eventTypeId: booking.eventTypeId,
       payload: { actor }
     }, tx)
-    await queueCancellationEmails(booking, parsed.data.reason, actor, tx, hosts)
+    if (booking.status !== 'awaiting_payment') {
+      await queueCancellationEmails(booking, parsed.data.reason, actor, tx, hosts)
+    }
     return true
   })
 
@@ -75,5 +93,5 @@ export default defineEventHandler(async (event) => {
     return { ok: true, alreadyCancelled: true }
   }
 
-  return { ok: true, alreadyCancelled: false }
+  return { ok: true, alreadyCancelled: false, refundPending: refund.required }
 })

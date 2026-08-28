@@ -8,6 +8,7 @@ import {
   type TeamEventTypesResponse,
   type TeamMembersResponse
 } from '~/services/schedra-api'
+import { formatMoney } from '#shared/payments'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 
@@ -249,6 +250,14 @@ function activeHosts(eventType: TeamEventTypeRecord) {
                 size="sm"
               >
                 {{ eventType.capacity }} seats
+              </UBadge>
+              <UBadge
+                v-if="eventType.paymentEnabled && eventType.priceCents"
+                color="success"
+                variant="subtle"
+                size="sm"
+              >
+                {{ formatMoney(eventType.priceCents, eventType.paymentCurrency) }}
               </UBadge>
               <UBadge
                 v-if="eventType.hidden"

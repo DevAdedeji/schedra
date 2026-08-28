@@ -5,6 +5,7 @@ import { useDatabase } from '../database/index'
 import { ensureStarterSetup } from '../services/onboarding'
 import { requireLocationIntegration } from '../services/event-location'
 import { requireAuthSession } from '../services/session'
+import { requirePaymentRecipient } from '../services/paid-booking'
 
 export default defineEventHandler(async (event) => {
   const session = await requireAuthSession(event)
@@ -38,6 +39,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 409, statusMessage: 'Set your availability before creating an event type.' })
   }
   await requireLocationIntegration(session.user.id, input.locationType)
+  await requirePaymentRecipient({ userId: session.user.id }, input.paymentEnabled)
 
   try {
     const [created] = await db.insert(eventTypes).values({

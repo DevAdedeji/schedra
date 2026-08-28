@@ -13,6 +13,13 @@ import { CalendarUnavailableError } from '../integrations/calendar/google'
 import { BookingAnswerValidationError, buildBookingAnswersSnapshot } from '../domain/booking-answers'
 import { requireLocationIntegration } from '../services/event-location'
 import { claimGroupSession, isGroupSessionFullError } from '../services/group-events'
+import {
+  createPaymentRecord,
+  eventPaymentReadiness,
+  movePaidBookingPayment,
+  openPaidBookingCheckout,
+  paymentForBooking
+} from '../services/paid-booking'
 
 const SLOT_TAKEN = '23P01'
 
@@ -108,6 +115,14 @@ export default defineEventHandler(async (event) => {
     }
   }
 
+  const payment = await eventPaymentReadiness(eventType.id)
+  const previousPayment = previous ? await paymentForBooking(previous.id) : null
+  if (previousPayment && previousPayment.status !== 'paid') {
+    throw createError({ statusCode: 409, statusMessage: 'Finish or cancel the existing payment before moving this booking.' })
+  }
+  const paymentCovered = previousPayment?.status === 'paid'
+  const awaitingPayment = Boolean(payment && !paymentCovered)
+
   const uid = crypto.randomUUID()
 
   try {
@@ -156,7 +171,7 @@ export default defineEventHandler(async (event) => {
         attendeeEmail: email,
         attendeeTimeZone: timeZone,
         additionalGuestEmails,
-        status: eventType.requiresConfirmation ? 'pending' : 'confirmed',
+        status: awaitingPayment ? 'awaiting_payment' : eventType.requiresConfirmation ? 'pending' : 'confirmed',
         locationType: eventType.locationType,
         locationDetails: eventType.locationDetails,
         meetingUrl: eventType.locationType === 'video_link' ? eventType.locationDetails : null,
@@ -167,14 +182,28 @@ export default defineEventHandler(async (event) => {
       }).returning({ id: bookings.id })
 
       if (!created) throw new Error('Booking insert did not return a record.')
-      if (!eventType.requiresConfirmation) await enqueueCalendarSync(created.id, 'upsert', tx)
-      await publishBookingEvent({
-        type: previous ? 'booking_rescheduled' : eventType.requiresConfirmation ? 'booking_requested' : 'booking_created',
-        userId: eventType.hostId,
-        bookingId: created.id,
-        eventTypeId: eventType.id,
-        payload: previous ? { previousBookingId: previous.id } : undefined
-      }, tx)
+      if (awaitingPayment && payment) {
+        await createPaymentRecord({
+          bookingId: created.id,
+          recipientId: payment.recipient.id,
+          amountCents: payment.amountCents,
+          currency: payment.currency,
+          reference: `booking-${uid}`
+        }, tx)
+      } else {
+        if (paymentCovered && previous) {
+          const moved = await movePaidBookingPayment(previous.id, created.id, tx)
+          if (!moved) throw new Error('The existing booking payment could not be moved.')
+        }
+        if (!eventType.requiresConfirmation) await enqueueCalendarSync(created.id, 'upsert', tx)
+        await publishBookingEvent({
+          type: previous ? 'booking_rescheduled' : eventType.requiresConfirmation ? 'booking_requested' : 'booking_created',
+          userId: eventType.hostId,
+          bookingId: created.id,
+          eventTypeId: eventType.id,
+          payload: previous ? { previousBookingId: previous.id, paid: paymentCovered } : undefined
+        }, tx)
+      }
 
       const notice = {
         uid,
@@ -196,8 +225,10 @@ export default defineEventHandler(async (event) => {
         answers: answerSnapshot?.responses ?? [],
         notes: answerSnapshot?.notes ?? null
       }
-      if (eventType.requiresConfirmation) await queueBookingRequestEmails(notice, tx)
-      else await queueBookingEmails(notice, tx)
+      if (!awaitingPayment) {
+        if (eventType.requiresConfirmation) await queueBookingRequestEmails(notice, tx)
+        else await queueBookingEmails(notice, tx)
+      }
     })
   } catch (error) {
     // Postgres rejected an overlap, which means someone else won the race.
@@ -210,12 +241,15 @@ export default defineEventHandler(async (event) => {
     throw error
   }
 
+  const checkout = awaitingPayment ? await openPaidBookingCheckout(uid) : null
   return {
     uid,
     start: slot.start,
     end: slot.end,
     moved: Boolean(previous),
-    status: eventType.requiresConfirmation ? 'pending' : 'confirmed',
+    status: awaitingPayment ? 'awaiting_payment' : eventType.requiresConfirmation ? 'pending' : 'confirmed',
+    checkoutUrl: checkout?.checkoutUrl ?? null,
+    paymentExpiresAt: checkout?.expiresAt ?? null,
     locationType: eventType.locationType,
     locationDetails: eventType.locationDetails,
     meetingUrl: eventType.locationType === 'video_link' ? eventType.locationDetails : null

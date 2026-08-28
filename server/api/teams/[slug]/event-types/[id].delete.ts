@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { bookings, eventTypes } from '../../../../database/schema'
 import { useDatabase } from '../../../../database/index'
@@ -21,21 +21,17 @@ export default defineEventHandler(async (event) => {
 
   if (!existing) throw createError({ statusCode: 404, statusMessage: 'Event type not found' })
 
-  // Guests hold links to these meetings, so an event with live bookings is
-  // hidden rather than deleted; bookings reference it with onDelete restrict.
-  const [upcoming] = await db.select({ id: bookings.id })
+  // Keep every historical management link resolvable. The FK is restrictive
+  // by design, so the API explains the safe alternative before Postgres does.
+  const [history] = await db.select({ id: bookings.id })
     .from(bookings)
-    .where(and(
-      eq(bookings.eventTypeId, id),
-      inArray(bookings.status, ['pending', 'confirmed']),
-      gte(bookings.endsAt, new Date())
-    ))
+    .where(eq(bookings.eventTypeId, id))
     .limit(1)
 
-  if (upcoming) {
+  if (history) {
     throw createError({
       statusCode: 409,
-      statusMessage: 'This event type has upcoming bookings. Hide it instead, or cancel them first.'
+      statusMessage: 'This event type has booking history. Hide it instead so past booking links keep working.'
     })
   }
 

@@ -5,7 +5,7 @@ import {
   type BookingQuestionType,
   type EventTypeInput
 } from '#shared/validation'
-import { apiErrorMessage, calendarIntegrationApi, eventTypesApi, schedulesApi, zoomApi, type CalendarConnection, type SchedulesResponse, type VideoConferenceConnection } from '~/services/schedra-api'
+import { apiErrorMessage, calendarIntegrationApi, eventTypesApi, paymentsApi, schedulesApi, zoomApi, type CalendarConnection, type PaymentAccountSummary, type SchedulesResponse, type VideoConferenceConnection } from '~/services/schedra-api'
 import type { EventTypeRecord } from '~/types/event-type'
 
 const props = defineProps<{ open: boolean, eventType?: EventTypeRecord | null }>()
@@ -31,13 +31,15 @@ const microsoftConnectionRequest = useFetch<CalendarConnection>(microsoftCalenda
 const zoomConnectionRequest = useFetch<VideoConferenceConnection>(zoomApi.connectionEndpoint, {
   immediate: false
 })
+const paymentAccountRequest = useFetch<PaymentAccountSummary>(paymentsApi.endpoint, { immediate: false })
 const [
   { data: currentUser },
   { data: schedules, refresh: refreshSchedules },
   { data: googleConnection, refresh: refreshGoogleConnection },
   { data: microsoftConnection, refresh: refreshMicrosoftConnection },
-  { data: zoomConnection, refresh: refreshZoomConnection }
-] = await Promise.all([currentUserRequest, schedulesRequest, googleConnectionRequest, microsoftConnectionRequest, zoomConnectionRequest])
+  { data: zoomConnection, refresh: refreshZoomConnection },
+  { data: paymentAccount, refresh: refreshPaymentAccount }
+] = await Promise.all([currentUserRequest, schedulesRequest, googleConnectionRequest, microsoftConnectionRequest, zoomConnectionRequest, paymentAccountRequest])
 const form = reactive<EventTypeForm>(emptyForm())
 const initial = ref('')
 const slugTouched = ref(false)
@@ -120,6 +122,18 @@ const groupEventEnabled = computed({
   get: () => form.capacity > 1,
   set: (enabled) => { form.capacity = enabled ? 10 : 1 }
 })
+const paidBookingEnabled = computed({
+  get: () => form.paymentEnabled,
+  set: (enabled: boolean) => {
+    form.paymentEnabled = enabled
+    form.priceCents = enabled ? (form.priceCents ?? 2500) : null
+    if (enabled) form.requiresConfirmation = false
+  }
+})
+const priceAmount = computed({
+  get: () => form.priceCents === null ? undefined : form.priceCents / 100,
+  set: (value: number | undefined) => { form.priceCents = value === undefined ? null : Math.round(value * 100) }
+})
 const settingsSummary = computed(() => {
   const schedule = selectedSchedule.value?.name ?? 'Default schedule'
   const notice = form.minimumNoticeMinutes >= 60 && form.minimumNoticeMinutes % 60 === 0
@@ -139,6 +153,9 @@ function emptyForm(): EventTypeForm {
     bookingQuestions: [],
     requiresConfirmation: false,
     capacity: 1,
+    paymentEnabled: false,
+    priceCents: null,
+    paymentCurrency: 'USD',
     scheduleId: schedules.value?.items.find(schedule => schedule.isDefault)?.id ?? schedules.value?.items[0]?.id,
     hidden: false
   }
@@ -167,6 +184,9 @@ function loadForm() {
         })),
         requiresConfirmation: item.requiresConfirmation,
         capacity: item.capacity,
+        paymentEnabled: item.paymentEnabled,
+        priceCents: item.priceCents,
+        paymentCurrency: item.paymentCurrency,
         scheduleId: item.scheduleId ?? schedules.value?.items.find(schedule => schedule.isDefault)?.id ?? schedules.value?.items[0]?.id,
         hidden: item.hidden
       }
@@ -237,7 +257,8 @@ watch(() => props.open, (open) => {
       refreshSchedules(),
       refreshGoogleConnection(),
       refreshMicrosoftConnection(),
-      refreshZoomConnection()
+      refreshZoomConnection(),
+      refreshPaymentAccount()
     ]).then(loadForm)
   }
 })
@@ -900,6 +921,75 @@ async function save() {
             <label class="flex cursor-pointer items-start justify-between gap-5 border-b border-default px-5 py-5">
               <span>
                 <span class="flex items-center gap-2 text-[14px] font-semibold text-highlighted"><UIcon
+                  name="i-lucide-credit-card"
+                  class="size-4 text-muted"
+                />Require payment</span>
+                <span class="mt-1.5 block max-w-xl text-[12px] leading-relaxed text-muted">Guests pay during checkout. Their time is confirmed only after Schedra verifies payment.</span>
+              </span>
+              <USwitch
+                v-model="paidBookingEnabled"
+                :disabled="!paymentAccount?.ready && !form.paymentEnabled"
+                aria-label="Require payment to book"
+              />
+            </label>
+            <div
+              v-if="!paymentAccount?.ready && !form.paymentEnabled"
+              class="surface-secondary flex flex-wrap items-center justify-between gap-3 px-5 py-4"
+            >
+              <p class="text-[12px] text-muted">
+                Set up a payout account before charging for bookings.
+              </p>
+              <UButton
+                to="/payments"
+                target="_blank"
+                color="neutral"
+                variant="outline"
+                size="sm"
+                icon="i-lucide-arrow-up-right"
+              >
+                Set up payments
+              </UButton>
+            </div>
+            <div
+              v-if="form.paymentEnabled"
+              class="grid gap-4 px-5 py-5 sm:grid-cols-[1fr_10rem]"
+            >
+              <UFormField
+                label="Price"
+                name="priceCents"
+                required
+              >
+                <UInput
+                  v-model.number="priceAmount"
+                  type="number"
+                  min="1"
+                  max="1000000"
+                  step="0.01"
+                  size="lg"
+                  class="w-full"
+                />
+              </UFormField>
+              <UFormField
+                label="Currency"
+                name="paymentCurrency"
+              >
+                <USelect
+                  v-model="form.paymentCurrency"
+                  :items="[{ label: 'USD', value: 'USD' }, { label: 'NGN', value: 'NGN' }]"
+                  size="lg"
+                  class="w-full"
+                />
+              </UFormField>
+            </div>
+          </section>
+
+          <section
+            v-if="moreSettingsOpen"
+            class="order-8 overflow-hidden rounded-xl border border-default bg-default"
+          >
+            <label class="flex cursor-pointer items-start justify-between gap-5 border-b border-default px-5 py-5">
+              <span>
+                <span class="flex items-center gap-2 text-[14px] font-semibold text-highlighted"><UIcon
                   name="i-lucide-shield-question"
                   class="size-4 text-muted"
                 />Approve bookings first</span>
@@ -907,6 +997,7 @@ async function save() {
               </span>
               <USwitch
                 v-model="form.requiresConfirmation"
+                :disabled="form.paymentEnabled"
                 aria-label="Require approval before confirming bookings"
               />
             </label>
@@ -927,7 +1018,7 @@ async function save() {
 
           <p
             v-if="error"
-            class="order-8 rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-[13px] text-error"
+            class="order-9 rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-[13px] text-error"
             role="alert"
           >
             {{ error }}

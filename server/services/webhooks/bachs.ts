@@ -1,10 +1,18 @@
-import type { BachsSubscription } from '../../integrations/bachs'
+import { getConnectedAccount, type BachsSubscription } from '../../integrations/bachs'
 import { applySubscriptionState, markInvoiceFailed, markInvoicePaid } from '../billing'
 import { recordAudit } from '../organization'
+import {
+  applyRefundEvent,
+  completePaidBooking,
+  failPaidBooking
+} from '../paid-booking'
+import { updateRecipientFromWebhook } from '../payment-recipient'
 
 export interface BachsEvent {
   id?: string
   type?: string
+  organization_id?: string
+  account?: string
   data?: {
     id?: string
     charge_id?: string | null
@@ -14,6 +22,11 @@ export interface BachsEvent {
     amount?: string
     settlement_amount?: string
     metadata?: Record<string, string>
+    payment_status?: string | null
+    currency?: string | null
+    account?: string | null
+    refund_id?: string | null
+    charge?: { id?: string | null, amount?: string | null, currency?: string | null, status?: string | null } | null
   }
 }
 
@@ -27,6 +40,42 @@ const SUBSCRIPTION_EVENTS = new Set([
 
 export async function processBachsWebhook(payload: BachsEvent) {
   const type = payload.type ?? 'unknown'
+  if (type === 'account.updated' || type === 'capability.updated') {
+    const accountId = payload.account ?? payload.data?.account
+    if (!accountId) return { received: true, ignored: 'no-account' }
+    const account = await getConnectedAccount(accountId)
+    return { received: true, applied: await updateRecipientFromWebhook(account) }
+  }
+
+  if (type === 'refund.paid' || type === 'refund.failed') {
+    const applied = await applyRefundEvent({
+      reference: payload.data?.reference,
+      status: type === 'refund.paid' ? 'paid' : 'failed'
+    })
+    if (applied) return { received: true, applied: true }
+  }
+
+  const checkoutId = payload.data?.checkout_id
+  if (checkoutId && PAID_EVENTS.has(type)) {
+    const result = await completePaidBooking({
+      checkoutId,
+      chargeId: payload.data?.charge?.id ?? payload.data?.charge_id,
+      amount: payload.data?.charge?.amount ?? payload.data?.amount,
+      currency: payload.data?.charge?.currency ?? payload.data?.currency,
+      paymentStatus: payload.data?.payment_status ?? payload.data?.charge?.status ?? payload.data?.status
+    })
+    if (result.matched) {
+      return {
+        received: true,
+        applied: result.applied,
+        ...('reason' in result ? { reason: result.reason } : {})
+      }
+    }
+  }
+  if (checkoutId && FAILED_EVENTS.has(type) && await failPaidBooking(checkoutId, type)) {
+    return { received: true, applied: true }
+  }
+
   if (SUBSCRIPTION_EVENTS.has(type)) {
     const subscription = payload.data as unknown as BachsSubscription
     if (!subscription?.id) return { received: true, ignored: 'no-subscription' }

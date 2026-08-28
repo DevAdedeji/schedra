@@ -14,6 +14,7 @@ export interface Env {
 
   bachsSecretKey?: string
   bachsWebhookSecret?: string
+  paidBookingPlatformFeeBps: number
 
   resendApiKey?: string
   smtpUrl?: string
@@ -87,6 +88,7 @@ export function useEnv(): Env {
   const integrationEncryptionKey = optional('INTEGRATION_ENCRYPTION_KEY')
   const bachsSecretKey = optional('BACHS_SECRET_KEY')
   const bachsWebhookSecret = optional('BACHS_WEBHOOK_SECRET')
+  const paidBookingPlatformFeeBps = Number.parseInt(optional('PAID_BOOKING_PLATFORM_FEE_BPS') ?? '500', 10)
   const resendApiKey = optional('RESEND_API_KEY')
   const smtpUrl = optional('SMTP_URL')
   const emailFrom = optional('EMAIL_FROM')
@@ -118,6 +120,9 @@ export function useEnv(): Env {
   if (bachsSecretKey && !bachsWebhookSecret) {
     throw new Error('BACHS_WEBHOOK_SECRET is required whenever BACHS_SECRET_KEY is set.')
   }
+  if (!Number.isInteger(paidBookingPlatformFeeBps) || paidBookingPlatformFeeBps < 1 || paidBookingPlatformFeeBps > 5000) {
+    throw new Error('PAID_BOOKING_PLATFORM_FEE_BPS must be an integer between 1 and 5000.')
+  }
 
   const schedraUrl = parseUrl('SCHEDRA_URL', process.env.SCHEDRA_URL!, ['http:', 'https:'])
   const local = ['localhost', '127.0.0.1', '::1'].includes(new URL(schedraUrl).hostname)
@@ -137,6 +142,7 @@ export function useEnv(): Env {
     integrationEncryptionKey,
     bachsSecretKey,
     bachsWebhookSecret,
+    paidBookingPlatformFeeBps,
     googleClientId,
     googleClientSecret,
     microsoftClientId,

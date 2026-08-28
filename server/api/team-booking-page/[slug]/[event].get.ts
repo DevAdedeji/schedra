@@ -34,6 +34,9 @@ export default defineEventHandler(async (request) => {
     bookingQuestions: eventType.bookingQuestions,
     requiresConfirmation: eventType.requiresConfirmation,
     capacity: eventType.capacity,
+    paymentEnabled: eventType.paymentEnabled,
+    priceCents: eventType.priceCents,
+    paymentCurrency: eventType.paymentCurrency,
     hosts: hosts.map(host => ({ name: host.name, avatarUrl: host.avatarUrl }))
   }
 })

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { apiErrorMessage, bookingsApi, type BookingDetail } from '~/services/schedra-api'
+import { formatMoney } from '#shared/payments'
 
 definePageMeta({ layout: 'bare' })
 
@@ -30,6 +31,7 @@ const cancelError = ref('')
 
 const cancelled = computed(() => booking.value?.status === 'cancelled')
 const pendingApproval = computed(() => booking.value?.status === 'pending')
+const awaitingPayment = computed(() => booking.value?.status === 'awaiting_payment')
 const rejected = computed(() => booking.value?.status === 'rejected')
 const past = computed(() => booking.value ? new Date(booking.value.endsAt) < new Date() : false)
 const joinUrl = computed(() => booking.value?.status === 'confirmed'
@@ -59,10 +61,15 @@ async function cancel() {
   cancelError.value = ''
 
   try {
-    await bookingsApi.cancel(uid, reason.value || undefined)
+    const result = await bookingsApi.cancel(uid, reason.value || undefined) as { refundPending?: boolean }
     confirming.value = false
     await refresh()
-    feedback.success({ title: 'Booking cancelled', description: 'The host and guest will receive an updated confirmation.' })
+    feedback.success({
+      title: 'Booking cancelled',
+      description: result.refundPending
+        ? 'Your refund has started. Your bank will post it after processing.'
+        : 'The host and guest will receive an updated confirmation.'
+    })
   } catch (failure) {
     cancelError.value = apiErrorMessage(failure, 'Could not cancel that just now. Please try again.')
   } finally {
@@ -181,7 +188,7 @@ useSeoMeta({
               class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
               :class="cancelled || rejected
                 ? 'bg-elevated text-muted'
-                : pendingApproval
+                : pendingApproval || awaitingPayment
                   ? 'bg-warning/10 text-warning'
                   : past
                     ? 'bg-elevated text-muted'
@@ -189,9 +196,9 @@ useSeoMeta({
             >
               <span
                 class="size-1.5 rounded-full"
-                :class="cancelled || rejected || past ? 'bg-dimmed' : pendingApproval ? 'bg-warning' : 'bg-primary'"
+                :class="cancelled || rejected || past ? 'bg-dimmed' : pendingApproval || awaitingPayment ? 'bg-warning' : 'bg-primary'"
               />
-              {{ cancelled ? 'Cancelled' : rejected ? 'Declined' : pendingApproval ? 'Awaiting approval' : past ? 'Finished' : 'Confirmed' }}
+              {{ cancelled ? 'Cancelled' : rejected ? 'Declined' : awaitingPayment ? 'Awaiting payment' : pendingApproval ? 'Awaiting approval' : past ? 'Finished' : 'Confirmed' }}
             </span>
 
             <h1 class="mt-4 font-editorial text-3xl leading-tight text-highlighted">
@@ -202,6 +209,19 @@ useSeoMeta({
             </p>
 
             <dl class="mt-6 space-y-3 text-[15px]">
+              <div
+                v-if="booking?.payment"
+                class="flex items-start gap-3"
+              >
+                <UIcon
+                  name="i-lucide-credit-card"
+                  class="mt-0.5 size-4 shrink-0 text-dimmed"
+                />
+                <dd class="text-toned">
+                  {{ formatMoney(booking.payment.amountCents, booking.payment.currency) }}
+                  <span class="ml-1 text-[13px] text-muted">· {{ booking.payment.status.replace('_', ' ') }}</span>
+                </dd>
+              </div>
               <div class="flex items-start gap-3">
                 <UIcon
                   name="i-lucide-calendar"
@@ -325,7 +345,28 @@ useSeoMeta({
           >
             <template v-if="!confirming">
               <div
-                v-if="pendingApproval && booking?.canHostManage"
+                v-if="awaitingPayment"
+                class="mb-4 rounded-xl border border-warning/30 bg-warning/5 p-4"
+              >
+                <p class="text-[14px] font-semibold text-highlighted">
+                  Finish payment to confirm this time
+                </p>
+                <p class="mt-1 text-[13px] text-muted">
+                  The slot is temporarily held. No calendar event is created until payment succeeds.
+                </p>
+                <UButton
+                  v-if="booking?.payment?.checkoutUrl"
+                  :to="booking.payment.checkoutUrl"
+                  external
+                  size="lg"
+                  icon="i-lucide-lock-keyhole"
+                  class="mt-4"
+                >
+                  Continue secure checkout
+                </UButton>
+              </div>
+              <div
+                v-else-if="pendingApproval && booking?.canHostManage"
                 class="mb-4 rounded-xl border border-warning/30 bg-warning/5 p-4"
               >
                 <p class="text-[14px] font-semibold text-highlighted">
@@ -359,7 +400,7 @@ useSeoMeta({
               </p>
               <div class="mb-3 grid gap-3 sm:grid-cols-2">
                 <UButton
-                  v-if="joinUrl && !pendingApproval"
+                  v-if="joinUrl && !pendingApproval && !awaitingPayment"
                   :to="joinUrl"
                   target="_blank"
                   rel="noopener noreferrer"
@@ -370,7 +411,7 @@ useSeoMeta({
                   Join {{ booking?.locationType === 'google_meet' ? 'Google Meet' : booking?.locationType === 'microsoft_teams' ? 'Microsoft Teams' : booking?.locationType === 'zoom' ? 'Zoom' : 'meeting' }}
                 </UButton>
                 <UButton
-                  v-if="!pendingApproval"
+                  v-if="!pendingApproval && !awaitingPayment"
                   :to="`/api/booking/${uid}/calendar.ics`"
                   external
                   color="neutral"
@@ -384,7 +425,7 @@ useSeoMeta({
               </div>
               <div class="flex flex-col gap-3 sm:flex-row">
                 <UButton
-                  v-if="!pendingApproval"
+                  v-if="!pendingApproval && !awaitingPayment"
                   :to="`${booking?.bookingPath}?reschedule=${encodeURIComponent(uid)}`"
                   size="lg"
                   class="justify-center rounded-full font-medium sm:flex-1"

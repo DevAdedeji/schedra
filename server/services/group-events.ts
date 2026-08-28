@@ -19,7 +19,7 @@ export function isGroupSessionFullError(error: unknown) {
 }
 
 function activeSeatCondition() {
-  return inArray(bookings.status, ['pending', 'confirmed'])
+  return inArray(bookings.status, ['awaiting_payment', 'pending', 'confirmed'])
 }
 
 export async function groupSessionCapacity(

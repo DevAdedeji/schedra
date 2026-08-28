@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { paymentCurrencySchema } from './payments'
 
 export const RESERVED_USERNAMES = new Set([
   'admin', 'api', 'app', 'auth', 'billing', 'blog', 'dashboard', 'designs',
@@ -281,6 +282,9 @@ const eventTypeBaseSchema = z.object({
   bookingQuestions: z.array(bookingQuestionSchema).max(10, 'An event type can have at most 10 questions.').default([]),
   requiresConfirmation: z.boolean().default(false),
   capacity: z.number().int().min(1, 'Capacity must be at least 1.').max(500, 'Capacity cannot exceed 500.').default(1),
+  paymentEnabled: z.boolean().default(false),
+  priceCents: z.number().int().min(100, 'Price must be at least 1.00.').max(100_000_000).nullable().default(null),
+  paymentCurrency: paymentCurrencySchema.default('USD'),
   scheduleId: z.uuid().optional(),
   hidden: z.boolean()
 })
@@ -289,10 +293,26 @@ interface EventTypeShape {
   bookingQuestions: BookingQuestion[]
   locationType: MeetingLocationType
   locationDetails: string
+  paymentEnabled: boolean
+  priceCents: number | null
+  requiresConfirmation: boolean
 }
 
 /** Shared by personal and team event types, which differ only in who hosts. */
 function refineEventType(value: EventTypeShape, context: z.RefinementCtx) {
+  if (value.paymentEnabled && value.priceCents === null) {
+    context.addIssue({ code: 'custom', path: ['priceCents'], message: 'Add a price for this booking.' })
+  }
+  if (!value.paymentEnabled && value.priceCents !== null) {
+    context.addIssue({ code: 'custom', path: ['priceCents'], message: 'Turn payments on before setting a price.' })
+  }
+  if (value.paymentEnabled && value.requiresConfirmation) {
+    context.addIssue({
+      code: 'custom',
+      path: ['requiresConfirmation'],
+      message: 'Paid bookings are confirmed after payment, so host approval cannot also be required.'
+    })
+  }
   const questionIds = value.bookingQuestions.map(question => question.id)
   if (new Set(questionIds).size !== questionIds.length) {
     context.addIssue({

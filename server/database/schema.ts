@@ -495,6 +495,12 @@ export const eventTypes = pgTable('event_types', {
   // A capacity above one turns a slot into a group session. Each guest keeps a
   // private booking capability while the host receives one shared meeting.
   capacity: integer('capacity').notNull().default(1),
+  // Money is always stored in the currency's minor unit. A paid event uses a
+  // fixed price for the reservation (not per invited guest), which keeps the
+  // amount the guest sees identical to the amount sent to the provider.
+  paymentEnabled: boolean('payment_enabled').notNull().default(false),
+  priceCents: integer('price_cents'),
+  paymentCurrency: text('payment_currency').notNull().default('USD'),
 
   // Personal event types always have exactly one host, so 'single' is both the
   // default and the only mode that applies when organizationId is null.
@@ -532,7 +538,12 @@ export const eventTypes = pgTable('event_types', {
     'event_types_max_per_day_positive',
     sql`${table.maxPerDay} is null or ${table.maxPerDay} > 0`
   ),
-  check('event_types_capacity_range', sql`${table.capacity} between 1 and 500`)
+  check('event_types_capacity_range', sql`${table.capacity} between 1 and 500`),
+  check(
+    'event_types_payment_configuration_valid',
+    sql`(${table.paymentEnabled} = false and ${table.priceCents} is null) or (${table.paymentEnabled} = true and ${table.priceCents} >= 100 and ${table.requiresConfirmation} = false)`
+  ),
+  check('event_types_payment_currency_allowed', sql`${table.paymentCurrency} in ('USD', 'NGN')`)
 ])
 
 /**
@@ -567,10 +578,41 @@ export const eventTypeHosts = pgTable('event_type_hosts', {
 ])
 
 export const bookingStatus = pgEnum('booking_status', [
+  'awaiting_payment',
   'pending',
   'confirmed',
   'cancelled',
   'rejected'
+])
+
+/**
+ * The person or team that receives paid-booking proceeds. Bachs Connect keeps
+ * seller funds separate from Schedra's own balance and hosts the compliance
+ * flow, so Schedra never stores identity documents or bank details.
+ */
+export const paymentRecipients = pgTable('payment_recipients', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  organizationId: uuid('organization_id').references(() => organizations.id, { onDelete: 'cascade' }),
+  bachsAccountId: text('bachs_account_id'),
+  status: text('status').notNull().default('not_started'),
+  capabilities: jsonb('capabilities').$type<Record<string, { status?: string }>>().notNull().default(sql`'{}'::jsonb`),
+  requirements: jsonb('requirements').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+  lastError: text('last_error'),
+  lastCheckedAt: timestamp('last_checked_at', { withTimezone: true }),
+  ...timestamps
+}, table => [
+  uniqueIndex('payment_recipients_user_key').on(table.userId).where(sql`${table.userId} is not null`),
+  uniqueIndex('payment_recipients_organization_key').on(table.organizationId).where(sql`${table.organizationId} is not null`),
+  uniqueIndex('payment_recipients_bachs_account_key').on(table.bachsAccountId).where(sql`${table.bachsAccountId} is not null`),
+  check(
+    'payment_recipients_exactly_one_owner',
+    sql`(${table.userId} is null) <> (${table.organizationId} is null)`
+  ),
+  check(
+    'payment_recipients_status_allowed',
+    sql`${table.status} in ('not_started', 'onboarding', 'pending_review', 'active', 'restricted', 'disabled')`
+  )
 ])
 
 /**
@@ -628,6 +670,46 @@ export const bookings = pgTable('bookings', {
   index('bookings_event_type_id_idx').on(table.eventTypeId),
   index('bookings_group_session_status_idx').on(table.groupSessionId, table.status),
   check('bookings_ends_after_starts', sql`${table.endsAt} > ${table.startsAt}`)
+])
+
+/**
+ * One immutable price snapshot and one provider checkout per booking. Provider
+ * IDs are unique so webhook retries and redirect reconciliation converge on a
+ * single row instead of fulfilling a reservation twice.
+ */
+export const bookingPayments = pgTable('booking_payments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  bookingId: uuid('booking_id').notNull().references(() => bookings.id, { onDelete: 'restrict' }),
+  recipientId: uuid('recipient_id').notNull().references(() => paymentRecipients.id, { onDelete: 'restrict' }),
+  reference: text('reference').notNull(),
+  status: text('status').notNull().default('pending'),
+  amountCents: integer('amount_cents').notNull(),
+  currency: text('currency').notNull(),
+  platformFeeCents: integer('platform_fee_cents').notNull(),
+  bachsCheckoutId: text('bachs_checkout_id'),
+  bachsChargeId: text('bachs_charge_id'),
+  checkoutUrl: text('checkout_url'),
+  checkoutExpiresAt: timestamp('checkout_expires_at', { withTimezone: true }),
+  paidAt: timestamp('paid_at', { withTimezone: true }),
+  refundedAt: timestamp('refunded_at', { withTimezone: true }),
+  lastError: text('last_error'),
+  ...timestamps
+}, table => [
+  uniqueIndex('booking_payments_booking_key').on(table.bookingId),
+  uniqueIndex('booking_payments_reference_key').on(table.reference),
+  uniqueIndex('booking_payments_checkout_key').on(table.bachsCheckoutId).where(sql`${table.bachsCheckoutId} is not null`),
+  uniqueIndex('booking_payments_charge_key').on(table.bachsChargeId).where(sql`${table.bachsChargeId} is not null`),
+  index('booking_payments_status_expiry_idx').on(table.status, table.checkoutExpiresAt),
+  check(
+    'booking_payments_status_allowed',
+    sql`${table.status} in ('pending', 'paid', 'failed', 'expired', 'refund_pending', 'refunded', 'refund_failed')`
+  ),
+  check('booking_payments_amount_positive', sql`${table.amountCents} >= 100`),
+  check(
+    'booking_payments_platform_fee_valid',
+    sql`${table.platformFeeCents} > 0 and ${table.platformFeeCents} < ${table.amountCents}`
+  ),
+  check('booking_payments_currency_allowed', sql`${table.currency} in ('USD', 'NGN')`)
 ])
 
 /**
