@@ -101,6 +101,7 @@ async function create() {
 <template>
   <UModal
     v-model:open="isOpen"
+    :dismissible="false"
     title="Create a team"
     description="Share booking links your whole team can host."
     :ui="{ content: 'w-full max-w-lg', footer: 'border-t border-default px-5 py-4 sm:px-6' }"

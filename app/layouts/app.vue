@@ -36,6 +36,7 @@ const trialNotice = computed(() => {
 
 const personalLinks = computed(() => [
   { label: 'Overview', to: '/dashboard', icon: 'i-lucide-layout-dashboard' },
+  { label: 'Analytics', to: '/analytics', icon: 'i-lucide-chart-no-axes-combined' },
   { label: 'Event types', to: '/event-types', icon: 'i-lucide-link-2' },
   { label: 'Bookings', to: '/bookings', icon: 'i-lucide-calendar-days' },
   { label: 'Availability', to: '/availability', icon: 'i-lucide-clock' },
@@ -50,6 +51,7 @@ const personalLinks = computed(() => [
 
 const links = computed(() => (teamSlug.value
   ? [
+      { label: 'Analytics', to: `/t/${teamSlug.value}/analytics`, icon: 'i-lucide-chart-no-axes-combined' },
       { label: 'Event types', to: `/t/${teamSlug.value}/event-types`, icon: 'i-lucide-link-2' },
       { label: 'Bookings', to: `/t/${teamSlug.value}/bookings`, icon: 'i-lucide-calendar-days' },
       { label: 'Workflows', to: `/t/${teamSlug.value}/workflows`, icon: 'i-lucide-workflow' },
@@ -96,6 +98,13 @@ const menu = computed(() => [
 // On mobile every destination lives in this one menu — nothing hides behind a
 // second control.
 const creatingTeam = ref(false)
+const accountMenuOpen = ref(false)
+const mobileMenuOpen = ref(false)
+
+watch(() => route.fullPath, () => {
+  accountMenuOpen.value = false
+  mobileMenuOpen.value = false
+})
 
 const mobileMenu = computed(() => [
   menu.value[0]!,
@@ -204,9 +213,11 @@ const mobileMenuUi = {
         </NuxtLink>
 
         <UDropdownMenu
+          v-model:open="accountMenuOpen"
           :items="menu"
           :ui="menuUi"
           :external-icon="false"
+          :modal="false"
           :content="{ side: 'top', align: 'start' }"
         >
           <button
@@ -253,9 +264,11 @@ const mobileMenuUi = {
           <SchedraMark />
         </NuxtLink>
         <UDropdownMenu
+          v-model:open="mobileMenuOpen"
           :items="mobileMenu"
           :ui="mobileMenuUi"
           :external-icon="false"
+          :modal="false"
           :content="{ align: 'end', side: 'bottom', sideOffset: 8 }"
         >
           <button

@@ -298,6 +298,7 @@ async function remove() {
 
     <UModal
       v-model:open="modalOpen"
+      :dismissible="false"
       :title="editingId ? 'Edit routing form' : 'New routing form'"
       description="Ask only what you need. The first matching route wins; everyone else uses your fallback."
       :ui="{ content: 'w-full max-w-3xl', footer: 'border-t border-default px-5 py-4 sm:px-6' }"
@@ -506,7 +507,7 @@ async function remove() {
             </article>
           </section>
 
-          <section class="grid gap-4 rounded-xl border border-default bg-muted/30 p-4 sm:grid-cols-[1fr_auto] sm:items-end">
+          <section class="grid gap-4 rounded-xl border border-default bg-muted/30 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
             <UFormField
               label="Fallback event type"
               required
@@ -523,7 +524,7 @@ async function remove() {
             <UCheckbox
               v-model="form.active"
               label="Public link is active"
-              class="pb-2.5"
+              class="sm:mt-7"
             />
           </section>
 

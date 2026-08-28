@@ -1,12 +1,5 @@
 <script setup lang="ts">
-const features = [
-  ['Book from anywhere', 'Share a memorable link or open the same booking flow over your own website without redirecting visitors.'],
-  ['Timezones sorted', 'Schedra detects each guest’s timezone and lets them change it. Every slot is recalculated for that view.'],
-  ['Your calendars protected', 'Google and Microsoft calendars block busy times, receive bookings and stay current after a change.'],
-  ['A room created for you', 'Create a private Google Meet, Microsoft Teams or Zoom link automatically for each confirmed booking.'],
-  ['Schedule alone or together', 'Keep your personal page private, then add round-robin or collective event types in a shared team workspace.'],
-  ['Reliable when services wobble', 'Race-safe confirmation, durable email delivery and calendar retries protect every booking workflow.']
-]
+import { landingFeatureHighlights as features } from '~/data/product-features'
 </script>
 
 <template>
@@ -24,9 +17,18 @@ const features = [
             Everything you need. Nothing you don't.
           </h2>
           <p class="mt-6 max-w-[38ch] text-[16px] leading-relaxed text-muted">
-            Personal and team scheduling, calendar and video integrations, and
-            a booking flow that works on your page or inside your website.
+            Start with scheduling, then add routing, automation, analytics or
+            payments when the experience calls for them.
           </p>
+          <UButton
+            to="/features"
+            color="neutral"
+            variant="outline"
+            trailing-icon="i-lucide-arrow-right"
+            class="mt-7 rounded-full font-medium"
+          >
+            Explore every feature
+          </UButton>
         </div>
 
         <dl class="divide-y divide-default border-y border-default">

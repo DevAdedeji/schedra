@@ -57,10 +57,21 @@ const comparison: { group: string, rows: ComparisonRow[] }[] = [
       { label: 'Buffers, notice and daily limits', free: true, team: true },
       { label: 'Custom booking questions', free: true, team: true },
       { label: 'Booking approvals', free: true, team: true },
+      { label: 'Group events with capacity', free: true, team: true },
       { label: 'Additional guests on a booking', free: true, team: true },
       { label: 'Reminder emails', free: true, team: true },
       { label: 'Cancel and reschedule links', free: true, team: true },
       { label: 'Export your data', free: true, team: true }
+    ]
+  },
+  {
+    group: 'Automation and insights',
+    rows: [
+      { label: 'Email and webhook workflows', free: true, team: true },
+      { label: 'Routing forms', free: true, team: true },
+      { label: 'Booking analytics', free: true, team: true },
+      { label: 'Paid bookings', free: true, team: true },
+      { label: 'Payment and settlement activity', free: true, team: true }
     ]
   },
   {

@@ -11,6 +11,7 @@ import { createCheckoutSession, createRefund } from '../integrations/bachs'
 import { toDecimalString } from '#shared/billing'
 import { useEnv } from '../config/env'
 import { assignedHostsForBooking, findBookingByUid } from '../repositories/booking'
+import { appendPaymentLedgerEntry } from '../repositories/payment-ledger'
 import { bookingNoticeFromManaged, queueBookingEmails } from './booking-emails'
 import { enqueueCalendarSync } from './calendar-sync'
 import { publishBookingEvent } from './workflows'
@@ -62,6 +63,17 @@ export async function createPaymentRecord(input: {
     reference: input.reference
   }).returning()
   if (!payment) throw new Error('Payment reservation could not be created.')
+  await appendPaymentLedgerEntry({
+    bookingPaymentId: payment.id,
+    dedupeKey: `payment:${payment.id}:created`,
+    kind: 'checkout',
+    direction: 'none',
+    status: 'pending',
+    amountCents: payment.amountCents,
+    currency: payment.currency as 'USD' | 'NGN',
+    message: 'Payment reservation created.',
+    metadata: { platformFeeCents: payment.platformFeeCents }
+  }, executor)
   return payment
 }
 
@@ -118,20 +130,47 @@ export async function openPaidBookingCheckout(uid: string) {
       expiresInMinutes: 60
     })
     const expiresAt = session.expires_at ? new Date(session.expires_at) : new Date(Date.now() + 60 * 60_000)
-    await useDatabase().update(bookingPayments).set({
-      bachsCheckoutId: session.checkout_id,
-      checkoutUrl: session.checkout_url,
-      checkoutExpiresAt: expiresAt,
-      lastError: null,
-      updatedAt: new Date()
-    }).where(eq(bookingPayments.id, payment.id))
+    await useDatabase().transaction(async (tx) => {
+      await tx.update(bookingPayments).set({
+        bachsCheckoutId: session.checkout_id,
+        checkoutUrl: session.checkout_url,
+        checkoutExpiresAt: expiresAt,
+        lastError: null,
+        updatedAt: new Date()
+      }).where(eq(bookingPayments.id, payment.id))
+      await appendPaymentLedgerEntry({
+        bookingPaymentId: payment.id,
+        dedupeKey: `payment:${payment.id}:checkout:${session.checkout_id}`,
+        kind: 'checkout',
+        direction: 'none',
+        status: 'pending',
+        amountCents: payment.amountCents,
+        currency: payment.currency as 'USD' | 'NGN',
+        providerObjectId: session.checkout_id,
+        message: 'Secure checkout opened.',
+        metadata: { expiresAt: expiresAt.toISOString() }
+      }, tx)
+    })
     return { checkoutUrl: session.checkout_url, expiresAt: expiresAt.toISOString() }
   } catch (error) {
-    await useDatabase().update(bookingPayments).set({
-      status: 'failed',
-      lastError: error instanceof Error ? error.message.slice(0, 1000) : 'Checkout creation failed.',
-      updatedAt: new Date()
-    }).where(eq(bookingPayments.id, payment.id))
+    const message = error instanceof Error ? error.message.slice(0, 1000) : 'Checkout creation failed.'
+    await useDatabase().transaction(async (tx) => {
+      await tx.update(bookingPayments).set({
+        status: 'failed',
+        lastError: message,
+        updatedAt: new Date()
+      }).where(eq(bookingPayments.id, payment.id))
+      await appendPaymentLedgerEntry({
+        bookingPaymentId: payment.id,
+        dedupeKey: `payment:${payment.id}:checkout-failed`,
+        kind: 'checkout',
+        direction: 'none',
+        status: 'failed',
+        amountCents: payment.amountCents,
+        currency: payment.currency as 'USD' | 'NGN',
+        message
+      }, tx)
+    })
     await cancelUnpaidBooking(booking.id, 'Payment checkout could not be started.')
     throw createError({
       statusCode: 503,
@@ -153,8 +192,13 @@ export async function completePaidBooking(input: {
   checkoutId: string
   chargeId?: string | null
   amount?: string | null
+  amountPaidCents?: number | null
+  amountCollectedCents?: number | null
+  providerFeeCents?: number | null
+  paymentMethod?: string | null
   currency?: string | null
   paymentStatus?: string | null
+  providerEventId?: string | null
 }) {
   const [payment] = await useDatabase().select().from(bookingPayments)
     .where(eq(bookingPayments.bachsCheckoutId, input.checkoutId)).limit(1)
@@ -182,13 +226,16 @@ export async function completePaidBooking(input: {
   // the normal idempotent refund path.
   if (currentBooking.status === 'cancelled' || ['failed', 'expired'].includes(payment.status)) {
     if (!input.chargeId) throw new Error('A late paid booking did not include a refundable charge id.')
-    await useDatabase().update(bookingPayments).set({
-      status: 'paid',
-      bachsChargeId: input.chargeId,
-      paidAt: new Date(),
-      lastError: null,
-      updatedAt: new Date()
-    }).where(eq(bookingPayments.id, payment.id))
+    await useDatabase().transaction(async (tx) => {
+      await tx.update(bookingPayments).set({
+        status: 'paid',
+        bachsChargeId: input.chargeId,
+        paidAt: new Date(),
+        lastError: null,
+        updatedAt: new Date()
+      }).where(eq(bookingPayments.id, payment.id))
+      await recordSuccessfulPaymentEntries(payment, input, tx)
+    })
     await requestPaidBookingRefund(payment.bookingId, 'The booking hold was cancelled before payment settled.')
     return { matched: true, applied: true, reason: 'late-payment-refund-started' }
   }
@@ -209,6 +256,8 @@ export async function completePaidBooking(input: {
       eq(bookingPayments.status, 'pending')
     )).returning({ bookingId: bookingPayments.bookingId })
     if (!updated) return false
+
+    await recordSuccessfulPaymentEntries(payment, input, tx)
 
     const [confirmed] = await tx.update(bookings).set({
       status: 'confirmed',
@@ -235,29 +284,116 @@ export async function completePaidBooking(input: {
   return { matched: true, applied }
 }
 
-export async function failPaidBooking(checkoutId: string, reason: string) {
-  const [payment] = await useDatabase().update(bookingPayments).set({
-    status: reason.includes('expired') ? 'expired' : 'failed',
-    lastError: reason,
-    updatedAt: new Date()
-  }).where(and(
-    eq(bookingPayments.bachsCheckoutId, checkoutId),
-    eq(bookingPayments.status, 'pending')
-  )).returning({ bookingId: bookingPayments.bookingId })
+export async function failPaidBooking(checkoutId: string, reason: string, providerEventId?: string | null) {
+  const payment = await useDatabase().transaction(async (tx) => {
+    const [updated] = await tx.update(bookingPayments).set({
+      status: reason.includes('expired') ? 'expired' : 'failed',
+      lastError: reason,
+      updatedAt: new Date()
+    }).where(and(
+      eq(bookingPayments.bachsCheckoutId, checkoutId),
+      eq(bookingPayments.status, 'pending')
+    )).returning({
+      id: bookingPayments.id,
+      bookingId: bookingPayments.bookingId,
+      amountCents: bookingPayments.amountCents,
+      currency: bookingPayments.currency
+    })
+    if (!updated) return null
+    await appendPaymentLedgerEntry({
+      bookingPaymentId: updated.id,
+      dedupeKey: `payment:${updated.id}:failed:${providerEventId ?? checkoutId}`,
+      kind: 'customer_payment',
+      direction: 'in',
+      status: reason.includes('expired') ? 'expired' : 'failed',
+      amountCents: updated.amountCents,
+      currency: updated.currency as 'USD' | 'NGN',
+      providerEventId,
+      providerObjectId: checkoutId,
+      message: reason
+    }, tx)
+    return updated
+  })
   if (!payment) return false
   await cancelUnpaidBooking(payment.bookingId, 'Payment was not completed before the hold expired.')
   return true
 }
 
+/**
+ * Preserve provider lifecycle states that do not confirm or fail a booking.
+ * These entries are operational evidence only: ambiguous states such as
+ * UNDERPAID and OVERPAID never unlock a calendar slot by themselves.
+ */
+export async function recordPaidBookingProviderObservation(input: {
+  checkoutId: string
+  providerEventId?: string | null
+  providerStatus?: string | null
+  eventType: string
+  amountPaidCents?: number | null
+  amountRemainingCents?: number | null
+}) {
+  const [payment] = await useDatabase().select().from(bookingPayments)
+    .where(eq(bookingPayments.bachsCheckoutId, input.checkoutId)).limit(1)
+  if (!payment) return false
+  const providerStatus = input.providerStatus?.toLowerCase() ?? 'unknown'
+  const status = providerStatus === 'expired'
+    ? 'expired'
+    : ['failed', 'cancelled', 'underpaid'].includes(providerStatus)
+        ? 'failed'
+        : ['succeeded', 'accepted'].includes(providerStatus)
+            ? 'succeeded'
+            : 'pending'
+  await appendPaymentLedgerEntry({
+    bookingPaymentId: payment.id,
+    dedupeKey: `payment:${payment.id}:provider-observation:${input.providerEventId ?? `${input.eventType}:${providerStatus}`}`,
+    kind: 'customer_payment',
+    direction: 'in',
+    status,
+    amountCents: input.amountPaidCents,
+    currency: payment.currency as 'USD' | 'NGN',
+    providerEventId: input.providerEventId,
+    providerObjectId: input.checkoutId,
+    message: `Bachs reported ${providerStatus === 'unknown' ? input.eventType : providerStatus}.`,
+    metadata: {
+      providerStatus,
+      eventType: input.eventType,
+      amountRemainingCents: input.amountRemainingCents ?? null
+    }
+  })
+  return true
+}
+
 export async function expirePaidBookingHolds() {
-  const expired = await useDatabase().update(bookingPayments).set({
-    status: 'expired',
-    lastError: 'Checkout expired before payment completed.',
-    updatedAt: new Date()
-  }).where(and(
-    eq(bookingPayments.status, 'pending'),
-    lte(bookingPayments.checkoutExpiresAt, new Date())
-  )).returning({ bookingId: bookingPayments.bookingId })
+  const expired = await useDatabase().transaction(async (tx) => {
+    const rows = await tx.update(bookingPayments).set({
+      status: 'expired',
+      lastError: 'Checkout expired before payment completed.',
+      updatedAt: new Date()
+    }).where(and(
+      eq(bookingPayments.status, 'pending'),
+      lte(bookingPayments.checkoutExpiresAt, new Date())
+    )).returning({
+      id: bookingPayments.id,
+      bookingId: bookingPayments.bookingId,
+      amountCents: bookingPayments.amountCents,
+      currency: bookingPayments.currency,
+      checkoutId: bookingPayments.bachsCheckoutId
+    })
+    for (const payment of rows) {
+      await appendPaymentLedgerEntry({
+        bookingPaymentId: payment.id,
+        dedupeKey: `payment:${payment.id}:expired`,
+        kind: 'customer_payment',
+        direction: 'in',
+        status: 'expired',
+        amountCents: payment.amountCents,
+        currency: payment.currency as 'USD' | 'NGN',
+        providerObjectId: payment.checkoutId,
+        message: 'Checkout expired before payment completed.'
+      }, tx)
+    }
+    return rows
+  })
   if (expired.length) {
     await useDatabase().update(bookings).set({
       status: 'cancelled',
@@ -276,38 +412,174 @@ export async function requestPaidBookingRefund(bookingId: string, reason: string
   if (!payment || !['paid', 'refund_failed'].includes(payment.status)) return { required: false as const }
   if (!payment.bachsChargeId) throw createError({ statusCode: 409, statusMessage: 'This payment is still settling. Try cancelling again shortly.' })
   const reference = `booking-refund-${payment.id}`
-  const [claimed] = await useDatabase().update(bookingPayments).set({
-    status: 'refund_pending',
-    lastError: null,
-    updatedAt: new Date()
-  }).where(and(
-    eq(bookingPayments.id, payment.id),
-    inArray(bookingPayments.status, ['paid', 'refund_failed'])
-  )).returning({ id: bookingPayments.id })
+  const claimed = await useDatabase().transaction(async (tx) => {
+    const [updated] = await tx.update(bookingPayments).set({
+      status: 'refund_pending',
+      lastError: null,
+      updatedAt: new Date()
+    }).where(and(
+      eq(bookingPayments.id, payment.id),
+      inArray(bookingPayments.status, ['paid', 'refund_failed'])
+    )).returning({
+      id: bookingPayments.id,
+      amountCents: bookingPayments.amountCents,
+      currency: bookingPayments.currency
+    })
+    if (!updated) return null
+    await appendPaymentLedgerEntry({
+      bookingPaymentId: payment.id,
+      dedupeKey: `payment:${payment.id}:refund-requested`,
+      kind: 'refund',
+      direction: 'out',
+      status: 'pending',
+      amountCents: updated.amountCents,
+      currency: updated.currency as 'USD' | 'NGN',
+      providerObjectId: payment.bachsChargeId,
+      message: reason
+    }, tx)
+    return updated
+  })
   if (!claimed) return { required: true as const }
   try {
     await createRefund({ chargeId: payment.bachsChargeId, reference, reason })
   } catch (error) {
-    await useDatabase().update(bookingPayments).set({
-      status: 'refund_failed',
-      lastError: error instanceof Error ? error.message.slice(0, 1000) : 'Refund request failed.',
-      updatedAt: new Date()
-    }).where(eq(bookingPayments.id, payment.id))
+    const message = error instanceof Error ? error.message.slice(0, 1000) : 'Refund request failed.'
+    await useDatabase().transaction(async (tx) => {
+      await tx.update(bookingPayments).set({
+        status: 'refund_failed',
+        lastError: message,
+        updatedAt: new Date()
+      }).where(eq(bookingPayments.id, payment.id))
+      await appendPaymentLedgerEntry({
+        bookingPaymentId: payment.id,
+        dedupeKey: `payment:${payment.id}:refund-request-failed`,
+        kind: 'refund',
+        direction: 'out',
+        status: 'failed',
+        amountCents: payment.amountCents,
+        currency: payment.currency as 'USD' | 'NGN',
+        providerObjectId: payment.bachsChargeId,
+        message
+      }, tx)
+    })
     throw error
   }
   return { required: true as const }
 }
 
-export async function applyRefundEvent(input: { reference?: string | null, status: 'paid' | 'failed' }) {
+export async function applyRefundEvent(input: {
+  reference?: string | null
+  status: 'paid' | 'failed'
+  providerEventId?: string | null
+  refundId?: string | null
+}) {
   if (!input.reference?.startsWith('booking-refund-')) return false
   const id = input.reference.slice('booking-refund-'.length)
-  const [updated] = await useDatabase().update(bookingPayments).set({
-    status: input.status === 'paid' ? 'refunded' : 'refund_failed',
-    refundedAt: input.status === 'paid' ? new Date() : null,
-    lastError: input.status === 'failed' ? 'Bachs could not complete the refund.' : null,
-    updatedAt: new Date()
-  }).where(eq(bookingPayments.id, id)).returning({ id: bookingPayments.id })
+  const updated = await useDatabase().transaction(async (tx) => {
+    const [payment] = await tx.update(bookingPayments).set({
+      status: input.status === 'paid' ? 'refunded' : 'refund_failed',
+      refundedAt: input.status === 'paid' ? new Date() : null,
+      lastError: input.status === 'failed' ? 'Bachs could not complete the refund.' : null,
+      updatedAt: new Date()
+    }).where(eq(bookingPayments.id, id)).returning({
+      id: bookingPayments.id,
+      amountCents: bookingPayments.amountCents,
+      currency: bookingPayments.currency,
+      chargeId: bookingPayments.bachsChargeId
+    })
+    if (!payment) return null
+    await appendPaymentLedgerEntry({
+      bookingPaymentId: payment.id,
+      dedupeKey: `payment:${payment.id}:refund:${input.providerEventId ?? input.status}`,
+      kind: 'refund',
+      direction: 'out',
+      status: input.status === 'paid' ? 'succeeded' : 'failed',
+      amountCents: payment.amountCents,
+      currency: payment.currency as 'USD' | 'NGN',
+      providerEventId: input.providerEventId,
+      providerObjectId: input.refundId ?? payment.chargeId,
+      message: input.status === 'paid' ? 'Refund completed.' : 'Bachs could not complete the refund.'
+    }, tx)
+    return payment
+  })
   return Boolean(updated)
+}
+
+async function recordSuccessfulPaymentEntries(
+  payment: typeof bookingPayments.$inferSelect,
+  input: {
+    checkoutId: string
+    chargeId?: string | null
+    amountPaidCents?: number | null
+    amountCollectedCents?: number | null
+    providerFeeCents?: number | null
+    paymentMethod?: string | null
+    providerEventId?: string | null
+  },
+  executor: PaymentExecutor
+) {
+  const objectId = input.chargeId ?? input.checkoutId
+  const suffix = input.providerEventId ?? objectId
+  const metadata = {
+    platformFeeCents: payment.platformFeeCents,
+    amountPaidCents: input.amountPaidCents ?? null,
+    amountCollectedCents: input.amountCollectedCents ?? null,
+    providerFeeCents: input.providerFeeCents ?? null,
+    paymentMethod: input.paymentMethod ?? null
+  }
+  await appendPaymentLedgerEntry({
+    bookingPaymentId: payment.id,
+    dedupeKey: `payment:${payment.id}:customer-payment:${suffix}`,
+    kind: 'customer_payment',
+    direction: 'in',
+    status: 'succeeded',
+    amountCents: input.amountPaidCents ?? payment.amountCents,
+    currency: payment.currency as 'USD' | 'NGN',
+    providerEventId: input.providerEventId,
+    providerObjectId: objectId,
+    message: 'Customer payment confirmed.',
+    metadata
+  }, executor)
+  await appendPaymentLedgerEntry({
+    bookingPaymentId: payment.id,
+    dedupeKey: `payment:${payment.id}:platform-fee:${suffix}`,
+    kind: 'platform_fee',
+    direction: 'out',
+    status: 'succeeded',
+    amountCents: payment.platformFeeCents,
+    currency: payment.currency as 'USD' | 'NGN',
+    providerEventId: input.providerEventId,
+    providerObjectId: objectId,
+    message: 'Schedra platform fee recorded.'
+  }, executor)
+  if (input.providerFeeCents != null) {
+    await appendPaymentLedgerEntry({
+      bookingPaymentId: payment.id,
+      dedupeKey: `payment:${payment.id}:processing-fee:${suffix}`,
+      kind: 'processing_fee',
+      direction: 'out',
+      status: 'succeeded',
+      amountCents: input.providerFeeCents,
+      currency: payment.currency as 'USD' | 'NGN',
+      providerEventId: input.providerEventId,
+      providerObjectId: objectId,
+      message: 'Bachs processing fee reported by the provider.'
+    }, executor)
+  }
+  if (input.amountCollectedCents != null) {
+    await appendPaymentLedgerEntry({
+      bookingPaymentId: payment.id,
+      dedupeKey: `payment:${payment.id}:settlement:${suffix}`,
+      kind: 'settlement',
+      direction: 'in',
+      status: 'succeeded',
+      amountCents: input.amountCollectedCents,
+      currency: payment.currency as 'USD' | 'NGN',
+      providerEventId: input.providerEventId,
+      providerObjectId: objectId,
+      message: 'Bachs reported the settled amount after fees.'
+    }, executor)
+  }
 }
 
 export async function eventPaymentReadiness(eventTypeId: string) {

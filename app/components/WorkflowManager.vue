@@ -358,6 +358,7 @@ async function copySecret() {
 
     <UModal
       v-model:open="modalOpen"
+      :dismissible="false"
       :title="editing ? 'Edit workflow' : 'New workflow'"
       description="Choose one clear trigger and one action. Schedra handles delivery and retries."
       :ui="{ content: 'w-full max-w-2xl', footer: 'border-t border-default px-5 py-4 sm:px-6' }"
@@ -381,7 +382,7 @@ async function copySecret() {
             />
           </UFormField>
 
-          <div class="grid gap-4 sm:grid-cols-2">
+          <div class="space-y-4">
             <UFormField
               label="When should it run?"
               required

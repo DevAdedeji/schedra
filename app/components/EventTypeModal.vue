@@ -294,6 +294,7 @@ async function save() {
 <template>
   <UModal
     v-model:open="isOpen"
+    :dismissible="false"
     :title="eventType ? 'Edit event type' : 'New event type'"
     :description="eventType ? 'Update how this meeting works for future bookings.' : 'Create a polished booking experience for your guests.'"
     scrollable

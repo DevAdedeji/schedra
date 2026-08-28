@@ -667,6 +667,9 @@ export const bookings = pgTable('bookings', {
 }, table => [
   uniqueIndex('bookings_uid_key').on(table.uid),
   index('bookings_host_id_starts_at_idx').on(table.hostId, table.startsAt),
+  index('bookings_host_created_at_idx').on(table.hostId, table.createdAt),
+  index('bookings_organization_created_at_idx').on(table.organizationId, table.createdAt)
+    .where(sql`${table.organizationId} is not null`),
   index('bookings_host_status_ends_at_idx').on(table.hostId, table.status, table.endsAt),
   index('bookings_event_type_id_idx').on(table.eventTypeId),
   index('bookings_group_session_status_idx').on(table.groupSessionId, table.status),
@@ -711,6 +714,45 @@ export const bookingPayments = pgTable('booking_payments', {
     sql`${table.platformFeeCents} > 0 and ${table.platformFeeCents} < ${table.amountCents}`
   ),
   check('booking_payments_currency_allowed', sql`${table.currency} in ('USD', 'NGN')`)
+])
+
+/**
+ * Append-only money movement and payment-attempt history. The current state
+ * remains on bookingPayments for fast reads; this ledger explains how that
+ * state was reached and provides the immutable evidence needed for support and
+ * reconciliation. It intentionally excludes card, bank and raw webhook data.
+ */
+export const paymentLedgerEntries = pgTable('payment_ledger_entries', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  bookingPaymentId: uuid('booking_payment_id').notNull().references(() => bookingPayments.id, { onDelete: 'restrict' }),
+  dedupeKey: text('dedupe_key').notNull(),
+  kind: text('kind').notNull(),
+  direction: text('direction').notNull(),
+  status: text('status').notNull(),
+  amountCents: integer('amount_cents'),
+  currency: text('currency').notNull(),
+  provider: text('provider').notNull().default('bachs'),
+  providerEventId: text('provider_event_id'),
+  providerObjectId: text('provider_object_id'),
+  message: text('message'),
+  metadata: jsonb('metadata').$type<Record<string, string | number | boolean | null>>().notNull().default(sql`'{}'::jsonb`),
+  occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+}, table => [
+  uniqueIndex('payment_ledger_entries_dedupe_key').on(table.dedupeKey),
+  index('payment_ledger_entries_payment_occurred_idx').on(table.bookingPaymentId, table.occurredAt),
+  index('payment_ledger_entries_status_occurred_idx').on(table.status, table.occurredAt),
+  index('payment_ledger_entries_provider_event_idx').on(table.provider, table.providerEventId)
+    .where(sql`${table.providerEventId} is not null`),
+  check(
+    'payment_ledger_entries_kind_allowed',
+    sql`${table.kind} in ('checkout', 'customer_payment', 'platform_fee', 'processing_fee', 'settlement', 'refund')`
+  ),
+  check('payment_ledger_entries_direction_allowed', sql`${table.direction} in ('none', 'in', 'out')`),
+  check('payment_ledger_entries_status_allowed', sql`${table.status} in ('pending', 'succeeded', 'failed', 'expired')`),
+  check('payment_ledger_entries_amount_non_negative', sql`${table.amountCents} is null or ${table.amountCents} >= 0`),
+  check('payment_ledger_entries_currency_allowed', sql`${table.currency} in ('USD', 'NGN')`),
+  check('payment_ledger_entries_provider_allowed', sql`${table.provider} = 'bachs'`)
 ])
 
 /**
