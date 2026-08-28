@@ -1,0 +1,2 @@
+CREATE INDEX "bookings_host_created_at_idx" ON "bookings" USING btree ("host_id","created_at");--> statement-breakpoint
+CREATE INDEX "bookings_organization_created_at_idx" ON "bookings" USING btree ("organization_id","created_at") WHERE "bookings"."organization_id" is not null;

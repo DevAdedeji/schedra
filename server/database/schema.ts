@@ -667,6 +667,9 @@ export const bookings = pgTable('bookings', {
 }, table => [
   uniqueIndex('bookings_uid_key').on(table.uid),
   index('bookings_host_id_starts_at_idx').on(table.hostId, table.startsAt),
+  index('bookings_host_created_at_idx').on(table.hostId, table.createdAt),
+  index('bookings_organization_created_at_idx').on(table.organizationId, table.createdAt)
+    .where(sql`${table.organizationId} is not null`),
   index('bookings_host_status_ends_at_idx').on(table.hostId, table.status, table.endsAt),
   index('bookings_event_type_id_idx').on(table.eventTypeId),
   index('bookings_group_session_status_idx').on(table.groupSessionId, table.status),
