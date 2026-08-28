@@ -4,7 +4,7 @@ import { retryOperation } from '../../services/operations'
 import { logEvent } from '../../observability/logger'
 
 const bodySchema = z.object({
-  kind: z.enum(['calendar', 'billing', 'email', 'webhook']),
+  kind: z.enum(['automation', 'calendar', 'billing', 'email', 'webhook']),
   id: z.string().uuid()
 })
 

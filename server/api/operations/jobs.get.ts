@@ -4,7 +4,7 @@ import { requirePlatformAdminSession } from '../../services/session'
 import { operationsJobs } from '../../services/operations'
 
 const querySchema = paginationQuerySchema.pick({ page: true, pageSize: true }).extend({
-  kind: z.enum(['calendar', 'billing', 'email', 'webhook']).default('calendar'),
+  kind: z.enum(['automation', 'calendar', 'billing', 'email', 'webhook']).default('calendar'),
   status: z.enum(['all', 'pending', 'processing', 'completed', 'failed', 'ignored']).default('all')
 })
 

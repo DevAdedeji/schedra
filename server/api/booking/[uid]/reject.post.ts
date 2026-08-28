@@ -5,6 +5,7 @@ import { queueBookingRejectedEmails } from '../../../services/booking-emails'
 import { assignedHostsForBooking, findBookingByUid } from '../../../repositories/booking'
 import { requireAuthSession } from '../../../services/session'
 import { useDatabase } from '../../../database/index'
+import { cancelPendingAutomationRuns, publishBookingEvent } from '../../../services/workflows'
 
 export default defineEventHandler(async (event) => {
   const session = await requireAuthSession(event)
@@ -34,6 +35,13 @@ export default defineEventHandler(async (event) => {
     }).where(and(eq(bookings.id, booking.id), eq(bookings.status, 'pending')))
       .returning({ id: bookings.id })
     if (!rejected) throw createError({ statusCode: 409, statusMessage: 'This request was already handled.' })
+    await cancelPendingAutomationRuns(booking.id, tx)
+    await publishBookingEvent({
+      type: 'booking_rejected',
+      ...(booking.organizationId ? { organizationId: booking.organizationId } : { userId: booking.hostId }),
+      bookingId: booking.id,
+      eventTypeId: booking.eventTypeId
+    }, tx)
     await queueBookingRejectedEmails(booking, parsed.data.reason, tx, hosts)
   })
 

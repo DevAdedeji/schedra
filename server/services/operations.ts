@@ -1,6 +1,8 @@
 import { and, count, desc, eq, sql } from 'drizzle-orm'
 import { paginationMeta } from '#shared/pagination'
 import {
+  automationRuns,
+  automationWorkflows,
   bookings,
   calendarSyncJobs,
   emailOutbox,
@@ -17,7 +19,7 @@ import { processBachsWebhook, type BachsEvent } from './webhooks/bachs'
 import { processZoomWebhook } from './webhooks/zoom'
 import { useEnv } from '../config/env'
 
-export type OperationKind = 'calendar' | 'billing' | 'email' | 'webhook'
+export type OperationKind = 'automation' | 'calendar' | 'billing' | 'email' | 'webhook'
 export type OperationStatus = 'all' | 'pending' | 'processing' | 'completed' | 'failed' | 'ignored'
 
 function maskEmail(value: string) {
@@ -27,7 +29,13 @@ function maskEmail(value: string) {
 
 export async function operationsOverview() {
   const db = useDatabase()
-  const [calendar, billing, email, webhooks, alerts] = await Promise.all([
+  const [automation, calendar, billing, email, webhooks, alerts] = await Promise.all([
+    db.select({
+      pending: sql<number>`count(*) filter (where ${automationRuns.status} = 'pending')`.mapWith(Number),
+      processing: sql<number>`count(*) filter (where ${automationRuns.status} = 'processing')`.mapWith(Number),
+      failed: sql<number>`count(*) filter (where ${automationRuns.status} = 'failed')`.mapWith(Number),
+      stale: sql<number>`count(*) filter (where ${automationRuns.status} in ('pending', 'processing') and ${automationRuns.updatedAt} < now() - interval '15 minutes')`.mapWith(Number)
+    }).from(automationRuns),
     db.select({
       pending: sql<number>`count(*) filter (where ${calendarSyncJobs.status} = 'pending')`.mapWith(Number),
       processing: sql<number>`count(*) filter (where ${calendarSyncJobs.status} = 'processing')`.mapWith(Number),
@@ -61,6 +69,7 @@ export async function operationsOverview() {
 
   return {
     queues: {
+      automation: automation[0] ?? { pending: 0, processing: 0, failed: 0, stale: 0 },
       calendar: calendar[0] ?? { pending: 0, processing: 0, failed: 0, stale: 0 },
       billing: billing[0] ?? { pending: 0, processing: 0, failed: 0, stale: 0 },
       email: email[0] ?? { pending: 0, processing: 0, failed: 0, stale: 0 },
@@ -93,6 +102,36 @@ export async function operationsJobs(input: {
   const db = useDatabase()
   const { kind, status, page, pageSize } = input
   const offset = (page - 1) * pageSize
+
+  if (kind === 'automation') {
+    const where = statusWhere(automationRuns.status, status, {
+      pending: 'pending', processing: 'processing', completed: 'completed', failed: 'failed'
+    })
+    const [[total], rows] = await Promise.all([
+      db.select({ value: count() }).from(automationRuns).where(where),
+      db.select({
+        id: automationRuns.id,
+        status: automationRuns.status,
+        attempts: automationRuns.attempts,
+        availableAt: automationRuns.availableAt,
+        lastError: automationRuns.lastError,
+        createdAt: automationRuns.createdAt,
+        updatedAt: automationRuns.updatedAt,
+        uid: bookings.uid,
+        workflowName: automationWorkflows.name
+      }).from(automationRuns)
+        .innerJoin(automationWorkflows, eq(automationWorkflows.id, automationRuns.workflowId))
+        .innerJoin(bookings, eq(bookings.id, automationRuns.bookingId))
+        .where(where).orderBy(desc(automationRuns.updatedAt)).limit(pageSize).offset(offset)
+    ])
+    return pageResult(rows.map(row => ({
+      ...baseRow(row),
+      kind,
+      provider: 'workflow',
+      label: `${row.workflowName} · ${row.uid}`,
+      retryable: row.status === 'failed'
+    })), total?.value ?? 0, page, pageSize)
+  }
 
   if (kind === 'calendar') {
     const where = statusWhere(calendarSyncJobs.status, status, {
@@ -222,6 +261,14 @@ function pageResult<T>(items: T[], total: number, page: number, pageSize: number
 
 export async function retryOperation(kind: OperationKind, id: string) {
   const db = useDatabase()
+  if (kind === 'automation') {
+    const rows = await db.update(automationRuns).set({
+      status: 'pending', attempts: 0, availableAt: sql`now()`, lockedAt: null,
+      completedAt: null, lastError: null, updatedAt: sql`now()`
+    }).where(and(eq(automationRuns.id, id), eq(automationRuns.status, 'failed')))
+      .returning({ id: automationRuns.id })
+    return Boolean(rows.length)
+  }
   if (kind === 'calendar') {
     const rows = await db.update(calendarSyncJobs).set({
       status: 'pending', attempts: 0, availableAt: sql`now()`, lockedAt: null,

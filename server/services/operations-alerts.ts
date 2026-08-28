@@ -19,9 +19,11 @@ const NOTIFICATION_COOLDOWN_MS = 60 * 60 * 1000
 export async function evaluateOperationsAlerts() {
   const db = useDatabase()
   const overview = await operationsOverview()
-  const { calendar, billing, email, webhook } = overview.queues
+  const { automation, calendar, billing, email, webhook } = overview.queues
   const candidates: AlertCandidate[] = []
 
+  if (automation.failed) candidates.push(candidate('automation-failed', 'workflow_automation', 'warning', `${automation.failed} workflow run${automation.failed === 1 ? '' : 's'} could not be delivered`, { count: automation.failed }))
+  if (automation.stale) candidates.push(candidate('automation-stale', 'workflow_automation', 'warning', `${automation.stale} workflow run${automation.stale === 1 ? ' is' : 's are'} delayed`, { count: automation.stale, thresholdMinutes: 15 }))
   if (calendar.failed) candidates.push(candidate('calendar-failed', 'calendar_sync', 'critical', `${calendar.failed} calendar update${calendar.failed === 1 ? '' : 's'} need attention`, { count: calendar.failed }))
   if (calendar.stale) candidates.push(candidate('calendar-stale', 'calendar_sync', 'warning', `${calendar.stale} calendar update${calendar.stale === 1 ? ' is' : 's are'} delayed`, { count: calendar.stale, thresholdMinutes: 15 }))
   if (billing.failed) candidates.push(candidate('billing-failed', 'seat_billing', 'critical', `${billing.failed} seat billing update${billing.failed === 1 ? '' : 's'} failed`, { count: billing.failed }))

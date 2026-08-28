@@ -6,6 +6,7 @@ import { findPublicEventType, slotsFor } from '../services/booking-page'
 import { findBookingByUid } from '../repositories/booking'
 import { queueBookingEmails, queueBookingRequestEmails } from '../services/booking-emails'
 import { cancelBookingReminders } from '../services/email-outbox'
+import { cancelPendingAutomationRuns, publishBookingEvent } from '../services/workflows'
 import { enforceRateLimit } from '../services/rate-limit'
 import { enqueueCalendarSync } from '../services/calendar-sync'
 import { CalendarUnavailableError } from '../integrations/calendar/google'
@@ -130,6 +131,7 @@ export default defineEventHandler(async (event) => {
 
         await enqueueCalendarSync(previous.id, 'delete', tx)
         await cancelBookingReminders(previous.uid, tx)
+        await cancelPendingAutomationRuns(previous.id, tx)
       }
 
       const [created] = await tx.insert(bookings).values({
@@ -154,6 +156,13 @@ export default defineEventHandler(async (event) => {
 
       if (!created) throw new Error('Booking insert did not return a record.')
       if (!eventType.requiresConfirmation) await enqueueCalendarSync(created.id, 'upsert', tx)
+      await publishBookingEvent({
+        type: previous ? 'booking_rescheduled' : eventType.requiresConfirmation ? 'booking_requested' : 'booking_created',
+        userId: eventType.hostId,
+        bookingId: created.id,
+        eventTypeId: eventType.id,
+        payload: previous ? { previousBookingId: previous.id } : undefined
+      }, tx)
 
       const notice = {
         uid,
