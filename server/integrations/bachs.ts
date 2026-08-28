@@ -102,11 +102,21 @@ function safeJson(text: string) {
 
 export interface BachsCheckoutSession {
   checkout_id: string
-  checkout_url: string
-  status: string
+  checkout_url?: string
+  status: 'open' | 'completed' | 'expired' | 'cancelled'
+  payment_status?: 'requires_payment_method' | 'requires_confirmation' | 'requires_action' | 'processing' | 'succeeded' | 'failed' | 'canceled' | null
   amount: string
   currency: string
-  reference: string
+  reference: string | null
+  charge?: {
+    payment_id: string
+    status: 'created' | 'processing' | 'succeeded' | 'accepted' | 'failed' | 'expired' | 'cancelled' | 'refunded' | 'partially_refunded' | 'underpaid' | 'overpaid'
+    amount: string
+    amount_paid?: string | null
+    currency: string
+    fee_usd?: string | null
+  } | null
+  payment_method?: string | null
   expires_at?: string | null
 }
 
@@ -270,7 +280,7 @@ export function quoteConversion(from: string, to: string, amount: string) {
 }
 
 export function getCheckoutSession(checkoutId: string) {
-  return bachsFetch<BachsCheckoutSession & { reference: string }>(
+  return bachsFetch<BachsCheckoutSession>(
     `/checkout-sessions/${encodeURIComponent(checkoutId)}`
   )
 }

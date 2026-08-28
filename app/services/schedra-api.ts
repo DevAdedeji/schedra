@@ -218,6 +218,10 @@ export const bookingsApi = {
   listEndpoint: '/api/bookings' as const,
   detailEndpoint: (uid: string) => resource('/api/booking', uid),
   get: (uid: string) => $fetch<BookingDetail>(resource('/api/booking', uid)),
+  reconcilePayment: (uid: string) => $fetch<{ status: 'confirmed' | 'pending' | 'failed' | 'expired' }>(
+    resource('/api/booking', uid, '/payment-status'),
+    { method: 'POST' }
+  ),
   create: (body: CreateBookingInput) => $fetch<CreateBookingResult>('/api/bookings', { method: 'POST', body }),
   cancel: (uid: string, reason?: string) => $fetch(resource('/api/booking', uid, '/cancel'), {
     method: 'POST',
