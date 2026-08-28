@@ -19,11 +19,24 @@ function ownerWhere(owner: PaymentRecipientOwner) {
     : and(eq(paymentRecipients.organizationId, owner.organizationId!), isNull(paymentRecipients.userId))
 }
 
-function recipientStatus(account: BachsConnectedAccount) {
+export function recipientStatus(account: BachsConnectedAccount) {
   if (account.is_active === false) return 'disabled' as const
-  if (account.capabilities?.payouts?.status === 'active') return 'active' as const
-  if (account.setup_status === 'awaiting_review' || Object.keys(account.requirements ?? {}).length === 0) {
+  const payout = account.capabilities?.payouts
+  if (payout?.status === 'active') return 'active' as const
+
+  const requirements = account.requirements
+  if (requirements?.errors?.length || requirements?.past_due?.length) return 'restricted' as const
+  if (requirements?.currently_due?.length) return 'onboarding' as const
+  if (
+    requirements?.pending_verification?.length
+    || requirements?.setup_status === 'awaiting_review'
+    || account.setup_status === 'awaiting_review'
+    || payout?.status === 'pending'
+  ) {
     return 'pending_review' as const
+  }
+  if (payout?.requested && ['restricted', 'unsupported'].includes(payout.status ?? '')) {
+    return 'restricted' as const
   }
   return 'onboarding' as const
 }

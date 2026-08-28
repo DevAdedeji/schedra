@@ -235,8 +235,51 @@ describe('bachs checkout payment methods', () => {
     })
 
     const options = fetchMock.mock.calls[0]?.[1] as RequestInit
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe('https://sandbox-api.bachs.io/v1/accounts')
     expect(new Headers(options.headers).get('Idempotency-Key')).toBe('schedra-recipient-organization-org_123')
     expect(JSON.parse(String(options.body))).toMatchObject({ entity_type: 'company' })
+  })
+
+  it('uses the account resource to read a connected payout account', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      id: 'acct_host',
+      capabilities: { payouts: { status: 'pending', requested: true } }
+    }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { getConnectedAccount } = await import('./bachs')
+    await getConnectedAccount('acct_host/unsafe')
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+      'https://sandbox-api.bachs.io/v1/accounts/acct_host%2Funsafe'
+    )
+  })
+
+  it('creates onboarding links through the account resource', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      id: 'alnk_test',
+      account: 'acct_host',
+      url: 'https://connect.bachs.io/setup/test',
+      expires_at: '2026-09-06T11:04:22.518Z'
+    }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { createConnectedAccountLink } = await import('./bachs')
+    await createConnectedAccountLink({
+      accountId: 'acct_host',
+      refreshUrl: 'https://staging.schedra.xyz/payments?payments=refresh',
+      returnUrl: 'https://staging.schedra.xyz/payments?payments=returned'
+    })
+
+    const [url, options] = fetchMock.mock.calls[0] as [URL, RequestInit]
+    expect(String(url)).toBe(
+      'https://sandbox-api.bachs.io/v1/accounts/acct_host/account-links'
+    )
+    expect(JSON.parse(String(options.body))).toEqual({
+      type: 'onboarding',
+      refresh_url: 'https://staging.schedra.xyz/payments?payments=refresh',
+      return_url: 'https://staging.schedra.xyz/payments?payments=returned'
+    })
   })
 
   it('turns an unavailable live payment method into an actionable service error', async () => {
