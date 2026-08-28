@@ -15,6 +15,7 @@ const apiQuery = computed(() => ({ filter: filter.value, search: search.value, p
 const { data, refresh, status, error: loadFailure } = await useLazyFetch<EventTypesResponse>(eventTypesApi.listEndpoint, { query: apiQuery })
 const { data: currentUser } = await useCurrentUser()
 const { host, url: siteUrl } = useSiteUrl()
+const { copy } = useCopy()
 const feedback = useFeedback()
 const route = useRoute()
 
@@ -164,6 +165,12 @@ function bookingPath(item: EventTypeRecord) {
   return `/${currentUser.value?.user?.username ?? ''}/${item.slug}`
 }
 
+async function copyBookingLink(item: EventTypeRecord) {
+  const written = await copy(`${siteUrl.value}${bookingPath(item)}`)
+  if (written) feedback.success({ title: 'Booking link copied' })
+  else feedback.error({ title: 'Could not copy booking link', description: 'Try again or copy the address shown on the event type.' })
+}
+
 function noticeLabel(minutes: number) {
   if (!minutes) return 'No minimum notice'
   if (minutes % 1440 === 0) return `${minutes / 1440}d notice`
@@ -296,7 +303,7 @@ function locationIcon(item: EventTypeRecord) {
                   name="i-lucide-calendar-clock"
                   class="size-5"
                 /></span>
-                <div class="min-w-0 flex-1 pr-16 sm:pr-28">
+                <div class="min-w-0 flex-1 pr-28">
                   <div class="flex flex-wrap items-center gap-2">
                     <h2 class="text-[15px] font-semibold text-highlighted sm:text-[16px]">
                       {{ item.title }}
@@ -379,7 +386,19 @@ function locationIcon(item: EventTypeRecord) {
               </div>
             </button>
 
-            <div class="absolute right-3 top-4 sm:right-5 sm:top-5">
+            <div class="absolute right-3 top-4 flex items-center gap-1 sm:right-5 sm:top-5">
+              <UButton
+                color="neutral"
+                variant="soft"
+                size="xs"
+                class="h-7 px-2.5 text-[12px] font-medium"
+                :disabled="item.hidden"
+                :title="item.hidden ? 'Publish this event type before sharing it' : 'Copy booking link'"
+                :aria-label="item.hidden ? `Publish ${item.title} before copying its booking link` : `Copy booking link for ${item.title}`"
+                @click.stop="copyBookingLink(item)"
+              >
+                Copy link
+              </UButton>
               <UDropdownMenu
                 :items="mobileActions(item)"
                 :ui="compactActionMenuUi"

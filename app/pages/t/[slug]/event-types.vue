@@ -109,6 +109,12 @@ function publicUrl(eventType: TeamEventTypeRecord) {
   return `${siteUrl.value}/team/${slug.value}/${eventType.slug}`
 }
 
+async function copyLink(eventType: TeamEventTypeRecord) {
+  const written = await copy(publicUrl(eventType))
+  if (written) feedback.success({ title: 'Booking link copied' })
+  else feedback.error({ title: 'Could not copy', description: 'Try again or copy the address shown on the event type.' })
+}
+
 async function remove(eventType: TeamEventTypeRecord) {
   busyId.value = eventType.id
   try {
@@ -126,11 +132,7 @@ function actions(eventType: TeamEventTypeRecord) {
   const items = [{
     label: 'Copy link',
     icon: 'i-lucide-link',
-    onSelect: async () => {
-      const written = await copy(publicUrl(eventType))
-      if (written) feedback.success({ title: 'Booking link copied' })
-      else feedback.error({ title: 'Could not copy', description: 'Copy it from the address shown instead.' })
-    }
+    onSelect: async () => { await copyLink(eventType) }
   }, {
     label: 'Embed on website',
     icon: 'i-lucide-code-xml',
@@ -288,21 +290,35 @@ function activeHosts(eventType: TeamEventTypeRecord) {
             </p>
           </div>
 
-          <UDropdownMenu
-            :items="actions(eventType)"
-            :ui="compactActionMenuUi"
-          >
+          <div class="flex items-center gap-1">
             <UButton
               color="neutral"
-              variant="ghost"
+              variant="soft"
               size="xs"
-              icon="i-lucide-ellipsis"
-              class="size-7 justify-center p-0"
-              :ui="{ leadingIcon: 'size-3.5' }"
-              :loading="busyId === eventType.id"
-              :aria-label="`Actions for ${eventType.title}`"
-            />
-          </UDropdownMenu>
+              class="h-7 px-2.5 text-[12px] font-medium"
+              :disabled="eventType.hidden"
+              :title="eventType.hidden ? 'Publish this event type before sharing it' : 'Copy booking link'"
+              :aria-label="eventType.hidden ? `Publish ${eventType.title} before copying its booking link` : `Copy booking link for ${eventType.title}`"
+              @click="copyLink(eventType)"
+            >
+              Copy link
+            </UButton>
+            <UDropdownMenu
+              :items="actions(eventType)"
+              :ui="compactActionMenuUi"
+            >
+              <UButton
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                icon="i-lucide-ellipsis"
+                class="size-7 justify-center p-0"
+                :ui="{ leadingIcon: 'size-3.5' }"
+                :loading="busyId === eventType.id"
+                :aria-label="`Actions for ${eventType.title}`"
+              />
+            </UDropdownMenu>
+          </div>
         </li>
       </ul>
 
