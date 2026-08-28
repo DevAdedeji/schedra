@@ -42,6 +42,7 @@ watch([kind, filter], () => {
 })
 
 const kinds: Array<{ value: OperationKind, label: string, icon: string }> = [
+  { value: 'automation', label: 'Workflow runs', icon: 'i-lucide-workflow' },
   { value: 'calendar', label: 'Calendar sync', icon: 'i-lucide-calendar-sync' },
   { value: 'billing', label: 'Seat billing', icon: 'i-lucide-credit-card' },
   { value: 'email', label: 'Email delivery', icon: 'i-lucide-mail' },
@@ -55,6 +56,7 @@ const visibleFilters = computed(() => filters.filter(value => (
 
 const queueCards = computed(() => overview.value
   ? [
+      { label: 'Workflow runs', icon: 'i-lucide-workflow', ...overview.value.queues.automation },
       { label: 'Calendar sync', icon: 'i-lucide-calendar-sync', ...overview.value.queues.calendar },
       { label: 'Seat billing', icon: 'i-lucide-credit-card', ...overview.value.queues.billing },
       { label: 'Email delivery', icon: 'i-lucide-mail', ...overview.value.queues.email },

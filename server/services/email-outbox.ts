@@ -10,7 +10,7 @@ interface OutboxEmail {
   dedupeKey: string
   email: Email
   bookingUid?: string
-  category?: 'transactional' | 'booking_reminder'
+  category?: 'transactional' | 'booking_reminder' | 'automation'
   availableAt?: Date
 }
 

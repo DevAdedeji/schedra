@@ -40,6 +40,7 @@ const personalLinks = computed(() => [
   { label: 'Bookings', to: '/bookings', icon: 'i-lucide-calendar-days' },
   { label: 'Availability', to: '/availability', icon: 'i-lucide-clock' },
   { label: 'Integrations', to: '/integrations', icon: 'i-lucide-blocks' },
+  { label: 'Workflows', to: '/workflows', icon: 'i-lucide-workflow' },
   ...(data.value?.isPlatformAdmin
     ? [{ label: 'Operations', to: '/operations', icon: 'i-lucide-activity' }]
     : [])
@@ -49,6 +50,7 @@ const links = computed(() => (teamSlug.value
   ? [
       { label: 'Event types', to: `/t/${teamSlug.value}/event-types`, icon: 'i-lucide-link-2' },
       { label: 'Bookings', to: `/t/${teamSlug.value}/bookings`, icon: 'i-lucide-calendar-days' },
+      { label: 'Workflows', to: `/t/${teamSlug.value}/workflows`, icon: 'i-lucide-workflow' },
       { label: 'Members', to: `/t/${teamSlug.value}/members`, icon: 'i-lucide-users' },
       { label: 'Activity log', to: `/t/${teamSlug.value}/history`, icon: 'i-lucide-activity' },
       ...(activeTeam.value?.role === 'owner'

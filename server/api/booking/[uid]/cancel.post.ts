@@ -8,6 +8,7 @@ import { getAuthSession } from '../../../services/session'
 import { enforceRateLimit } from '../../../services/rate-limit'
 import { enqueueCalendarSync } from '../../../services/calendar-sync'
 import { cancelBookingReminders } from '../../../services/email-outbox'
+import { cancelPendingAutomationRuns, publishBookingEvent } from '../../../services/workflows'
 
 export default defineEventHandler(async (event) => {
   const uid = getRouterParam(event, 'uid')
@@ -58,6 +59,14 @@ export default defineEventHandler(async (event) => {
 
     await enqueueCalendarSync(booking.id, 'delete', tx)
     await cancelBookingReminders(booking.uid, tx)
+    await cancelPendingAutomationRuns(booking.id, tx)
+    await publishBookingEvent({
+      type: 'booking_cancelled',
+      ...(booking.organizationId ? { organizationId: booking.organizationId } : { userId: booking.hostId }),
+      bookingId: booking.id,
+      eventTypeId: booking.eventTypeId,
+      payload: { actor }
+    }, tx)
     await queueCancellationEmails(booking, parsed.data.reason, actor, tx, hosts)
     return true
   })

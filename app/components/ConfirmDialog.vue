@@ -1,0 +1,59 @@
+<script setup lang="ts">
+const props = withDefaults(defineProps<{
+  open: boolean
+  title: string
+  description?: string
+  confirmLabel?: string
+  confirmColor?: 'primary' | 'error'
+  loading?: boolean
+}>(), {
+  description: '',
+  confirmLabel: 'Confirm',
+  confirmColor: 'primary',
+  loading: false
+})
+
+const emit = defineEmits<{
+  'update:open': [value: boolean]
+  'confirm': []
+}>()
+
+const isOpen = computed({ get: () => props.open, set: value => emit('update:open', value) })
+</script>
+
+<template>
+  <UModal
+    v-model:open="isOpen"
+    :title="title"
+    :description="description"
+    :ui="{ content: 'w-full max-w-md', footer: 'border-t border-default px-5 py-4 sm:px-6' }"
+  >
+    <template
+      v-if="$slots.body"
+      #body
+    >
+      <slot name="body" />
+    </template>
+    <template #footer>
+      <div class="flex w-full justify-end gap-2">
+        <slot name="actions">
+          <UButton
+            color="neutral"
+            variant="soft"
+            :disabled="loading"
+            @click="isOpen = false"
+          >
+            Cancel
+          </UButton>
+          <UButton
+            :color="confirmColor"
+            :loading="loading"
+            @click="emit('confirm')"
+          >
+            {{ confirmLabel }}
+          </UButton>
+        </slot>
+      </div>
+    </template>
+  </UModal>
+</template>

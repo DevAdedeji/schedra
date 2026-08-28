@@ -9,6 +9,7 @@ import { defaultStatements } from 'better-auth/plugins/organization/access'
 export const organizationStatements = {
   ...defaultStatements,
   eventType: ['create', 'update', 'delete'],
+  workflow: ['create', 'update', 'delete'],
   booking: ['viewAll', 'manageAll'],
   billing: ['manage'],
   slug: ['update'],
@@ -24,6 +25,7 @@ export const ownerRole = accessControl.newRole({
   team: ['create', 'update', 'delete'],
   ac: ['create', 'read', 'update', 'delete'],
   eventType: ['create', 'update', 'delete'],
+  workflow: ['create', 'update', 'delete'],
   booking: ['viewAll', 'manageAll'],
   billing: ['manage'],
   slug: ['update'],
@@ -42,6 +44,7 @@ export const adminRole = accessControl.newRole({
   team: ['create', 'update', 'delete'],
   ac: ['create', 'read', 'update', 'delete'],
   eventType: ['create', 'update', 'delete'],
+  workflow: ['create', 'update', 'delete'],
   booking: ['viewAll', 'manageAll']
 })
 
@@ -52,6 +55,7 @@ export const memberRole = accessControl.newRole({
   team: [],
   ac: ['read'],
   eventType: [],
+  workflow: [],
   booking: []
 })
 

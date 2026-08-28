@@ -14,6 +14,7 @@ import type {
   MeetingLocationType,
   TeamEventTypeInput
 } from '#shared/validation'
+import type { WorkflowAction, WorkflowInput, WorkflowTrigger } from '#shared/workflows'
 import type { EventTypeRecord } from '~/types/event-type'
 import type { ScheduleOverrideRecord, ScheduleRecord, ScheduleRuleRecord } from '~/types/schedule'
 
@@ -220,6 +221,46 @@ export const eventTypesApi = {
   remove: (id: string) => $fetch(resource('/api/event-types', id), { method: 'DELETE' })
 }
 
+export interface WorkflowRecord {
+  id: string
+  name: string
+  trigger: WorkflowTrigger
+  offsetMinutes: number
+  action: WorkflowAction
+  active: boolean
+  eventTypeId: string | null
+  eventTypeTitle: string | null
+  webhookConfigured: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface WorkflowsResponse {
+  items: WorkflowRecord[]
+  pagination: PaginationMeta
+}
+
+export interface WorkflowWriteResult {
+  id: string
+  webhookSecret: string | null
+}
+
+function workflowBase(teamSlug?: string) {
+  return teamSlug ? resource('/api/teams', teamSlug, '/workflows') : '/api/workflows'
+}
+
+export const workflowsApi = {
+  listEndpoint: (teamSlug?: string) => workflowBase(teamSlug),
+  create: (body: WorkflowInput, teamSlug?: string) =>
+    $fetch<WorkflowWriteResult>(workflowBase(teamSlug), { method: 'POST', body }),
+  update: (id: string, body: WorkflowInput, teamSlug?: string) =>
+    $fetch<WorkflowWriteResult>(`${workflowBase(teamSlug)}/${encodeURIComponent(id)}`, { method: 'PATCH', body }),
+  setActive: (id: string, active: boolean, teamSlug?: string) =>
+    $fetch(`${workflowBase(teamSlug)}/${encodeURIComponent(id)}/status`, { method: 'PATCH', body: { active } }),
+  remove: (id: string, teamSlug?: string) =>
+    $fetch(`${workflowBase(teamSlug)}/${encodeURIComponent(id)}`, { method: 'DELETE' })
+}
+
 export const schedulesApi = {
   listEndpoint: '/api/schedules' as const,
   create: (body: { name: string, timeZone: string }) => $fetch<{ id: string }>('/api/schedules', { method: 'POST', body }),
@@ -302,11 +343,12 @@ export const integrationHealthApi = {
   })
 }
 
-export type OperationKind = 'calendar' | 'billing' | 'email' | 'webhook'
+export type OperationKind = 'automation' | 'calendar' | 'billing' | 'email' | 'webhook'
 export type OperationStatus = 'all' | 'pending' | 'processing' | 'completed' | 'failed' | 'ignored'
 
 export interface OperationsOverview {
   queues: {
+    automation: { pending: number, processing: number, failed: number, stale: number }
     calendar: { pending: number, processing: number, failed: number, stale: number }
     billing: { pending: number, processing: number, failed: number, stale: number }
     email: { pending: number, processing: number, failed: number, stale: number }

@@ -5,6 +5,7 @@ import { assignedHostsForBooking, findBookingByUid } from '../../../repositories
 import { enqueueCalendarSync } from '../../../services/calendar-sync'
 import { requireAuthSession } from '../../../services/session'
 import { useDatabase } from '../../../database/index'
+import { publishBookingEvent } from '../../../services/workflows'
 
 export default defineEventHandler(async (event) => {
   const session = await requireAuthSession(event)
@@ -36,6 +37,12 @@ export default defineEventHandler(async (event) => {
 
     if (!approved) throw createError({ statusCode: 409, statusMessage: 'This request expired or was already handled.' })
     await enqueueCalendarSync(booking.id, 'upsert', tx)
+    await publishBookingEvent({
+      type: 'booking_approved',
+      ...(booking.organizationId ? { organizationId: booking.organizationId } : { userId: booking.hostId }),
+      bookingId: booking.id,
+      eventTypeId: booking.eventTypeId
+    }, tx)
     await queueBookingEmails(bookingNoticeFromManaged(booking, hosts), tx)
   })
 

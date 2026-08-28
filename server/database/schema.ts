@@ -18,6 +18,7 @@ import {
   uuid
 } from 'drizzle-orm/pg-core'
 import type { BookingAnswersSnapshot, BookingAttribution, BookingQuestion, BookingSource } from '#shared/validation'
+import type { WorkflowAction } from '#shared/workflows'
 
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -628,6 +629,85 @@ export const bookingHosts = pgTable('booking_hosts', {
   uniqueIndex('booking_hosts_booking_user_key').on(table.bookingId, table.userId),
   index('booking_hosts_user_starts_idx').on(table.userId, table.startsAt),
   check('booking_hosts_ends_after_starts', sql`${table.endsAt} > ${table.startsAt}`)
+])
+
+/**
+ * Immutable product events are the shared foundation for automations and
+ * analytics. The payload deliberately stays small; delivery reads the current
+ * booking through its foreign key instead of copying sensitive form answers.
+ */
+export const domainEvents = pgTable('domain_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  dedupeKey: text('dedupe_key').notNull(),
+  type: text('type').notNull(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  organizationId: uuid('organization_id').references(() => organizations.id, { onDelete: 'cascade' }),
+  eventTypeId: uuid('event_type_id').references(() => eventTypes.id, { onDelete: 'cascade' }),
+  bookingId: uuid('booking_id').references(() => bookings.id, { onDelete: 'cascade' }),
+  payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+  occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+  dispatchedAt: timestamp('dispatched_at', { withTimezone: true }),
+  ...timestamps
+}, table => [
+  uniqueIndex('domain_events_dedupe_key_key').on(table.dedupeKey),
+  index('domain_events_dispatch_idx').on(table.dispatchedAt, table.occurredAt),
+  index('domain_events_user_occurred_idx').on(table.userId, table.occurredAt),
+  index('domain_events_organization_occurred_idx').on(table.organizationId, table.occurredAt),
+  check(
+    'domain_events_exactly_one_scope',
+    sql`(${table.organizationId} is null) <> (${table.userId} is null)`
+  )
+])
+
+export const automationWorkflows = pgTable('automation_workflows', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  organizationId: uuid('organization_id').references(() => organizations.id, { onDelete: 'cascade' }),
+  createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  eventTypeId: uuid('event_type_id').references(() => eventTypes.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  trigger: text('trigger').notNull(),
+  offsetMinutes: integer('offset_minutes').notNull().default(0),
+  action: jsonb('action').$type<WorkflowAction>().notNull(),
+  webhookSecretEncrypted: text('webhook_secret_encrypted'),
+  active: boolean('active').notNull().default(true),
+  ...timestamps
+}, table => [
+  index('automation_workflows_user_active_idx').on(table.userId, table.active),
+  index('automation_workflows_organization_active_idx').on(table.organizationId, table.active),
+  index('automation_workflows_event_type_idx').on(table.eventTypeId),
+  check(
+    'automation_workflows_exactly_one_scope',
+    sql`(${table.organizationId} is null) <> (${table.userId} is null)`
+  ),
+  check('automation_workflows_offset_range', sql`${table.offsetMinutes} between 0 and 10080`)
+])
+
+export const automationRunStatus = pgEnum('automation_run_status', [
+  'pending',
+  'processing',
+  'completed',
+  'failed',
+  'cancelled'
+])
+
+export const automationRuns = pgTable('automation_runs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workflowId: uuid('workflow_id').notNull().references(() => automationWorkflows.id, { onDelete: 'cascade' }),
+  domainEventId: uuid('domain_event_id').references(() => domainEvents.id, { onDelete: 'set null' }),
+  bookingId: uuid('booking_id').notNull().references(() => bookings.id, { onDelete: 'cascade' }),
+  status: automationRunStatus('status').notNull().default('pending'),
+  attempts: integer('attempts').notNull().default(0),
+  availableAt: timestamp('available_at', { withTimezone: true }).notNull().defaultNow(),
+  lockedAt: timestamp('locked_at', { withTimezone: true }),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  lastError: text('last_error'),
+  ...timestamps
+}, table => [
+  uniqueIndex('automation_runs_workflow_booking_key').on(table.workflowId, table.bookingId),
+  index('automation_runs_claim_idx').on(table.status, table.availableAt),
+  index('automation_runs_booking_idx').on(table.bookingId),
+  check('automation_runs_attempts_non_negative', sql`${table.attempts} >= 0`)
 ])
 
 export const bookingCalendarEvents = pgTable('booking_calendar_events', {

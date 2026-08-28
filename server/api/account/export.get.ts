@@ -1,5 +1,6 @@
 import { eq, inArray } from 'drizzle-orm'
 import {
+  automationWorkflows,
   availabilityRules,
   bookings,
   calendarConnections,
@@ -15,11 +16,21 @@ import { requireAuthSession } from '../../services/session'
 export default defineEventHandler(async (event) => {
   const session = await requireAuthSession(event)
   const db = useDatabase()
-  const [profile, scheduleRows, eventTypeRows, bookingRows, calendarIntegrationRows, videoIntegrationRows] = await Promise.all([
+  const [profile, scheduleRows, eventTypeRows, bookingRows, workflowRows, calendarIntegrationRows, videoIntegrationRows] = await Promise.all([
     db.select().from(users).where(eq(users.id, session.user.id)).limit(1),
     db.select().from(schedules).where(eq(schedules.userId, session.user.id)),
     db.select().from(eventTypes).where(eq(eventTypes.userId, session.user.id)),
     db.select().from(bookings).where(eq(bookings.hostId, session.user.id)),
+    db.select({
+      name: automationWorkflows.name,
+      trigger: automationWorkflows.trigger,
+      offsetMinutes: automationWorkflows.offsetMinutes,
+      eventTypeId: automationWorkflows.eventTypeId,
+      action: automationWorkflows.action,
+      active: automationWorkflows.active,
+      createdAt: automationWorkflows.createdAt,
+      updatedAt: automationWorkflows.updatedAt
+    }).from(automationWorkflows).where(eq(automationWorkflows.userId, session.user.id)),
     db.select({
       provider: calendarConnections.provider,
       accountLabel: calendarConnections.accountLabel,
@@ -70,6 +81,7 @@ export default defineEventHandler(async (event) => {
     })),
     eventTypes: eventTypeRows,
     bookings: bookingRows,
+    workflows: workflowRows,
     integrations: [...calendarIntegrationRows, ...videoIntegrationRows]
   }, null, 2)
 })

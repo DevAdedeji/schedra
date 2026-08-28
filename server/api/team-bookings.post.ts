@@ -16,6 +16,7 @@ import { CalendarUnavailableError } from '../integrations/calendar/google'
 import { BookingAnswerValidationError, buildBookingAnswersSnapshot } from '../domain/booking-answers'
 import { findBookingByUid } from '../repositories/booking'
 import { cancelBookingReminders } from '../services/email-outbox'
+import { cancelPendingAutomationRuns, publishBookingEvent } from '../services/workflows'
 import { requireTeamLocationIntegrations } from '../services/event-location'
 
 const SLOT_TAKEN = '23P01'
@@ -142,6 +143,7 @@ export default defineEventHandler(async (event) => {
         }
         await enqueueCalendarSync(previous.id, 'delete', tx)
         await cancelBookingReminders(previous.uid, tx)
+        await cancelPendingAutomationRuns(previous.id, tx)
       }
 
       const assigned = await chooseHosts(eventType, slot, tx)
@@ -198,6 +200,13 @@ export default defineEventHandler(async (event) => {
       }).returning({ id: bookings.id })
 
       if (!created) throw new Error('Booking insert did not return a record.')
+      await publishBookingEvent({
+        type: previous ? 'booking_rescheduled' : eventType.requiresConfirmation ? 'booking_requested' : 'booking_created',
+        organizationId: eventType.organizationId,
+        bookingId: created.id,
+        eventTypeId: eventType.id,
+        payload: previous ? { previousBookingId: previous.id } : undefined
+      }, tx)
 
       const coHosts = assigned.filter(userId => userId !== organizer.userId)
       if (coHosts.length) {

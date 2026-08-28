@@ -4,6 +4,7 @@ import { processEmailOutbox } from './email-outbox'
 import { processSubscriptionSeatSyncJobs } from './subscription-seat-sync'
 import { expireLapsedTeams, processBillingReminders } from './billing-reminders'
 import { evaluateOperationsAlerts } from './operations-alerts'
+import { dispatchDomainEvents, processAutomationRuns } from './workflows'
 import {
   heartbeatWorkerInstance,
   pruneWorkerInstances,
@@ -34,6 +35,16 @@ export function defaultRuntimeTasks(): RuntimeTask[] {
       intervalMs: 5_000,
       leaseMs: 60_000,
       run: () => processEmailOutbox()
+    },
+    {
+      name: 'workflow-automation',
+      intervalMs: 5_000,
+      leaseMs: 60_000,
+      run: async () => {
+        const dispatched = await dispatchDomainEvents()
+        const delivered = await processAutomationRuns()
+        return { dispatched, delivered }
+      }
     },
     {
       name: 'subscription-seat-sync',
