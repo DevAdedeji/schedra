@@ -20,14 +20,21 @@ const saving = ref(false)
 const error = ref('')
 const form = reactive({ bankCode: '', accountNumber: '' })
 const accountName = ref('')
+let verificationTimer: ReturnType<typeof setTimeout> | undefined
+let verificationRevision = 0
 
 const bankItems = computed(() => banks.value.map(bank => ({ label: bank.name, value: bank.code })))
 const selectedBank = computed(() => banks.value.find(bank => bank.code === form.bankCode))
 const validDetails = computed(() => /^\d{3,6}$/.test(form.bankCode) && /^\d{10}$/.test(form.accountNumber))
 
-function resetVerification() {
+function scheduleVerification() {
+  if (verificationTimer) clearTimeout(verificationTimer)
+  const revision = ++verificationRevision
   accountName.value = ''
   error.value = ''
+  verifying.value = false
+  if (!validDetails.value) return
+  verificationTimer = setTimeout(() => void verify(revision), 450)
 }
 
 function updateAccountNumber(value: string | number) {
@@ -47,18 +54,22 @@ async function loadBanks() {
   }
 }
 
-async function verify() {
-  if (!validDetails.value || verifying.value) return
+async function verify(revision: number) {
+  if (!validDetails.value || revision !== verificationRevision) return
+  const bankCode = form.bankCode
+  const accountNumber = form.accountNumber
   verifying.value = true
   error.value = ''
   try {
-    const result = await paymentsApi.resolvePayoutAccount({ ...form }, props.teamSlug)
+    const result = await paymentsApi.resolvePayoutAccount({ bankCode, accountNumber }, props.teamSlug)
+    if (revision !== verificationRevision || bankCode !== form.bankCode || accountNumber !== form.accountNumber) return
     accountName.value = result.accountName
   } catch (failure) {
+    if (revision !== verificationRevision) return
     accountName.value = ''
     error.value = apiErrorMessage(failure, 'We could not verify that account. Check the details and try again.')
   } finally {
-    verifying.value = false
+    if (revision === verificationRevision) verifying.value = false
   }
 }
 
@@ -78,6 +89,8 @@ async function save() {
 }
 
 function reset() {
+  if (verificationTimer) clearTimeout(verificationTimer)
+  verificationRevision++
   form.bankCode = ''
   form.accountNumber = ''
   accountName.value = ''
@@ -90,8 +103,10 @@ watch(() => props.open, (open) => {
   else reset()
 }, { immediate: true })
 
-watch(() => form.bankCode, resetVerification)
-watch(() => form.accountNumber, resetVerification)
+watch([() => form.bankCode, () => form.accountNumber], scheduleVerification)
+onBeforeUnmount(() => {
+  if (verificationTimer) clearTimeout(verificationTimer)
+})
 </script>
 
 <template>
@@ -106,7 +121,7 @@ watch(() => form.accountNumber, resetVerification)
       <form
         id="payout-destination-form"
         class="space-y-5"
-        @submit.prevent="accountName ? save() : verify()"
+        @submit.prevent="save"
       >
         <div class="rounded-xl border border-default bg-muted/40 p-4">
           <div class="flex items-start gap-3">
@@ -142,6 +157,18 @@ watch(() => form.accountNumber, resetVerification)
           />
         </UFormField>
 
+        <div
+          v-if="verifying"
+          class="flex items-center gap-2 text-[13px] text-muted"
+          aria-live="polite"
+        >
+          <UIcon
+            name="i-lucide-loader-circle"
+            class="size-4 animate-spin"
+          />
+          Verifying account details…
+        </div>
+
         <UFormField
           label="Account number"
           name="accountNumber"
@@ -164,20 +191,35 @@ watch(() => form.accountNumber, resetVerification)
 
         <div
           v-if="accountName"
-          class="flex items-start gap-3 rounded-xl border border-success/30 bg-success/10 p-4"
+          class="rounded-xl border border-success/30 bg-success/10 p-4"
           aria-live="polite"
         >
-          <UIcon
-            name="i-lucide-circle-check"
-            class="mt-0.5 size-5 shrink-0 text-success"
-          />
-          <div class="min-w-0">
-            <p class="text-sm font-semibold text-highlighted">
-              {{ accountName }}
+          <div class="flex items-center gap-2">
+            <UIcon
+              name="i-lucide-circle-check"
+              class="size-5 shrink-0 text-success"
+            />
+            <p class="text-sm font-semibold text-success">
+              Account verified
             </p>
-            <p class="mt-0.5 text-xs text-muted">
-              {{ selectedBank?.name }} · ending in {{ form.accountNumber.slice(-4) }}
-            </p>
+          </div>
+          <div class="mt-4 grid gap-3 sm:grid-cols-2">
+            <div class="min-w-0">
+              <p class="text-xs font-medium uppercase tracking-wide text-muted">
+                Account holder
+              </p>
+              <p class="mt-1 truncate text-sm font-semibold text-highlighted">
+                {{ accountName }}
+              </p>
+            </div>
+            <div class="min-w-0">
+              <p class="text-xs font-medium uppercase tracking-wide text-muted">
+                Payout account
+              </p>
+              <p class="mt-1 truncate text-sm font-medium text-highlighted">
+                {{ selectedBank?.name }} · •••• {{ form.accountNumber.slice(-4) }}
+              </p>
+            </div>
           </div>
         </div>
 
@@ -204,11 +246,11 @@ watch(() => form.accountNumber, resetVerification)
         <UButton
           type="submit"
           form="payout-destination-form"
-          :loading="accountName ? saving : verifying"
-          :disabled="accountName ? saving : !validDetails"
-          :icon="accountName ? 'i-lucide-check' : 'i-lucide-search-check'"
+          :loading="saving"
+          :disabled="!accountName || saving || verifying"
+          icon="i-lucide-check"
         >
-          {{ accountName ? 'Add payout account' : 'Verify account' }}
+          Add payout account
         </UButton>
       </div>
     </template>
