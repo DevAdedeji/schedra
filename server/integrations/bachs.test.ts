@@ -205,7 +205,7 @@ describe('bachs checkout payment methods', () => {
       currency: 'USD',
       reference: 'booking-uid',
       customer: { email: 'guest@example.com', name: 'Guest' },
-      successUrl: 'https://schedra.xyz/booking/uid?payment=success',
+      successUrl: 'https://schedra.xyz/booking/uid',
       cancelUrl: 'https://schedra.xyz/booking/uid?payment=cancelled',
       metadata: { schedra_booking_uid: 'uid' },
       platformFee: '1.25',

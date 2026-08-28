@@ -9,7 +9,20 @@ const storageKey = 'schedra:analytics-consent:v1'
 const route = useRoute()
 const open = ref(false)
 const hasChoice = ref(false)
-const embedded = computed(() => route.path.startsWith('/embed/'))
+const excludedRouteNames = new Set([
+  'username',
+  'username-slug',
+  'team-slug',
+  'team-slug-event',
+  'team-slug-route-form',
+  'route-owner-slug',
+  'meeting-token',
+  'booking-uid'
+])
+const excluded = computed(() => {
+  const name = String(route.name ?? '')
+  return name.startsWith('embed-') || excludedRouteNames.has(name)
+})
 
 function tellClarity(analytics: AnalyticsConsent) {
   const clarity = (window as typeof window & { clarity?: Clarity }).clarity
@@ -35,8 +48,11 @@ function choose(choice: AnalyticsConsent) {
   open.value = false
 }
 
-onMounted(() => {
-  if (import.meta.dev || embedded.value) return
+function initialiseConsentControl() {
+  if (import.meta.dev || excluded.value) {
+    open.value = false
+    return
+  }
 
   let stored: string | null = null
   try {
@@ -53,12 +69,19 @@ onMounted(() => {
     tellClarity('denied')
     open.value = true
   }
+}
+
+onMounted(initialiseConsentControl)
+
+watch(excluded, (isExcluded) => {
+  if (isExcluded) open.value = false
+  else initialiseConsentControl()
 })
 </script>
 
 <template>
   <section
-    v-if="!embedded && open"
+    v-if="!excluded && open"
     role="dialog"
     aria-labelledby="analytics-consent-title"
     aria-describedby="analytics-consent-description"
@@ -78,15 +101,14 @@ onMounted(() => {
           id="analytics-consent-title"
           class="text-[15px] font-semibold text-highlighted"
         >
-          Help us improve Schedra
+          Optional analytics
         </h2>
         <p
           id="analytics-consent-description"
           class="mt-1 text-[13px] leading-relaxed text-muted"
         >
-          With your permission, Microsoft Clarity records privacy-protected usage patterns so we can find
-          confusing pages and broken journeys. Form values and sensitive content stay masked. We
-          do not enable advertising storage. Read our
+          Help us find usability issues and improve Schedra. Sensitive form content is masked, and
+          analytics are not used for advertising. Read our
           <NuxtLink
             to="/privacy"
             class="font-medium text-highlighted underline underline-offset-2"
@@ -100,13 +122,13 @@ onMounted(() => {
             class="justify-center"
             @click="choose('denied')"
           >
-            No thanks
+            Decline
           </UButton>
           <UButton
             class="justify-center"
             @click="choose('granted')"
           >
-            Allow analytics
+            Allow
           </UButton>
         </div>
       </div>
@@ -114,7 +136,7 @@ onMounted(() => {
   </section>
 
   <UButton
-    v-else-if="!embedded && hasChoice"
+    v-else-if="!excluded && hasChoice"
     color="neutral"
     variant="soft"
     size="xs"

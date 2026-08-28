@@ -68,6 +68,7 @@ export interface BookingDetail {
     currency: 'USD' | 'NGN'
     checkoutUrl: string | null
     expiresAt: string | null
+    recoveryAvailable: boolean
   }
 }
 
@@ -222,7 +223,7 @@ export const bookingsApi = {
   listEndpoint: '/api/bookings' as const,
   detailEndpoint: (uid: string) => resource('/api/booking', uid),
   get: (uid: string) => $fetch<BookingDetail>(resource('/api/booking', uid)),
-  reconcilePayment: (uid: string) => $fetch<{ status: 'confirmed' | 'pending' | 'failed' | 'expired' }>(
+  reconcilePayment: (uid: string) => $fetch<{ status: 'confirmed' | 'pending' | 'failed' | 'expired' | 'refund_pending' }>(
     resource('/api/booking', uid, '/payment-status'),
     { method: 'POST' }
   ),

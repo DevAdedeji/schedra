@@ -35,7 +35,9 @@ let paymentCheckStopped = false
 const cancelled = computed(() => booking.value?.status === 'cancelled')
 const pendingApproval = computed(() => booking.value?.status === 'pending')
 const awaitingPayment = computed(() => booking.value?.status === 'awaiting_payment')
-const returningFromPayment = computed(() => route.query.payment === 'success')
+const returningFromPayment = computed(() => route.query.payment === 'success' || typeof route.query.checkout_id === 'string')
+const paymentRecoveryAvailable = computed(() => Boolean(booking.value?.payment?.recoveryAvailable))
+const canReconcilePayment = computed(() => awaitingPayment.value || paymentRecoveryAvailable.value)
 const rejected = computed(() => booking.value?.status === 'rejected')
 const past = computed(() => booking.value ? new Date(booking.value.endsAt) < new Date() : false)
 const joinUrl = computed(() => booking.value?.status === 'confirmed'
@@ -130,6 +132,13 @@ async function checkPaymentStatus(showFailure = true) {
         : 'Bachs did not confirm this payment. No booking was created.'
       return true
     }
+    if (result.status === 'refund_pending') {
+      await refresh()
+      await clearPaymentReturnQuery()
+      paymentCheckState.value = 'failed'
+      paymentCheckError.value = 'The original time is no longer available. A refund has been started.'
+      return true
+    }
     paymentCheckState.value = 'pending'
     return false
   } catch (failure) {
@@ -148,7 +157,7 @@ async function reconcileCheckoutReturn() {
   // covers providers that briefly report `processing` after redirecting.
   const delays = [0, 1_250, 2_500, 4_000, 6_000]
   for (const delay of delays) {
-    if (paymentCheckStopped || !awaitingPayment.value) return
+    if (paymentCheckStopped || !canReconcilePayment.value) return
     if (delay) await new Promise(resolve => setTimeout(resolve, delay))
     if (paymentCheckStopped) return
     const terminal = await checkPaymentStatus(false)
@@ -158,7 +167,7 @@ async function reconcileCheckoutReturn() {
 }
 
 onMounted(() => {
-  if (returningFromPayment.value && awaitingPayment.value) void reconcileCheckoutReturn()
+  if (returningFromPayment.value && canReconcilePayment.value) void reconcileCheckoutReturn()
 })
 
 onBeforeUnmount(() => {
@@ -407,6 +416,31 @@ useSeoMeta({
             >
               Reason given: {{ booking.cancellationReason }}
             </p>
+            <div
+              v-if="paymentRecoveryAvailable"
+              class="mt-5 rounded-xl border border-primary/30 bg-primary/5 p-4"
+            >
+              <p class="text-[14px] font-semibold text-highlighted">
+                Completed the payment?
+              </p>
+              <p class="mt-1 text-[13px] leading-relaxed text-muted">
+                Check the payment with the provider and restore this booking if the original time is still available.
+              </p>
+              <UButton
+                class="mt-4"
+                icon="i-lucide-refresh-cw"
+                :loading="paymentCheckState === 'checking'"
+                @click="checkPaymentStatus()"
+              >
+                Check payment
+              </UButton>
+              <p
+                v-if="paymentCheckError"
+                class="mt-2 text-[12px] text-error"
+              >
+                {{ paymentCheckError }}
+              </p>
+            </div>
           </div>
 
           <div
