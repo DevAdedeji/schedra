@@ -17,6 +17,17 @@ describe('payment recipient status', () => {
     })).toBe('onboarding')
   })
 
+  it('does not trust an active payout flag while onboarding requirements remain', () => {
+    expect(recipientStatus({
+      id: 'acct_inconsistent',
+      is_active: true,
+      capabilities: { payouts: { requested: true, status: 'active' } },
+      requirements: {
+        currently_due: ['persons.name', 'payout_destination']
+      }
+    })).toBe('onboarding')
+  })
+
   it('shows review while submitted details are being verified', () => {
     expect(recipientStatus({
       id: 'acct_review',

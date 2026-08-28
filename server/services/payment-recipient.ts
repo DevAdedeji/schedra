@@ -21,12 +21,15 @@ function ownerWhere(owner: PaymentRecipientOwner) {
 
 export function recipientStatus(account: BachsConnectedAccount) {
   if (account.is_active === false) return 'disabled' as const
-  const payout = account.capabilities?.payouts
-  if (payout?.status === 'active') return 'active' as const
-
   const requirements = account.requirements
+  // Requirements are the authoritative onboarding gate. A provider can report
+  // a capability as active before the hosted flow has collected the account
+  // holder and payout destination (the sandbox does this in particular). Never
+  // let that contradictory capability flag unlock paid bookings.
   if (requirements?.errors?.length || requirements?.past_due?.length) return 'restricted' as const
   if (requirements?.currently_due?.length) return 'onboarding' as const
+
+  const payout = account.capabilities?.payouts
   if (
     requirements?.pending_verification?.length
     || requirements?.setup_status === 'awaiting_review'
@@ -38,6 +41,7 @@ export function recipientStatus(account: BachsConnectedAccount) {
   if (payout?.requested && ['restricted', 'unsupported'].includes(payout.status ?? '')) {
     return 'restricted' as const
   }
+  if (payout?.status === 'active') return 'active' as const
   return 'onboarding' as const
 }
 
