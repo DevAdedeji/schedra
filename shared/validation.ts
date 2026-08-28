@@ -117,6 +117,7 @@ export const createBookingSchema = z.object({
   ).optional(),
   source: bookingSourceSchema.default('hosted'),
   attribution: bookingAttributionSchema,
+  inviteToken: z.string().regex(/^[A-Za-z0-9_-]{32,128}$/).optional(),
   rescheduleOf: z.string().trim().max(64).optional()
 }).superRefine((value, context) => {
   if (value.answers && Object.keys(value.answers).length > 10) {

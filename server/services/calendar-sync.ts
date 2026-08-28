@@ -9,7 +9,11 @@ import {
   eventTypes
 } from '../database/schema'
 import { useDatabase } from '../database'
-import { calendarDestinationProvider, calendarProvider } from '../integrations/calendar/providers'
+import {
+  calendarDestinationProvider,
+  calendarProvider,
+  calendarProviderForLocation
+} from '../integrations/calendar/providers'
 import { IntegrationUnavailableError } from '../integrations/errors'
 import { bookingAnswersText } from '../domain/booking-answers'
 import {
@@ -149,6 +153,7 @@ async function syncBooking(bookingId: string, action: CalendarSyncAction) {
     ? groupSeats.length === 0
     : action === 'delete' || booking.status === 'cancelled' || booking.status === 'rejected'
   let sharedMeetingUrl = booking.meetingUrl
+  const preferredCalendarProvider = calendarProviderForLocation(booking.locationType)
 
   if (booking.locationType === 'zoom' && organizer) {
     const zoomConnection = await zoomConnectionFor(organizer.userId)
@@ -210,7 +215,7 @@ async function syncBooking(bookingId: string, action: CalendarSyncAction) {
   const mappingByUser = new Map(mappings.map(mapping => [mapping.userId, mapping]))
   const hostConnections = (await Promise.all(hosts.map(async host => ({
     ...host,
-    connected: await calendarDestinationProvider(host.userId)
+    connected: await calendarDestinationProvider(host.userId, preferredCalendarProvider)
   })))).filter(host => host.connected?.connection.writeCalendarId)
 
   // Revoking a connection intentionally ends future synchronization. Existing
@@ -228,7 +233,7 @@ async function syncBooking(bookingId: string, action: CalendarSyncAction) {
         continue
       }
 
-      const destination = await calendarDestinationProvider(host.userId)
+      const destination = await calendarDestinationProvider(host.userId, preferredCalendarProvider)
       if (destination?.connection.writeCalendarId) {
         const calendarKey = host.isOrganizer ? booking.uid : `${booking.uid}:${host.userId}`
         await destination.provider.deleteEvent(

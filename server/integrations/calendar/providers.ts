@@ -49,9 +49,20 @@ export async function connectedCalendarProviders(userId: string) {
   return connections.filter((entry): entry is { provider: CalendarProvider, connection: NonNullable<typeof entry.connection> } => Boolean(entry.connection))
 }
 
-export async function calendarDestinationProvider(userId: string) {
+export async function calendarDestinationProvider(userId: string, preferredProvider?: 'google' | 'microsoft' | null) {
   const connected = await connectedCalendarProviders(userId)
-  return connected.find(entry => Boolean(entry.connection.writeCalendarId)) ?? null
+  const writable = connected.filter(entry =>
+    entry.connection.status === 'active' && Boolean(entry.connection.writeCalendarId))
+  if (preferredProvider) {
+    return writable.find(entry => entry.provider.id === preferredProvider) ?? null
+  }
+  return writable.find(entry => entry.connection.isDefaultWriteDestination) ?? writable[0] ?? null
+}
+
+export function calendarProviderForLocation(locationType: string) {
+  if (locationType === 'google_meet') return 'google' as const
+  if (locationType === 'microsoft_teams') return 'microsoft' as const
+  return null
 }
 
 export async function calendarBusyTimes(userId: string, from: string, to: string) {

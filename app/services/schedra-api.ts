@@ -17,6 +17,7 @@ import type {
 import type { WorkflowAction, WorkflowInput, WorkflowTrigger } from '#shared/workflows'
 import type { RoutingFormInput, RoutingQuestion, RoutingRule } from '#shared/routing'
 import type { EventTypeRecord } from '~/types/event-type'
+import type { CreateBookingLinkInput } from '#shared/booking-links'
 import type { ScheduleOverrideRecord, ScheduleRecord, ScheduleRuleRecord } from '~/types/schedule'
 
 export interface BookingRecord {
@@ -104,6 +105,8 @@ export interface CalendarConnection {
   configured: boolean
   status?: 'active' | 'needs_reauthorization' | 'disconnected'
   setupRequired?: boolean
+  writeEnabled?: boolean
+  defaultForBookings?: boolean
   supportsMicrosoftTeams?: boolean
   accountLabel?: string | null
   conflictCalendarIds?: string[]
@@ -190,6 +193,7 @@ export interface CreateBookingInput {
   notes?: string
   answers?: Record<string, string>
   guestEmails?: string[]
+  inviteToken?: string
   rescheduleOf?: string
 }
 
@@ -239,7 +243,39 @@ export const eventTypesApi = {
   create: (body: EventTypeInput) => $fetch('/api/event-types', { method: 'POST', body }),
   duplicate: (id: string) => $fetch<{ id: string }>(resource('/api/event-types', id, '/duplicate'), { method: 'POST' }),
   update: (id: string, body: EventTypeInput) => $fetch(resource('/api/event-types', id), { method: 'PATCH', body }),
-  remove: (id: string) => $fetch(resource('/api/event-types', id), { method: 'DELETE' })
+  remove: (id: string) => $fetch(resource('/api/event-types', id), { method: 'DELETE' }),
+  slots: (id: string, query: { from: string, to: string }) => $fetch<AvailabilityResponse>(
+    resource('/api/event-types', id, '/slots'), { query }
+  )
+}
+
+export interface BookingLinkRecord {
+  id: string
+  kind: 'single_use' | 'one_off'
+  label: string | null
+  eventTypeId: string
+  eventTitle: string
+  eventSlug: string
+  status: 'available' | 'booked' | 'expired' | 'revoked'
+  expiresAt: string
+  usedAt: string | null
+  revokedAt: string | null
+  createdAt: string
+}
+
+export interface BookingLinksResponse {
+  items: BookingLinkRecord[]
+  counts: { all: number, available: number, booked: number, closed: number }
+  pagination: PaginationMeta
+}
+
+export const bookingLinksApi = {
+  listEndpoint: '/api/booking-links' as const,
+  optionsEndpoint: '/api/booking-links/options' as const,
+  create: (body: CreateBookingLinkInput) => $fetch<{ id: string, token: string, path: string, expiresAt: string }>(
+    '/api/booking-links', { method: 'POST', body }
+  ),
+  revoke: (id: string) => $fetch(resource('/api/booking-links', id), { method: 'DELETE' })
 }
 
 export interface WorkflowRecord {
@@ -400,7 +436,7 @@ export const authApi = {
 export const calendarApi = {
   connectionEndpoint: '/api/integrations/google-calendar' as const,
   calendars: () => $fetch<CalendarsResponse>('/api/integrations/google-calendar/calendars'),
-  update: (body: { conflictCalendarIds: string[], writeCalendarId: string }) => $fetch('/api/integrations/google-calendar', { method: 'PATCH', body }),
+  update: (body: { conflictCalendarIds: string[], writeCalendarId: string, defaultForBookings?: boolean }) => $fetch('/api/integrations/google-calendar', { method: 'PATCH', body }),
   disconnect: () => $fetch('/api/integrations/google-calendar', { method: 'DELETE' })
 }
 
@@ -412,7 +448,7 @@ export function calendarIntegrationApi(provider: CalendarIntegrationProvider) {
     connectionEndpoint: endpoint,
     connectEndpoint: `${endpoint}/connect`,
     calendars: () => $fetch<CalendarsResponse>(`${endpoint}/calendars`),
-    update: (body: { conflictCalendarIds: string[], writeCalendarId: string | null }) =>
+    update: (body: { conflictCalendarIds: string[], writeCalendarId: string | null, defaultForBookings?: boolean }) =>
       $fetch<{ ok: true, syncQueued: boolean }>(endpoint, { method: 'PATCH', body }),
     disconnect: () => $fetch(endpoint, { method: 'DELETE' })
   }
@@ -514,6 +550,11 @@ export const publicBookingApi = {
   profileEndpoint: (username: string) => resource('/api/profile', username),
   pageEndpoint: (username: string, slug: string) => resource(resource('/api/booking-page', username), slug),
   availabilityEndpoint: '/api/availability' as const
+}
+
+export const invitationBookingApi = {
+  pageEndpoint: (token: string) => resource('/api/meeting-links/guest', token),
+  availabilityEndpoint: (token: string) => resource('/api/meeting-links/guest', token, '/availability')
 }
 
 export interface TeamSummary {

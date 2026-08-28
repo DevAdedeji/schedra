@@ -1,0 +1,30 @@
+import { z } from 'zod'
+import { filterInvitationSlots, requireUsableBookingLink } from '../../../../services/booking-links'
+import { slotsFor } from '../../../../services/booking-page'
+import { enforceRateLimit } from '../../../../services/rate-limit'
+import { requireLocationIntegration } from '../../../../services/event-location'
+
+const querySchema = z.object({ from: z.iso.date(), to: z.iso.date() })
+  .superRefine(({ from, to }, context) => {
+    const start = Date.parse(`${from}T00:00:00Z`)
+    const end = Date.parse(`${to}T00:00:00Z`)
+    if (end < start) {
+      context.addIssue({ code: 'custom', path: ['to'], message: 'End date must not be before start date.' })
+    } else if ((end - start) / 86_400_000 > 62) {
+      context.addIssue({ code: 'custom', path: ['to'], message: 'Availability range cannot exceed 63 days.' })
+    }
+  })
+
+export default defineEventHandler(async (event) => {
+  await enforceRateLimit(event, { namespace: 'invitation-availability', limit: 120, windowSeconds: 60 })
+  const parsed = await getValidatedQuery(event, querySchema.safeParse)
+  if (!parsed.success) throw createError({ statusCode: 400, statusMessage: 'Invalid availability request.' })
+  const link = await requireUsableBookingLink(getRouterParam(event, 'token') ?? '')
+  await requireLocationIntegration(link.hostId, link.locationType)
+  const slots = await slotsFor(link, parsed.data.from, parsed.data.to, new Date().toISOString())
+  return {
+    timeZone: link.scheduleTimeZone ?? link.hostTimeZone,
+    durationMinutes: link.durationMinutes,
+    slots: filterInvitationSlots(link, slots)
+  }
+})

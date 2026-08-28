@@ -150,8 +150,7 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', checkSetu
           v-if="!data?.ready && data?.nextAction !== 'none'"
           :loading="starting"
           :icon="actionIcon"
-          size="lg"
-          class="mobile-compact-action min-h-11 shrink-0 text-center"
+          class="mobile-compact-action h-9 min-h-9 shrink-0 text-center"
           @click="takeNextAction"
         >
           {{ actionLabel }}

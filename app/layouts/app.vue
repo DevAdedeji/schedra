@@ -38,6 +38,7 @@ const personalLinks = computed(() => [
   { label: 'Overview', to: '/dashboard', icon: 'i-lucide-layout-dashboard' },
   { label: 'Analytics', to: '/analytics', icon: 'i-lucide-chart-no-axes-combined' },
   { label: 'Event types', to: '/event-types', icon: 'i-lucide-link-2' },
+  { label: 'Meeting links', to: '/meeting-links', icon: 'i-lucide-send' },
   { label: 'Bookings', to: '/bookings', icon: 'i-lucide-calendar-days' },
   { label: 'Availability', to: '/availability', icon: 'i-lucide-clock' },
   { label: 'Integrations', to: '/integrations', icon: 'i-lucide-blocks' },
@@ -178,7 +179,7 @@ const mobileMenuUi = {
           :to="link.to"
           class="flex items-center gap-3 rounded-lg px-3 py-2 text-[14px] font-medium transition-colors"
           :class="$route.path === link.to
-            ? 'bg-elevated text-highlighted'
+            ? 'bg-elevated text-primary'
             : 'text-muted hover:bg-muted hover:text-highlighted'"
         >
           <UIcon

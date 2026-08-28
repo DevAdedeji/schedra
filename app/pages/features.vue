@@ -9,9 +9,9 @@ const { isSignedIn, accountDestination } = await useLandingNavigation()
 
 useSeoMeta({
   title: 'Scheduling, automation, analytics and payments',
-  description: 'Explore Schedra features for booking pages, routing, workflows, team scheduling, analytics, paid bookings and website overlays.',
+  description: 'Explore Schedra features for booking pages, private meeting links, routing, workflows, team scheduling, analytics, paid bookings and website overlays.',
   ogTitle: 'Everything you need to turn availability into a confirmed meeting',
-  ogDescription: 'Scheduling, routing, automation, integrations, analytics, paid bookings and team workspaces in one clear flow.',
+  ogDescription: 'Scheduling, private invitations, routing, automation, integrations, analytics, paid bookings and team workspaces in one clear flow.',
   ogUrl: canonical
 })
 useHead({ link: [{ rel: 'canonical', href: canonical }] })

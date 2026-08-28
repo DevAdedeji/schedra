@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { and, eq, isNotNull, ne, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { calendarConnections } from '../../database/schema'
 import { useDatabase } from '../../database'
 import { decryptCredential, encryptCredential } from './credential-crypto'
@@ -7,6 +7,7 @@ import { useEnv } from '../../config/env'
 import { fetchWithTimeout } from '../fetch'
 import type { CalendarEventInput } from './provider'
 import { IntegrationUnavailableError, retryAfterMilliseconds } from '../errors'
+import { ensureDefaultCalendarDestination } from '../../repositories/calendar-connection'
 
 export const GOOGLE_CALENDAR_SCOPES = [
   'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
@@ -232,17 +233,18 @@ export async function initializeGoogleCalendars(userId: string) {
   const primary = calendars.find(calendar => calendar.primary) ?? calendars[0]
   if (!primary) throw new CalendarUnavailableError('No Google calendars were found.')
   const writable = [primary, ...calendars].find(calendar => ['writer', 'owner'].includes(calendar.accessRole))
-  const [otherDestination] = await useDatabase().select({ id: calendarConnections.id })
+  const [defaultDestination] = await useDatabase().select({ id: calendarConnections.id })
     .from(calendarConnections)
     .where(and(
       eq(calendarConnections.userId, userId),
-      ne(calendarConnections.provider, 'google'),
-      isNotNull(calendarConnections.writeCalendarId)
+      eq(calendarConnections.isDefaultWriteDestination, true)
     )).limit(1)
+  const connection = await googleConnectionFor(userId)
   await useDatabase().update(calendarConnections).set({
     accountLabel: primary.id,
     conflictCalendarIds: [primary.id],
-    writeCalendarId: otherDestination ? null : writable?.id ?? null,
+    writeCalendarId: writable?.id ?? null,
+    isDefaultWriteDestination: !defaultDestination || defaultDestination.id === connection?.id,
     lastCheckedAt: sql`now()`,
     updatedAt: sql`now()`
   }).where(and(eq(calendarConnections.userId, userId), eq(calendarConnections.provider, 'google')))
@@ -363,6 +365,8 @@ export async function googleCalendarConnection(userId: string) {
     configured: Boolean(useEnv().googleClientId),
     status: connection.status,
     setupRequired: connection.status === 'active' && !connection.preferencesConfiguredAt,
+    writeEnabled: Boolean(connection.writeCalendarId),
+    defaultForBookings: connection.isDefaultWriteDestination,
     accountLabel: connection.accountLabel,
     conflictCalendarIds: connection.conflictCalendarIds,
     writeCalendarId: connection.writeCalendarId,
@@ -371,7 +375,12 @@ export async function googleCalendarConnection(userId: string) {
   }
 }
 
-export async function updateGoogleCalendarSelection(userId: string, conflictCalendarIds: string[], writeCalendarId: string) {
+export async function updateGoogleCalendarSelection(
+  userId: string,
+  conflictCalendarIds: string[],
+  writeCalendarId: string,
+  defaultForBookings = false
+) {
   const calendars = await listGoogleCalendars(userId)
   const byId = new Map(calendars.map(calendar => [calendar.id, calendar]))
   if (conflictCalendarIds.some(id => !byId.has(id))) throw new CalendarSelectionError('Choose calendars from your connected Google account.')
@@ -391,17 +400,16 @@ export async function updateGoogleCalendarSelection(userId: string, conflictCale
     )
   }
   await useDatabase().transaction(async (tx) => {
-    await tx.update(calendarConnections).set({
-      writeCalendarId: null,
-      updatedAt: sql`now()`
-    }).where(and(
-      eq(calendarConnections.userId, userId),
-      ne(calendarConnections.provider, 'google'),
-      isNotNull(calendarConnections.writeCalendarId)
-    ))
+    if (defaultForBookings) {
+      await tx.update(calendarConnections).set({
+        isDefaultWriteDestination: false,
+        updatedAt: sql`now()`
+      }).where(eq(calendarConnections.userId, userId))
+    }
     await tx.update(calendarConnections).set({
       conflictCalendarIds,
       writeCalendarId,
+      ...(defaultForBookings ? { isDefaultWriteDestination: true } : {}),
       preferencesConfiguredAt: sql`now()`,
       accountLabel: calendars.find(calendar => calendar.primary)?.id ?? writeCalendarId,
       lastCheckedAt: sql`now()`,
@@ -522,4 +530,5 @@ export async function disconnectGoogleCalendar(userId: string) {
   }
 
   await useDatabase().delete(calendarConnections).where(eq(calendarConnections.id, connection.id))
+  await ensureDefaultCalendarDestination(userId)
 }

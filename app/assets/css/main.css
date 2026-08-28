@@ -68,17 +68,29 @@ body {
     background-color: var(--schedra-secondary-surface);
   }
 
-  /* Dashboard actions remain easy to tap without becoming visually dominant
-     on narrow screens. Text and icons share the same optical centre. */
+  /* Keep page-level actions consistent across the dashboard. They remain
+     comfortably tappable without overpowering the page title. */
+  .page-header-actions :where(a, button),
+  .meeting-link-header-action {
+    box-sizing: border-box;
+    min-height: 2.25rem !important;
+    height: 2.25rem !important;
+    align-items: center;
+    justify-content: center;
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+    white-space: nowrap;
+  }
+
+  /* Standalone mobile actions use the same compact rhythm. */
   @media (max-width: 639px) {
-    .mobile-compact-action,
-    .page-header-actions > :where(a, button) {
-      min-height: 2.5rem;
-      height: 2.5rem;
+    .mobile-compact-action {
+      min-height: 2.25rem;
+      height: 2.25rem;
       align-items: center;
       justify-content: center;
-      padding-top: 0.375rem;
-      padding-bottom: 0.375rem;
+      padding-top: 0.25rem;
+      padding-bottom: 0.25rem;
       white-space: nowrap;
     }
   }

@@ -2,21 +2,25 @@ import type { MeetingLocationType } from '#shared/validation'
 import { writableGoogleCalendarUserIds, writableMicrosoftTeamsCalendarUserIds } from '../repositories/calendar-connection'
 import { connectedZoomUserIds } from '../repositories/video-conference-connection'
 
-export async function requireLocationIntegration(userId: string, locationType: MeetingLocationType) {
-  if (!['google_meet', 'microsoft_teams', 'zoom'].includes(locationType)) return
+export async function locationIntegrationReady(userId: string, locationType: MeetingLocationType) {
+  if (!['google_meet', 'microsoft_teams', 'zoom'].includes(locationType)) return true
 
   const connectedUserIds = locationType === 'google_meet'
     ? await writableGoogleCalendarUserIds([userId])
     : locationType === 'microsoft_teams'
       ? await writableMicrosoftTeamsCalendarUserIds([userId])
       : await connectedZoomUserIds([userId])
-  if (!connectedUserIds.length) {
+  return connectedUserIds.length > 0
+}
+
+export async function requireLocationIntegration(userId: string, locationType: MeetingLocationType) {
+  if (!await locationIntegrationReady(userId, locationType)) {
     throw createError({
       statusCode: 409,
       statusMessage: locationType === 'google_meet'
-        ? 'Connect Google Calendar and choose it for new bookings before using Google Meet.'
+        ? 'Connect Google Calendar and choose a writable calendar before using Google Meet.'
         : locationType === 'microsoft_teams'
-          ? 'Connect a Microsoft calendar that supports Teams and choose it for new bookings first.'
+          ? 'Connect Microsoft Calendar and choose a writable calendar that supports Teams first.'
           : 'Connect Zoom before using Zoom as the meeting location.'
     })
   }
@@ -44,9 +48,9 @@ export async function requireTeamLocationIntegrations(
     throw createError({
       statusCode: 409,
       statusMessage: locationType === 'google_meet'
-        ? 'Every active host must connect Google Calendar and choose it for new bookings before this event can use Google Meet.'
+        ? 'Every active host must connect Google Calendar and choose a writable calendar before this event can use Google Meet.'
         : locationType === 'microsoft_teams'
-          ? 'Every active host must connect a Microsoft calendar that supports Teams and choose it for new bookings.'
+          ? 'Every active host must connect Microsoft Calendar and choose a writable calendar that supports Teams.'
           : 'Every active host must connect Zoom before this team event can use Zoom.'
     })
   }
