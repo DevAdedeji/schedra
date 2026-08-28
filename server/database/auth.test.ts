@@ -65,6 +65,41 @@ describe.skipIf(!url)('authentication', () => {
     ).rejects.toThrow()
   })
 
+  it('queues a distinct verification email every time an unverified user resends', async () => {
+    const instance = await auth()
+    await instance.api.signUpEmail({ body: credentials })
+    const { resendVerificationEmail } = await import('../services/verification-email')
+
+    expect(await resendVerificationEmail(
+      credentials.email,
+      `/verify-email?verified=1&email=${encodeURIComponent(credentials.email)}`
+    )).toBe(true)
+    expect(await resendVerificationEmail(
+      credentials.email,
+      `/verify-email?verified=1&email=${encodeURIComponent(credentials.email)}`
+    )).toBe(true)
+
+    const rows = await sql<{ dedupe_key: string, action_url: string }[]>`
+      select dedupe_key, action_url from email_outbox order by created_at
+    `
+    expect(rows).toHaveLength(3)
+    expect(new Set(rows.map(row => row.dedupe_key)).size).toBe(3)
+    expect(rows.slice(1).every(row => row.action_url.includes('/api/auth/verify-email?'))).toBe(true)
+  })
+
+  it('does not queue verification email for missing or already verified accounts', async () => {
+    const instance = await auth()
+    await instance.api.signUpEmail({ body: credentials })
+    await confirmEmail(credentials.email)
+    const { resendVerificationEmail } = await import('../services/verification-email')
+
+    expect(await resendVerificationEmail(credentials.email, '/verify-email?verified=1')).toBe(false)
+    expect(await resendVerificationEmail('missing@example.com', '/verify-email?verified=1')).toBe(false)
+
+    const rows = await sql`select id from email_outbox`
+    expect(rows).toHaveLength(1)
+  })
+
   it('signs in once the email is confirmed', async () => {
     const instance = await auth()
     await instance.api.signUpEmail({ body: credentials })

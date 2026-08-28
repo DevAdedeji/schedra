@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { apiErrorMessage, invitationsApi, type InvitationPreview } from '~/services/schedra-api'
+import { apiErrorMessage, authApi, invitationsApi, type InvitationPreview } from '~/services/schedra-api'
 
 definePageMeta({ layout: 'auth' })
 
@@ -96,10 +96,7 @@ async function resendVerification() {
   if (!viewer.value) return
   working.value = true
   try {
-    await authClient.sendVerificationEmail({
-      email: viewer.value.email,
-      callbackURL: `/invite/${id.value}`
-    })
+    await authApi.resendVerification(viewer.value.email, `/invite/${id.value}`)
     feedback.success({ title: 'Verification sent', description: `Check ${viewer.value.email}.` })
   } catch (failure) {
     actionError.value = apiErrorMessage(failure, 'Could not send that email.')

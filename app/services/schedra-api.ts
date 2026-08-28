@@ -428,7 +428,7 @@ export const usernameApi = {
 
 export const authApi = {
   resendVerification: (email: string, callbackURL: string) =>
-    $fetch('/api/auth/send-verification-email', {
+    $fetch('/api/resend-verification', {
       method: 'POST',
       body: { email, callbackURL }
     })
