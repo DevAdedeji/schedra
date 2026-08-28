@@ -35,12 +35,13 @@ function toggleColorMode() {
         </NuxtLink>
 
         <nav class="hidden items-center gap-8 md:flex">
-          <a
+          <NuxtLink
             v-for="link in links"
             :key="link.label"
-            :href="link.to.startsWith('#') ? `/${link.to}` : link.to"
+            :to="link.to.startsWith('#') ? `/${link.to}` : link.to"
+            prefetch
             class="text-[14px] text-muted transition-colors hover:text-highlighted"
-          >{{ link.label }}</a>
+          >{{ link.label }}</NuxtLink>
         </nav>
 
         <div class="flex items-center gap-2">
@@ -78,13 +79,14 @@ function toggleColorMode() {
         v-if="open"
         class="border-t border-default py-3 md:hidden"
       >
-        <a
+        <NuxtLink
           v-for="link in links"
           :key="link.label"
-          :href="link.to.startsWith('#') ? `/${link.to}` : link.to"
+          :to="link.to.startsWith('#') ? `/${link.to}` : link.to"
+          prefetch
           class="block py-2.5 text-[15px] text-muted transition-colors hover:text-highlighted"
           @click="open = false"
-        >{{ link.label }}</a>
+        >{{ link.label }}</NuxtLink>
 
         <UButton
           :to="accountDestination"

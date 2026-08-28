@@ -467,6 +467,7 @@ export interface OperationsJob {
   provider: string | null
   label: string
   retryable: boolean
+  delayed?: boolean
   createdAt: string
   updatedAt: string
 }
@@ -760,12 +761,29 @@ export interface PaymentActivityResponse {
   pagination: PaginationMeta
 }
 
+export interface PaymentMoneyTotal {
+  currency: 'USD' | 'NGN'
+  amountCents: number
+}
+
+export interface PaymentSummary {
+  collected: PaymentMoneyTotal[]
+  available: PaymentMoneyTotal[]
+  pending: PaymentMoneyTotal[]
+  withdrawn: PaymentMoneyTotal[]
+  providerStatus: 'not_connected' | 'available' | 'unavailable'
+  updatedAt: string
+}
+
 export const paymentsApi = {
   endpoint: '/api/payment-account',
   teamEndpoint: (slug: string) => resource('/api/teams', slug, '/payment-account'),
   activityEndpoint: (teamSlug?: string) => teamSlug
     ? resource('/api/teams', teamSlug, '/payment-activity')
     : '/api/payment-activity',
+  summaryEndpoint: (teamSlug?: string) => teamSlug
+    ? resource('/api/teams', teamSlug, '/payment-summary')
+    : '/api/payment-summary',
   start: (teamSlug?: string) => $fetch<{ url: string, expiresAt: string }>(
     teamSlug ? resource('/api/teams', teamSlug, '/payment-account') : '/api/payment-account',
     { method: 'POST' }

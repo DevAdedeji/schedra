@@ -1,4 +1,4 @@
-import { and, count, desc, eq, ilike, inArray, or } from 'drizzle-orm'
+import { and, count, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm'
 import type { Database } from '../database/client'
 import {
   bookingPayments,
@@ -93,6 +93,8 @@ export async function paymentActivityRows(
     metadata: paymentLedgerEntries.metadata,
     occurredAt: paymentLedgerEntries.occurredAt,
     paymentReference: bookingPayments.reference,
+    bookingAmountCents: bookingPayments.amountCents,
+    bookingCurrency: bookingPayments.currency,
     platformFeeCents: bookingPayments.platformFeeCents,
     bookingUid: bookings.uid,
     attendeeName: bookings.attendeeName,
@@ -125,4 +127,22 @@ export async function paymentActivityRows(
   ])
 
   return { rows, total: total?.value ?? 0 }
+}
+
+export async function collectedPaymentTotals(owner: PaymentActivityOwner) {
+  const rows = await useDatabase().select({
+    currency: bookingPayments.currency,
+    amountCents: sql<number>`sum(${bookingPayments.amountCents})::bigint`.mapWith(Number)
+  }).from(bookingPayments)
+    .innerJoin(paymentRecipients, eq(paymentRecipients.id, bookingPayments.recipientId))
+    .where(and(
+      ownerWhere(owner),
+      inArray(bookingPayments.status, ['paid', 'refund_pending', 'refunded', 'refund_failed'])
+    ))
+    .groupBy(bookingPayments.currency)
+
+  return rows.map(row => ({
+    currency: row.currency as 'USD' | 'NGN',
+    amountCents: Number(row.amountCents)
+  }))
 }

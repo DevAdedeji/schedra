@@ -259,6 +259,7 @@ export function completePaidBookingFromCheckout(
   context: {
     providerEventId?: string | null
     amountCollectedCents?: number | null
+    amountCollectedCurrency?: string | null
   } = {}
 ) {
   if (checkoutPaymentState(checkout) !== 'paid') {
@@ -270,8 +271,11 @@ export function completePaidBookingFromCheckout(
     reference: checkout.reference,
     amount: checkout.amount,
     amountPaidCents: toCents(checkout.charge?.amount_paid),
+    amountPaidCurrency: checkout.charge?.currency,
     amountCollectedCents: context.amountCollectedCents,
-    providerFeeCents: checkout.currency === 'USD' ? toCents(checkout.charge?.fee_usd) : null,
+    amountCollectedCurrency: context.amountCollectedCurrency,
+    providerFeeCents: toCents(checkout.charge?.fee_usd),
+    providerFeeCurrency: checkout.charge?.fee_usd ? 'USD' : null,
     paymentMethod: checkout.payment_method,
     currency: checkout.currency,
     paymentStatus: checkout.charge?.status ?? checkout.payment_status,
@@ -299,8 +303,11 @@ export async function completePaidBooking(input: {
   reference?: string | null
   amount?: string | null
   amountPaidCents?: number | null
+  amountPaidCurrency?: string | null
   amountCollectedCents?: number | null
+  amountCollectedCurrency?: string | null
   providerFeeCents?: number | null
+  providerFeeCurrency?: string | null
   paymentMethod?: string | null
   currency?: string | null
   paymentStatus?: string | null
@@ -620,8 +627,11 @@ async function recordSuccessfulPaymentEntries(
     checkoutId: string
     chargeId?: string | null
     amountPaidCents?: number | null
+    amountPaidCurrency?: string | null
     amountCollectedCents?: number | null
+    amountCollectedCurrency?: string | null
     providerFeeCents?: number | null
+    providerFeeCurrency?: string | null
     paymentMethod?: string | null
     providerEventId?: string | null
   },
@@ -632,7 +642,9 @@ async function recordSuccessfulPaymentEntries(
   const metadata = {
     platformFeeCents: payment.platformFeeCents,
     amountPaidCents: input.amountPaidCents ?? null,
+    amountPaidCurrency: normalCurrency(input.amountPaidCurrency),
     amountCollectedCents: input.amountCollectedCents ?? null,
+    amountCollectedCurrency: normalCurrency(input.amountCollectedCurrency),
     providerFeeCents: input.providerFeeCents ?? null,
     paymentMethod: input.paymentMethod ?? null
   }
@@ -642,7 +654,10 @@ async function recordSuccessfulPaymentEntries(
     kind: 'customer_payment',
     direction: 'in',
     status: 'succeeded',
-    amountCents: input.amountPaidCents ?? payment.amountCents,
+    // This is the immutable event price. Bachs may collect that price through
+    // a local-currency rail, but the tender value must not replace what the
+    // guest purchased (for example, ₦7,391.13 must not become $7,391.13).
+    amountCents: payment.amountCents,
     currency: payment.currency as 'USD' | 'NGN',
     providerEventId: input.providerEventId,
     providerObjectId: objectId,
@@ -669,13 +684,14 @@ async function recordSuccessfulPaymentEntries(
       direction: 'out',
       status: 'succeeded',
       amountCents: input.providerFeeCents,
-      currency: payment.currency as 'USD' | 'NGN',
+      currency: normalCurrency(input.providerFeeCurrency) ?? 'USD',
       providerEventId: input.providerEventId,
       providerObjectId: objectId,
       message: 'Bachs processing fee reported by the provider.'
     }, executor)
   }
-  if (input.amountCollectedCents != null) {
+  const settlementCurrency = normalCurrency(input.amountCollectedCurrency)
+  if (input.amountCollectedCents != null && settlementCurrency) {
     await appendPaymentLedgerEntry({
       bookingPaymentId: payment.id,
       dedupeKey: `payment:${payment.id}:settlement:${suffix}`,
@@ -683,12 +699,17 @@ async function recordSuccessfulPaymentEntries(
       direction: 'in',
       status: 'succeeded',
       amountCents: input.amountCollectedCents,
-      currency: payment.currency as 'USD' | 'NGN',
+      currency: settlementCurrency,
       providerEventId: input.providerEventId,
       providerObjectId: objectId,
       message: 'Bachs reported the settled amount after fees.'
     }, executor)
   }
+}
+
+function normalCurrency(currency?: string | null): 'USD' | 'NGN' | null {
+  const value = currency?.toUpperCase()
+  return value === 'USD' || value === 'NGN' ? value : null
 }
 
 export async function eventPaymentReadiness(eventTypeId: string) {

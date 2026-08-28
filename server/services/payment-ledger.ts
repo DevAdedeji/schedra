@@ -31,7 +31,7 @@ export async function listPaymentActivity(
   const { rows, total } = await paymentActivityRows(
     owner,
     accountQuery,
-    audience === 'account' ? ['customer_payment', 'settlement'] : undefined
+    audience === 'account' ? ['customer_payment'] : undefined
   )
   return paymentActivityResponse(rows, total, accountQuery, () => ownerLabel, false)
 }
@@ -49,6 +49,15 @@ export async function listOperationsPaymentActivity(query: PaymentActivityQuery)
 
 type ActivityRow = Awaited<ReturnType<typeof paymentActivityRows>>['rows'][number]
 
+export function paymentActivityMoney(
+  kind: PaymentLedgerKind,
+  row: Pick<ActivityRow, 'amountCents' | 'currency' | 'bookingAmountCents' | 'bookingCurrency'>
+) {
+  return kind === 'customer_payment'
+    ? { amountCents: row.bookingAmountCents, currency: row.bookingCurrency }
+    : { amountCents: row.amountCents, currency: row.currency }
+}
+
 function paymentActivityResponse(
   rows: ActivityRow[],
   total: number,
@@ -60,13 +69,18 @@ function paymentActivityResponse(
     items: rows.map((row) => {
       const kind = row.kind as PaymentLedgerKind
       const owner = ownerLabel(row)
+      // A provider may collect a USD-priced booking through a local NGN rail.
+      // Customer payment activity is the immutable event price, not the
+      // provider's tender/settlement amount. This also safely repairs the
+      // presentation of older append-only entries that stored the tender value.
+      const { amountCents, currency } = paymentActivityMoney(kind, row)
       return {
         id: row.id,
         kind,
         direction: row.direction,
         status: row.status,
-        amountCents: row.amountCents,
-        currency: row.currency,
+        amountCents,
+        currency,
         provider: row.provider,
         providerEventId: operator ? row.providerEventId : null,
         providerObjectId: operator ? row.providerObjectId : null,

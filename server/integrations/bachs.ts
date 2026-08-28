@@ -38,6 +38,7 @@ interface BachsRequest {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   body?: Record<string, unknown>
   query?: Record<string, string | number | undefined>
+  headers?: Record<string, string>
   idempotencyKey?: string
 }
 
@@ -51,7 +52,8 @@ export async function bachsFetch<T>(path: string, options: BachsRequest = {}): P
 
   const headers: Record<string, string> = {
     'Authorization': `Bearer ${secretKey()}`,
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    ...options.headers
   }
   if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey
 
@@ -209,6 +211,64 @@ export function createConnectedAccount(input: {
 
 export function getConnectedAccount(accountId: string) {
   return bachsFetch<BachsConnectedAccount>(`/accounts/${encodeURIComponent(accountId)}`)
+}
+
+export interface BachsBalanceBucket {
+  currency: string
+  available_balance: string
+  pending_balance: string
+}
+
+export interface BachsAccountBalance {
+  account_id: string
+  balances: BachsBalanceBucket[]
+  total_balance_usd: string
+}
+
+/**
+ * Financial reads must run in the connected account's context. Without this
+ * header Bachs returns Schedra's platform balance, which must never be shown to
+ * an individual host or team.
+ */
+export function getConnectedAccountBalance(accountId: string) {
+  return bachsFetch<BachsAccountBalance>('/balances', {
+    headers: { 'X-Account-Id': accountId }
+  })
+}
+
+export interface BachsPayout {
+  id: string
+  status: 'pending' | 'processing' | 'completed' | 'failed'
+  amount: string
+  currency: string
+  source_currency?: string | null
+  fee?: string | null
+  total_debited?: string | null
+  completed_at?: string | null
+}
+
+interface BachsPayoutPage {
+  total: number
+  items: BachsPayout[]
+}
+
+export async function listConnectedAccountPayouts(accountId: string) {
+  const items: BachsPayout[] = []
+  const limit = 100
+  let offset = 0
+  let hasMore = true
+
+  while (hasMore) {
+    const page = await bachsFetch<BachsPayoutPage>('/payouts', {
+      headers: { 'X-Account-Id': accountId },
+      query: { limit, offset }
+    })
+    items.push(...(page.items ?? []))
+    offset += limit
+    hasMore = items.length < (page.total ?? 0) && Boolean(page.items?.length)
+  }
+
+  return items
 }
 
 export interface BachsAccountLink {

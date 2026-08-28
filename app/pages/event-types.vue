@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { apiErrorMessage, eventTypesApi, type EventTypesResponse } from '~/services/schedra-api'
 import type { EventTypeRecord } from '~/types/event-type'
+import { compactActionMenuUi } from '~/utils/action-menu'
 import { formatMoney } from '#shared/payments'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
@@ -77,7 +78,7 @@ function showEmbed(item: EventTypeRecord) {
 }
 
 function mobileActions(item: EventTypeRecord) {
-  return [[
+  return [
     ...(!item.hidden
       ? [{
           label: 'Embed on website',
@@ -86,6 +87,7 @@ function mobileActions(item: EventTypeRecord) {
         }, {
           label: 'Preview booking page',
           icon: 'i-lucide-external-link',
+          slot: 'preview',
           to: bookingPath(item),
           target: '_blank'
         }]
@@ -97,7 +99,7 @@ function mobileActions(item: EventTypeRecord) {
     },
     {
       label: 'Edit',
-      icon: 'i-lucide-pencil',
+      icon: 'i-lucide-square-pen',
       onSelect: () => edit(item)
     },
     {
@@ -106,7 +108,7 @@ function mobileActions(item: EventTypeRecord) {
       color: 'error' as const,
       onSelect: () => requestDelete(item)
     }
-  ]]
+  ].map(action => [action])
 }
 
 const embedBookingUrl = computed(() => embeddingItem.value
@@ -206,7 +208,7 @@ function locationIcon(item: EventTypeRecord) {
     </PageHeader>
 
     <section class="overflow-hidden rounded-xl border border-default bg-default">
-      <div class="flex flex-col gap-3 border-b border-default px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+      <div class="surface-secondary flex flex-col gap-3 border-b border-default px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <ListFilter
           v-model="filter"
           :options="filterOptions"
@@ -377,75 +379,30 @@ function locationIcon(item: EventTypeRecord) {
               </div>
             </button>
 
-            <div class="absolute right-3 top-4 flex items-center gap-0.5 sm:right-5 sm:top-5">
-              <UDropdownMenu :items="mobileActions(item)">
+            <div class="absolute right-3 top-4 sm:right-5 sm:top-5">
+              <UDropdownMenu
+                :items="mobileActions(item)"
+                :ui="compactActionMenuUi"
+                :external-icon="false"
+              >
+                <template #preview-trailing>
+                  <UIcon
+                    name="i-lucide-arrow-up-right"
+                    class="size-3 text-dimmed"
+                  />
+                </template>
                 <UButton
                   color="neutral"
                   variant="ghost"
                   size="xs"
                   icon="i-lucide-ellipsis"
-                  class="size-8 justify-center p-0 sm:hidden"
-                  :ui="{ leadingIcon: 'size-4' }"
+                  class="size-7 justify-center p-0"
+                  :loading="duplicating === item.id"
+                  :ui="{ leadingIcon: 'size-3.5' }"
                   :aria-label="`Actions for ${item.title}`"
                   @click.stop
                 />
               </UDropdownMenu>
-              <UButton
-                v-if="!item.hidden"
-                color="neutral"
-                variant="ghost"
-                size="xs"
-                icon="i-lucide-code-xml"
-                class="hidden size-7 justify-center p-0 sm:inline-flex"
-                :ui="{ leadingIcon: 'size-4' }"
-                aria-label="Embed on website"
-                @click.stop="showEmbed(item)"
-              />
-              <UButton
-                v-if="!item.hidden"
-                :to="bookingPath(item)"
-                target="_blank"
-                rel="noopener noreferrer"
-                color="neutral"
-                variant="ghost"
-                size="xs"
-                icon="i-lucide-external-link"
-                class="hidden size-7 justify-center p-0 sm:inline-flex"
-                :ui="{ leadingIcon: 'size-4' }"
-                aria-label="Preview booking page"
-                @click.stop
-              />
-              <UButton
-                color="neutral"
-                variant="ghost"
-                size="xs"
-                icon="i-lucide-copy"
-                class="hidden size-7 justify-center p-0 sm:inline-flex"
-                :loading="duplicating === item.id"
-                :ui="{ leadingIcon: 'size-4' }"
-                aria-label="Duplicate event type"
-                @click.stop="duplicate(item)"
-              />
-              <UButton
-                color="neutral"
-                variant="ghost"
-                size="xs"
-                icon="i-lucide-pencil"
-                class="hidden size-7 justify-center p-0 sm:inline-flex"
-                :ui="{ leadingIcon: 'size-4' }"
-                aria-label="Edit event type"
-                @click.stop="edit(item)"
-              />
-              <UButton
-                color="neutral"
-                variant="ghost"
-                size="xs"
-                icon="i-lucide-trash-2"
-                class="hidden size-7 justify-center p-0 hover:text-error sm:inline-flex"
-                :ui="{ leadingIcon: 'size-4' }"
-                aria-label="Delete event type"
-                @click.stop="requestDelete(item)"
-              />
             </div>
           </li>
         </ul>

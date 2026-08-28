@@ -9,6 +9,7 @@ import {
   type TeamMembersResponse
 } from '~/services/schedra-api'
 import { formatMoney } from '#shared/payments'
+import { compactActionMenuUi } from '~/utils/action-menu'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 
@@ -139,7 +140,7 @@ function actions(eventType: TeamEventTypeRecord) {
   if (permissions.value?.manageEventTypes) {
     items.push({
       label: 'Edit',
-      icon: 'i-lucide-pencil',
+      icon: 'i-lucide-square-pen',
       onSelect: async () => { edit(eventType) }
     })
     items.push({
@@ -149,7 +150,7 @@ function actions(eventType: TeamEventTypeRecord) {
     })
   }
 
-  return [items]
+  return items.map(item => [item])
 }
 
 /** A team event with nobody active cannot be booked, so say so loudly. */
@@ -176,7 +177,7 @@ function activeHosts(eventType: TeamEventTypeRecord) {
     </PageHeader>
 
     <section class="overflow-hidden rounded-xl border border-default bg-default">
-      <div class="border-b border-default px-4 py-3 sm:px-5">
+      <div class="surface-secondary border-b border-default px-4 py-3 sm:px-5">
         <ListFilter
           v-model="filter"
           :options="filterOptions"
@@ -289,7 +290,7 @@ function activeHosts(eventType: TeamEventTypeRecord) {
 
           <UDropdownMenu
             :items="actions(eventType)"
-            :ui="{ content: 'w-44', item: 'gap-2 px-2.5 py-2 text-[13px]' }"
+            :ui="compactActionMenuUi"
           >
             <UButton
               color="neutral"
@@ -297,6 +298,7 @@ function activeHosts(eventType: TeamEventTypeRecord) {
               size="xs"
               icon="i-lucide-ellipsis"
               class="size-7 justify-center p-0"
+              :ui="{ leadingIcon: 'size-3.5' }"
               :loading="busyId === eventType.id"
               :aria-label="`Actions for ${eventType.title}`"
             />

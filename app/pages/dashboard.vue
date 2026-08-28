@@ -280,7 +280,7 @@ function initials(name: string) {
                 color="neutral"
                 variant="ghost"
                 size="xs"
-                icon="i-lucide-pencil"
+                icon="i-lucide-square-pen"
                 class="size-7 justify-center p-0"
                 :ui="{ leadingIcon: 'size-4' }"
                 aria-label="Edit availability"

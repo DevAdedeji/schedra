@@ -22,6 +22,12 @@ import { useEnv } from '../config/env'
 export type OperationKind = 'automation' | 'calendar' | 'billing' | 'email' | 'webhook'
 export type OperationStatus = 'all' | 'pending' | 'processing' | 'completed' | 'failed' | 'ignored'
 
+export function isRetryableEmailJob(status: string, updatedAt: Date, now = new Date()) {
+  if (status === 'failed') return true
+  return ['pending', 'sending'].includes(status)
+    && updatedAt.getTime() <= now.getTime() - 15 * 60 * 1000
+}
+
 function maskEmail(value: string) {
   const [local, domain] = value.split('@')
   return domain ? `${local?.slice(0, 2) ?? ''}***@${domain}` : 'Hidden recipient'
@@ -214,7 +220,8 @@ export async function operationsJobs(input: {
       kind,
       provider: 'email',
       label: `${row.subject} · ${maskEmail(row.recipient)}`,
-      retryable: row.status === 'failed'
+      delayed: isRetryableEmailJob(row.status, row.updatedAt) && row.status !== 'failed',
+      retryable: isRetryableEmailJob(row.status, row.updatedAt)
     })), total?.value ?? 0, page, pageSize)
   }
 
@@ -288,7 +295,16 @@ export async function retryOperation(kind: OperationKind, id: string) {
     const rows = await db.update(emailOutbox).set({
       status: 'pending', attempts: 0, availableAt: sql`now()`, lockedAt: null,
       sentAt: null, lastError: null, updatedAt: sql`now()`
-    }).where(and(eq(emailOutbox.id, id), eq(emailOutbox.status, 'failed'))).returning({ id: emailOutbox.id })
+    }).where(and(
+      eq(emailOutbox.id, id),
+      sql`(
+        ${emailOutbox.status} = 'failed'
+        or (
+          ${emailOutbox.status} in ('pending', 'sending')
+          and ${emailOutbox.updatedAt} < now() - interval '15 minutes'
+        )
+      )`
+    )).returning({ id: emailOutbox.id })
     return Boolean(rows.length)
   }
 

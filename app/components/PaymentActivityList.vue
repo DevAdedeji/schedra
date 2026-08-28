@@ -76,7 +76,7 @@ function traceRows(item: PaymentActivityRecord) {
 
 <template>
   <section class="overflow-hidden rounded-2xl border border-default bg-default">
-    <header class="flex flex-col gap-5 border-b border-default p-5 sm:p-6 lg:flex-row lg:items-end lg:justify-between">
+    <header class="flex flex-col gap-5 border-b border-default p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between surface-secondary">
       <div>
         <div class="flex items-center gap-2">
           <span class="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
