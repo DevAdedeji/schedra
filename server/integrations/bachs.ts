@@ -10,6 +10,9 @@ const LIVE_API = 'https://api.bachs.io/v1'
 
 /** Replay window for webhook timestamps, in seconds. */
 const WEBHOOK_TOLERANCE_SECONDS = 300
+const SAFE_REQUEST_ATTEMPTS = 3
+const SAFE_REQUEST_RETRY_DELAYS_MS = [150, 400]
+const MAX_INLINE_RETRY_AFTER_MS = 2_000
 
 export const NGN_ONE_TIME_PAYMENT_METHOD_OPTIONS: Record<string, { currencies: string[] }> = {
   bank_transfer: { currencies: ['NGN'] },
@@ -40,6 +43,7 @@ interface BachsRequest {
   query?: Record<string, string | number | undefined>
   headers?: Record<string, string>
   idempotencyKey?: string
+  retryTransient?: boolean
 }
 
 export async function bachsFetch<T>(path: string, options: BachsRequest = {}): Promise<T> {
@@ -57,16 +61,53 @@ export async function bachsFetch<T>(path: string, options: BachsRequest = {}): P
   }
   if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey
 
-  const response = await fetchWithTimeout(url, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined
-  }, 15_000)
+  // Only callers that need a short, in-request recovery window opt in. Durable
+  // workers own their own longer backoff and must receive the first failure.
+  // Writes still require an idempotency key before they can ever be repeated.
+  const safeToRetry = method === 'GET' || Boolean(idempotencyKey)
+  const attempts = options.retryTransient && safeToRetry ? SAFE_REQUEST_ATTEMPTS : 1
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    let response: Response
+    try {
+      response = await fetchWithTimeout(url, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined
+      }, 15_000)
+    } catch (error) {
+      if (attempt < attempts) {
+        logRetry(method, path, attempt, null, error)
+        await waitForRetry(attempt)
+        continue
+      }
+      logEvent('error', 'bachs_request_failed', {
+        method,
+        path,
+        status: null,
+        attempt,
+        error
+      })
+      throw createError({
+        statusCode: 503,
+        statusMessage: 'Bachs is temporarily unavailable. Please try again shortly.'
+      })
+    }
 
-  const text = await response.text()
-  const payload = text ? safeJson(text) : null
+    const text = await response.text()
+    const payload = text ? safeJson(text) : null
+    if (response.ok) return payload as T
 
-  if (!response.ok) {
+    const retryAfterMs = retryAfterMilliseconds(response)
+    if (
+      attempt < attempts
+      && isTransientStatus(response.status)
+      && (retryAfterMs === undefined || retryAfterMs <= MAX_INLINE_RETRY_AFTER_MS)
+    ) {
+      logRetry(method, path, attempt, response.status)
+      await waitForRetry(attempt, retryAfterMs)
+      continue
+    }
+
     // Bachs returns { detail, error_code, doc_url } — reading `message` first
     // turns every failure into a useless "request failed".
     const detail = payload?.detail ?? payload?.message ?? `Bachs request failed (${response.status})`
@@ -74,6 +115,7 @@ export async function bachsFetch<T>(path: string, options: BachsRequest = {}): P
       method,
       path,
       status: response.status,
+      attempt,
       errorCode: payload?.error_code ?? null,
       detail
     })
@@ -91,7 +133,38 @@ export async function bachsFetch<T>(path: string, options: BachsRequest = {}): P
     })
   }
 
-  return payload as T
+  // The loop always returns or throws. This is an explicit guard for future
+  // changes to the retry policy and keeps the function total for TypeScript.
+  throw createError({ statusCode: 503, statusMessage: 'Bachs is temporarily unavailable.' })
+}
+
+function isTransientStatus(status: number) {
+  return status === 408 || status === 425 || status === 429 || status >= 500
+}
+
+function retryAfterMilliseconds(response: Response) {
+  const value = response.headers.get('retry-after')?.trim()
+  if (!value) return undefined
+  const seconds = Number(value)
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.ceil(seconds * 1000)
+  const date = Date.parse(value)
+  return Number.isFinite(date) ? Math.max(0, date - Date.now()) : undefined
+}
+
+function logRetry(method: string, path: string, attempt: number, status: number | null, error?: unknown) {
+  logEvent('warn', 'bachs_request_retrying', {
+    method,
+    path,
+    status,
+    attempt,
+    nextAttempt: attempt + 1,
+    error
+  })
+}
+
+function waitForRetry(attempt: number, retryAfterMs?: number) {
+  const delayMs = retryAfterMs ?? SAFE_REQUEST_RETRY_DELAYS_MS[attempt - 1] ?? 400
+  return new Promise(resolve => setTimeout(resolve, delayMs))
 }
 
 function safeJson(text: string) {
@@ -418,7 +491,8 @@ export function quoteConversion(from: string, to: string, amount: string) {
 
 export function getCheckoutSession(checkoutId: string) {
   return bachsFetch<BachsCheckoutSession>(
-    `/checkout-sessions/${encodeURIComponent(checkoutId)}`
+    `/checkout-sessions/${encodeURIComponent(checkoutId)}`,
+    { retryTransient: true }
   )
 }
 

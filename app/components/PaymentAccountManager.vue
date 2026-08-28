@@ -30,9 +30,11 @@ function money(totals: PaymentMoneyTotal[]) {
   return totals.map(total => formatMoney(total.amountCents, total.currency))
 }
 
-function pendingText(totals: PaymentMoneyTotal[]) {
+function providerMoney(totals: PaymentMoneyTotal[]) {
   const values = money(totals)
-  return values.length ? `${values.join(' + ')} pending` : 'No pending funds'
+  if (values.length) return values
+  const currencies = new Set(summary.value?.collected.map(total => total.currency) ?? [])
+  return [...currencies].sort().map(currency => formatMoney(0, currency))
 }
 
 const statusCopy = computed(() => ({
@@ -212,7 +214,7 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', checkSetu
             Payment summary
           </h2>
           <p class="mt-1 text-sm text-muted">
-            Collected values use your listed event prices. Balances and withdrawals come directly from Bachs.
+            Follow paid bookings from collection through settlement and delivery to your bank.
           </p>
         </div>
         <UButton
@@ -228,11 +230,11 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', checkSetu
 
       <div
         v-if="summaryStatus === 'pending' && !summary"
-        class="grid gap-px surface-secondary sm:grid-cols-3"
+        class="grid gap-px surface-secondary sm:grid-cols-2 lg:grid-cols-4"
         aria-label="Loading payment summary"
       >
         <div
-          v-for="index in 3"
+          v-for="index in 4"
           :key="index"
           class="space-y-3 bg-default p-5 sm:p-6"
         >
@@ -250,7 +252,7 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', checkSetu
       />
       <div
         v-else
-        class="grid gap-px surface-secondary sm:grid-cols-3"
+        class="grid gap-px surface-secondary sm:grid-cols-2 lg:grid-cols-4"
       >
         <div class="bg-default p-5 sm:p-6">
           <div class="flex items-center gap-2 text-muted">
@@ -280,22 +282,22 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', checkSetu
         <div class="bg-default p-5 sm:p-6">
           <div class="flex items-center gap-2 text-muted">
             <UIcon
-              name="i-lucide-wallet"
+              name="i-lucide-clock-3"
               class="size-4"
             />
             <p class="text-xs font-medium uppercase tracking-wide">
-              Available balance
+              Pending settlement
             </p>
           </div>
           <div class="mt-3 space-y-1 text-xl font-semibold tabular-nums text-highlighted">
             <template v-if="summary?.providerStatus === 'available'">
               <p
-                v-for="value in money(summary.available)"
+                v-for="value in providerMoney(summary.pending)"
                 :key="value"
               >
                 {{ value }}
               </p>
-              <p v-if="!summary.available.length">
+              <p v-if="!providerMoney(summary.pending).length">
                 —
               </p>
             </template>
@@ -304,7 +306,37 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', checkSetu
             </p>
           </div>
           <p class="mt-2 text-xs text-muted">
-            {{ summary?.providerStatus === 'available' ? pendingText(summary.pending) : 'Reconnect or retry the Bachs balance check.' }}
+            {{ summary?.providerStatus === 'available' ? 'Customer payments Bachs is still settling.' : 'Reconnect or retry the Bachs balance check.' }}
+          </p>
+        </div>
+        <div class="bg-default p-5 sm:p-6">
+          <div class="flex items-center gap-2 text-muted">
+            <UIcon
+              name="i-lucide-wallet"
+              class="size-4"
+            />
+            <p class="text-xs font-medium uppercase tracking-wide">
+              Ready for payout
+            </p>
+          </div>
+          <div class="mt-3 space-y-1 text-xl font-semibold tabular-nums text-highlighted">
+            <template v-if="summary?.providerStatus === 'available'">
+              <p
+                v-for="value in providerMoney(summary.available)"
+                :key="value"
+              >
+                {{ value }}
+              </p>
+              <p v-if="!providerMoney(summary.available).length">
+                —
+              </p>
+            </template>
+            <p v-else>
+              Unavailable
+            </p>
+          </div>
+          <p class="mt-2 text-xs text-muted">
+            Funds held by Bachs and ready to be sent to your bank.
           </p>
         </div>
         <div class="bg-default p-5 sm:p-6">
@@ -314,18 +346,18 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', checkSetu
               class="size-4"
             />
             <p class="text-xs font-medium uppercase tracking-wide">
-              Total withdrawn
+              Paid to your bank
             </p>
           </div>
           <div class="mt-3 space-y-1 text-xl font-semibold tabular-nums text-highlighted">
             <template v-if="summary?.providerStatus === 'available'">
               <p
-                v-for="value in money(summary.withdrawn)"
+                v-for="value in providerMoney(summary.withdrawn)"
                 :key="value"
               >
                 {{ value }}
               </p>
-              <p v-if="!summary.withdrawn.length">
+              <p v-if="!providerMoney(summary.withdrawn).length">
                 —
               </p>
             </template>
@@ -334,7 +366,7 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', checkSetu
             </p>
           </div>
           <p class="mt-2 text-xs text-muted">
-            Completed payouts delivered by Bachs.
+            Completed payouts Bachs has delivered to your payout account.
           </p>
         </div>
       </div>

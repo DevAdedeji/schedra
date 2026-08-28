@@ -249,6 +249,50 @@ describe('bachs checkout payment methods', () => {
     expect((fetchMock.mock.calls[0]?.[1] as RequestInit).method).toBe('GET')
   })
 
+  it('retries a transient checkout read before webhook processing fails', async () => {
+    const providerCheckout = {
+      checkout_id: 'chk_retry',
+      status: 'completed',
+      payment_status: 'succeeded',
+      amount: '5.00',
+      currency: 'USD',
+      reference: 'booking-reference'
+    }
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 502 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(providerCheckout), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { getCheckoutSession } = await import('./bachs')
+    await expect(getCheckoutSession('chk_retry')).resolves.toEqual(providerCheckout)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not retry a non-transient checkout rejection', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      detail: 'Checkout not found'
+    }), { status: 404 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { getCheckoutSession } = await import('./bachs')
+    await expect(getCheckoutSession('chk_missing')).rejects.toMatchObject({ statusCode: 404 })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('never retries a write that has no idempotency key', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 502 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ created: true }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { bachsFetch } = await import('./bachs')
+    await expect(bachsFetch('/unsafe-write', {
+      method: 'POST',
+      body: { amount: '5.00' }
+    })).rejects.toMatchObject({ statusCode: 502 })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('uses owner identity, not email, to make payout account creation idempotent', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: 'acct_host' }), { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
