@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { apiErrorMessage, schedulesApi, type SchedulesResponse } from '~/services/schedra-api'
 import type { ScheduleRecord } from '~/types/schedule'
+import { compactActionMenuUi } from '~/utils/action-menu'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 useSeoMeta({ title: 'Availability schedules', robots: 'noindex, nofollow' })
@@ -111,6 +112,33 @@ function requestDelete(schedule: ScheduleRecord) {
   deleteOpen.value = true
 }
 
+function scheduleActions(schedule: ScheduleRecord) {
+  return [
+    [
+      {
+        label: 'Duplicate',
+        icon: 'i-lucide-copy',
+        onSelect: async () => { await duplicate(schedule) }
+      }
+    ],
+    [
+      {
+        label: 'Edit',
+        icon: 'i-lucide-square-pen',
+        onSelect: () => edit(schedule)
+      }
+    ],
+    [
+      {
+        label: 'Delete',
+        icon: 'i-lucide-trash-2',
+        color: 'error' as const,
+        onSelect: () => requestDelete(schedule)
+      }
+    ]
+  ]
+}
+
 async function confirmDelete() {
   if (!deletingItem.value) return
   const name = deletingItem.value.name
@@ -178,7 +206,7 @@ function timeMinutes(value: string) {
     </p>
 
     <section class="overflow-hidden rounded-xl border border-default bg-default">
-      <div class="flex flex-col gap-3 border-b border-default px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+      <div class="surface-secondary flex flex-col gap-3 border-b border-default px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <ListFilter
           v-model="filter"
           :options="filterOptions"
@@ -307,38 +335,21 @@ function timeMinutes(value: string) {
               </div>
             </button>
 
-            <div class="absolute right-3 top-4 flex items-center gap-0.5 sm:right-5 sm:top-5">
+            <UDropdownMenu
+              :items="scheduleActions(schedule)"
+              :ui="compactActionMenuUi"
+            >
               <UButton
                 color="neutral"
                 variant="ghost"
                 size="xs"
-                icon="i-lucide-copy"
-                class="hidden size-7 justify-center p-0 sm:inline-flex"
-                :ui="{ leadingIcon: 'size-4' }"
-                aria-label="Duplicate schedule"
-                @click.stop="duplicate(schedule)"
+                icon="i-lucide-ellipsis"
+                class="absolute right-3 top-4 size-7 justify-center p-0 sm:right-5 sm:top-5"
+                :ui="{ leadingIcon: 'size-3.5' }"
+                :aria-label="`Actions for ${schedule.name}`"
+                @click.stop
               />
-              <UButton
-                color="neutral"
-                variant="ghost"
-                size="xs"
-                icon="i-lucide-pencil"
-                class="size-7 justify-center p-0"
-                :ui="{ leadingIcon: 'size-4' }"
-                aria-label="Edit schedule"
-                @click.stop="edit(schedule)"
-              />
-              <UButton
-                color="neutral"
-                variant="ghost"
-                size="xs"
-                icon="i-lucide-trash-2"
-                class="size-7 justify-center p-0 hover:text-error"
-                :ui="{ leadingIcon: 'size-4' }"
-                aria-label="Delete schedule"
-                @click.stop="requestDelete(schedule)"
-              />
-            </div>
+            </UDropdownMenu>
           </li>
         </ul>
 

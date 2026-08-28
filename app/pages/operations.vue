@@ -322,7 +322,7 @@ async function retry(jobKind: OperationKind, id: string) {
         </article>
       </section>
 
-      <section class="overflow-hidden rounded-2xl border border-default bg-default">
+      <section class="overflow-hidden rounded-2xl border border-default surface-secondary">
         <header class="flex flex-wrap items-center justify-between gap-3 border-b border-default px-5 py-4">
           <div>
             <h2 class="text-[14px] font-semibold text-highlighted">
@@ -379,8 +379,8 @@ async function retry(jobKind: OperationKind, id: string) {
       </section>
 
       <section class="overflow-hidden rounded-2xl border border-default bg-default">
-        <div class="border-b border-default p-4 sm:p-5">
-          <div class="flex flex-wrap gap-2">
+        <div class="border-b border-default p-4 sm:p-5 surface-secondary">
+          <div class="flex flex-wrap gap-2 border-b pb-2 border-default">
             <UButton
               v-for="item in kinds"
               :key="item.value"
@@ -458,7 +458,7 @@ async function retry(jobKind: OperationKind, id: string) {
                   <span
                     class="capitalize"
                     :class="job.status === 'failed' && 'text-error'"
-                  >{{ job.status }}</span>
+                  >{{ job.delayed ? 'delayed' : job.status }}</span>
                   <span class="text-dimmed">·</span>
                   <span :title="formatDate(job.updatedAt)">{{ ago(job.updatedAt) }}</span>
                   <span class="text-dimmed">·</span>

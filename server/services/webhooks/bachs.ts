@@ -25,6 +25,7 @@ export interface BachsEvent {
     amount_collected?: string | null
     amount_remaining?: string | null
     settlement_amount?: string
+    settlement_currency?: string | null
     fee?: string | { amount?: string | null } | null
     fees?: { amount?: string | null } | null
     payment_method?: string | { type?: string | null, name?: string | null } | null
@@ -72,6 +73,7 @@ export async function processBachsWebhook(payload: BachsEvent) {
     const checkout = await getCheckoutSession(checkoutId)
     const result = await completePaidBookingFromCheckout(checkout, {
       amountCollectedCents: toCents(payload.data?.amount_collected ?? payload.data?.settlement_amount),
+      amountCollectedCurrency: payload.data?.settlement_currency ?? payload.data?.currency,
       providerEventId: payload.id
     })
     if (result.matched) {

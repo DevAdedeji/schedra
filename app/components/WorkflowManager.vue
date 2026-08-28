@@ -8,6 +8,7 @@ import {
   type WorkflowRecord,
   type WorkflowsResponse
 } from '~/services/schedra-api'
+import { compactActionMenuUi } from '~/utils/action-menu'
 
 const props = defineProps<{
   teamSlug?: string
@@ -331,16 +332,19 @@ async function copySecret() {
               @update:model-value="toggle(workflow, Boolean($event))"
             />
             <UDropdownMenu
-              :items="[[
-                { label: 'Edit', icon: 'i-lucide-pencil', onSelect: () => startEdit(workflow) },
-                { label: 'Delete', icon: 'i-lucide-trash-2', color: 'error', onSelect: () => { deleting = workflow } }
-              ]]"
+              :items="[
+                [{ label: 'Edit', icon: 'i-lucide-square-pen', onSelect: () => startEdit(workflow) }],
+                [{ label: 'Delete', icon: 'i-lucide-trash-2', color: 'error', onSelect: () => { deleting = workflow } }]
+              ]"
+              :ui="compactActionMenuUi"
             >
               <UButton
                 color="neutral"
                 variant="ghost"
                 icon="i-lucide-ellipsis"
-                class="size-8 justify-center p-0"
+                size="xs"
+                class="size-7 justify-center p-0"
+                :ui="{ leadingIcon: 'size-3.5' }"
                 :aria-label="`Actions for ${workflow.name}`"
               />
             </UDropdownMenu>

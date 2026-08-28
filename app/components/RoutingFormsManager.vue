@@ -6,6 +6,7 @@ import {
   type RoutingFormsResponse,
   type RoutingFormSummary
 } from '~/services/schedra-api'
+import { compactActionMenuUi } from '~/utils/action-menu'
 
 const props = defineProps<{ teamSlug?: string, canManage?: boolean }>()
 const feedback = useFeedback()
@@ -166,6 +167,40 @@ async function copyLink(item: RoutingFormSummary) {
   feedback.success({ title: 'Routing link copied' })
 }
 
+function routingActions(item: RoutingFormSummary) {
+  const actions: Array<{
+    label: string
+    icon: string
+    onSelect?: () => void | Promise<void>
+    to?: string
+    target?: string
+    color?: 'error'
+  }> = [{
+    label: 'Copy link',
+    icon: 'i-lucide-copy',
+    onSelect: async () => { await copyLink(item) }
+  }, {
+    label: 'Open public form',
+    icon: 'i-lucide-external-link',
+    to: publicPath(item),
+    target: '_blank'
+  }]
+  if (props.canManage !== false) {
+    actions.push({
+      label: 'Edit',
+      icon: 'i-lucide-square-pen',
+      onSelect: async () => { await startEdit(item) }
+    })
+    actions.push({
+      label: 'Delete',
+      icon: 'i-lucide-trash-2',
+      color: 'error' as const,
+      onSelect: async () => { deleting.value = item }
+    })
+  }
+  return actions.map(action => [action])
+}
+
 async function remove() {
   if (!deleting.value) return
   busyId.value = deleting.value.id
@@ -267,27 +302,17 @@ async function remove() {
             </p>
           </div>
           <div class="flex items-center gap-2 self-end sm:self-auto">
-            <UButton
-              color="neutral"
-              variant="soft"
-              icon="i-lucide-copy"
-              @click="copyLink(item)"
-            >
-              Copy link
-            </UButton>
             <UDropdownMenu
-              v-if="canManage !== false"
-              :items="[[
-                { label: 'Edit', icon: 'i-lucide-pencil', onSelect: () => startEdit(item) },
-                { label: 'Open public form', icon: 'i-lucide-external-link', to: publicPath(item), target: '_blank' },
-                { label: 'Delete', icon: 'i-lucide-trash-2', color: 'error', onSelect: () => { deleting = item } }
-              ]]"
+              :items="routingActions(item)"
+              :ui="compactActionMenuUi"
             >
               <UButton
                 color="neutral"
                 variant="ghost"
+                size="xs"
                 icon="i-lucide-ellipsis"
-                class="size-9 justify-center p-0"
+                class="size-7 justify-center p-0"
+                :ui="{ leadingIcon: 'size-3.5' }"
                 :aria-label="`Actions for ${item.title}`"
               />
             </UDropdownMenu>

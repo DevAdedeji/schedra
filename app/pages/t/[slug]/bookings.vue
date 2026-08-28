@@ -74,7 +74,7 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
     />
 
     <section class="overflow-hidden rounded-xl border border-default bg-default">
-      <div class="flex flex-col gap-3 border-b border-default px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+      <div class="surface-secondary flex flex-col gap-3 border-b border-default px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <ListFilter
           v-model="filter"
           :options="filterOptions"

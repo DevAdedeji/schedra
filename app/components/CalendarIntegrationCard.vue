@@ -353,7 +353,7 @@ watch(() => props.refreshSignal, async (next, previous) => {
                 label-key="label"
                 icon="i-lucide-calendar-days"
                 placeholder="Choose a calendar"
-                class="min-h-11 w-full sm:min-h-8"
+                class="mobile-compact-action min-h-11 w-full text-center sm:min-h-8"
               />
               <p
                 v-if="!writableCalendars.length || writeCalendarMissing"

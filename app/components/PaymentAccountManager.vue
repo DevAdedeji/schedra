@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { apiErrorMessage, paymentsApi, type PaymentAccountSummary } from '~/services/schedra-api'
+import { formatMoney } from '#shared/payments'
+import {
+  apiErrorMessage,
+  paymentsApi,
+  type PaymentAccountSummary,
+  type PaymentMoneyTotal,
+  type PaymentSummary
+} from '~/services/schedra-api'
 
 const props = defineProps<{ teamSlug?: string }>()
 const endpoint = computed(() => props.teamSlug
@@ -9,7 +16,23 @@ const route = useRoute()
 const toast = useToast()
 
 const { data, status, error, refresh } = await useFetch<PaymentAccountSummary>(endpoint)
+const summaryEndpoint = computed(() => paymentsApi.summaryEndpoint(props.teamSlug))
+const {
+  data: summary,
+  status: summaryStatus,
+  error: summaryError,
+  refresh: refreshSummary
+} = await useLazyFetch<PaymentSummary>(summaryEndpoint)
 const starting = ref(false)
+
+function money(totals: PaymentMoneyTotal[]) {
+  return totals.map(total => formatMoney(total.amountCents, total.currency))
+}
+
+function pendingText(totals: PaymentMoneyTotal[]) {
+  const values = money(totals)
+  return values.length ? `${values.join(' + ')} pending` : 'No pending funds'
+}
 
 const statusCopy = computed(() => ({
   not_started: ['Set up payouts', 'Connect a payout account before adding a price to an event.'],
@@ -84,7 +107,7 @@ onMounted(async () => {
           :loading="starting"
           icon="i-lucide-external-link"
           size="lg"
-          class="min-h-11 shrink-0"
+          class="mobile-compact-action min-h-11 shrink-0 text-center"
           @click="start"
         >
           {{ data?.configured ? 'Continue setup' : 'Set up payouts' }}
@@ -133,6 +156,147 @@ onMounted(async () => {
       :retrying="status === 'pending'"
       @retry="refresh"
     />
+
+    <section
+      class="overflow-hidden rounded-2xl border border-default bg-default"
+      aria-labelledby="payment-summary-title"
+    >
+      <div class="flex flex-col gap-2 border-b border-default p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <div>
+          <h2
+            id="payment-summary-title"
+            class="text-base font-semibold text-highlighted"
+          >
+            Payment summary
+          </h2>
+          <p class="mt-1 text-sm text-muted">
+            Collected values use your listed event prices. Balances and withdrawals come directly from Bachs.
+          </p>
+        </div>
+        <UButton
+          v-if="summary?.providerStatus === 'unavailable'"
+          label="Try again"
+          icon="i-lucide-refresh-cw"
+          color="neutral"
+          variant="outline"
+          :loading="summaryStatus === 'pending'"
+          @click="() => refreshSummary()"
+        />
+      </div>
+
+      <div
+        v-if="summaryStatus === 'pending' && !summary"
+        class="grid gap-px surface-secondary sm:grid-cols-3"
+        aria-label="Loading payment summary"
+      >
+        <div
+          v-for="index in 3"
+          :key="index"
+          class="space-y-3 bg-default p-5 sm:p-6"
+        >
+          <USkeleton class="h-3 w-24" />
+          <USkeleton class="h-7 w-32" />
+          <USkeleton class="h-3 w-40 max-w-full" />
+        </div>
+      </div>
+      <AsyncErrorState
+        v-else-if="summaryError && !summary"
+        title="Could not load payment totals"
+        description="Your payment records are safe. Try loading the summary again."
+        :retrying="summaryStatus === 'pending'"
+        @retry="refreshSummary"
+      />
+      <div
+        v-else
+        class="grid gap-px surface-secondary sm:grid-cols-3"
+      >
+        <div class="bg-default p-5 sm:p-6">
+          <div class="flex items-center gap-2 text-muted">
+            <UIcon
+              name="i-lucide-circle-dollar-sign"
+              class="size-4"
+            />
+            <p class="text-xs font-medium uppercase tracking-wide">
+              Total collected
+            </p>
+          </div>
+          <div class="mt-3 space-y-1 text-xl font-semibold tabular-nums text-highlighted">
+            <p
+              v-for="value in money(summary?.collected ?? [])"
+              :key="value"
+            >
+              {{ value }}
+            </p>
+            <p v-if="!summary?.collected.length">
+              —
+            </p>
+          </div>
+          <p class="mt-2 text-xs text-muted">
+            Successful paid bookings at their listed price.
+          </p>
+        </div>
+        <div class="bg-default p-5 sm:p-6">
+          <div class="flex items-center gap-2 text-muted">
+            <UIcon
+              name="i-lucide-wallet"
+              class="size-4"
+            />
+            <p class="text-xs font-medium uppercase tracking-wide">
+              Available balance
+            </p>
+          </div>
+          <div class="mt-3 space-y-1 text-xl font-semibold tabular-nums text-highlighted">
+            <template v-if="summary?.providerStatus === 'available'">
+              <p
+                v-for="value in money(summary.available)"
+                :key="value"
+              >
+                {{ value }}
+              </p>
+              <p v-if="!summary.available.length">
+                —
+              </p>
+            </template>
+            <p v-else>
+              Unavailable
+            </p>
+          </div>
+          <p class="mt-2 text-xs text-muted">
+            {{ summary?.providerStatus === 'available' ? pendingText(summary.pending) : 'Reconnect or retry the Bachs balance check.' }}
+          </p>
+        </div>
+        <div class="bg-default p-5 sm:p-6">
+          <div class="flex items-center gap-2 text-muted">
+            <UIcon
+              name="i-lucide-banknote-arrow-up"
+              class="size-4"
+            />
+            <p class="text-xs font-medium uppercase tracking-wide">
+              Total withdrawn
+            </p>
+          </div>
+          <div class="mt-3 space-y-1 text-xl font-semibold tabular-nums text-highlighted">
+            <template v-if="summary?.providerStatus === 'available'">
+              <p
+                v-for="value in money(summary.withdrawn)"
+                :key="value"
+              >
+                {{ value }}
+              </p>
+              <p v-if="!summary.withdrawn.length">
+                —
+              </p>
+            </template>
+            <p v-else>
+              Unavailable
+            </p>
+          </div>
+          <p class="mt-2 text-xs text-muted">
+            Completed payouts delivered by Bachs.
+          </p>
+        </div>
+      </div>
+    </section>
 
     <PaymentActivityList :team-slug="teamSlug" />
   </div>

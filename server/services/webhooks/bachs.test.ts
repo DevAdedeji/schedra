@@ -59,6 +59,7 @@ describe('Bachs paid-booking webhooks', () => {
     expect(getCheckoutSession).toHaveBeenCalledWith('chk_123')
     expect(completePaidBookingFromCheckout).toHaveBeenCalledWith(checkout, {
       amountCollectedCents: 475,
+      amountCollectedCurrency: 'USD',
       providerEventId: 'evt_123'
     })
     expect(result).toEqual({ received: true, applied: true })

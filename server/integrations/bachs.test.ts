@@ -282,6 +282,24 @@ describe('bachs checkout payment methods', () => {
     )
   })
 
+  it('scopes balances and payouts to the connected account', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        account_id: 'acct_host', balances: [], total_balance_usd: '0.00'
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ total: 0, items: [] }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { getConnectedAccountBalance, listConnectedAccountPayouts } = await import('./bachs')
+    await getConnectedAccountBalance('acct_host')
+    await listConnectedAccountPayouts('acct_host')
+
+    for (const call of fetchMock.mock.calls) {
+      const headers = new Headers((call[1] as RequestInit).headers)
+      expect(headers.get('X-Account-Id')).toBe('acct_host')
+    }
+  })
+
   it('creates onboarding links through the account resource', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       id: 'alnk_test',

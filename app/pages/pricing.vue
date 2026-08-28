@@ -251,7 +251,7 @@ useHead({
               color="neutral"
               variant="outline"
               block
-              class="mt-auto rounded-full font-medium"
+              class="mobile-compact-action mt-auto rounded-full text-center font-medium"
             >
               {{ personalCta }}
             </UButton>
@@ -292,7 +292,7 @@ useHead({
               prefetch
               size="xl"
               block
-              class="mt-auto rounded-full font-medium"
+              class="mobile-compact-action mt-auto rounded-full text-center font-medium"
             >
               {{ teamCta }}
             </UButton>
@@ -307,83 +307,101 @@ useHead({
           What is in each plan
         </h2>
 
-        <div
-          v-for="section in comparison"
-          :key="section.group"
-          class="mt-12"
-        >
-          <h3 class="eyebrow text-dimmed">
-            {{ section.group }}
-          </h3>
+        <p class="mt-3 max-w-[58ch] text-[14px] leading-relaxed text-muted">
+          Scan every category at once, then open only the details you want to compare.
+        </p>
 
-          <div class="mt-5 overflow-x-auto">
-            <table class="w-full min-w-136 border-collapse text-left">
-              <thead>
-                <tr class="border-b border-default">
-                  <th class="py-3 pr-4 text-[13px] font-medium text-muted">
-                    Feature
-                  </th>
-                  <th class="w-32 py-3 text-[13px] font-medium text-muted">
-                    Personal
-                  </th>
-                  <th class="w-40 py-3 text-[13px] font-medium text-muted">
-                    Team
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="row in section.rows"
-                  :key="row.label"
-                  class="border-b border-default"
-                >
-                  <td class="py-4 pr-4 align-top">
-                    <p class="text-[15px] text-highlighted">
-                      {{ row.label }}
-                    </p>
-                    <p
-                      v-if="row.detail"
-                      class="mt-0.5 text-[13px] leading-relaxed text-muted"
-                    >
-                      {{ row.detail }}
-                    </p>
-                  </td>
-                  <td
-                    v-for="plan in (['free', 'team'] as const)"
-                    :key="plan"
-                    class="py-4 align-top"
+        <div class="mt-8 overflow-hidden rounded-2xl border border-default bg-default">
+          <details
+            v-for="(section, sectionIndex) in comparison"
+            :key="section.group"
+            :open="sectionIndex === 0"
+            class="group border-b border-default last:border-b-0"
+          >
+            <summary class="surface-secondary flex cursor-pointer list-none items-center gap-4 px-5 py-4 marker:hidden sm:px-6 [&::-webkit-details-marker]:hidden">
+              <div class="min-w-0 flex-1">
+                <h3 class="text-[15px] font-semibold text-highlighted">
+                  {{ section.group }}
+                </h3>
+                <p class="mt-0.5 text-[12px] text-muted">
+                  {{ section.rows.length }} features
+                </p>
+              </div>
+              <UIcon
+                name="i-lucide-chevron-down"
+                class="size-4 shrink-0 text-dimmed transition-transform group-open:rotate-180"
+              />
+            </summary>
+
+            <div class="overflow-x-auto px-5 pb-3 sm:px-6">
+              <table class="w-full min-w-136 border-collapse text-left">
+                <thead>
+                  <tr class="border-b border-default">
+                    <th class="py-3 pr-4 text-[13px] font-medium text-muted">
+                      Feature
+                    </th>
+                    <th class="w-32 py-3 text-[13px] font-medium text-muted">
+                      Personal
+                    </th>
+                    <th class="w-40 py-3 text-[13px] font-medium text-muted">
+                      Team
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="row in section.rows"
+                    :key="row.label"
+                    class="border-b border-default"
                   >
-                    <template v-if="row[plan] === 'soon'">
-                      <UBadge
-                        color="neutral"
-                        variant="subtle"
-                        size="sm"
+                    <td class="py-4 pr-4 align-top">
+                      <p class="text-[15px] text-highlighted">
+                        {{ row.label }}
+                      </p>
+                      <p
+                        v-if="row.detail"
+                        class="mt-0.5 text-[13px] leading-relaxed text-muted"
                       >
-                        Soon
-                      </UBadge>
-                    </template>
-                    <template v-else-if="typeof row[plan] === 'string'">
-                      <span class="text-[14px] text-toned">{{ row[plan] }}</span>
-                    </template>
-                    <template v-else-if="row[plan]">
-                      <UIcon
-                        name="i-lucide-check"
-                        class="size-4.5 text-primary"
-                        :aria-label="`Included in ${plan === 'free' ? 'Personal' : 'Team'}`"
-                      />
-                    </template>
-                    <template v-else>
-                      <UIcon
-                        name="i-lucide-minus"
-                        class="size-4.5 text-dimmed"
-                        :aria-label="`Not in ${plan === 'free' ? 'Personal' : 'Team'}`"
-                      />
-                    </template>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+                        {{ row.detail }}
+                      </p>
+                    </td>
+                    <td
+                      v-for="plan in (['free', 'team'] as const)"
+                      :key="plan"
+                      class="py-4 align-top"
+                    >
+                      <template v-if="row[plan] === 'soon'">
+                        <UBadge
+                          color="neutral"
+                          variant="subtle"
+                          size="sm"
+                        >
+                          Soon
+                        </UBadge>
+                      </template>
+                      <template v-else-if="typeof row[plan] === 'string'">
+                        <span class="text-[14px] text-toned">{{ row[plan] }}</span>
+                      </template>
+                      <template v-else-if="row[plan]">
+                        <UIcon
+                          name="i-lucide-check"
+                          class="size-4.5 text-primary"
+                          :aria-label="`Included in ${plan === 'free' ? 'Personal' : 'Team'}`"
+                        />
+                      </template>
+                      <template v-else>
+                        <UIcon
+                          name="i-lucide-minus"
+                          class="size-4.5 text-dimmed"
+                          :aria-label="`Not in ${plan === 'free' ? 'Personal' : 'Team'}`"
+                        />
+                      </template>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </details>
         </div>
       </div>
     </section>

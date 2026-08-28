@@ -8,6 +8,7 @@ import {
   type TeamMemberRecord,
   type TeamMembersResponse
 } from '~/services/schedra-api'
+import { compactActionMenuUi } from '~/utils/action-menu'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 
@@ -196,7 +197,7 @@ function memberActions(member: TeamMemberRecord) {
     })
   }
 
-  return actions.length ? [actions] : []
+  return actions.map(action => [action])
 }
 
 async function retry() {
@@ -305,7 +306,7 @@ async function retry() {
     </section>
 
     <section class="overflow-hidden rounded-xl border border-default bg-default">
-      <div class="flex flex-col gap-3 border-b border-default px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+      <div class="surface-secondary flex flex-col gap-3 border-b border-default px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <ListFilter
           v-model="filter"
           :options="filterOptions"
@@ -401,7 +402,7 @@ async function retry() {
           <UDropdownMenu
             v-if="memberActions(member).length"
             :items="memberActions(member)"
-            :ui="{ content: 'w-52', item: 'gap-2 px-2.5 py-2 text-[13px]' }"
+            :ui="compactActionMenuUi"
           >
             <UButton
               color="neutral"
@@ -409,6 +410,7 @@ async function retry() {
               size="xs"
               icon="i-lucide-ellipsis"
               class="size-7 justify-center p-0"
+              :ui="{ leadingIcon: 'size-3.5' }"
               :loading="busyId === member.id"
               :aria-label="`Actions for ${member.name}`"
             />

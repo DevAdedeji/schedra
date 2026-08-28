@@ -176,7 +176,7 @@ async function reject(uid: string) {
       class="overflow-hidden rounded-xl border border-default bg-default"
       :class="actionError ? 'mt-4' : 'mt-7'"
     >
-      <div class="flex flex-col gap-3 border-b border-default px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+      <div class="surface-secondary flex flex-col gap-3 border-b border-default px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <ListFilter
           v-model="filter"
           :options="filterOptions"
