@@ -10,6 +10,15 @@ const title = 'Schedra — share a link, get booked'
 const description = 'Share one link and let people pick a time that suits you both. Meetings land in your calendar with reminders sent and timezones handled.'
 const ogImage = `${origin}/og.png`
 
+const clarityScript = `(function(c,l,a,r,i,t,y){
+  if(c.location.pathname.indexOf("/embed/")===0)return;
+  c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+  var v=null;try{v=c.localStorage.getItem("schedra:analytics-consent:v1")}catch(e){}
+  c[a]("consentv2",{ad_Storage:"denied",analytics_Storage:v==="granted"?"granted":"denied"});
+  t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+  y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+})(window,document,"clarity","script","y9n1tiv1yp");`
+
 const canonical = computed(() => `${origin}${route.path === '/' ? '' : route.path}`)
 
 useHead({
@@ -23,7 +32,12 @@ useHead({
     { rel: 'icon', href: '/favicon.ico', sizes: '48x48' },
     { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
     { key: 'canonical', rel: 'canonical', href: canonical }
-  ]
+  ],
+  // Staging and production are built with NODE_ENV=production. Keeping the
+  // tracker out of dev prevents local navigation from polluting Clarity.
+  script: import.meta.dev
+    ? []
+    : [{ key: 'microsoft-clarity', type: 'text/javascript', innerHTML: clarityScript }]
 })
 
 useSeoMeta({
@@ -58,5 +72,6 @@ useSeoMeta({
     <NuxtLayout>
       <NuxtPage />
     </NuxtLayout>
+    <AnalyticsConsentBanner />
   </UApp>
 </template>

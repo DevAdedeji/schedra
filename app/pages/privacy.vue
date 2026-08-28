@@ -12,7 +12,7 @@ useSeoMeta({
     eyebrow="Legal"
     title="Privacy, without the fog."
     summary="This policy explains what Schedra collects, why we need it, who receives it and the controls available to you."
-    updated="26 August 2026"
+    updated="28 August 2026"
   >
     <section>
       <h2>1. Who this policy covers</h2>
@@ -68,6 +68,12 @@ useSeoMeta({
         We process session identifiers, IP addresses, browser request data, security and rate-limit
         events, delivery attempts and integration error records to operate and protect the service.
       </p>
+      <p>
+        We use Microsoft Clarity to understand how visitors use Schedra. Clarity can process page
+        visits, clicks, scrolling, navigation, browser and device information, approximate location
+        and session recordings. Sensitive form content, including input values and email addresses,
+        is masked by default and is not included in recordings.
+      </p>
     </section>
 
     <section>
@@ -78,6 +84,7 @@ useSeoMeta({
         <li>Authenticate users, prevent abuse and investigate security or reliability incidents.</li>
         <li>Deliver service messages, including verification, booking and billing emails.</li>
         <li>Administer team subscriptions, invoices and occupied seats.</li>
+        <li>Understand visitor journeys and improve the usability and reliability of Schedra.</li>
         <li>Comply with legal obligations and enforce our Terms.</li>
       </ul>
       <p>
@@ -95,7 +102,10 @@ useSeoMeta({
         <li>The host, guest and invited attendees involved in a booking.</li>
         <li>Members of a team, according to their role and the team features they use.</li>
         <li>Google and Zoom when a user connects and uses those integrations.</li>
-        <li>Infrastructure, database, email-delivery and payment providers acting for Schedra.</li>
+        <li>
+          Infrastructure, database, analytics, email-delivery and payment providers acting for
+          Schedra, including Microsoft Clarity for usage analytics.
+        </li>
         <li>Authorities or professional advisers where disclosure is legally required or necessary to protect rights and safety.</li>
       </ul>
       <p>
@@ -134,6 +144,12 @@ useSeoMeta({
       <p>
         Send a request to <a href="mailto:support@schedra.xyz">support@schedra.xyz</a> from the
         email address associated with your account. We may need to verify your identity before acting.
+      </p>
+      <p>
+        You can allow, decline or withdraw Microsoft Clarity analytics permission at any time using
+        the <strong>Privacy choices</strong> control shown on Schedra. Your choice is saved in your
+        browser. Declining analytics prevents Clarity cookies and limits collection to cookieless,
+        page-level measurements.
       </p>
     </section>
 
