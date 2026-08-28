@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { recipientStatus } from './payment-recipient'
+import { recipientNextAction, recipientStatus } from './payment-recipient'
 
 describe('payment recipient status', () => {
   it('only marks an account ready when payouts are active', () => {
@@ -48,5 +48,21 @@ describe('payment recipient status', () => {
 
   it('preserves the provider disabled state', () => {
     expect(recipientStatus({ id: 'acct_disabled', is_active: false })).toBe('disabled')
+  })
+
+  it('directs API-only payout destination requirements to the native setup step', () => {
+    expect(recipientNextAction({
+      bachsAccountId: 'acct_destination',
+      status: 'onboarding',
+      requirements: { currently_due: ['payout_destination'] }
+    } as never)).toBe('add_payout_destination')
+  })
+
+  it('keeps identity requirements in the hosted provider flow', () => {
+    expect(recipientNextAction({
+      bachsAccountId: 'acct_identity',
+      status: 'onboarding',
+      requirements: { currently_due: ['individual.id_document'] }
+    } as never)).toBe('provider_onboarding')
   })
 })

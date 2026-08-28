@@ -3,7 +3,11 @@ import {
   createConnectedAccount,
   createConnectedAccountLink,
   getConnectedAccount,
+  listBachsBanks,
+  resolveBachsBankAccount,
+  updateConnectedAccountPayoutDestination,
   updateConnectedAccountRepresentative,
+  type BachsBank,
   type BachsConnectedAccount
 } from '../integrations/bachs'
 import { paymentRecipients } from '../database/schema'
@@ -58,9 +62,76 @@ export function publicRecipient(row: Awaited<ReturnType<typeof findPaymentRecipi
     configured: Boolean(row?.bachsAccountId),
     status: row?.status ?? 'not_started',
     ready: row?.status === 'active',
+    nextAction: recipientNextAction(row),
     lastError: row?.lastError ?? null,
     lastCheckedAt: row?.lastCheckedAt?.toISOString() ?? null
   }
+}
+
+function recipientRequirements(row: Awaited<ReturnType<typeof findPaymentRecipient>>) {
+  return (row?.requirements ?? {}) as NonNullable<BachsConnectedAccount['requirements']>
+}
+
+export function recipientNextAction(row: Awaited<ReturnType<typeof findPaymentRecipient>>) {
+  if (!row?.bachsAccountId) return 'provider_onboarding' as const
+  const requirements = recipientRequirements(row)
+  if (requirements.currently_due?.includes('payout_destination')) return 'add_payout_destination' as const
+  if (row.status === 'active' || row.status === 'pending_review') return 'none' as const
+  return 'provider_onboarding' as const
+}
+
+let bankCache: { expiresAt: number, items: BachsBank[] } | null = null
+
+export async function payoutBanks() {
+  if (bankCache && bankCache.expiresAt > Date.now()) return bankCache.items
+  const response = await listBachsBanks('NG')
+  const items = [...(response.banks ?? [])]
+    .filter(bank => bank.code && bank.name)
+    .sort((left, right) => left.name.localeCompare(right.name))
+  bankCache = { expiresAt: Date.now() + 3_600_000, items }
+  return items
+}
+
+async function payoutRecipient(owner: PaymentRecipientOwner) {
+  const row = await findPaymentRecipient(owner)
+  if (!row?.bachsAccountId) {
+    throw createError({ statusCode: 409, statusMessage: 'Start payout setup before adding a bank account.' })
+  }
+  if (recipientNextAction(row) !== 'add_payout_destination') {
+    throw createError({ statusCode: 409, statusMessage: 'A payout destination is not currently required.' })
+  }
+  return row
+}
+
+export async function resolvePayoutBankAccount(
+  owner: PaymentRecipientOwner,
+  input: { bankCode: string, accountNumber: string }
+) {
+  await payoutRecipient(owner)
+  const account = await resolveBachsBankAccount(input)
+  if (!account.resolved || !account.account_name) {
+    throw createError({ statusCode: 400, statusMessage: 'We could not verify that bank account. Check the details and try again.' })
+  }
+  return { accountName: account.account_name }
+}
+
+export async function savePayoutBankAccount(
+  owner: PaymentRecipientOwner,
+  input: { bankCode: string, accountNumber: string }
+) {
+  const row = await payoutRecipient(owner)
+  const resolved = await resolveBachsBankAccount(input)
+  if (!resolved.resolved || !resolved.account_name) {
+    throw createError({ statusCode: 400, statusMessage: 'We could not verify that bank account. Check the details and try again.' })
+  }
+
+  await updateConnectedAccountPayoutDestination({
+    accountId: row.bachsAccountId!,
+    bankCode: input.bankCode,
+    accountNumber: input.accountNumber,
+    accountName: resolved.account_name
+  })
+  return publicRecipient(await syncPaymentRecipient(row))
 }
 
 export async function syncPaymentRecipient(row: NonNullable<Awaited<ReturnType<typeof findPaymentRecipient>>>) {

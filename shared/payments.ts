@@ -18,6 +18,13 @@ export const paymentConfigurationSchema = z.object({
 
 export type PaymentConfiguration = z.infer<typeof paymentConfigurationSchema>
 
+export const payoutBankAccountSchema = z.object({
+  bankCode: z.string().trim().regex(/^\d{3,6}$/, 'Choose a valid bank.'),
+  accountNumber: z.string().trim().regex(/^\d{10}$/, 'Enter a 10-digit account number.')
+})
+
+export type PayoutBankAccountInput = z.infer<typeof payoutBankAccountSchema>
+
 export function formatMoney(cents: number, currency: PaymentCurrency) {
   return new Intl.NumberFormat('en', {
     style: 'currency',
