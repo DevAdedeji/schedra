@@ -116,12 +116,17 @@ const dailyLimitEnabled = computed({
     form.maxPerDay = enabled ? (form.maxPerDay ?? 1) : undefined
   }
 })
+const groupEventEnabled = computed({
+  get: () => form.capacity > 1,
+  set: (enabled) => { form.capacity = enabled ? 10 : 1 }
+})
 const settingsSummary = computed(() => {
   const schedule = selectedSchedule.value?.name ?? 'Default schedule'
   const notice = form.minimumNoticeMinutes >= 60 && form.minimumNoticeMinutes % 60 === 0
     ? `${form.minimumNoticeMinutes / 60}h notice`
     : `${form.minimumNoticeMinutes}m notice`
-  return `${schedule} · ${notice} · ${form.reminderMinutes.length} ${form.reminderMinutes.length === 1 ? 'reminder' : 'reminders'}`
+  const attendance = form.capacity > 1 ? `${form.capacity} seats` : 'one guest'
+  return `${schedule} · ${notice} · ${attendance} · ${form.reminderMinutes.length} ${form.reminderMinutes.length === 1 ? 'reminder' : 'reminders'}`
 })
 
 function emptyForm(): EventTypeForm {
@@ -133,6 +138,7 @@ function emptyForm(): EventTypeForm {
     reminderMinutes: [1440, 60],
     bookingQuestions: [],
     requiresConfirmation: false,
+    capacity: 1,
     scheduleId: schedules.value?.items.find(schedule => schedule.isDefault)?.id ?? schedules.value?.items[0]?.id,
     hidden: false
   }
@@ -160,6 +166,7 @@ function loadForm() {
           options: [...question.options]
         })),
         requiresConfirmation: item.requiresConfirmation,
+        capacity: item.capacity,
         scheduleId: item.scheduleId ?? schedules.value?.items.find(schedule => schedule.isDefault)?.id ?? schedules.value?.items[0]?.id,
         hidden: item.hidden
       }
@@ -634,7 +641,7 @@ async function save() {
             </span>
             <span class="min-w-0 flex-1">
               <span class="block text-[14px] font-semibold text-highlighted">More settings</span>
-              <span class="mt-0.5 block text-[12px] leading-relaxed text-muted">Availability and limits, guest questions, reminders, approval and visibility.</span>
+              <span class="mt-0.5 block text-[12px] leading-relaxed text-muted">Attendance, availability and limits, guest questions, reminders, approval and visibility.</span>
               <span class="mt-1 block truncate text-[11px] text-dimmed">Current defaults: {{ settingsSummary }}</span>
             </span>
             <UIcon
@@ -664,6 +671,37 @@ async function save() {
               </div>
             </div>
             <div class="grid gap-x-5 gap-y-6 px-5 py-5 sm:grid-cols-2">
+              <div class="rounded-xl border border-default bg-muted/40 sm:col-span-2">
+                <label class="flex cursor-pointer items-start justify-between gap-4 px-4 py-4">
+                  <span>
+                    <span class="block text-[13px] font-medium text-highlighted">Let several guests join the same time</span>
+                    <span class="mt-0.5 block text-[12px] text-muted">Useful for classes, webinars, office hours and group sessions.</span>
+                  </span>
+                  <USwitch
+                    v-model="groupEventEnabled"
+                    aria-label="Offer multiple seats per time"
+                  />
+                </label>
+                <div
+                  v-if="groupEventEnabled"
+                  class="border-t border-default px-4 py-4"
+                >
+                  <UFormField
+                    label="Seats available at each time"
+                    name="capacity"
+                    help="Each guest gets a private booking link; everyone joins one shared meeting."
+                  >
+                    <UInput
+                      v-model.number="form.capacity"
+                      type="number"
+                      min="2"
+                      max="500"
+                      size="lg"
+                      class="w-full sm:max-w-48"
+                    />
+                  </UFormField>
+                </div>
+              </div>
               <UFormField
                 label="Availability schedule"
                 name="scheduleId"

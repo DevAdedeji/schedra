@@ -12,6 +12,7 @@ import { enqueueCalendarSync } from '../services/calendar-sync'
 import { CalendarUnavailableError } from '../integrations/calendar/google'
 import { BookingAnswerValidationError, buildBookingAnswersSnapshot } from '../domain/booking-answers'
 import { requireLocationIntegration } from '../services/event-location'
+import { claimGroupSession, isGroupSessionFullError } from '../services/group-events'
 
 const SLOT_TAKEN = '23P01'
 
@@ -134,8 +135,19 @@ export default defineEventHandler(async (event) => {
         await cancelPendingAutomationRuns(previous.id, tx)
       }
 
+      const groupSession = eventType.capacity > 1
+        ? await claimGroupSession({
+            eventTypeId: eventType.id,
+            startsAt: new Date(slot.start),
+            endsAt: new Date(slot.end),
+            capacity: eventType.capacity,
+            partySize: 1 + additionalGuestEmails.length
+          }, tx)
+        : null
+
       const [created] = await tx.insert(bookings).values({
         eventTypeId: eventType.id,
+        groupSessionId: groupSession?.id ?? null,
         hostId: eventType.hostId,
         uid,
         startsAt: new Date(slot.start),
@@ -191,6 +203,9 @@ export default defineEventHandler(async (event) => {
     // Postgres rejected an overlap, which means someone else won the race.
     if ((error as { code?: string }).code === SLOT_TAKEN) {
       throw createError({ statusCode: 409, statusMessage: 'Someone just booked that time.' })
+    }
+    if (isGroupSessionFullError(error)) {
+      throw createError({ statusCode: 409, statusMessage: 'That group session has just filled up.' })
     }
     throw error
   }

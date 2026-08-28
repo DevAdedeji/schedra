@@ -5,6 +5,7 @@ import { availabilityRules, bookings, dateOverrides, eventTypes, schedules, user
 import { useDatabase } from '../database'
 import { calendarBusyTimes } from '../integrations/calendar/providers'
 import type { BookingQuestion } from '#shared/validation'
+import { groupSessionCapacity } from './group-events'
 
 export interface PublicEventType {
   id: string
@@ -22,6 +23,7 @@ export interface PublicEventType {
   reminderMinutes: number[]
   bookingQuestions: BookingQuestion[]
   requiresConfirmation: boolean
+  capacity: number
 }
 
 /** `HH:MM:SS` from Postgres `time`, trimmed to what the engine expects. */
@@ -55,6 +57,7 @@ export async function findPublicEventType(username: string, slug: string) {
       reminderMinutes: eventTypes.reminderMinutes,
       bookingQuestions: eventTypes.bookingQuestions,
       requiresConfirmation: eventTypes.requiresConfirmation,
+      capacity: eventTypes.capacity,
       scheduleId: eventTypes.scheduleId,
       scheduleTimeZone: schedules.timeZone
     })
@@ -82,7 +85,7 @@ export async function slotsFor(event: EventTypeRow, from: string, to: string, no
   const busyFrom = new Date(Date.parse(`${from}T00:00:00Z`) - 86_400_000).toISOString()
   const busyTo = new Date(Date.parse(`${to}T00:00:00Z`) + 2 * 86_400_000).toISOString()
 
-  const [rules, overrides, taken, externalBusy] = await Promise.all([
+  const [rules, overrides, taken, externalBusy, groupSessions] = await Promise.all([
     event.scheduleId
       ? db.select({
           weekday: availabilityRules.weekday,
@@ -103,7 +106,13 @@ export async function slotsFor(event: EventTypeRow, from: string, to: string, no
         ))
       : Promise.resolve([]),
 
-    db.select({ start: bookings.startsAt, end: bookings.endsAt })
+    db.select({
+      id: bookings.id,
+      eventTypeId: bookings.eventTypeId,
+      groupSessionId: bookings.groupSessionId,
+      start: bookings.startsAt,
+      end: bookings.endsAt
+    })
       .from(bookings)
       .where(and(
         eq(bookings.hostId, event.hostId),
@@ -112,8 +121,35 @@ export async function slotsFor(event: EventTypeRow, from: string, to: string, no
         lte(bookings.startsAt, new Date(busyTo))
       )),
 
-    calendarBusyTimes(event.hostId, busyFrom, busyTo)
+    calendarBusyTimes(event.hostId, busyFrom, busyTo),
+
+    event.capacity > 1
+      ? groupSessionCapacity(event.id, new Date(busyFrom), new Date(busyTo))
+      : Promise.resolve([])
   ])
+
+  const openSessionByStart = new Map(groupSessions
+    .filter(session => session.availableSeats > 0)
+    .map(session => [session.startsAt.getTime(), session]))
+  const currentSessionIds = new Set(groupSessions.map(session => session.id))
+  const busyBookings = taken.filter(row => !row.groupSessionId
+    || !currentSessionIds.has(row.groupSessionId)
+    || !openSessionByStart.has(row.start.getTime()))
+  // A shared session consumes one item from the host's daily limit, not one
+  // item per guest. This also deduplicates group sessions from other event
+  // types, which are present in `taken` but not in this event's session query.
+  const dailyBookings = [...new Map(taken.map(row => [
+    row.groupSessionId ? `group:${row.groupSessionId}` : `booking:${row.id}`,
+    { start: row.start, end: row.end }
+  ])).values()]
+  // Calendar providers report Schedra's own shared invite as busy. Ignore only
+  // an exact open session span; unrelated and partially overlapping events
+  // continue to protect the host.
+  const effectiveExternalBusy = externalBusy.filter(interval => !groupSessions.some(session =>
+    session.availableSeats > 0
+    && Date.parse(interval.start) === session.startsAt.getTime()
+    && Date.parse(interval.end) === session.endsAt.getTime()
+  ))
 
   const grouped = new Map<string, DateOverride>()
   for (const row of overrides) {
@@ -124,7 +160,7 @@ export async function slotsFor(event: EventTypeRow, from: string, to: string, no
     grouped.set(row.date, entry)
   }
 
-  return getAvailableSlots({
+  const slots = getAvailableSlots({
     schedule: {
       timeZone,
       rules: rules.map(rule => ({
@@ -143,13 +179,24 @@ export async function slotsFor(event: EventTypeRow, from: string, to: string, no
       bookingWindowDays: event.bookingWindowDays ?? undefined,
       maxPerDay: event.maxPerDay ?? undefined
     },
-    bookings: taken.map(row => ({
+    bookings: busyBookings.map(row => ({
       start: row.start.toISOString(),
       end: row.end.toISOString()
     })),
-    externalBusy,
+    dailyBookings: dailyBookings.map(row => ({
+      start: row.start.toISOString(),
+      end: row.end.toISOString()
+    })),
+    externalBusy: effectiveExternalBusy,
     from,
     to,
     now
   })
+
+  return slots.map(slot => ({
+    ...slot,
+    ...(event.capacity > 1
+      ? { availableSeats: openSessionByStart.get(Date.parse(slot.start))?.availableSeats ?? event.capacity }
+      : {})
+  }))
 }

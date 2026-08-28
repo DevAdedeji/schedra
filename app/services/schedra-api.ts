@@ -155,12 +155,13 @@ export interface PublicBookingPage {
   locationDetails: string
   bookingQuestions: BookingQuestion[]
   requiresConfirmation: boolean
+  capacity: number
 }
 
 export interface AvailabilityResponse {
   timeZone: string
   durationMinutes: number
-  slots: Array<{ start: string, end: string }>
+  slots: Array<{ start: string, end: string, availableSeats?: number }>
 }
 
 export interface CreateBookingInput {
@@ -588,6 +589,7 @@ export interface TeamEventTypeRecord {
   assignmentMode: AssignmentMode
   locationType: MeetingLocationType
   requiresConfirmation: boolean
+  capacity: number
   hidden: boolean
   createdAt: string
   hosts: TeamEventTypeHostRecord[]
@@ -634,6 +636,7 @@ export interface PublicTeamProfile {
     description: string | null
     durationMinutes: number
     assignmentMode: AssignmentMode
+    capacity: number
   }>
 }
 
@@ -649,6 +652,7 @@ export interface PublicTeamBookingPage {
   locationDetails: string
   bookingQuestions: BookingQuestion[]
   requiresConfirmation: boolean
+  capacity: number
   hosts: Array<{ name: string, avatarUrl: string | null }>
 }
 

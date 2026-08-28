@@ -18,8 +18,9 @@ import {
   zoomConnectionFor
 } from '../integrations/video/zoom'
 import { logEvent } from '../observability/logger'
+import { canonicalBookingId, confirmedGroupSeats } from './group-events'
 
-export type CalendarSyncExecutor = Pick<Database, 'insert'>
+export type CalendarSyncExecutor = Pick<Database, 'insert' | 'select'>
 export type CalendarSyncAction = 'upsert' | 'delete'
 
 export async function enqueueCalendarSync(
@@ -27,15 +28,16 @@ export async function enqueueCalendarSync(
   action: CalendarSyncAction,
   executor: CalendarSyncExecutor = useDatabase()
 ) {
+  const syncBookingId = await canonicalBookingId(bookingId, executor)
   await executor.insert(calendarSyncJobs).values({
-    bookingId,
+    bookingId: syncBookingId,
     action,
-    dedupeKey: `booking:${bookingId}`
+    dedupeKey: `booking:${syncBookingId}`
   }).onConflictDoUpdate({
     target: calendarSyncJobs.bookingId,
     set: {
       action,
-      dedupeKey: `booking:${bookingId}`,
+      dedupeKey: `booking:${syncBookingId}`,
       revision: sql`${calendarSyncJobs.revision} + 1`,
       status: sql`case when ${calendarSyncJobs.status} = 'processing' then 'processing'::calendar_sync_status else 'pending'::calendar_sync_status end`,
       attempts: sql`case when ${calendarSyncJobs.status} = 'processing' then ${calendarSyncJobs.attempts} else 0 end`,
@@ -54,13 +56,25 @@ export async function enqueueFutureBookingsForCalendarSync(userId: string) {
   // installed receive their first durable job.
   await useDatabase().execute(sql`
     insert into calendar_sync_jobs (booking_id, action, dedupe_key)
-    select distinct ${bookings.id}, 'upsert'::calendar_sync_action, 'booking:' || ${bookings.id}::text
-    from ${bookings}
-    inner join ${bookingHosts} on ${bookingHosts.bookingId} = ${bookings.id}
-    where ${bookingHosts.userId} = ${userId}
-      and ${bookingHosts.releasedAt} is null
-      and ${bookings.status} = 'confirmed'
-      and ${bookings.endsAt} > now()
+    select distinct target.booking_id, 'upsert'::calendar_sync_action,
+      'booking:' || target.booking_id::text
+    from (
+      select case
+        when b.group_session_id is null then b.id
+        else (
+          select canonical.id from bookings canonical
+          where canonical.group_session_id = b.group_session_id
+          order by canonical.created_at, canonical.id
+          limit 1
+        )
+      end as booking_id
+      from bookings b
+      inner join booking_hosts bh on bh.booking_id = b.id
+      where bh.user_id = ${userId}
+        and bh.released_at is null
+        and b.status = 'confirmed'
+        and b.ends_at > now()
+    ) target
     on conflict (booking_id) do update set
       action = 'upsert'::calendar_sync_action,
       dedupe_key = excluded.dedupe_key,
@@ -82,6 +96,7 @@ async function syncBooking(bookingId: string, action: CalendarSyncAction) {
   const db = useDatabase()
   const [booking] = await db.select({
     id: bookings.id,
+    groupSessionId: bookings.groupSessionId,
     uid: bookings.uid,
     status: bookings.status,
     hostId: bookings.hostId,
@@ -103,7 +118,7 @@ async function syncBooking(bookingId: string, action: CalendarSyncAction) {
 
   if (!booking) return
 
-  const [hosts, mappings, conferenceMappings] = await Promise.all([
+  const [hosts, mappings, conferenceMappings, groupSeats] = await Promise.all([
     db.select({
       userId: bookingHosts.userId,
       isOrganizer: bookingHosts.isOrganizer
@@ -113,12 +128,26 @@ async function syncBooking(bookingId: string, action: CalendarSyncAction) {
     db.select().from(bookingCalendarEvents)
       .where(eq(bookingCalendarEvents.bookingId, booking.id)),
     db.select().from(bookingConferenceMeetings)
-      .where(eq(bookingConferenceMeetings.bookingId, booking.id))
+      .where(eq(bookingConferenceMeetings.bookingId, booking.id)),
+    booking.groupSessionId ? confirmedGroupSeats(booking.groupSessionId, db) : Promise.resolve([])
   ])
 
+  const primarySeat = groupSeats[0]
+  const attendeeName = primarySeat?.attendeeName ?? booking.attendeeName
+  const attendeeEmail = primarySeat?.attendeeEmail ?? booking.attendeeEmail
+  const additionalGuestEmails = groupSeats.length
+    ? [...new Set(groupSeats.flatMap(seat => [
+        ...(seat.id === primarySeat?.id ? [] : [seat.attendeeEmail]),
+        ...seat.additionalGuestEmails
+      ]).filter(email => email !== attendeeEmail))]
+    : booking.additionalGuestEmails
   const conferenceMapping = conferenceMappings.find(mapping => mapping.provider === 'zoom')
   const organizer = hosts.find(host => host.isOrganizer) ?? hosts[0]
-  const deleting = action === 'delete' || booking.status === 'cancelled' || booking.status === 'rejected'
+  // A seat cancellation updates the shared invite. The remote meeting is only
+  // removed once the final active seat leaves the session.
+  const deleting = booking.groupSessionId
+    ? groupSeats.length === 0
+    : action === 'delete' || booking.status === 'cancelled' || booking.status === 'rejected'
   let sharedMeetingUrl = booking.meetingUrl
 
   if (booking.locationType === 'zoom' && organizer) {
@@ -145,7 +174,7 @@ async function syncBooking(bookingId: string, action: CalendarSyncAction) {
           description: booking.eventDescription,
           startsAt: booking.startsAt,
           endsAt: booking.endsAt,
-          attendeeName: booking.attendeeName
+          attendeeName
         }
       )
       const joinUrl = remote.joinUrl ?? conferenceMapping?.joinUrl
@@ -153,7 +182,9 @@ async function syncBooking(bookingId: string, action: CalendarSyncAction) {
       sharedMeetingUrl = joinUrl
       if (joinUrl !== booking.meetingUrl) {
         await db.update(bookings).set({ meetingUrl: joinUrl, updatedAt: sql`now()` })
-          .where(eq(bookings.id, booking.id))
+          .where(booking.groupSessionId
+            ? and(eq(bookings.groupSessionId, booking.groupSessionId), eq(bookings.status, 'confirmed'))
+            : eq(bookings.id, booking.id))
       }
       await db.insert(bookingConferenceMeetings).values({
         bookingId: booking.id,
@@ -248,16 +279,16 @@ async function syncBooking(bookingId: string, action: CalendarSyncAction) {
         description: booking.eventDescription,
         startsAt: booking.startsAt,
         endsAt: booking.endsAt,
-        attendeeName: booking.attendeeName,
-        attendeeEmail: booking.attendeeEmail,
-        additionalGuestEmails: booking.additionalGuestEmails,
+        attendeeName,
+        attendeeEmail,
+        additionalGuestEmails,
         locationType: booking.locationType,
         locationDetails: booking.locationDetails,
         meetingUrl: sharedMeetingUrl,
         inviteGuests: host.userId === primary.userId,
         // Google Calendar descriptions have a finite size; preserve useful
         // context without letting several long answers make sync fail.
-        notes: bookingAnswersText(booking.answers).slice(0, 5000) || null
+        notes: bookingAnswersText(primarySeat?.answers ?? booking.answers).slice(0, 5000) || null
       }
     )
 
@@ -267,7 +298,9 @@ async function syncBooking(bookingId: string, action: CalendarSyncAction) {
         await db.update(bookings).set({
           meetingUrl: remote.meetingUrl,
           updatedAt: sql`now()`
-        }).where(eq(bookings.id, booking.id))
+        }).where(booking.groupSessionId
+          ? and(eq(bookings.groupSessionId, booking.groupSessionId), eq(bookings.status, 'confirmed'))
+          : eq(bookings.id, booking.id))
       }
     }
 

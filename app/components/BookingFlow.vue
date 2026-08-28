@@ -116,13 +116,13 @@ if (rescheduleOf.value) {
 }
 
 const slotsByDate = computed(() => {
-  const grouped = new Map<string, string[]>()
+  const grouped = new Map<string, AvailabilityResponse['slots']>()
   if (!data.value) return grouped
 
   const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: viewerTimeZone.value })
   for (const slot of data.value.slots) {
     const key = formatter.format(new Date(slot.start))
-    grouped.set(key, [...(grouped.get(key) ?? []), slot.start])
+    grouped.set(key, [...(grouped.get(key) ?? []), slot])
   }
   return grouped
 })
@@ -147,6 +147,12 @@ watchEffect(() => {
 
 const daySlots = computed(() => (selectedDate.value ? slotsByDate.value.get(selectedDate.value) ?? [] : []))
 const hasAnything = computed(() => slotsByDate.value.size > 0)
+const selectedSlotDetails = computed(() => daySlots.value.find(slot => slot.start === selectedSlot.value))
+const additionalGuestLimit = computed(() => {
+  if (!page.value || page.value.capacity === 1) return 10
+  const remainingSeats = selectedSlotDetails.value?.availableSeats ?? page.value.capacity
+  return Math.max(0, Math.min(10, remainingSeats - 1))
+})
 
 function timeLabel(iso: string) {
   return new Intl.DateTimeFormat('en-GB', {
@@ -238,7 +244,7 @@ function locationIcon(type?: string) {
 }
 
 function addGuest() {
-  if (guestEmails.value.length < 10) guestEmails.value.push('')
+  if (guestEmails.value.length < additionalGuestLimit.value) guestEmails.value.push('')
 }
 
 function removeGuest(index: number) {
@@ -262,6 +268,10 @@ async function confirm() {
   }
   if (normalizedGuests.includes(booking.email.trim().toLowerCase())) {
     bookingError.value = 'Your email is already included as the main guest.'
+    return
+  }
+  if (normalizedGuests.length > additionalGuestLimit.value) {
+    bookingError.value = 'There are not enough seats left for everyone in your group.'
     return
   }
 
@@ -537,6 +547,22 @@ useHead({
                 />
                 {{ page?.durationMinutes }} minutes
               </p>
+              <p
+                v-if="page && page.capacity > 1"
+                class="flex items-center gap-2.5"
+              >
+                <UIcon
+                  name="i-lucide-users"
+                  class="size-4 shrink-0 text-dimmed"
+                />
+                Group session · up to {{ page.capacity }} guests
+              </p>
+              <p
+                v-if="page && page.capacity > 1"
+                class="pl-6.5 text-[12px] leading-relaxed text-muted"
+              >
+                This is a shared session. Calendar guests may be visible to one another.
+              </p>
               <div class="flex items-start gap-2.5">
                 <UIcon
                   :name="locationIcon(page?.locationType)"
@@ -660,18 +686,22 @@ useHead({
                 <div class="tnum mt-3 grid max-h-64 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3">
                   <button
                     v-for="slot in daySlots"
-                    :key="slot"
+                    :key="slot.start"
                     data-testid="booking-slot"
                     type="button"
                     class="min-h-11 rounded-lg border py-2 text-[13px] font-medium transition-colors"
-                    :class="selectedSlot === slot
+                    :class="selectedSlot === slot.start
                       ? 'border-primary bg-primary text-inverted'
                       : 'border-default text-toned hover:border-primary'"
-                    :aria-pressed="selectedSlot === slot"
+                    :aria-pressed="selectedSlot === slot.start"
                     :disabled="!viewerTimeZoneReady"
-                    @click="selectedSlot = slot"
+                    @click="selectedSlot = slot.start"
                   >
-                    {{ timeLabel(slot) }}
+                    <span class="block">{{ timeLabel(slot.start) }}</span>
+                    <span
+                      v-if="slot.availableSeats !== undefined"
+                      class="mt-0.5 block text-[10px] font-normal opacity-75"
+                    >{{ slot.availableSeats }} {{ slot.availableSeats === 1 ? 'seat' : 'seats' }} left</span>
                   </button>
                 </div>
               </template>
@@ -730,7 +760,9 @@ useHead({
                       Additional guests
                     </p>
                     <p class="mt-0.5 text-[11px] leading-relaxed text-muted">
-                      Invite up to 10 people who should receive meeting updates.
+                      {{ page && page.capacity > 1
+                        ? `Invite up to ${additionalGuestLimit} more people. Each person uses a seat.`
+                        : 'Invite up to 10 people who should receive meeting updates.' }}
                     </p>
                   </div>
                   <UButton
@@ -739,7 +771,7 @@ useHead({
                     variant="outline"
                     size="xs"
                     icon="i-lucide-user-plus"
-                    :disabled="guestEmails.length >= 10"
+                    :disabled="guestEmails.length >= additionalGuestLimit"
                     @click="addGuest"
                   >
                     Add guest

@@ -19,6 +19,7 @@ import { useDatabase } from '../database'
 import { calendarBusyTimes } from '../integrations/calendar/providers'
 import { organizationEntitlement } from './entitlement'
 import { findOrganizationBySlug } from './organization'
+import { assignedHostsForGroupSessions, groupSessionCapacity } from './group-events'
 
 /** `HH:MM:SS` from Postgres `time`, trimmed to what the engine expects. */
 function wall(value: string) {
@@ -46,6 +47,7 @@ export interface PublicTeamEventType {
   reminderMinutes: number[]
   bookingQuestions: BookingQuestion[]
   requiresConfirmation: boolean
+  capacity: number
 }
 
 export async function findPublicTeamEventType(teamSlug: string, eventSlug: string) {
@@ -75,7 +77,8 @@ export async function findPublicTeamEventType(teamSlug: string, eventSlug: strin
       locationDetails: eventTypes.locationDetails,
       reminderMinutes: eventTypes.reminderMinutes,
       bookingQuestions: eventTypes.bookingQuestions,
-      requiresConfirmation: eventTypes.requiresConfirmation
+      requiresConfirmation: eventTypes.requiresConfirmation,
+      capacity: eventTypes.capacity
     })
     .from(eventTypes)
     .where(and(
@@ -167,7 +170,8 @@ async function slotsForHost(
   host: ActiveHost,
   from: string,
   to: string,
-  now: string
+  now: string,
+  groupSessions: Awaited<ReturnType<typeof groupSessionCapacity>>
 ) {
   const db = useDatabase()
   const timeZone = host.scheduleTimeZone ?? host.timeZone
@@ -193,7 +197,12 @@ async function slotsForHost(
 
     // Reservations, not bookings: this is the one place that sees a host's
     // personal meetings and every team meeting they are on.
-    db.select({ start: bookingHosts.startsAt, end: bookingHosts.endsAt })
+    db.select({
+      bookingId: bookingHosts.bookingId,
+      groupSessionId: bookingHosts.groupSessionId,
+      start: bookingHosts.startsAt,
+      end: bookingHosts.endsAt
+    })
       .from(bookingHosts)
       .where(and(
         eq(bookingHosts.userId, host.userId),
@@ -204,6 +213,25 @@ async function slotsForHost(
 
     calendarBusyTimes(host.userId, busyFrom, busyTo)
   ])
+
+  const assignedSessionIds = new Set(taken.flatMap(row => row.groupSessionId ? [row.groupSessionId] : []))
+  const openAssignedSessions = new Map(groupSessions
+    .filter(session => session.availableSeats > 0 && assignedSessionIds.has(session.id))
+    .map(session => [session.startsAt.getTime(), session]))
+  const openAssignedSessionIds = new Set([...openAssignedSessions.values()].map(session => session.id))
+  const busyReservations = taken.filter(row => !row.groupSessionId
+    || !openAssignedSessionIds.has(row.groupSessionId))
+  // A group occurrence is one host commitment regardless of its guest count.
+  // Deduplicate every group session here, including sessions belonging to a
+  // different event type.
+  const dailyReservations = [...new Map(taken.map(row => [
+    row.groupSessionId ? `group:${row.groupSessionId}` : `booking:${row.bookingId}`,
+    { start: row.start, end: row.end }
+  ])).values()]
+  const effectiveExternalBusy = externalBusy.filter(interval => ![...openAssignedSessions.values()].some(session =>
+    Date.parse(interval.start) === session.startsAt.getTime()
+    && Date.parse(interval.end) === session.endsAt.getTime()
+  ))
 
   const grouped = new Map<string, DateOverride>()
   for (const row of overrides) {
@@ -233,8 +261,9 @@ async function slotsForHost(
       bookingWindowDays: event.bookingWindowDays ?? undefined,
       maxPerDay: event.maxPerDay ?? undefined
     },
-    bookings: taken.map(row => ({ start: row.start.toISOString(), end: row.end.toISOString() })),
-    externalBusy,
+    bookings: busyReservations.map(row => ({ start: row.start.toISOString(), end: row.end.toISOString() })),
+    dailyBookings: dailyReservations.map(row => ({ start: row.start.toISOString(), end: row.end.toISOString() })),
+    externalBusy: effectiveExternalBusy,
     from,
     to,
     now
@@ -250,12 +279,36 @@ export async function teamSlotsFor(
 ): Promise<TeamSlot[]> {
   if (!hosts.length) return []
 
+  const busyFrom = new Date(Date.parse(`${from}T00:00:00Z`) - 86_400_000)
+  const busyTo = new Date(Date.parse(`${to}T00:00:00Z`) + 2 * 86_400_000)
+  const groupSessions = event.capacity > 1
+    ? await groupSessionCapacity(event.id, busyFrom, busyTo)
+    : []
+
   const perHost = await Promise.all(hosts.map(async host => ({
     userId: host.userId,
-    slots: await slotsForHost(event, host, from, to, now)
+    slots: await slotsForHost(event, host, from, to, now, groupSessions)
   })))
 
-  return combineHostSlots(event.assignmentMode, perHost)
+  const combined = combineHostSlots(event.assignmentMode, perHost)
+  if (event.capacity === 1) return combined
+
+  const hostRows = await assignedHostsForGroupSessions(groupSessions.map(session => session.id))
+  const assignedBySession = new Map<string, string[]>()
+  for (const row of hostRows) {
+    if (!row.groupSessionId) continue
+    assignedBySession.set(row.groupSessionId, [...(assignedBySession.get(row.groupSessionId) ?? []), row.userId])
+  }
+  const sessionByStart = new Map(groupSessions.map(session => [session.startsAt.getTime(), session]))
+
+  return combined.flatMap((slot) => {
+    const session = sessionByStart.get(Date.parse(slot.start))
+    if (!session) return [{ ...slot, availableSeats: event.capacity }]
+    if (!session.availableSeats) return []
+    const assigned = assignedBySession.get(session.id) ?? []
+    if (!assigned.length || assigned.some(userId => !slot.hostIds.includes(userId))) return []
+    return [{ ...slot, hostIds: assigned, availableSeats: session.availableSeats }]
+  })
 }
 
 /** Recent load per host, used only to order candidates fairly. */
@@ -273,7 +326,7 @@ export async function hostLoads(
   const rows = await executor
     .select({
       userId: bookingHosts.userId,
-      recentCount: sql<number>`count(*)`.mapWith(Number),
+      recentCount: sql<number>`count(distinct coalesce(${bookingHosts.groupSessionId}, ${bookingHosts.bookingId}))`.mapWith(Number),
       lastAssignedAt: sql<Date | null>`max(${bookingHosts.createdAt})`
     })
     .from(bookingHosts)
@@ -320,7 +373,8 @@ export async function publicTeamProfile(teamSlug: string) {
       title: eventTypes.title,
       description: eventTypes.description,
       durationMinutes: eventTypes.durationMinutes,
-      assignmentMode: eventTypes.assignmentMode
+      assignmentMode: eventTypes.assignmentMode,
+      capacity: eventTypes.capacity
     })
     .from(eventTypes)
     .where(and(

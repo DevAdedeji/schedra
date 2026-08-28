@@ -45,6 +45,7 @@ export default defineEventHandler(async (event) => {
       assignmentMode: eventTypes.assignmentMode,
       locationType: eventTypes.locationType,
       requiresConfirmation: eventTypes.requiresConfirmation,
+      capacity: eventTypes.capacity,
       hidden: eventTypes.hidden,
       createdAt: eventTypes.createdAt
     }).from(eventTypes)
