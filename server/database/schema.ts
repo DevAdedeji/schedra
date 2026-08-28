@@ -19,6 +19,7 @@ import {
 } from 'drizzle-orm/pg-core'
 import type { BookingAnswersSnapshot, BookingAttribution, BookingQuestion, BookingSource } from '#shared/validation'
 import type { WorkflowAction } from '#shared/workflows'
+import type { RoutingCondition } from '#shared/routing'
 
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -967,6 +968,63 @@ export const workerInstances = pgTable('worker_instances', {
 }, table => [
   index('worker_instances_last_seen_idx').on(table.lastSeenAt),
   check('worker_instances_role_allowed', sql`${table.role} in ('worker', 'all')`)
+])
+
+/** Public qualification forms route a guest to the first matching event type. */
+export const routingForms = pgTable('routing_forms', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  organizationId: uuid('organization_id').references(() => organizations.id, { onDelete: 'cascade' }),
+  defaultEventTypeId: uuid('default_event_type_id').notNull().references(() => eventTypes.id, { onDelete: 'restrict' }),
+  slug: text('slug').notNull(),
+  title: text('title').notNull(),
+  description: text('description'),
+  active: boolean('active').notNull().default(true),
+  questions: jsonb('questions').$type<Array<{
+    id: string
+    label: string
+    options: string[]
+    required: boolean
+  }>>().notNull().default(sql`'[]'::jsonb`),
+  ...timestamps
+}, table => [
+  uniqueIndex('routing_forms_user_slug_key').on(table.userId, sql`lower(${table.slug})`)
+    .where(sql`${table.userId} is not null`),
+  uniqueIndex('routing_forms_organization_slug_key').on(table.organizationId, sql`lower(${table.slug})`)
+    .where(sql`${table.organizationId} is not null`),
+  index('routing_forms_user_idx').on(table.userId, table.createdAt),
+  index('routing_forms_organization_idx').on(table.organizationId, table.createdAt),
+  check('routing_forms_exactly_one_owner', sql`(${table.userId} is null) <> (${table.organizationId} is null)`),
+  check('routing_forms_questions_limit', sql`jsonb_array_length(${table.questions}) between 1 and 10`)
+])
+
+export const routingRules = pgTable('routing_rules', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  formId: uuid('form_id').notNull().references(() => routingForms.id, { onDelete: 'cascade' }),
+  eventTypeId: uuid('event_type_id').notNull().references(() => eventTypes.id, { onDelete: 'restrict' }),
+  name: text('name').notNull(),
+  conditions: jsonb('conditions').$type<RoutingCondition[]>().notNull(),
+  position: smallint('position').notNull(),
+  ...timestamps
+}, table => [
+  uniqueIndex('routing_rules_form_position_key').on(table.formId, table.position),
+  index('routing_rules_form_idx').on(table.formId),
+  check('routing_rules_position_non_negative', sql`${table.position} >= 0`),
+  check('routing_rules_conditions_limit', sql`jsonb_array_length(${table.conditions}) between 1 and 10`)
+])
+
+export const routingResponses = pgTable('routing_responses', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  formId: uuid('form_id').notNull().references(() => routingForms.id, { onDelete: 'cascade' }),
+  matchedRuleId: uuid('matched_rule_id').references(() => routingRules.id, { onDelete: 'set null' }),
+  eventTypeId: uuid('event_type_id').notNull().references(() => eventTypes.id, { onDelete: 'restrict' }),
+  respondentName: text('respondent_name').notNull(),
+  respondentEmail: text('respondent_email').notNull(),
+  answers: jsonb('answers').$type<Record<string, string>>().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+}, table => [
+  index('routing_responses_form_created_idx').on(table.formId, table.createdAt),
+  index('routing_responses_event_created_idx').on(table.eventTypeId, table.createdAt)
 ])
 
 /**
