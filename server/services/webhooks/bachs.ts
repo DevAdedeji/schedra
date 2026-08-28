@@ -4,7 +4,8 @@ import { recordAudit } from '../organization'
 import {
   applyRefundEvent,
   completePaidBooking,
-  failPaidBooking
+  failPaidBooking,
+  recordPaidBookingProviderObservation
 } from '../paid-booking'
 import { updateRecipientFromWebhook } from '../payment-recipient'
 
@@ -20,7 +21,13 @@ export interface BachsEvent {
     reference?: string
     status?: string
     amount?: string
+    amount_paid?: string | null
+    amount_collected?: string | null
+    amount_remaining?: string | null
     settlement_amount?: string
+    fee?: string | { amount?: string | null } | null
+    fees?: { amount?: string | null } | null
+    payment_method?: string | { type?: string | null, name?: string | null } | null
     metadata?: Record<string, string>
     payment_status?: string | null
     currency?: string | null
@@ -50,7 +57,9 @@ export async function processBachsWebhook(payload: BachsEvent) {
   if (type === 'refund.paid' || type === 'refund.failed') {
     const applied = await applyRefundEvent({
       reference: payload.data?.reference,
-      status: type === 'refund.paid' ? 'paid' : 'failed'
+      status: type === 'refund.paid' ? 'paid' : 'failed',
+      providerEventId: payload.id,
+      refundId: payload.data?.refund_id
     })
     if (applied) return { received: true, applied: true }
   }
@@ -61,10 +70,25 @@ export async function processBachsWebhook(payload: BachsEvent) {
       checkoutId,
       chargeId: payload.data?.charge?.id ?? payload.data?.charge_id,
       amount: payload.data?.charge?.amount ?? payload.data?.amount,
+      amountPaidCents: toCents(payload.data?.amount_paid ?? undefined),
+      amountCollectedCents: toCents(payload.data?.amount_collected ?? payload.data?.settlement_amount),
+      providerFeeCents: feeCents(payload.data),
+      paymentMethod: paymentMethodLabel(payload.data?.payment_method),
       currency: payload.data?.charge?.currency ?? payload.data?.currency,
-      paymentStatus: payload.data?.payment_status ?? payload.data?.charge?.status ?? payload.data?.status
+      paymentStatus: payload.data?.payment_status ?? payload.data?.charge?.status ?? payload.data?.status,
+      providerEventId: payload.id
     })
     if (result.matched) {
+      if (!result.applied && 'reason' in result && result.reason === 'not-paid') {
+        await recordPaidBookingProviderObservation({
+          checkoutId,
+          providerEventId: payload.id,
+          providerStatus: payload.data?.payment_status ?? payload.data?.charge?.status ?? payload.data?.status,
+          eventType: type,
+          amountPaidCents: toCents(payload.data?.amount_paid ?? undefined),
+          amountRemainingCents: toCents(payload.data?.amount_remaining ?? undefined)
+        })
+      }
       return {
         received: true,
         applied: result.applied,
@@ -72,8 +96,18 @@ export async function processBachsWebhook(payload: BachsEvent) {
       }
     }
   }
-  if (checkoutId && FAILED_EVENTS.has(type) && await failPaidBooking(checkoutId, type)) {
+  if (checkoutId && FAILED_EVENTS.has(type) && await failPaidBooking(checkoutId, type, payload.id)) {
     return { received: true, applied: true }
+  }
+  if (checkoutId && await recordPaidBookingProviderObservation({
+    checkoutId,
+    providerEventId: payload.id,
+    providerStatus: payload.data?.payment_status ?? payload.data?.charge?.status ?? payload.data?.status,
+    eventType: type,
+    amountPaidCents: toCents(payload.data?.amount_paid ?? undefined),
+    amountRemainingCents: toCents(payload.data?.amount_remaining ?? undefined)
+  })) {
+    return { received: true, applied: true, reason: 'payment-observation-recorded' }
   }
 
   if (SUBSCRIPTION_EVENTS.has(type)) {
@@ -124,4 +158,20 @@ function toCents(amount: string | undefined) {
   if (!amount) return null
   const parsed = Number.parseFloat(amount)
   return Number.isFinite(parsed) ? Math.round(parsed * 100) : null
+}
+
+function feeCents(data: BachsEvent['data']) {
+  const value = typeof data?.fee === 'string'
+    ? data.fee
+    : data?.fee?.amount ?? data?.fees?.amount ?? undefined
+  return toCents(value ?? undefined)
+}
+
+function paymentMethodLabel(value: string | {
+  type?: string | null
+  name?: string | null
+} | null | undefined) {
+  if (!value) return null
+  if (typeof value === 'string') return value
+  return value.type ?? value.name ?? null
 }

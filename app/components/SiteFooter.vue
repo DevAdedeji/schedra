@@ -10,9 +10,9 @@ const columns = computed<{ title: string, links: FooterLink[] }[]>(() => [
   {
     title: 'Product',
     links: [
+      { label: 'Features', to: '/features' },
       { label: 'Pricing', to: '/pricing' },
       { label: 'How it works', to: '/#how' },
-      { label: 'What you get', to: '/#features' },
       { label: 'Website embeds', to: '/#embed' },
       { label: 'Timezones', to: '/#timezones' }
     ]

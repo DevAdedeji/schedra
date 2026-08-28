@@ -133,5 +133,7 @@ onMounted(async () => {
       :retrying="status === 'pending'"
       @retry="refresh"
     />
+
+    <PaymentActivityList :team-slug="teamSlug" />
   </div>
 </template>

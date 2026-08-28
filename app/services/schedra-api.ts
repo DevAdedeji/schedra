@@ -489,6 +489,7 @@ export const operationsApi = {
   overviewEndpoint: '/api/operations/overview' as const,
   jobsEndpoint: '/api/operations/jobs' as const,
   diagnosticsEndpoint: '/api/operations/diagnostics' as const,
+  paymentsEndpoint: '/api/operations/payments' as const,
   overview: () => $fetch<OperationsOverview>('/api/operations/overview'),
   jobs: (query: { kind: OperationKind, status: OperationStatus, page: number, pageSize?: number }) =>
     $fetch<OperationsJobsResponse>('/api/operations/jobs', { query: { pageSize: 10, ...query } }),
@@ -724,9 +725,43 @@ export interface PaymentAccountSummary {
   platformFeeBps: number
 }
 
+export interface PaymentActivityRecord {
+  id: string
+  kind: 'checkout' | 'customer_payment' | 'platform_fee' | 'processing_fee' | 'settlement' | 'refund'
+  direction: 'none' | 'in' | 'out'
+  status: 'pending' | 'succeeded' | 'failed' | 'expired'
+  amountCents: number | null
+  currency: 'USD' | 'NGN'
+  provider: 'bachs'
+  providerEventId: string | null
+  providerObjectId: string | null
+  message: string | null
+  metadata: Record<string, string | number | boolean | null>
+  occurredAt: string
+  paymentReference: string
+  platformFeeCents: number | null
+  attendeeName: string
+  attendeeEmail: string
+  eventTitle: string
+  label: string
+  icon: string
+  from: string
+  to: string
+  owner: string
+  bookingPath: string
+}
+
+export interface PaymentActivityResponse {
+  items: PaymentActivityRecord[]
+  pagination: PaginationMeta
+}
+
 export const paymentsApi = {
   endpoint: '/api/payment-account',
   teamEndpoint: (slug: string) => resource('/api/teams', slug, '/payment-account'),
+  activityEndpoint: (teamSlug?: string) => teamSlug
+    ? resource('/api/teams', teamSlug, '/payment-activity')
+    : '/api/payment-activity',
   start: (teamSlug?: string) => $fetch<{ url: string, expiresAt: string }>(
     teamSlug ? resource('/api/teams', teamSlug, '/payment-account') : '/api/payment-account',
     { method: 'POST' }

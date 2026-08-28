@@ -20,9 +20,15 @@ useHead({
       'featureList': [
         'Booking pages',
         'Timezone-correct scheduling',
-        'Weekly availability',
+        'Reusable availability schedules',
+        'Routing forms',
+        'Workflow automation',
+        'Booking analytics',
+        'Paid bookings',
+        'Group events',
+        'Round-robin and collective team scheduling',
         'Embeddable booking overlays',
-        'Booking confirmation emails',
+        'Google Calendar, Microsoft Calendar and Zoom integrations',
         'Cancellation and rescheduling'
       ]
     })

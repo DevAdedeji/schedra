@@ -253,6 +253,13 @@
       "when": 1787888296834,
       "tag": "0035_sloppy_phil_sheldon",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1787911504363,
+      "tag": "0036_cheerful_junta",
+      "breakpoints": true
     }
   ]
 }
