@@ -28,10 +28,14 @@ const confirming = ref(false)
 const handlingRequest = ref<'approve' | 'reject' | null>(null)
 const reason = ref('')
 const cancelError = ref('')
+const paymentCheckState = ref<'idle' | 'checking' | 'pending' | 'failed'>('idle')
+const paymentCheckError = ref('')
+let paymentCheckStopped = false
 
 const cancelled = computed(() => booking.value?.status === 'cancelled')
 const pendingApproval = computed(() => booking.value?.status === 'pending')
 const awaitingPayment = computed(() => booking.value?.status === 'awaiting_payment')
+const returningFromPayment = computed(() => route.query.payment === 'success')
 const rejected = computed(() => booking.value?.status === 'rejected')
 const past = computed(() => booking.value ? new Date(booking.value.endsAt) < new Date() : false)
 const joinUrl = computed(() => booking.value?.status === 'confirmed'
@@ -94,6 +98,72 @@ async function handleRequest(action: 'approve' | 'reject') {
     handlingRequest.value = null
   }
 }
+
+async function clearPaymentReturnQuery() {
+  const query = { ...route.query }
+  delete query.payment
+  delete query.checkout_id
+  await navigateTo({ path: route.path, query }, { replace: true })
+}
+
+async function checkPaymentStatus(showFailure = true) {
+  if (paymentCheckState.value === 'checking') return false
+  paymentCheckState.value = 'checking'
+  paymentCheckError.value = ''
+  try {
+    const result = await bookingsApi.reconcilePayment(uid)
+    if (result.status === 'confirmed') {
+      await refresh()
+      await clearPaymentReturnQuery()
+      feedback.success({
+        title: 'Payment confirmed',
+        description: 'Your booking is confirmed and the host can now see it.'
+      })
+      paymentCheckState.value = 'idle'
+      return true
+    }
+    if (result.status === 'failed' || result.status === 'expired') {
+      await refresh()
+      paymentCheckState.value = 'failed'
+      paymentCheckError.value = result.status === 'expired'
+        ? 'This checkout expired before Bachs confirmed payment.'
+        : 'Bachs did not confirm this payment. No booking was created.'
+      return true
+    }
+    paymentCheckState.value = 'pending'
+    return false
+  } catch (failure) {
+    paymentCheckState.value = 'failed'
+    paymentCheckError.value = apiErrorMessage(
+      failure,
+      'We could not verify the payment just now. Your payment is safe; try checking again.'
+    )
+    if (showFailure) feedback.error({ title: 'Could not verify payment', description: paymentCheckError.value })
+    return false
+  }
+}
+
+async function reconcileCheckoutReturn() {
+  // Card settlements are normally immediate, but a bounded retry window also
+  // covers providers that briefly report `processing` after redirecting.
+  const delays = [0, 1_250, 2_500, 4_000, 6_000]
+  for (const delay of delays) {
+    if (paymentCheckStopped || !awaitingPayment.value) return
+    if (delay) await new Promise(resolve => setTimeout(resolve, delay))
+    if (paymentCheckStopped) return
+    const terminal = await checkPaymentStatus(false)
+    if (terminal) return
+  }
+  paymentCheckState.value = 'pending'
+}
+
+onMounted(() => {
+  if (returningFromPayment.value && awaitingPayment.value) void reconcileCheckoutReturn()
+})
+
+onBeforeUnmount(() => {
+  paymentCheckStopped = true
+})
 
 useSeoMeta({
   title: () => booking.value ? `${booking.value.eventTitle} with ${booking.value.hostName}` : 'Booking',
@@ -349,13 +419,17 @@ useSeoMeta({
                 class="mb-4 rounded-xl border border-warning/30 bg-warning/5 p-4"
               >
                 <p class="text-[14px] font-semibold text-highlighted">
-                  Finish payment to confirm this time
+                  {{ returningFromPayment ? 'Confirming your payment' : 'Finish payment to confirm this time' }}
                 </p>
                 <p class="mt-1 text-[13px] text-muted">
-                  The slot is temporarily held. No calendar event is created until payment succeeds.
+                  {{ returningFromPayment
+                    ? paymentCheckState === 'pending'
+                      ? 'Bachs is still confirming the payment. The slot remains held and you can check again safely.'
+                      : paymentCheckError || 'We are securely checking the completed checkout with Bachs. This usually takes a few seconds.'
+                    : 'The slot is temporarily held. No calendar event is created until payment succeeds.' }}
                 </p>
                 <UButton
-                  v-if="booking?.payment?.checkoutUrl"
+                  v-if="!returningFromPayment && booking?.payment?.checkoutUrl"
                   :to="booking.payment.checkoutUrl"
                   external
                   size="lg"
@@ -363,6 +437,18 @@ useSeoMeta({
                   class="mt-4"
                 >
                   Continue secure checkout
+                </UButton>
+                <UButton
+                  v-else-if="returningFromPayment"
+                  color="neutral"
+                  variant="outline"
+                  size="lg"
+                  icon="i-lucide-refresh-cw"
+                  :loading="paymentCheckState === 'checking'"
+                  class="mt-4"
+                  @click="checkPaymentStatus()"
+                >
+                  Check payment status
                 </UButton>
               </div>
               <div

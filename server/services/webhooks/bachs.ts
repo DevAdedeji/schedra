@@ -1,9 +1,9 @@
-import { getConnectedAccount, type BachsSubscription } from '../../integrations/bachs'
+import { getCheckoutSession, getConnectedAccount, type BachsSubscription } from '../../integrations/bachs'
 import { applySubscriptionState, markInvoiceFailed, markInvoicePaid } from '../billing'
 import { recordAudit } from '../organization'
 import {
   applyRefundEvent,
-  completePaidBooking,
+  completePaidBookingFromCheckout,
   failPaidBooking,
   recordPaidBookingProviderObservation
 } from '../paid-booking'
@@ -66,16 +66,12 @@ export async function processBachsWebhook(payload: BachsEvent) {
 
   const checkoutId = payload.data?.checkout_id
   if (checkoutId && PAID_EVENTS.has(type)) {
-    const result = await completePaidBooking({
-      checkoutId,
-      chargeId: payload.data?.charge?.id ?? payload.data?.charge_id,
-      amount: payload.data?.charge?.amount ?? payload.data?.amount,
-      amountPaidCents: toCents(payload.data?.amount_paid ?? undefined),
+    // Bachs event payloads describe collection, settlement and checkout money
+    // in different fields. Fetching the checkout gives us one authoritative
+    // base price and payment status before applying the immutable-price check.
+    const checkout = await getCheckoutSession(checkoutId)
+    const result = await completePaidBookingFromCheckout(checkout, {
       amountCollectedCents: toCents(payload.data?.amount_collected ?? payload.data?.settlement_amount),
-      providerFeeCents: feeCents(payload.data),
-      paymentMethod: paymentMethodLabel(payload.data?.payment_method),
-      currency: payload.data?.charge?.currency ?? payload.data?.currency,
-      paymentStatus: payload.data?.payment_status ?? payload.data?.charge?.status ?? payload.data?.status,
       providerEventId: payload.id
     })
     if (result.matched) {
@@ -158,20 +154,4 @@ function toCents(amount: string | undefined) {
   if (!amount) return null
   const parsed = Number.parseFloat(amount)
   return Number.isFinite(parsed) ? Math.round(parsed * 100) : null
-}
-
-function feeCents(data: BachsEvent['data']) {
-  const value = typeof data?.fee === 'string'
-    ? data.fee
-    : data?.fee?.amount ?? data?.fees?.amount ?? undefined
-  return toCents(value ?? undefined)
-}
-
-function paymentMethodLabel(value: string | {
-  type?: string | null
-  name?: string | null
-} | null | undefined) {
-  if (!value) return null
-  if (typeof value === 'string') return value
-  return value.type ?? value.name ?? null
 }

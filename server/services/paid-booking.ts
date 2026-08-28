@@ -7,7 +7,12 @@ import {
   paymentRecipients
 } from '../database/schema'
 import { useDatabase } from '../database'
-import { createCheckoutSession, createRefund } from '../integrations/bachs'
+import {
+  createCheckoutSession,
+  createRefund,
+  getCheckoutSession,
+  type BachsCheckoutSession
+} from '../integrations/bachs'
 import { toDecimalString } from '#shared/billing'
 import { useEnv } from '../config/env'
 import { assignedHostsForBooking, findBookingByUid } from '../repositories/booking'
@@ -180,6 +185,106 @@ export async function openPaidBookingCheckout(uid: string) {
   }
 }
 
+type CheckoutPaymentState = 'paid' | 'pending' | 'failed'
+
+/**
+ * A browser redirect is never payment proof. This classification is only used
+ * after Schedra has fetched the checkout directly from Bachs with its secret
+ * key. Both the checkout and its charge must describe a successful terminal
+ * payment before a booking can be confirmed.
+ */
+export function checkoutPaymentState(session: BachsCheckoutSession): CheckoutPaymentState {
+  const paymentStatus = session.charge?.status ?? session.payment_status
+  if (
+    session.status === 'completed'
+    && (paymentStatus === 'succeeded' || paymentStatus === 'accepted')
+  ) return 'paid'
+
+  if (
+    session.status === 'expired'
+    || session.status === 'cancelled'
+    || ['failed', 'canceled', 'cancelled', 'expired'].includes(paymentStatus ?? '')
+  ) return 'failed'
+
+  return 'pending'
+}
+
+/**
+ * Provider-backed fallback for a delayed or missed webhook. The booking UID
+ * locates the immutable local payment, while the stored checkout id is the
+ * only id sent to Bachs. The query string returned by checkout is deliberately
+ * ignored.
+ */
+export async function reconcilePaidBooking(uid: string) {
+  const booking = await findBookingByUid(uid)
+  if (!booking) throw createError({ statusCode: 404, statusMessage: 'No such booking' })
+
+  const payment = await paymentForBooking(booking.id)
+  if (!payment) throw createError({ statusCode: 409, statusMessage: 'This booking does not require payment.' })
+  if (payment.status === 'paid' && booking.status === 'confirmed') {
+    return { status: 'confirmed' as const }
+  }
+  if (!payment.bachsCheckoutId) {
+    throw createError({ statusCode: 409, statusMessage: 'Secure checkout has not started yet.' })
+  }
+
+  const checkout = await getCheckoutSession(payment.bachsCheckoutId)
+  if (checkout.checkout_id !== payment.bachsCheckoutId) {
+    throw new Error('Bachs returned a different checkout than the one requested.')
+  }
+  if (checkout.reference && checkout.reference !== payment.reference) {
+    throw new Error('Bachs checkout reference did not match this booking.')
+  }
+
+  const providerState = checkoutPaymentState(checkout)
+  if (providerState === 'paid') {
+    const result = await completePaidBookingFromCheckout(checkout)
+    if (!result.matched) throw new Error('The verified checkout is not attached to a booking payment.')
+    return { status: 'confirmed' as const }
+  }
+
+  if (providerState === 'failed') {
+    const reason = checkout.status === 'expired'
+      ? 'checkout.expired'
+      : checkout.status === 'cancelled' ? 'checkout.cancelled' : 'checkout.failed'
+    await failPaidBooking(checkout.checkout_id, reason)
+    return { status: checkout.status === 'expired' ? 'expired' as const : 'failed' as const }
+  }
+
+  return { status: 'pending' as const }
+}
+
+export function completePaidBookingFromCheckout(
+  checkout: BachsCheckoutSession,
+  context: {
+    providerEventId?: string | null
+    amountCollectedCents?: number | null
+  } = {}
+) {
+  if (checkoutPaymentState(checkout) !== 'paid') {
+    return Promise.resolve({ matched: false, applied: false, reason: 'not-paid' as const })
+  }
+  return completePaidBooking({
+    checkoutId: checkout.checkout_id,
+    chargeId: checkout.charge?.payment_id,
+    reference: checkout.reference,
+    amount: checkout.amount,
+    amountPaidCents: toCents(checkout.charge?.amount_paid),
+    amountCollectedCents: context.amountCollectedCents,
+    providerFeeCents: checkout.currency === 'USD' ? toCents(checkout.charge?.fee_usd) : null,
+    paymentMethod: checkout.payment_method,
+    currency: checkout.currency,
+    paymentStatus: checkout.charge?.status ?? checkout.payment_status,
+    providerEventId: context.providerEventId
+  })
+}
+
+function toCents(amount?: string | null) {
+  if (!amount) return null
+  const parsed = Number.parseFloat(amount)
+  return Number.isFinite(parsed) ? Math.round(parsed * 100) : null
+}
+
 async function cancelUnpaidBooking(bookingId: string, reason: string) {
   await useDatabase().update(bookings).set({
     status: 'cancelled',
@@ -191,6 +296,7 @@ async function cancelUnpaidBooking(bookingId: string, reason: string) {
 export async function completePaidBooking(input: {
   checkoutId: string
   chargeId?: string | null
+  reference?: string | null
   amount?: string | null
   amountPaidCents?: number | null
   amountCollectedCents?: number | null
@@ -209,6 +315,9 @@ export async function completePaidBooking(input: {
   }
   if (input.paymentStatus && !['paid', 'succeeded', 'accepted'].includes(input.paymentStatus.toLowerCase())) {
     return { matched: true, applied: false, reason: 'not-paid' }
+  }
+  if (input.reference && input.reference !== payment.reference) {
+    throw new Error('Paid booking reference did not match its immutable payment reference.')
   }
   if (input.amount && Math.round(Number.parseFloat(input.amount) * 100) !== payment.amountCents) {
     throw new Error('Paid booking amount did not match its immutable price snapshot.')

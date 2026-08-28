@@ -222,6 +222,33 @@ describe('bachs checkout payment methods', () => {
     })
   })
 
+  it('reads a checkout from Bachs before confirming a paid booking', async () => {
+    const providerCheckout = {
+      checkout_id: 'chk_paid_booking',
+      status: 'completed',
+      payment_status: 'succeeded',
+      amount: '5.00',
+      currency: 'USD',
+      reference: 'booking-reference',
+      charge: {
+        payment_id: 'pay_123',
+        status: 'succeeded',
+        amount: '5.00',
+        amount_paid: '5.00',
+        currency: 'USD'
+      }
+    }
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(providerCheckout), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { getCheckoutSession } = await import('./bachs')
+    await expect(getCheckoutSession('chk_paid_booking')).resolves.toEqual(providerCheckout)
+    expect(fetchMock.mock.calls[0]?.[0].toString()).toBe(
+      'https://sandbox-api.bachs.io/v1/checkout-sessions/chk_paid_booking'
+    )
+    expect((fetchMock.mock.calls[0]?.[1] as RequestInit).method).toBe('GET')
+  })
+
   it('uses owner identity, not email, to make payout account creation idempotent', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: 'acct_host' }), { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
