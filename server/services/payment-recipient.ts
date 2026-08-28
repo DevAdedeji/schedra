@@ -3,11 +3,13 @@ import {
   createConnectedAccount,
   createConnectedAccountLink,
   getConnectedAccount,
+  updateConnectedAccountRepresentative,
   type BachsConnectedAccount
 } from '../integrations/bachs'
 import { paymentRecipients } from '../database/schema'
 import { useDatabase } from '../database'
 import { useEnv } from '../config/env'
+import { logEvent } from '../observability/logger'
 
 export type PaymentRecipientOwner
   = | { userId: string, organizationId?: never }
@@ -88,8 +90,10 @@ export async function createPaymentOnboarding(input: {
   owner: PaymentRecipientOwner
   email: string
   name: string
+  representativeName?: string
   returnPath: string
 }) {
+  const representative = splitRepresentativeName(input.representativeName ?? input.name)
   let row = await findPaymentRecipient(input.owner)
   if (!row?.bachsAccountId) {
     const reference = 'userId' in input.owner
@@ -98,6 +102,8 @@ export async function createPaymentOnboarding(input: {
     const account = await createConnectedAccount({
       email: input.email,
       name: input.name,
+      firstName: representative.firstName,
+      lastName: representative.lastName,
       reference,
       entityType: 'userId' in input.owner ? 'individual' : 'company'
     })
@@ -120,6 +126,7 @@ export async function createPaymentOnboarding(input: {
 
   const accountId = row?.bachsAccountId
   if (!accountId) throw new Error('Payment account setup did not return an account.')
+  await prefillRepresentativeIfRequired(accountId, representative)
   const base = useEnv().schedraUrl
   const path = input.returnPath.startsWith('/') ? input.returnPath : `/${input.returnPath}`
   const link = await createConnectedAccountLink({
@@ -128,6 +135,40 @@ export async function createPaymentOnboarding(input: {
     refreshUrl: `${base}${path}?payments=refresh`
   })
   return { url: link.url, expiresAt: link.expires_at }
+}
+
+function splitRepresentativeName(value: string) {
+  const parts = value.trim().split(/\s+/).filter(Boolean)
+  return {
+    firstName: parts.shift() ?? '',
+    lastName: parts.length ? parts.join(' ') : undefined
+  }
+}
+
+async function prefillRepresentativeIfRequired(
+  accountId: string,
+  representative: ReturnType<typeof splitRepresentativeName>
+) {
+  if (!representative.firstName) return
+  try {
+    const account = await getConnectedAccount(accountId)
+    const due = account.requirements?.currently_due ?? []
+    const personNameDue = due.some(field =>
+      field === 'persons.name'
+      || field.endsWith('.first_name')
+      || field.endsWith('.last_name')
+    )
+    if (!personNameDue || account.requirements?.persons?.length) return
+    await updateConnectedAccountRepresentative({ accountId, ...representative })
+  } catch (error) {
+    // Prefilling is an optimization. The hosted flow must remain available if
+    // Bachs cannot accept the prefill, otherwise a convenience becomes a hard
+    // onboarding outage.
+    logEvent('warn', 'payment_recipient_prefill_failed', {
+      accountId,
+      error: error instanceof Error ? error.message : 'Unknown provider error'
+    })
+  }
 }
 
 export async function updateRecipientFromWebhook(account: BachsConnectedAccount) {

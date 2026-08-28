@@ -19,7 +19,7 @@ const { isSignedIn, accountDestination } = await useLandingNavigation()
           <p class="mt-8 max-w-[44ch] text-[17px] leading-[1.65] text-toned">
             Schedra brings availability, bookings and follow-ups into one
             seamless scheduling experience. Share your link, let guests choose
-            a time that works and automate everything that follows—from
+            a time that works and automate everything that follows, from
             confirmations and reminders to rescheduling and cancellations.
           </p>
 

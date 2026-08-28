@@ -35,8 +35,8 @@ function pendingText(totals: PaymentMoneyTotal[]) {
 }
 
 const statusCopy = computed(() => ({
-  not_started: ['Set up payouts', 'Connect a payout account before adding a price to an event.'],
-  onboarding: ['Finish setup', 'Bachs still needs a few business or identity details.'],
+  not_started: ['Set up payouts', 'Bachs securely verifies your identity and payout destination. Schedra never stores your bank details.'],
+  onboarding: ['Finish setup', 'Continue the secure Bachs flow to provide any remaining identity or bank details.'],
   pending_review: ['Under review', 'Your information was submitted. We will enable paid bookings when Bachs approves payouts.'],
   active: ['Ready for paid bookings', 'Guests can pay securely and your share is routed to this payout account.'],
   restricted: ['Action required', 'Update your payment account before accepting new paid bookings.'],

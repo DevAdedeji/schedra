@@ -257,6 +257,8 @@ describe('bachs checkout payment methods', () => {
     await createConnectedAccount({
       email: 'shared@example.com',
       name: 'Example team',
+      firstName: 'Ada',
+      lastName: 'Okafor',
       reference: 'organization-org_123',
       entityType: 'company'
     })
@@ -264,7 +266,35 @@ describe('bachs checkout payment methods', () => {
     const options = fetchMock.mock.calls[0]?.[1] as RequestInit
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe('https://sandbox-api.bachs.io/v1/accounts')
     expect(new Headers(options.headers).get('Idempotency-Key')).toBe('schedra-recipient-organization-org_123')
-    expect(JSON.parse(String(options.body))).toMatchObject({ entity_type: 'company' })
+    expect(JSON.parse(String(options.body))).toMatchObject({
+      entity_type: 'company',
+      first_name: 'Ada',
+      last_name: 'Okafor'
+    })
+  })
+
+  it('prefills an outstanding representative without collecting sensitive details', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: 'acct_host' }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { updateConnectedAccountRepresentative } = await import('./bachs')
+    await updateConnectedAccountRepresentative({
+      accountId: 'acct_host',
+      firstName: 'Ada',
+      lastName: 'Okafor'
+    })
+
+    const [url, options] = fetchMock.mock.calls[0] as [URL, RequestInit]
+    expect(String(url)).toBe('https://sandbox-api.bachs.io/v1/accounts/acct_host')
+    expect(JSON.parse(String(options.body))).toEqual({
+      fields: {
+        persons: [{
+          first_name: 'Ada',
+          last_name: 'Okafor',
+          relationship: { representative: true }
+        }]
+      }
+    })
   })
 
   it('uses the account resource to read a connected payout account', async () => {

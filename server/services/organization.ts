@@ -28,6 +28,7 @@ export interface OrganizationContext {
   }
   role: OrganizationRole
   userId: string
+  userName: string
   userEmail: string
 }
 
@@ -71,6 +72,7 @@ export async function requireOrganization(
     organization: found.organization,
     role: membership.role,
     userId: session.user.id,
+    userName: session.user.name,
     userEmail: session.user.email
   }
 }

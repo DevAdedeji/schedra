@@ -176,6 +176,7 @@ export interface BachsConnectedAccount {
     past_due?: string[]
     pending_verification?: string[]
     errors?: Array<{ field?: string, code?: string, reason?: string }>
+    persons?: Array<{ id?: string, first_name?: string | null, last_name?: string | null }>
     [key: string]: unknown
   }
 }
@@ -183,6 +184,8 @@ export interface BachsConnectedAccount {
 export function createConnectedAccount(input: {
   email: string
   name: string
+  firstName?: string
+  lastName?: string
   reference: string
   entityType: 'individual' | 'company'
 }) {
@@ -195,6 +198,8 @@ export function createConnectedAccount(input: {
     body: {
       contact_email: input.email,
       display_name: input.name,
+      ...(input.firstName ? { first_name: input.firstName } : {}),
+      ...(input.lastName ? { last_name: input.lastName } : {}),
       entity_type: input.entityType,
       configuration: {
         recipient: {
@@ -211,6 +216,25 @@ export function createConnectedAccount(input: {
 
 export function getConnectedAccount(accountId: string) {
   return bachsFetch<BachsConnectedAccount>(`/accounts/${encodeURIComponent(accountId)}`)
+}
+
+export function updateConnectedAccountRepresentative(input: {
+  accountId: string
+  firstName: string
+  lastName?: string
+}) {
+  return bachsFetch<BachsConnectedAccount>(`/accounts/${encodeURIComponent(input.accountId)}`, {
+    method: 'POST',
+    body: {
+      fields: {
+        persons: [{
+          first_name: input.firstName,
+          ...(input.lastName ? { last_name: input.lastName } : {}),
+          relationship: { representative: true }
+        }]
+      }
+    }
+  })
 }
 
 export interface BachsBalanceBucket {
