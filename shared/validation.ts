@@ -4,7 +4,7 @@ import { paymentCurrencySchema } from './payments'
 export const RESERVED_USERNAMES = new Set([
   'admin', 'api', 'app', 'auth', 'billing', 'blog', 'dashboard', 'designs',
   'docs', 'help', 'integrations', 'invite', 'login', 'logout', 'me', 'new', 'pricing',
-  'privacy', 'schedra', 'settings', 'signin', 'signup', 'support', 'team', 'terms',
+  'privacy', 'route', 'routing-forms', 'schedra', 'settings', 'signin', 'signup', 'support', 'team', 'terms',
   't', 'teams', 'w', 'workspaces', 'www'
 ])
 

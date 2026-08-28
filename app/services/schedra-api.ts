@@ -15,6 +15,7 @@ import type {
   TeamEventTypeInput
 } from '#shared/validation'
 import type { WorkflowAction, WorkflowInput, WorkflowTrigger } from '#shared/workflows'
+import type { RoutingFormInput, RoutingQuestion, RoutingRule } from '#shared/routing'
 import type { EventTypeRecord } from '~/types/event-type'
 import type { ScheduleOverrideRecord, ScheduleRecord, ScheduleRuleRecord } from '~/types/schedule'
 
@@ -275,6 +276,44 @@ export const workflowsApi = {
     $fetch(`${workflowBase(teamSlug)}/${encodeURIComponent(id)}/status`, { method: 'PATCH', body: { active } }),
   remove: (id: string, teamSlug?: string) =>
     $fetch(`${workflowBase(teamSlug)}/${encodeURIComponent(id)}`, { method: 'DELETE' })
+}
+
+export interface RoutingFormSummary {
+  id: string
+  slug: string
+  title: string
+  description: string | null
+  active: boolean
+  questions: RoutingQuestion[]
+  defaultEventTitle: string
+  responseCount: number
+  createdAt: string
+}
+
+export interface RoutingFormRecord extends Omit<RoutingFormInput, 'rules'> {
+  id: string
+  rules: RoutingRule[]
+}
+
+export interface RoutingFormsResponse {
+  items: RoutingFormSummary[]
+  eventTypes: Array<{ id: string, title: string, slug: string }>
+}
+
+function routingBase(teamSlug?: string) {
+  return teamSlug ? resource('/api/teams', teamSlug, '/routing-forms') : '/api/routing-forms'
+}
+
+export const routingFormsApi = {
+  listEndpoint: (teamSlug?: string) => routingBase(teamSlug),
+  get: (id: string, teamSlug?: string) =>
+    $fetch<RoutingFormRecord>(`${routingBase(teamSlug)}/${encodeURIComponent(id)}`),
+  create: (body: RoutingFormInput, teamSlug?: string) =>
+    $fetch<{ id: string }>(routingBase(teamSlug), { method: 'POST', body }),
+  update: (id: string, body: RoutingFormInput, teamSlug?: string) =>
+    $fetch<{ id: string }>(`${routingBase(teamSlug)}/${encodeURIComponent(id)}`, { method: 'PATCH', body }),
+  remove: (id: string, teamSlug?: string) =>
+    $fetch(`${routingBase(teamSlug)}/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
 export const schedulesApi = {

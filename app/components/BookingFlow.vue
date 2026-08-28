@@ -196,6 +196,22 @@ if (rescheduleBooking.value) {
 } else {
   booking.name = props.prefillName?.trim() ?? ''
   booking.email = props.prefillEmail?.trim().toLowerCase() ?? ''
+  if (import.meta.client && !booking.name && !booking.email) {
+    const key = `schedra:routing-prefill:${window.location.pathname}`
+    const stored = sessionStorage.getItem(key)
+    sessionStorage.removeItem(key)
+    if (stored) {
+      try {
+        const prefill = JSON.parse(stored) as { name?: string, email?: string, expiresAt?: number }
+        if ((prefill.expiresAt ?? 0) > Date.now()) {
+          booking.name = prefill.name?.trim() ?? ''
+          booking.email = prefill.email?.trim().toLocaleLowerCase() ?? ''
+        }
+      } catch {
+        // Ignore malformed browser state. The guest can still type their details.
+      }
+    }
+  }
 }
 const submitting = ref(false)
 const bookingError = ref('')
