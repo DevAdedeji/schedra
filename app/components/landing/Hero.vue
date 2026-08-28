@@ -17,9 +17,10 @@ const { isSignedIn, accountDestination } = await useLandingNavigation()
           </h1>
 
           <p class="mt-8 max-w-[44ch] text-[17px] leading-[1.65] text-toned">
-            Schedra shows people when you're free so they can pick a time that
-            suits you both. Confirmations, cancellations and rescheduling stay
-            in one clear flow. No more asking what time works.
+            Schedra brings availability, bookings and follow-ups into one
+            seamless scheduling experience. Share your link, let guests choose
+            a time that works and automate everything that follows—from
+            confirmations and reminders to rescheduling and cancellations.
           </p>
 
           <div class="mt-10 flex flex-wrap items-center gap-3">
