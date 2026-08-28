@@ -152,8 +152,20 @@ export interface BachsConnectedAccount {
   contact_email?: string | null
   setup_status?: string | null
   is_active?: boolean
-  capabilities?: Record<string, { status?: string, requested?: boolean }>
-  requirements?: Record<string, unknown>
+  capabilities?: Record<string, {
+    status?: string
+    requested?: boolean
+    status_details?: Array<{ code?: string, resolution?: string, message?: string }> | null
+  }>
+  requirements?: {
+    setup_status?: string
+    currently_due?: string[]
+    eventually_due?: string[]
+    past_due?: string[]
+    pending_verification?: string[]
+    errors?: Array<{ field?: string, code?: string, reason?: string }>
+    [key: string]: unknown
+  }
 }
 
 export function createConnectedAccount(input: {
@@ -202,7 +214,7 @@ export function createConnectedAccountLink(input: {
   returnUrl: string
 }) {
   return bachsFetch<BachsAccountLink>(
-    `/connected-accounts/${encodeURIComponent(input.accountId)}/account-links`,
+    `/accounts/${encodeURIComponent(input.accountId)}/account-links`,
     {
       method: 'POST',
       body: {
