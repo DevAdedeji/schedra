@@ -1,7 +1,7 @@
 import { assignedHostsForBooking, findBookingByUid } from '../../repositories/booking'
 import { readBookingAnswers } from '../../domain/booking-answers'
 import { getAuthSession } from '../../services/session'
-import { paymentForBooking } from '../../services/paid-booking'
+import { PAYMENT_HOLD_EXPIRED_REASON, paymentForBooking } from '../../services/paid-booking'
 
 export default defineEventHandler(async (event) => {
   const uid = getRouterParam(event, 'uid')
@@ -54,7 +54,10 @@ export default defineEventHandler(async (event) => {
           amountCents: payment.amountCents,
           currency: payment.currency,
           checkoutUrl: payment.checkoutUrl,
-          expiresAt: payment.checkoutExpiresAt?.toISOString() ?? null
+          expiresAt: payment.checkoutExpiresAt?.toISOString() ?? null,
+          recoveryAvailable: booking.status === 'cancelled'
+            && booking.cancellationReason === PAYMENT_HOLD_EXPIRED_REASON
+            && ['expired', 'failed', 'refund_failed'].includes(payment.status)
         }
       : null
   }

@@ -20,8 +20,12 @@ import { appendPaymentLedgerEntry } from '../repositories/payment-ledger'
 import { bookingNoticeFromManaged, queueBookingEmails } from './booking-emails'
 import { enqueueCalendarSync } from './calendar-sync'
 import { publishBookingEvent } from './workflows'
+import { logEvent } from '../observability/logger'
 
 type PaymentExecutor = Pick<Database, 'insert' | 'select' | 'update'>
+
+export const PAYMENT_HOLD_EXPIRED_REASON = 'Payment was not completed before the hold expired.'
+const SLOT_TAKEN = '23P01'
 
 export function platformFeeCents(amountCents: number) {
   const fee = Math.round(amountCents * useEnv().paidBookingPlatformFeeBps / 10_000)
@@ -127,7 +131,9 @@ export async function openPaidBookingCheckout(uid: string) {
       currency: payment.currency,
       reference: payment.reference,
       customer: { email: booking.attendeeEmail, name: booking.attendeeName },
-      successUrl: `${base}/booking/${encodeURIComponent(uid)}?payment=success`,
+      // Bachs appends `?checkout_id=...` after payment. Keep this URL free of
+      // its own query string so the return marker is always parsed correctly.
+      successUrl: `${base}/booking/${encodeURIComponent(uid)}`,
       cancelUrl: `${base}/booking/${encodeURIComponent(uid)}?payment=cancelled`,
       metadata: { schedra_booking_uid: uid, schedra_payment_reference: payment.reference },
       platformFee: toDecimalString(payment.platformFeeCents),
@@ -190,11 +196,15 @@ type CheckoutPaymentState = 'paid' | 'pending' | 'failed'
 /**
  * A browser redirect is never payment proof. This classification is only used
  * after Schedra has fetched the checkout directly from Bachs with its secret
- * key. Both the checkout and its charge must describe a successful terminal
- * payment before a booking can be confirmed.
+ * key. A successful charge is authoritative even if the checkout lifecycle
+ * briefly lags behind it.
  */
 export function checkoutPaymentState(session: BachsCheckoutSession): CheckoutPaymentState {
   const paymentStatus = session.charge?.status ?? session.payment_status
+  // A provider-confirmed charge is the money source of truth. Checkout state
+  // can lag behind the charge around expiry, so requiring both to become
+  // terminal can turn a real payment into a false expiry.
+  if (session.charge && ['succeeded', 'accepted'].includes(session.charge.status)) return 'paid'
   if (
     session.status === 'completed'
     && (paymentStatus === 'succeeded' || paymentStatus === 'accepted')
@@ -240,7 +250,13 @@ export async function reconcilePaidBooking(uid: string) {
   if (providerState === 'paid') {
     const result = await completePaidBookingFromCheckout(checkout)
     if (!result.matched) throw new Error('The verified checkout is not attached to a booking payment.')
-    return { status: 'confirmed' as const }
+    const refreshed = await findBookingByUid(uid)
+    if (refreshed?.status === 'confirmed') return { status: 'confirmed' as const }
+    if (result.reason === 'late-payment-refund-started') return { status: 'refund_pending' as const }
+    throw createError({
+      statusCode: 409,
+      statusMessage: 'Payment was confirmed, but this booking could not be restored. Please contact support.'
+    })
   }
 
   if (providerState === 'failed') {
@@ -333,9 +349,78 @@ export async function completePaidBooking(input: {
     throw new Error('Paid booking currency did not match its immutable price snapshot.')
   }
 
-  const [currentBooking] = await useDatabase().select({ status: bookings.status })
+  const [currentBooking] = await useDatabase().select({
+    status: bookings.status,
+    cancellationReason: bookings.cancellationReason
+  })
     .from(bookings).where(eq(bookings.id, payment.bookingId)).limit(1)
   if (!currentBooking) throw new Error('The paid booking no longer exists.')
+
+  const managed = await findBookingByUid((await useDatabase().select({ uid: bookings.uid })
+    .from(bookings).where(eq(bookings.id, payment.bookingId)).limit(1))[0]?.uid ?? '')
+  const hosts = managed ? await assignedHostsForBooking(managed.id) : []
+
+  // If our expiry sweep won the race against a successful charge, put the
+  // booking back when its original slot is still available. The reservation
+  // trigger makes this atomic and rejects the update if another booking has
+  // genuinely claimed the time meanwhile.
+  if (
+    currentBooking.status === 'cancelled'
+    && currentBooking.cancellationReason === PAYMENT_HOLD_EXPIRED_REASON
+    && ['failed', 'expired', 'refund_failed'].includes(payment.status)
+  ) {
+    try {
+      const restored = await useDatabase().transaction(async (tx) => {
+        const [confirmed] = await tx.update(bookings).set({
+          status: 'confirmed',
+          cancellationReason: null,
+          updatedAt: new Date()
+        }).where(and(
+          eq(bookings.id, payment.bookingId),
+          eq(bookings.status, 'cancelled'),
+          eq(bookings.cancellationReason, PAYMENT_HOLD_EXPIRED_REASON)
+        )).returning({
+          id: bookings.id,
+          eventTypeId: bookings.eventTypeId,
+          organizationId: bookings.organizationId,
+          hostId: bookings.hostId
+        })
+        if (!confirmed) return false
+
+        const [updated] = await tx.update(bookingPayments).set({
+          status: 'paid',
+          bachsChargeId: input.chargeId ?? payment.bachsChargeId,
+          paidAt: payment.paidAt ?? new Date(),
+          lastError: null,
+          updatedAt: new Date()
+        }).where(and(
+          eq(bookingPayments.id, payment.id),
+          inArray(bookingPayments.status, ['failed', 'expired', 'refund_failed'])
+        )).returning({ id: bookingPayments.id })
+        if (!updated) throw new Error('The paid booking payment changed during recovery.')
+
+        if (!payment.paidAt) await recordSuccessfulPaymentEntries(payment, input, tx)
+
+        await enqueueCalendarSync(confirmed.id, 'upsert', tx)
+        await publishBookingEvent({
+          type: 'booking_created',
+          ...(confirmed.organizationId ? { organizationId: confirmed.organizationId } : { userId: confirmed.hostId }),
+          bookingId: confirmed.id,
+          eventTypeId: confirmed.eventTypeId,
+          payload: { paid: true, recovered: true }
+        }, tx)
+        if (managed) {
+          await queueBookingEmails(bookingNoticeFromManaged({ ...managed, status: 'confirmed', cancellationReason: null }, hosts), tx)
+        }
+        return true
+      })
+      if (restored) return { matched: true, applied: true, reason: 'expired-hold-restored' }
+    } catch (error) {
+      if (errorCode(error) !== SLOT_TAKEN) throw error
+      // The slot really was claimed after expiry. Continue into the existing
+      // refund path instead of double-booking the host.
+    }
+  }
 
   // A guest can close checkout or cancel the hold while the provider is still
   // settling. Never resurrect that slot: record the verified money, then use
@@ -350,15 +435,11 @@ export async function completePaidBooking(input: {
         lastError: null,
         updatedAt: new Date()
       }).where(eq(bookingPayments.id, payment.id))
-      await recordSuccessfulPaymentEntries(payment, input, tx)
+      if (!payment.paidAt) await recordSuccessfulPaymentEntries(payment, input, tx)
     })
     await requestPaidBookingRefund(payment.bookingId, 'The booking hold was cancelled before payment settled.')
     return { matched: true, applied: true, reason: 'late-payment-refund-started' }
   }
-
-  const managed = await findBookingByUid((await useDatabase().select({ uid: bookings.uid })
-    .from(bookings).where(eq(bookings.id, payment.bookingId)).limit(1))[0]?.uid ?? '')
-  const hosts = managed ? await assignedHostsForBooking(managed.id) : []
 
   const applied = await useDatabase().transaction(async (tx) => {
     const [updated] = await tx.update(bookingPayments).set({
@@ -431,7 +512,7 @@ export async function failPaidBooking(checkoutId: string, reason: string, provid
     return updated
   })
   if (!payment) return false
-  await cancelUnpaidBooking(payment.bookingId, 'Payment was not completed before the hold expired.')
+  await cancelUnpaidBooking(payment.bookingId, PAYMENT_HOLD_EXPIRED_REASON)
   return true
 }
 
@@ -480,47 +561,46 @@ export async function recordPaidBookingProviderObservation(input: {
 }
 
 export async function expirePaidBookingHolds() {
-  const expired = await useDatabase().transaction(async (tx) => {
-    const rows = await tx.update(bookingPayments).set({
-      status: 'expired',
-      lastError: 'Checkout expired before payment completed.',
-      updatedAt: new Date()
-    }).where(and(
-      eq(bookingPayments.status, 'pending'),
-      lte(bookingPayments.checkoutExpiresAt, new Date())
-    )).returning({
-      id: bookingPayments.id,
-      bookingId: bookingPayments.bookingId,
-      amountCents: bookingPayments.amountCents,
-      currency: bookingPayments.currency,
-      checkoutId: bookingPayments.bachsCheckoutId
-    })
-    for (const payment of rows) {
-      await appendPaymentLedgerEntry({
-        bookingPaymentId: payment.id,
-        dedupeKey: `payment:${payment.id}:expired`,
-        kind: 'customer_payment',
-        direction: 'in',
-        status: 'expired',
-        amountCents: payment.amountCents,
-        currency: payment.currency as 'USD' | 'NGN',
-        providerObjectId: payment.checkoutId,
-        message: 'Checkout expired before payment completed.'
-      }, tx)
+  const candidates = await useDatabase().select({
+    id: bookingPayments.id,
+    checkoutId: bookingPayments.bachsCheckoutId
+  }).from(bookingPayments).where(and(
+    eq(bookingPayments.status, 'pending'),
+    lte(bookingPayments.checkoutExpiresAt, new Date())
+  ))
+
+  let expired = 0
+  for (const candidate of candidates) {
+    if (!candidate.checkoutId) continue
+    try {
+      const checkout = await getCheckoutSession(candidate.checkoutId)
+      const state = checkoutPaymentState(checkout)
+      if (state === 'paid') {
+        await completePaidBookingFromCheckout(checkout)
+      } else if (state === 'failed') {
+        const reason = checkout.status === 'expired'
+          ? 'checkout.expired'
+          : checkout.status === 'cancelled' ? 'checkout.cancelled' : 'checkout.failed'
+        if (await failPaidBooking(candidate.checkoutId, reason)) expired += 1
+      }
+      // An open or processing checkout remains held. Local time alone is not
+      // proof that money was not received, and Bachs will report a terminal
+      // state on a later pass.
+    } catch (error) {
+      logEvent('warn', 'paid_booking_expiry_reconciliation_failed', {
+        paymentId: candidate.id,
+        checkoutId: candidate.checkoutId,
+        error
+      })
     }
-    return rows
-  })
-  if (expired.length) {
-    await useDatabase().update(bookings).set({
-      status: 'cancelled',
-      cancellationReason: 'Payment was not completed before the hold expired.',
-      updatedAt: new Date()
-    }).where(and(
-      inArray(bookings.id, expired.map(row => row.bookingId)),
-      eq(bookings.status, 'awaiting_payment')
-    ))
   }
-  return expired.length
+  return expired
+}
+
+function errorCode(error: unknown) {
+  return typeof error === 'object' && error && 'code' in error
+    ? String(error.code)
+    : null
 }
 
 export async function requestPaidBookingRefund(bookingId: string, reason: string) {

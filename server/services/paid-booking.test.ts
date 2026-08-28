@@ -33,6 +33,20 @@ describe('paid booking checkout state', () => {
     expect(checkoutPaymentState(checkout({ status: 'completed' }))).toBe('pending')
   })
 
+  it('accepts a provider-confirmed charge even when checkout state lags behind', () => {
+    expect(checkoutPaymentState(checkout({
+      status: 'expired',
+      payment_status: 'processing',
+      charge: {
+        payment_id: 'pay_late',
+        status: 'succeeded',
+        amount: '5.00',
+        amount_paid: '5.00',
+        currency: 'USD'
+      }
+    }))).toBe('paid')
+  })
+
   it('treats expired and failed checkouts as terminal failures', () => {
     expect(checkoutPaymentState(checkout({ status: 'expired' }))).toBe('failed')
     expect(checkoutPaymentState(checkout({
