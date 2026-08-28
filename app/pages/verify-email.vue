@@ -88,7 +88,7 @@ async function resend() {
         class="rounded-full font-medium"
         @click="resend"
       >
-        {{ sent ? 'Sent again — check your inbox' : 'Send a new link' }}
+        {{ sent ? 'Request received — check your inbox' : 'Send a new link' }}
       </UButton>
 
       <UButton
@@ -100,6 +100,13 @@ async function resend() {
       >
         Back to sign in
       </UButton>
+
+      <p
+        v-if="sent"
+        class="text-[13px] leading-relaxed text-muted"
+      >
+        If this address belongs to an unverified account, a fresh link is on its way.
+      </p>
 
       <p
         v-if="error"
@@ -149,8 +156,15 @@ async function resend() {
         class="rounded-full font-medium"
         @click="resend"
       >
-        {{ sent ? 'Sent again — check your inbox' : 'Resend the email' }}
+        {{ sent ? 'Request received — check your inbox' : 'Resend the email' }}
       </UButton>
+
+      <p
+        v-if="sent"
+        class="text-[13px] leading-relaxed text-muted"
+      >
+        If this address belongs to an unverified account, a fresh link is on its way.
+      </p>
 
       <p
         v-if="error"

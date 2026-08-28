@@ -10,6 +10,7 @@ import * as schema from '../database/schema'
 import { useDatabase } from '../database'
 import { createStarterSetup } from './onboarding'
 import { emailDedupeKey, enqueueEmails } from './email-outbox'
+import { queueVerificationEmail } from './verification-email'
 import { useEnv } from '../config/env'
 import { assertCanAddMember, organizationEntitlement, startTrial } from './entitlement'
 import { countMembersWithRole, recordAudit } from './organization'
@@ -67,18 +68,7 @@ function createAuth() {
       autoSignInAfterVerification: true,
       expiresIn: 60 * 60 * 24,
       sendVerificationEmail: async ({ user, url }) => {
-        await enqueueEmails([{
-          dedupeKey: emailDedupeKey('email-verification', url),
-          email: {
-            to: user.email,
-            subject: 'Confirm your email for Schedra',
-            preheader: 'Confirm your email address and finish setting up your booking page.',
-            heading: 'Confirm your email',
-            body: 'You are one step away from sharing your Schedra booking page. Confirm your email address to finish setting up your account.',
-            action: { label: 'Confirm my email', url },
-            footer: 'This link expires in 24 hours. If you did not create a Schedra account, you can safely ignore this email.'
-          }
-        }])
+        await queueVerificationEmail(user, url)
       }
     },
 
