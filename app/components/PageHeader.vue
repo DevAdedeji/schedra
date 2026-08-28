@@ -6,7 +6,7 @@ defineProps<{
 </script>
 
 <template>
-  <header class="flex flex-wrap items-start justify-between gap-4 border-b border-default pb-6">
+  <header class="flex items-start flex-wrap sm:flex-nowrap sm:items-center justify-between gap-4 border-b border-default pb-6">
     <div class="min-w-0">
       <h1 class="text-2xl font-semibold tracking-tight text-highlighted">
         {{ title }}
@@ -21,7 +21,7 @@ defineProps<{
 
     <div
       v-if="$slots.actions"
-      class="page-header-actions flex shrink-0 items-center gap-2"
+      class="page-header-actions flex shrink-0 items-center justify-end gap-2 sm:justify-self-end"
     >
       <slot name="actions" />
     </div>

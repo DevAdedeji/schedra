@@ -367,6 +367,10 @@ export const calendarConnections = pgTable('calendar_connections', {
   scope: text('scope').notNull(),
   conflictCalendarIds: jsonb('conflict_calendar_ids').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
   writeCalendarId: text('write_calendar_id'),
+  // Every provider keeps its own writable calendar so provider-specific
+  // locations (Google Meet / Teams) can work independently. Exactly one
+  // connection may be the fallback destination for other meeting types.
+  isDefaultWriteDestination: boolean('is_default_write_destination').notNull().default(false),
   status: calendarConnectionStatus('status').notNull().default('active'),
   preferencesConfiguredAt: timestamp('preferences_configured_at', { withTimezone: true }),
   supportsMicrosoftTeams: boolean('supports_microsoft_teams').notNull().default(false),
@@ -375,9 +379,9 @@ export const calendarConnections = pgTable('calendar_connections', {
   ...timestamps
 }, table => [
   uniqueIndex('calendar_connections_user_provider_key').on(table.userId, table.provider),
-  uniqueIndex('calendar_connections_one_write_destination_per_user')
+  uniqueIndex('calendar_connections_one_default_destination_per_user')
     .on(table.userId)
-    .where(sql`${table.writeCalendarId} is not null`),
+    .where(sql`${table.isDefaultWriteDestination} is true`),
   index('calendar_connections_user_id_idx').on(table.userId)
 ])
 
@@ -545,6 +549,42 @@ export const eventTypes = pgTable('event_types', {
     sql`(${table.paymentEnabled} = false and ${table.priceCents} is null) or (${table.paymentEnabled} = true and ${table.priceCents} >= 100 and ${table.requiresConfirmation} = false)`
   ),
   check('event_types_payment_currency_allowed', sql`${table.paymentCurrency} in ('USD', 'NGN')`)
+])
+
+/**
+ * Opaque, revocable capabilities for private scheduling. Only a SHA-256 hash
+ * is stored so a database read cannot recover a guest's booking link.
+ */
+export const bookingLinks = pgTable('booking_links', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  eventTypeId: uuid('event_type_id').notNull().references(() => eventTypes.id, { onDelete: 'cascade' }),
+  tokenHash: text('token_hash').notNull(),
+  kind: text('kind').notNull(),
+  label: text('label'),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  usedAt: timestamp('used_at', { withTimezone: true }),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  ...timestamps
+}, table => [
+  uniqueIndex('booking_links_token_hash_key').on(table.tokenHash),
+  index('booking_links_user_created_idx').on(table.userId, table.createdAt),
+  index('booking_links_event_type_idx').on(table.eventTypeId),
+  check('booking_links_kind_allowed', sql`${table.kind} in ('single_use', 'one_off')`),
+  check('booking_links_expiry_after_creation', sql`${table.expiresAt} > ${table.createdAt}`)
+])
+
+/** Exact choices offered by a one-off invitation. */
+export const bookingLinkSlots = pgTable('booking_link_slots', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  bookingLinkId: uuid('booking_link_id').notNull().references(() => bookingLinks.id, { onDelete: 'cascade' }),
+  startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+  endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
+  ...timestamps
+}, table => [
+  uniqueIndex('booking_link_slots_link_start_key').on(table.bookingLinkId, table.startsAt),
+  index('booking_link_slots_link_idx').on(table.bookingLinkId),
+  check('booking_link_slots_ends_after_starts', sql`${table.endsAt} > ${table.startsAt}`)
 ])
 
 /**

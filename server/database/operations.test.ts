@@ -11,11 +11,11 @@ describe.skipIf(!url)('operations and durable webhooks', () => {
     configureAppTestEnvironment(url!)
     const { resetEnv } = await import('../config/env')
     resetEnv()
-    await sql`truncate table webhook_deliveries, operations_alerts restart identity cascade`
+    await sql`truncate table webhook_deliveries, operations_alerts, email_outbox restart identity cascade`
   })
 
   afterAll(async () => {
-    await sql`truncate table webhook_deliveries, operations_alerts restart identity cascade`
+    await sql`truncate table webhook_deliveries, operations_alerts, email_outbox restart identity cascade`
     await sql.end()
   })
 
@@ -99,5 +99,31 @@ describe.skipIf(!url)('operations and durable webhooks', () => {
     expect(alerts[0]).toMatchObject({ key: 'webhook-failed', status: 'active' })
     expect(alerts[0]!.summary).toContain('2 webhooks')
     expect(alerts[0]!.last_notified_at).toBeNull()
+  })
+
+  it('enqueues one notification for an active incident instead of repeating it', async () => {
+    process.env.OPERATIONS_ALERT_EMAILS = 'ops@example.com'
+    const { resetEnv } = await import('../config/env')
+    resetEnv()
+    try {
+      await sql`
+        insert into webhook_deliveries (
+          provider, provider_event_id, event_type, status, attempts, last_error
+        ) values ('bachs', 'failed-once', 'invoice.paid', 'failed', 1, 'failed')
+      `
+      const { evaluateOperationsAlerts } = await import('../services/operations-alerts')
+      await evaluateOperationsAlerts()
+      await evaluateOperationsAlerts()
+
+      const [result] = await sql<{ count: number }[]>`
+        select count(*)::int as count
+        from email_outbox
+        where dedupe_key like 'operations-alert:webhook-failed:%'
+      `
+      expect(result?.count).toBe(1)
+    } finally {
+      delete process.env.OPERATIONS_ALERT_EMAILS
+      resetEnv()
+    }
   })
 })
