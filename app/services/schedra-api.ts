@@ -20,7 +20,7 @@ import type { ScheduleOverrideRecord, ScheduleRecord, ScheduleRuleRecord } from 
 
 export interface BookingRecord {
   uid: string
-  status: 'pending' | 'confirmed' | 'cancelled' | 'rejected'
+  status: 'awaiting_payment' | 'pending' | 'confirmed' | 'cancelled' | 'rejected'
   startsAt: string
   endsAt: string
   attendeeName: string
@@ -60,6 +60,13 @@ export interface BookingDetail {
   notes: string | null
   answers: BookingAnswer[]
   canHostManage: boolean
+  payment: null | {
+    status: 'pending' | 'paid' | 'failed' | 'expired' | 'refund_pending' | 'refunded' | 'refund_failed'
+    amountCents: number
+    currency: 'USD' | 'NGN'
+    checkoutUrl: string | null
+    expiresAt: string | null
+  }
 }
 
 export interface CreateBookingResult {
@@ -69,6 +76,8 @@ export interface CreateBookingResult {
   locationDetails: string
   meetingUrl: string | null
   status: BookingRecord['status']
+  checkoutUrl?: string | null
+  paymentExpiresAt?: string | null
 }
 
 export interface BookingsResponse {
@@ -132,6 +141,9 @@ export interface PublicProfile {
     title: string
     description: string | null
     durationMinutes: number
+    paymentEnabled: boolean
+    priceCents: number | null
+    paymentCurrency: 'USD' | 'NGN'
   }>
 }
 
@@ -156,6 +168,9 @@ export interface PublicBookingPage {
   bookingQuestions: BookingQuestion[]
   requiresConfirmation: boolean
   capacity: number
+  paymentEnabled: boolean
+  priceCents: number | null
+  paymentCurrency: 'USD' | 'NGN'
 }
 
 export interface AvailabilityResponse {
@@ -590,6 +605,9 @@ export interface TeamEventTypeRecord {
   locationType: MeetingLocationType
   requiresConfirmation: boolean
   capacity: number
+  paymentEnabled: boolean
+  priceCents: number | null
+  paymentCurrency: 'USD' | 'NGN'
   hidden: boolean
   createdAt: string
   hosts: TeamEventTypeHostRecord[]
@@ -625,6 +643,24 @@ export const teamEventTypesApi = {
     $fetch(`${resource('/api/teams', slug, '/event-types')}/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
+export interface PaymentAccountSummary {
+  configured: boolean
+  status: 'not_started' | 'onboarding' | 'pending_review' | 'active' | 'restricted' | 'disabled'
+  ready: boolean
+  lastError: string | null
+  lastCheckedAt: string | null
+  platformFeeBps: number
+}
+
+export const paymentsApi = {
+  endpoint: '/api/payment-account',
+  teamEndpoint: (slug: string) => resource('/api/teams', slug, '/payment-account'),
+  start: (teamSlug?: string) => $fetch<{ url: string, expiresAt: string }>(
+    teamSlug ? resource('/api/teams', teamSlug, '/payment-account') : '/api/payment-account',
+    { method: 'POST' }
+  )
+}
+
 export interface PublicTeamProfile {
   name: string
   slug: string
@@ -637,6 +673,9 @@ export interface PublicTeamProfile {
     durationMinutes: number
     assignmentMode: AssignmentMode
     capacity: number
+    paymentEnabled: boolean
+    priceCents: number | null
+    paymentCurrency: 'USD' | 'NGN'
   }>
 }
 
@@ -653,6 +692,9 @@ export interface PublicTeamBookingPage {
   bookingQuestions: BookingQuestion[]
   requiresConfirmation: boolean
   capacity: number
+  paymentEnabled: boolean
+  priceCents: number | null
+  paymentCurrency: 'USD' | 'NGN'
   hosts: Array<{ name: string, avatarUrl: string | null }>
 }
 
@@ -671,7 +713,7 @@ export interface CreateTeamBookingInput {
 
 export interface TeamBookingRecord {
   uid: string
-  status: 'pending' | 'confirmed' | 'cancelled' | 'rejected'
+  status: 'awaiting_payment' | 'pending' | 'confirmed' | 'cancelled' | 'rejected'
   startsAt: string
   endsAt: string
   attendeeName: string

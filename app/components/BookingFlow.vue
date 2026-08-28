@@ -8,6 +8,7 @@ import {
   type BookingDetail,
   type PublicBookingPage
 } from '~/services/schedra-api'
+import { formatMoney } from '#shared/payments'
 
 /**
  * One booking flow for both the personal page and the team page. The two
@@ -31,7 +32,7 @@ if (import.meta.server) {
 }
 
 const emit = defineEmits<{
-  booked: [booking: { uid: string, start: string, status: 'pending' | 'confirmed' | 'cancelled' | 'rejected' }]
+  booked: [booking: { uid: string, start: string, status: 'awaiting_payment' | 'pending' | 'confirmed' | 'cancelled' | 'rejected' }]
 }>()
 
 const route = useRoute()
@@ -204,7 +205,7 @@ const confirmed = ref<{
   locationType: string
   locationDetails: string
   meetingUrl: string | null
-  status: 'pending' | 'confirmed' | 'cancelled' | 'rejected'
+  status: 'awaiting_payment' | 'pending' | 'confirmed' | 'cancelled' | 'rejected'
 } | null>(null)
 
 const confirmedWhen = computed(() => confirmed.value
@@ -297,6 +298,12 @@ async function confirm() {
     const result = isTeam.value
       ? await publicTeamApi.create({ ...shared, team: owner.value, rescheduleOf: rescheduleOf.value })
       : await bookingsApi.create({ ...shared, username: owner.value, rescheduleOf: rescheduleOf.value })
+    if (result.checkoutUrl) {
+      // Hosted checkout must own the top-level window so bank/card security
+      // challenges also work when Schedra is embedded on another website.
+      window.open(result.checkoutUrl, '_top')
+      return
+    }
     confirmed.value = {
       start: result.start,
       uid: result.uid,
@@ -546,6 +553,16 @@ useHead({
                   class="size-4 shrink-0 text-dimmed"
                 />
                 {{ page?.durationMinutes }} minutes
+              </p>
+              <p
+                v-if="page?.paymentEnabled && page.priceCents"
+                class="flex items-center gap-2.5"
+              >
+                <UIcon
+                  name="i-lucide-credit-card"
+                  class="size-4 shrink-0 text-dimmed"
+                />
+                {{ formatMoney(page.priceCents, page.paymentCurrency) }} per booking
               </p>
               <p
                 v-if="page && page.capacity > 1"
@@ -871,7 +888,11 @@ useHead({
                 :loading="submitting"
                 class="min-h-11 rounded-full font-medium"
               >
-                {{ rescheduleOf ? 'Confirm new time' : 'Confirm booking' }}
+                {{ rescheduleOf
+                  ? 'Confirm new time'
+                  : page?.paymentEnabled && page.priceCents
+                    ? `Pay ${formatMoney(page.priceCents, page.paymentCurrency)} & book`
+                    : 'Confirm booking' }}
               </UButton>
             </form>
           </div>

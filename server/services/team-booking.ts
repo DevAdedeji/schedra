@@ -48,6 +48,9 @@ export interface PublicTeamEventType {
   bookingQuestions: BookingQuestion[]
   requiresConfirmation: boolean
   capacity: number
+  paymentEnabled: boolean
+  priceCents: number | null
+  paymentCurrency: string
 }
 
 export async function findPublicTeamEventType(teamSlug: string, eventSlug: string) {
@@ -78,7 +81,10 @@ export async function findPublicTeamEventType(teamSlug: string, eventSlug: strin
       reminderMinutes: eventTypes.reminderMinutes,
       bookingQuestions: eventTypes.bookingQuestions,
       requiresConfirmation: eventTypes.requiresConfirmation,
-      capacity: eventTypes.capacity
+      capacity: eventTypes.capacity,
+      paymentEnabled: eventTypes.paymentEnabled,
+      priceCents: eventTypes.priceCents,
+      paymentCurrency: eventTypes.paymentCurrency
     })
     .from(eventTypes)
     .where(and(
@@ -334,7 +340,7 @@ export async function hostLoads(
     .where(and(
       inArray(bookingHosts.userId, userIds),
       eq(bookings.eventTypeId, eventTypeId),
-      inArray(bookings.status, ['pending', 'confirmed']),
+      inArray(bookings.status, ['awaiting_payment', 'pending', 'confirmed']),
       gte(bookingHosts.createdAt, since)
     ))
     .groupBy(bookingHosts.userId)
@@ -374,7 +380,10 @@ export async function publicTeamProfile(teamSlug: string) {
       description: eventTypes.description,
       durationMinutes: eventTypes.durationMinutes,
       assignmentMode: eventTypes.assignmentMode,
-      capacity: eventTypes.capacity
+      capacity: eventTypes.capacity,
+      paymentEnabled: eventTypes.paymentEnabled,
+      priceCents: eventTypes.priceCents,
+      paymentCurrency: eventTypes.paymentCurrency
     })
     .from(eventTypes)
     .where(and(

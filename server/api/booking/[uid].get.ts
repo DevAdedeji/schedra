@@ -1,6 +1,7 @@
 import { assignedHostsForBooking, findBookingByUid } from '../../repositories/booking'
 import { readBookingAnswers } from '../../domain/booking-answers'
 import { getAuthSession } from '../../services/session'
+import { paymentForBooking } from '../../services/paid-booking'
 
 export default defineEventHandler(async (event) => {
   const uid = getRouterParam(event, 'uid')
@@ -18,6 +19,7 @@ export default defineEventHandler(async (event) => {
   const answers = readBookingAnswers(booking.answers)
   const session = await getAuthSession(event)
   const assignedHosts = await assignedHostsForBooking(booking.id)
+  const payment = await paymentForBooking(booking.id)
   const bookingPath = booking.organizationSlug
     ? `/team/${encodeURIComponent(booking.organizationSlug)}/${encodeURIComponent(booking.eventSlug)}`
     : `/${encodeURIComponent(booking.hostUsername)}/${encodeURIComponent(booking.eventSlug)}`
@@ -45,6 +47,15 @@ export default defineEventHandler(async (event) => {
     hosts: assignedHosts.map(host => ({ name: host.name, isOrganizer: host.isOrganizer })),
     notes: answers.notes ?? null,
     answers: answers.responses,
-    canHostManage: assignedHosts.some(host => host.userId === session?.user.id)
+    canHostManage: assignedHosts.some(host => host.userId === session?.user.id),
+    payment: payment
+      ? {
+          status: payment.status,
+          amountCents: payment.amountCents,
+          currency: payment.currency,
+          checkoutUrl: payment.checkoutUrl,
+          expiresAt: payment.checkoutExpiresAt?.toISOString() ?? null
+        }
+      : null
   }
 })

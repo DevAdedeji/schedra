@@ -5,6 +5,7 @@ import { eventTypes, schedules } from '../../database/schema'
 import { useDatabase } from '../../database/index'
 import { requireAuthSession } from '../../services/session'
 import { requireLocationIntegration } from '../../services/event-location'
+import { requirePaymentRecipient } from '../../services/paid-booking'
 
 export default defineEventHandler(async (event) => {
   const session = await requireAuthSession(event)
@@ -27,6 +28,7 @@ export default defineEventHandler(async (event) => {
     if (!schedule) throw createError({ statusCode: 400, statusMessage: 'Choose one of your availability schedules.' })
   }
   await requireLocationIntegration(session.user.id, parsed.data.locationType)
+  await requirePaymentRecipient({ userId: session.user.id }, parsed.data.paymentEnabled)
 
   try {
     const [updated] = await db

@@ -7,7 +7,9 @@ import {
 } from '#shared/validation'
 import {
   apiErrorMessage,
+  paymentsApi,
   teamEventTypesApi,
+  type PaymentAccountSummary,
   type TeamEventTypeRecord,
   type TeamMemberRecord
 } from '~/services/schedra-api'
@@ -34,6 +36,8 @@ const emit = defineEmits<{
 
 const { host } = useSiteUrl()
 const feedback = useFeedback()
+const paymentEndpoint = computed(() => paymentsApi.teamEndpoint(props.teamSlug))
+const { data: paymentAccount, refresh: refreshPaymentAccount } = await useFetch<PaymentAccountSummary>(paymentEndpoint, { immediate: false })
 
 const isOpen = computed({ get: () => props.open, set: value => emit('update:open', value) })
 const memberPageModel = computed({ get: () => props.memberPage, set: value => emit('update:memberPage', value) })
@@ -60,6 +64,9 @@ function emptyForm(): TeamEventTypeInput {
     bookingQuestions: [],
     requiresConfirmation: false,
     capacity: 1,
+    paymentEnabled: false,
+    priceCents: null,
+    paymentCurrency: 'USD',
     hidden: false,
     assignmentMode: 'round_robin',
     hosts: []
@@ -70,6 +77,18 @@ const form = reactive<TeamEventTypeInput>(emptyForm())
 const groupEventEnabled = computed({
   get: () => form.capacity > 1,
   set: (enabled) => { form.capacity = enabled ? 10 : 1 }
+})
+const paidBookingEnabled = computed({
+  get: () => form.paymentEnabled,
+  set: (enabled: boolean) => {
+    form.paymentEnabled = enabled
+    form.priceCents = enabled ? (form.priceCents ?? 2500) : null
+    if (enabled) form.requiresConfirmation = false
+  }
+})
+const priceAmount = computed({
+  get: () => form.priceCents === null ? undefined : form.priceCents / 100,
+  set: (value: number | undefined) => { form.priceCents = value === undefined ? null : Math.round(value * 100) }
 })
 
 const assignmentOptions = [
@@ -140,6 +159,7 @@ watch(() => props.open, async (open) => {
   if (!open) return
   error.value = ''
   slugTouched.value = Boolean(props.eventType)
+  await refreshPaymentAccount().catch(() => undefined)
 
   if (!props.eventType) {
     Object.assign(form, emptyForm())
@@ -493,8 +513,67 @@ function initials(name: string) {
         </section>
 
         <section class="space-y-3">
+          <div class="overflow-hidden rounded-xl border border-default bg-muted/40">
+            <label class="flex cursor-pointer items-start justify-between gap-4 px-4 py-4">
+              <span>
+                <span class="block text-[13px] font-medium text-highlighted">Require payment</span>
+                <span class="mt-0.5 block text-[12px] leading-relaxed text-muted">The reservation is confirmed only after Schedra verifies checkout.</span>
+              </span>
+              <USwitch
+                v-model="paidBookingEnabled"
+                :disabled="!paymentAccount?.ready && !form.paymentEnabled"
+                aria-label="Require payment to book this team event"
+              />
+            </label>
+            <div
+              v-if="!paymentAccount?.ready && !form.paymentEnabled"
+              class="surface-secondary flex items-center justify-between gap-3 border-t border-default px-4 py-3"
+            >
+              <p class="text-[12px] text-muted">
+                A team owner must finish payout setup first.
+              </p>
+              <UButton
+                :to="`/t/${teamSlug}/payments`"
+                target="_blank"
+                color="neutral"
+                variant="outline"
+                size="sm"
+                icon="i-lucide-arrow-up-right"
+              >
+                Set up
+              </UButton>
+            </div>
+            <div
+              v-if="form.paymentEnabled"
+              class="grid gap-4 border-t border-default px-4 py-4 sm:grid-cols-[1fr_10rem]"
+            >
+              <UFormField
+                label="Price"
+                required
+              >
+                <UInput
+                  v-model.number="priceAmount"
+                  type="number"
+                  min="1"
+                  max="1000000"
+                  step="0.01"
+                  size="lg"
+                  class="w-full"
+                />
+              </UFormField>
+              <UFormField label="Currency">
+                <USelect
+                  v-model="form.paymentCurrency"
+                  :items="[{ label: 'USD', value: 'USD' }, { label: 'NGN', value: 'NGN' }]"
+                  size="lg"
+                  class="w-full"
+                />
+              </UFormField>
+            </div>
+          </div>
           <UCheckbox
             v-model="form.requiresConfirmation"
+            :disabled="form.paymentEnabled"
             label="Require the host to approve each booking"
           />
           <UCheckbox

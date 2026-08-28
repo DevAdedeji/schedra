@@ -107,6 +107,7 @@ export interface BachsCheckoutSession {
   amount: string
   currency: string
   reference: string
+  expires_at?: string | null
 }
 
 export function createCheckoutSession(input: {
@@ -118,6 +119,9 @@ export function createCheckoutSession(input: {
   successUrl: string
   cancelUrl: string
   metadata: Record<string, string>
+  platformFee?: string
+  destinationAccountId?: string
+  expiresInMinutes?: number
 }) {
   return bachsFetch<BachsCheckoutSession>('/checkout-sessions', {
     method: 'POST',
@@ -130,7 +134,103 @@ export function createCheckoutSession(input: {
       reference: input.reference,
       success_url: input.successUrl,
       cancel_url: input.cancelUrl,
-      metadata: input.metadata
+      metadata: input.metadata,
+      ...(input.platformFee && input.destinationAccountId
+        ? {
+            platform_fee: input.platformFee,
+            transfer_data: { destination: input.destinationAccountId }
+          }
+        : {}),
+      ...(input.expiresInMinutes ? { expires_in_minutes: input.expiresInMinutes } : {})
+    }
+  })
+}
+
+export interface BachsConnectedAccount {
+  id: string
+  name?: string | null
+  contact_email?: string | null
+  setup_status?: string | null
+  is_active?: boolean
+  capabilities?: Record<string, { status?: string, requested?: boolean }>
+  requirements?: Record<string, unknown>
+}
+
+export function createConnectedAccount(input: {
+  email: string
+  name: string
+  reference: string
+  entityType: 'individual' | 'company'
+}) {
+  return bachsFetch<BachsConnectedAccount>('/accounts', {
+    method: 'POST',
+    // Email addresses are not unique across personal and team recipients.
+    // The immutable Schedra owner reference makes retries safe without ever
+    // merging two payout accounts that happen to share an inbox.
+    idempotencyKey: `schedra-recipient-${input.reference}`,
+    body: {
+      contact_email: input.email,
+      display_name: input.name,
+      entity_type: input.entityType,
+      configuration: {
+        recipient: {
+          capabilities: {
+            transfers: { requested: true },
+            payouts: { requested: true }
+          }
+        }
+      },
+      responsibilities: { fees: { collector: 'bachs' } }
+    }
+  })
+}
+
+export function getConnectedAccount(accountId: string) {
+  return bachsFetch<BachsConnectedAccount>(`/accounts/${encodeURIComponent(accountId)}`)
+}
+
+export interface BachsAccountLink {
+  id: string
+  account: string
+  url: string
+  expires_at: string
+}
+
+export function createConnectedAccountLink(input: {
+  accountId: string
+  refreshUrl: string
+  returnUrl: string
+}) {
+  return bachsFetch<BachsAccountLink>(
+    `/connected-accounts/${encodeURIComponent(input.accountId)}/account-links`,
+    {
+      method: 'POST',
+      body: {
+        type: 'onboarding',
+        refresh_url: input.refreshUrl,
+        return_url: input.returnUrl
+      }
+    }
+  )
+}
+
+export interface BachsRefund {
+  refund_id: string
+  charge_id: string
+  reference: string
+  status: string
+  requested_amount: string
+}
+
+export function createRefund(input: { chargeId: string, reference: string, reason: string }) {
+  return bachsFetch<BachsRefund>('/refunds', {
+    method: 'POST',
+    idempotencyKey: input.reference,
+    body: {
+      charge_id: input.chargeId,
+      reference: input.reference,
+      reason: input.reason,
+      fee_bearer: 'ORG'
     }
   })
 }

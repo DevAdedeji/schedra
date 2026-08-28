@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { apiErrorMessage, eventTypesApi, type EventTypesResponse } from '~/services/schedra-api'
 import type { EventTypeRecord } from '~/types/event-type'
+import { formatMoney } from '#shared/payments'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 useSeoMeta({ title: 'Event types', robots: 'noindex, nofollow' })
@@ -328,6 +329,13 @@ function locationIcon(item: EventTypeRecord) {
                       name="i-lucide-users"
                       class="size-3.5 text-dimmed"
                     />{{ item.capacity }} seats</span>
+                    <span
+                      v-if="item.paymentEnabled && item.priceCents"
+                      class="flex items-center gap-1.5"
+                    ><UIcon
+                      name="i-lucide-credit-card"
+                      class="size-3.5 text-dimmed"
+                    />{{ formatMoney(item.priceCents, item.paymentCurrency) }}</span>
                     <span class="flex items-center gap-1.5"><UIcon
                       name="i-lucide-timer"
                       class="size-3.5 text-dimmed"

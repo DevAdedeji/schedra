@@ -39,13 +39,13 @@ describe.skipIf(!url)('group event database invariants', () => {
     sessionId = session!.id
   })
 
-  function seat(email: string) {
+  function seat(email: string, status: 'awaiting_payment' | 'confirmed' = 'confirmed') {
     return sql`
       insert into bookings (
         event_type_id, group_session_id, host_id, uid, status,
         starts_at, ends_at, attendee_name, attendee_email, attendee_time_zone
       ) values (
-        ${eventTypeId}, ${sessionId}, ${hostId}, ${crypto.randomUUID()}, 'confirmed',
+        ${eventTypeId}, ${sessionId}, ${hostId}, ${crypto.randomUUID()}, ${status},
         '2026-09-07T09:00:00Z', '2026-09-07T09:30:00Z',
         'Guest', ${email}, 'Africa/Lagos'
       ) returning id
@@ -94,6 +94,15 @@ describe.skipIf(!url)('group event database invariants', () => {
     await sql`update bookings set status = 'cancelled' where id = ${first!.id}`
 
     await expect(seat('three@example.com')).resolves.toHaveLength(1)
+  })
+
+  it('reserves group capacity and host time while checkout is open', async () => {
+    const [hold] = await seat('paying@example.com', 'awaiting_payment')
+    await seat('second@example.com')
+    await expect(seat('full@example.com')).rejects.toMatchObject({ code: '23514' })
+
+    await sql`update bookings set status = 'cancelled' where id = ${hold!.id}`
+    await expect(seat('replacement@example.com')).resolves.toHaveLength(1)
   })
 
   it('still rejects an unrelated booking that overlaps the group session', async () => {

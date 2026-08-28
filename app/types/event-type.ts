@@ -18,6 +18,9 @@ export interface EventTypeRecord {
   bookingQuestions: BookingQuestion[]
   requiresConfirmation: boolean
   capacity: number
+  paymentEnabled: boolean
+  priceCents: number | null
+  paymentCurrency: 'USD' | 'NGN'
   scheduleId: string | null
   scheduleName: string | null
   hidden: boolean

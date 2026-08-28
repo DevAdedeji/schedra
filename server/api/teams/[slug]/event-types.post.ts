@@ -5,6 +5,7 @@ import { assertTeamWritable } from '../../../services/entitlement'
 import { requireTeamLocationIntegrations } from '../../../services/event-location'
 import { recordAudit, requireOrganizationPermission } from '../../../services/organization'
 import { replaceHosts, resolveHosts } from '../../../services/team-event-type'
+import { requirePaymentRecipient } from '../../../services/paid-booking'
 
 export default defineEventHandler(async (event) => {
   const slug = getRouterParam(event, 'slug') ?? ''
@@ -20,6 +21,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const { hosts, ...fields } = parsed.data
+  await requirePaymentRecipient({ organizationId: context.organization.id }, fields.paymentEnabled)
   const db = useDatabase()
 
   const resolvedHosts = await resolveHosts(context.organization.id, hosts)

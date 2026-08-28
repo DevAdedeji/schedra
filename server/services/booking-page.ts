@@ -24,6 +24,9 @@ export interface PublicEventType {
   bookingQuestions: BookingQuestion[]
   requiresConfirmation: boolean
   capacity: number
+  paymentEnabled: boolean
+  priceCents: number | null
+  paymentCurrency: string
 }
 
 /** `HH:MM:SS` from Postgres `time`, trimmed to what the engine expects. */
@@ -58,6 +61,9 @@ export async function findPublicEventType(username: string, slug: string) {
       bookingQuestions: eventTypes.bookingQuestions,
       requiresConfirmation: eventTypes.requiresConfirmation,
       capacity: eventTypes.capacity,
+      paymentEnabled: eventTypes.paymentEnabled,
+      priceCents: eventTypes.priceCents,
+      paymentCurrency: eventTypes.paymentCurrency,
       scheduleId: eventTypes.scheduleId,
       scheduleTimeZone: schedules.timeZone
     })
@@ -116,7 +122,7 @@ export async function slotsFor(event: EventTypeRow, from: string, to: string, no
       .from(bookings)
       .where(and(
         eq(bookings.hostId, event.hostId),
-        sql`${bookings.status} in ('pending', 'confirmed')`,
+        sql`${bookings.status} in ('awaiting_payment', 'pending', 'confirmed')`,
         gte(bookings.endsAt, new Date(now)),
         lte(bookings.startsAt, new Date(busyTo))
       )),

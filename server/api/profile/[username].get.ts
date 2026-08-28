@@ -37,7 +37,10 @@ export default defineEventHandler(async (event) => {
       slug: eventTypes.slug,
       title: eventTypes.title,
       description: eventTypes.description,
-      durationMinutes: eventTypes.durationMinutes
+      durationMinutes: eventTypes.durationMinutes,
+      paymentEnabled: eventTypes.paymentEnabled,
+      priceCents: eventTypes.priceCents,
+      paymentCurrency: eventTypes.paymentCurrency
     })
     .from(eventTypes)
     .where(and(eq(eventTypes.userId, host.id), eq(eventTypes.hidden, false)))

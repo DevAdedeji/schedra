@@ -5,6 +5,7 @@ import { processSubscriptionSeatSyncJobs } from './subscription-seat-sync'
 import { expireLapsedTeams, processBillingReminders } from './billing-reminders'
 import { evaluateOperationsAlerts } from './operations-alerts'
 import { dispatchDomainEvents, processAutomationRuns } from './workflows'
+import { expirePaidBookingHolds } from './paid-booking'
 import {
   heartbeatWorkerInstance,
   pruneWorkerInstances,
@@ -45,6 +46,12 @@ export function defaultRuntimeTasks(): RuntimeTask[] {
         const delivered = await processAutomationRuns()
         return { dispatched, delivered }
       }
+    },
+    {
+      name: 'paid-booking-holds',
+      intervalMs: 60_000,
+      leaseMs: 60_000,
+      run: () => expirePaidBookingHolds()
     },
     {
       name: 'subscription-seat-sync',

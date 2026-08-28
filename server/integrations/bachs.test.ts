@@ -188,6 +188,57 @@ describe('bachs checkout payment methods', () => {
     expect(NGN_ONE_TIME_PAYMENT_METHOD_OPTIONS).not.toHaveProperty('ngn_card')
   })
 
+  it('creates a destination checkout with an immutable price and platform fee', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      checkout_id: 'chk_paid_booking',
+      checkout_url: 'https://checkout.bachs.io/c/paid-booking',
+      status: 'open',
+      amount: '25.00',
+      currency: 'USD',
+      reference: 'booking-uid'
+    }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { createCheckoutSession } = await import('./bachs')
+    await createCheckoutSession({
+      amount: '25.00',
+      currency: 'USD',
+      reference: 'booking-uid',
+      customer: { email: 'guest@example.com', name: 'Guest' },
+      successUrl: 'https://schedra.xyz/booking/uid?payment=success',
+      cancelUrl: 'https://schedra.xyz/booking/uid?payment=cancelled',
+      metadata: { schedra_booking_uid: 'uid' },
+      platformFee: '1.25',
+      destinationAccountId: 'acct_host',
+      expiresInMinutes: 60
+    })
+
+    const body = JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body))
+    expect(body).toMatchObject({
+      pricing: { currency: 'USD', amount: '25.00', price_type: 'fixed' },
+      platform_fee: '1.25',
+      transfer_data: { destination: 'acct_host' },
+      expires_in_minutes: 60
+    })
+  })
+
+  it('uses owner identity, not email, to make payout account creation idempotent', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: 'acct_host' }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { createConnectedAccount } = await import('./bachs')
+    await createConnectedAccount({
+      email: 'shared@example.com',
+      name: 'Example team',
+      reference: 'organization-org_123',
+      entityType: 'company'
+    })
+
+    const options = fetchMock.mock.calls[0]?.[1] as RequestInit
+    expect(new Headers(options.headers).get('Idempotency-Key')).toBe('schedra-recipient-organization-org_123')
+    expect(JSON.parse(String(options.body))).toMatchObject({ entity_type: 'company' })
+  })
+
   it('turns an unavailable live payment method into an actionable service error', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
       detail: 'This restriction leaves no payment method available for this checkout',

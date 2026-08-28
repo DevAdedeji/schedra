@@ -46,6 +46,9 @@ export default defineEventHandler(async (event) => {
       locationType: eventTypes.locationType,
       requiresConfirmation: eventTypes.requiresConfirmation,
       capacity: eventTypes.capacity,
+      paymentEnabled: eventTypes.paymentEnabled,
+      priceCents: eventTypes.priceCents,
+      paymentCurrency: eventTypes.paymentCurrency,
       hidden: eventTypes.hidden,
       createdAt: eventTypes.createdAt
     }).from(eventTypes)

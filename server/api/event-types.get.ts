@@ -59,6 +59,9 @@ export default defineEventHandler(async (event) => {
       bookingQuestions: eventTypes.bookingQuestions,
       requiresConfirmation: eventTypes.requiresConfirmation,
       capacity: eventTypes.capacity,
+      paymentEnabled: eventTypes.paymentEnabled,
+      priceCents: eventTypes.priceCents,
+      paymentCurrency: eventTypes.paymentCurrency,
       scheduleId: eventTypes.scheduleId,
       scheduleName: schedules.name,
       hidden: eventTypes.hidden

@@ -7,7 +7,7 @@ export type EmbedTheme = typeof embedThemes[number]
 export interface EmbedBookingResult {
   uid: string
   start: string
-  status: 'pending' | 'confirmed' | 'cancelled' | 'rejected'
+  status: 'awaiting_payment' | 'pending' | 'confirmed' | 'cancelled' | 'rejected'
 }
 
 export interface EmbedMessage {
