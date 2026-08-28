@@ -2,7 +2,7 @@
 const promises = [
   'Free forever, no card needed',
   'One link for every meeting',
-  'No ads, no tracking, ever'
+  'No ads or resale of personal data'
 ]
 </script>
 

@@ -114,7 +114,7 @@ const comparison: { group: string, rows: ComparisonRow[] }[] = [
   {
     group: 'Everywhere',
     rows: [
-      { label: 'No ads, no tracking, no reselling data', free: true, team: true },
+      { label: 'No ads and no reselling personal data', free: true, team: true },
       { label: 'Email support', free: true, team: true }
     ]
   }

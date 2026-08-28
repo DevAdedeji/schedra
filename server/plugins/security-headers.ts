@@ -34,7 +34,7 @@ export default defineNitroPlugin((nitro) => {
         'Content-Security-Policy': [
           `default-src 'self'`,
           `base-uri 'self'`,
-          `connect-src 'self'`,
+          `connect-src 'self' https://*.clarity.ms https://c.bing.com`,
           `font-src 'self' data:`,
           `form-action 'self'`,
           embedDocument ? `frame-ancestors http: https:` : `frame-ancestors 'none'`,
@@ -42,7 +42,7 @@ export default defineNitroPlugin((nitro) => {
           `manifest-src 'self'`,
           `media-src 'none'`,
           `object-src 'none'`,
-          `script-src 'self' 'unsafe-inline'`,
+          `script-src 'self' 'unsafe-inline' https://*.clarity.ms`,
           `script-src-attr 'none'`,
           `style-src 'self' 'unsafe-inline'`,
           `worker-src 'self' blob:`,

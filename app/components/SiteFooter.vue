@@ -48,7 +48,7 @@ const year = new Date().getFullYear()
           <SchedraMark />
           <p class="mt-5 max-w-[28ch] text-[15px] leading-relaxed text-muted">
             Share a link, get booked. Focused scheduling with clear timezone
-            handling and no third-party tracking.
+            handling and no advertising trackers.
           </p>
         </div>
 
@@ -75,7 +75,7 @@ const year = new Date().getFullYear()
 
       <div class="flex flex-col gap-2 border-t border-default py-6 text-[13px] text-dimmed sm:flex-row sm:items-center sm:justify-between">
         <span>© {{ year }} Schedra</span>
-        <span>No ads. No tracking. Free for your own booking page.</span>
+        <span>No ads. No data resale. Free for your own booking page.</span>
       </div>
     </div>
   </footer>
