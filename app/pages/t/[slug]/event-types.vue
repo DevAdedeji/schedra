@@ -243,6 +243,14 @@ function activeHosts(eventType: TeamEventTypeRecord) {
                 {{ assignmentLabel[eventType.assignmentMode] }}
               </UBadge>
               <UBadge
+                v-if="eventType.capacity > 1"
+                color="neutral"
+                variant="subtle"
+                size="sm"
+              >
+                {{ eventType.capacity }} seats
+              </UBadge>
+              <UBadge
                 v-if="eventType.hidden"
                 color="neutral"
                 variant="subtle"

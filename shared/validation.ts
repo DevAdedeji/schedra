@@ -280,6 +280,7 @@ const eventTypeBaseSchema = z.object({
     .transform(values => [...new Set(values)].sort((a, b) => b - a)),
   bookingQuestions: z.array(bookingQuestionSchema).max(10, 'An event type can have at most 10 questions.').default([]),
   requiresConfirmation: z.boolean().default(false),
+  capacity: z.number().int().min(1, 'Capacity must be at least 1.').max(500, 'Capacity cannot exceed 500.').default(1),
   scheduleId: z.uuid().optional(),
   hidden: z.boolean()
 })

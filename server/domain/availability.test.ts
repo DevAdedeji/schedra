@@ -222,6 +222,21 @@ describe('daily cap', () => {
     expect(localStarts(slots, LAGOS)).not.toContain('09:00')
     expect(localStarts(slots, LAGOS)).not.toContain('10:00')
   })
+
+  it('uses the separately deduplicated daily count for shared sessions', () => {
+    const slots = getAvailableSlots(query({
+      ...busyDay,
+      eventType: { durationMinutes: 60, maxPerDay: 1 },
+      // One open group occurrence can be omitted from collision spans while it
+      // still counts as exactly one host commitment for the daily limit.
+      bookings: [],
+      dailyBookings: [
+        { start: '2026-08-17T08:00:00Z', end: '2026-08-17T09:00:00Z' }
+      ]
+    }))
+
+    expect(slots).toEqual([])
+  })
 })
 
 describe('overlapping rules', () => {

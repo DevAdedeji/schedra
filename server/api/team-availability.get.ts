@@ -51,7 +51,11 @@ export default defineEventHandler(async (event) => {
       assignmentMode: eventType.assignmentMode,
       // Which hosts are free is deliberately not exposed: a guest picking a time
       // has no business learning who on the team is busy.
-      slots: slots.map(slot => ({ start: slot.start, end: slot.end }))
+      slots: slots.map(slot => ({
+        start: slot.start,
+        end: slot.end,
+        ...(slot.availableSeats === undefined ? {} : { availableSeats: slot.availableSeats })
+      }))
     }
   } catch (error) {
     if (error instanceof CalendarUnavailableError || (

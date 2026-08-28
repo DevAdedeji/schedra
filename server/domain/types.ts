@@ -55,6 +55,8 @@ export interface AvailabilityQuery {
   eventType: EventTypeConfig
 
   bookings?: Interval[]
+  /** Occurrences counted by daily limits when they differ from busy spans. */
+  dailyBookings?: Interval[]
   externalBusy?: Interval[]
 
   from: IsoDate
@@ -64,4 +66,6 @@ export interface AvailabilityQuery {
   dst?: DstPolicy
 }
 
-export type Slot = Interval
+export interface Slot extends Interval {
+  availableSeats?: number
+}

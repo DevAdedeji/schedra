@@ -134,6 +134,14 @@ useHead({ link: [{ key: 'canonical', rel: 'canonical', href: canonical }] })
                   >
                     {{ modeLabel[eventType.assignmentMode] }}
                   </UBadge>
+                  <UBadge
+                    v-if="eventType.capacity > 1"
+                    color="primary"
+                    variant="subtle"
+                    size="sm"
+                  >
+                    Up to {{ eventType.capacity }} guests
+                  </UBadge>
                 </div>
                 <p
                   v-if="eventType.description"

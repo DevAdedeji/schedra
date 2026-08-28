@@ -127,7 +127,7 @@ function overlaps(a: Span, b: Span) {
 }
 
 export function getAvailableSlots(query: AvailabilityQuery): Slot[] {
-  const { schedule, eventType, bookings = [], externalBusy = [], from, to, now } = query
+  const { schedule, eventType, bookings = [], dailyBookings = bookings, externalBusy = [], from, to, now } = query
 
   const dst: Required<DstPolicy> = {
     gap: query.dst?.gap ?? 'skip',
@@ -159,7 +159,7 @@ export function getAvailableSlots(query: AvailabilityQuery): Slot[] {
     : reference.toZonedDateTimeISO('UTC').add({ days: bookingWindowDays }).toInstant()
 
   const bookingsPerDay = new Map<string, number>()
-  for (const booking of bookings) {
+  for (const booking of dailyBookings) {
     const day = Temporal.Instant.from(booking.start)
       .toZonedDateTimeISO(schedule.timeZone)
       .toPlainDate()
