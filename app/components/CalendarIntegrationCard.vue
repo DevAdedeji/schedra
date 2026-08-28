@@ -25,6 +25,7 @@ const disconnectOpen = ref(false)
 const calendars = ref<CalendarItem[]>([])
 const selectedConflictIds = ref<string[]>([])
 const writeCalendarId = ref('')
+const defaultForBookings = ref(false)
 const baseline = ref('')
 const loadingCalendars = ref(false)
 const calendarsLoaded = ref(false)
@@ -51,7 +52,8 @@ const conflictCalendars = computed<CalendarItem[]>(() => {
 
 const currentSnapshot = computed(() => JSON.stringify({
   conflicts: [...selectedConflictIds.value].sort(),
-  write: writeCalendarId.value
+  write: writeCalendarId.value,
+  defaultForBookings: defaultForBookings.value
 }))
 const dirty = computed(() => currentSnapshot.value !== baseline.value)
 const writeCalendarMissing = computed(() => Boolean(
@@ -81,6 +83,7 @@ async function loadCalendars(force = false) {
     calendars.value = data.items
     selectedConflictIds.value = [...data.conflictCalendarIds]
     writeCalendarId.value = data.writeCalendarId ?? ''
+    defaultForBookings.value = Boolean(connection.value?.defaultForBookings)
     baseline.value = currentSnapshot.value
     calendarsLoaded.value = true
   } catch (failure) {
@@ -100,7 +103,11 @@ async function save() {
   saving.value = true
   pageError.value = ''
   try {
-    const result = await api.update({ conflictCalendarIds: selectedConflictIds.value, writeCalendarId: writeCalendarId.value })
+    const result = await api.update({
+      conflictCalendarIds: selectedConflictIds.value,
+      writeCalendarId: writeCalendarId.value,
+      defaultForBookings: defaultForBookings.value
+    })
     baseline.value = currentSnapshot.value
     await refreshConnection()
     emit('saved')
@@ -130,6 +137,7 @@ async function disconnect() {
     calendarsLoaded.value = false
     selectedConflictIds.value = []
     writeCalendarId.value = ''
+    defaultForBookings.value = false
     await refreshConnection()
     emit('saved')
     feedback.success({ title: `${props.name} disconnected` })
@@ -168,7 +176,7 @@ watch(() => props.refreshSignal, async (next, previous) => {
       <span
         v-else-if="connection?.connected"
         class="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-2 py-0.5 text-[11px] font-medium text-success"
-      ><span class="size-1.5 rounded-full bg-success" />Connected</span>
+      ><span class="size-1.5 rounded-full bg-success" />{{ connection.defaultForBookings ? 'Default calendar' : 'Connected' }}</span>
       <span
         v-else-if="connection?.status === 'needs_reauthorization'"
         class="inline-flex items-center gap-1.5 rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-warning"
@@ -342,7 +350,7 @@ watch(() => props.refreshSignal, async (next, previous) => {
                 Calendar for new bookings
               </h3>
               <p class="mt-1 text-[13px] leading-relaxed text-muted">
-                Choose the single calendar where Schedra creates events. Saving this choice makes {{ name }} your booking destination.
+                Choose where this provider creates booking events. Google Meet and Microsoft Teams always use their matching provider.
               </p>
             </div>
             <div class="surface-secondary flex min-w-0 flex-col justify-center px-4 py-5 sm:px-5">
@@ -355,6 +363,17 @@ watch(() => props.refreshSignal, async (next, previous) => {
                 placeholder="Choose a calendar"
                 class="mobile-compact-action min-h-11 w-full text-center sm:min-h-8"
               />
+              <label class="mt-3 flex items-start gap-2.5 rounded-lg border border-default bg-default px-3 py-2.5">
+                <UCheckbox
+                  v-model="defaultForBookings"
+                  :disabled="Boolean(connection?.defaultForBookings)"
+                  aria-label="Use this provider as the default calendar"
+                />
+                <span>
+                  <span class="block text-[13px] font-medium text-highlighted">Use as my default calendar</span>
+                  <span class="mt-0.5 block text-[12px] leading-relaxed text-muted">Used for Zoom, phone, in-person and custom meeting locations. Choose the other provider here to switch the default.</span>
+                </span>
+              </label>
               <p
                 v-if="!writableCalendars.length || writeCalendarMissing"
                 class="mt-2 text-[12px] text-error"

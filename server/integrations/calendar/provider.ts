@@ -21,6 +21,7 @@ export interface CalendarProviderConnection {
   id: string
   provider: string
   writeCalendarId: string | null
+  isDefaultWriteDestination: boolean
   status: 'active' | 'needs_reauthorization' | 'disconnected'
 }
 

@@ -6,7 +6,8 @@ import { logEvent } from '../../../observability/logger'
 
 const selectionSchema = z.object({
   conflictCalendarIds: z.array(z.string().min(1).max(1024)).min(1, 'Choose at least one calendar.').max(50),
-  writeCalendarId: z.string().min(1).max(1024)
+  writeCalendarId: z.string().min(1).max(1024),
+  defaultForBookings: z.boolean().default(false)
 }).refine(value => new Set(value.conflictCalendarIds).size === value.conflictCalendarIds.length, {
   message: 'Each conflict calendar may only be selected once.',
   path: ['conflictCalendarIds']
@@ -26,7 +27,8 @@ export default defineEventHandler(async (event) => {
     await updateGoogleCalendarSelection(
       session.user.id,
       parsed.data.conflictCalendarIds,
-      parsed.data.writeCalendarId
+      parsed.data.writeCalendarId,
+      parsed.data.defaultForBookings
     )
   } catch (error) {
     if (error instanceof CalendarSelectionError) {

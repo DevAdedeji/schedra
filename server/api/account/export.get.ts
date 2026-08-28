@@ -36,6 +36,7 @@ export default defineEventHandler(async (event) => {
       accountLabel: calendarConnections.accountLabel,
       conflictCalendarIds: calendarConnections.conflictCalendarIds,
       writeCalendarId: calendarConnections.writeCalendarId,
+      defaultForBookings: calendarConnections.isDefaultWriteDestination,
       status: calendarConnections.status,
       createdAt: calendarConnections.createdAt,
       updatedAt: calendarConnections.updatedAt

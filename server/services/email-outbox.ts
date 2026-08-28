@@ -3,7 +3,7 @@ import { and, asc, eq, inArray, lt, lte, sql } from 'drizzle-orm'
 import type { Database } from '../database/client'
 import { bookings, emailOutbox } from '../database/schema'
 import { useDatabase } from '../database'
-import { type Email, sendEmail } from '../integrations/email'
+import { type Email, isPermanentEmailDeliveryError, sendEmail } from '../integrations/email'
 import { logEvent } from '../observability/logger'
 
 interface OutboxEmail {
@@ -122,12 +122,13 @@ export async function processEmailOutbox(batchSize = 10) {
         .set({ status: 'sent', sentAt: sql`now()`, lockedAt: null, lastError: null, updatedAt: sql`now()` })
         .where(eq(emailOutbox.id, job.id))
     } catch (error) {
-      const failed = job.attempts >= 8
+      const permanent = isPermanentEmailDeliveryError(error)
+      const failed = !permanent && job.attempts >= 8
       const delaySeconds = Math.min(3600, 15 * 2 ** Math.max(0, job.attempts - 1))
       await db
         .update(emailOutbox)
         .set({
-          status: failed ? 'failed' : 'pending',
+          status: permanent ? 'cancelled' : failed ? 'failed' : 'pending',
           availableAt: new Date(Date.now() + delaySeconds * 1000),
           lockedAt: null,
           lastError: String(error instanceof Error ? error.message : error).slice(0, 1000),
@@ -135,10 +136,11 @@ export async function processEmailOutbox(batchSize = 10) {
         })
         .where(eq(emailOutbox.id, job.id))
 
-      logEvent('error', 'email_delivery_failed', {
+      logEvent(permanent ? 'warn' : 'error', permanent ? 'email_delivery_rejected' : 'email_delivery_failed', {
         jobId: job.id,
         attempt: job.attempts,
-        terminal: failed,
+        terminal: permanent || failed,
+        permanent,
         error
       })
     }

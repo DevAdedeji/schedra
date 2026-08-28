@@ -188,7 +188,6 @@ function timeMinutes(value: string) {
       <template #actions>
         <UButton
           icon="i-lucide-plus"
-          size="lg"
           class="font-medium"
           @click="openCreate"
         >

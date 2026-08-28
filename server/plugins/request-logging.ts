@@ -6,6 +6,8 @@ function safePath(pathname: string) {
     .replace(/^\/api\/booking\/[^/]+/, '/api/booking/:uid')
     .replace(/^\/api\/invitations\/[^/]+/, '/api/invitations/:id')
     .replace(/^\/invite\/[^/]+/, '/invite/:id')
+    .replace(/^\/api\/meeting-links\/guest\/[^/]+/, '/api/meeting-links/guest/:token')
+    .replace(/^\/meeting\/[^/]+/, '/meeting/:token')
     .replace(/^\/api\/avatar\/[^/]+/, '/api/avatar/:userId')
     .replace(/^\/api\/profile\/[^/]+/, '/api/profile/:username')
     .replace(/^\/api\/booking-page\/[^/]+\/[^/]+/, '/api/booking-page/:username/:slug')

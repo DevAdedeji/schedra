@@ -14,7 +14,12 @@ interface AlertCandidate {
   details: Record<string, unknown>
 }
 
-const NOTIFICATION_COOLDOWN_MS = 60 * 60 * 1000
+export function shouldNotifyOperationsAlert(existing?: {
+  status: string
+  lastNotifiedAt: Date | null
+} | null) {
+  return !existing || existing.status === 'resolved' || !existing.lastNotifiedAt
+}
 
 export async function evaluateOperationsAlerts() {
   const db = useDatabase()
@@ -55,8 +60,8 @@ export async function evaluateOperationsAlerts() {
   for (const item of candidates) {
     const [existing] = await db.select().from(operationsAlerts)
       .where(eq(operationsAlerts.key, item.key)).limit(1)
-    const shouldNotify = !existing?.lastNotifiedAt
-      || now.getTime() - existing.lastNotifiedAt.getTime() >= NOTIFICATION_COOLDOWN_MS
+    const shouldNotify = shouldNotifyOperationsAlert(existing)
+    const incidentStartedAt = !existing || existing.status === 'resolved' ? now : existing.firstSeenAt
 
     await db.insert(operationsAlerts).values({
       key: item.key,
@@ -73,6 +78,7 @@ export async function evaluateOperationsAlerts() {
         status: 'active',
         summary: item.summary,
         details: item.details,
+        firstSeenAt: incidentStartedAt,
         lastSeenAt: sql`now()`,
         lastNotifiedAt: existing?.lastNotifiedAt ?? null,
         resolvedAt: null,
@@ -80,7 +86,7 @@ export async function evaluateOperationsAlerts() {
       }
     })
 
-    if (shouldNotify && await notify(item, now)) {
+    if (shouldNotify && await notify(item, now, incidentStartedAt)) {
       // Only start the cooldown once the notification has been durably
       // enqueued. A temporary outbox failure must not suppress the alert.
       await db.update(operationsAlerts).set({
@@ -107,15 +113,14 @@ function candidate(key: string, type: string, severity: AlertCandidate['severity
   return { key, type, severity, summary, details }
 }
 
-async function notify(alert: AlertCandidate, now: Date) {
+async function notify(alert: AlertCandidate, now: Date, incidentStartedAt: Date) {
   const env = useEnv()
   if (!env.operationsAlertEmails.length) {
     logEvent('warn', 'operations_alert_without_recipient', { alertKey: alert.key, severity: alert.severity })
     return false
   }
-  const hour = now.toISOString().slice(0, 13)
   await enqueueEmails(env.operationsAlertEmails.map(recipient => ({
-    dedupeKey: `operations-alert:${alert.key}:${hour}:${recipient}`,
+    dedupeKey: `operations-alert:${alert.key}:${incidentStartedAt.toISOString()}:${recipient}`,
     email: {
       to: recipient,
       subject: `[${alert.severity.toUpperCase()}] ${alert.summary}`,
@@ -127,7 +132,7 @@ async function notify(alert: AlertCandidate, now: Date) {
         { label: 'Detected', value: now.toISOString() }
       ],
       action: { label: 'Open operations', url: `${env.schedraUrl}/operations` },
-      footer: 'This alert is grouped and will not repeat more than once per hour while the condition remains active.'
+      footer: 'This grouped alert is sent once for this incident. It will not repeat while the condition remains active.'
     }
   })))
   return true

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { and, eq, isNotNull, ne, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { calendarConnections } from '../../database/schema'
 import { useDatabase } from '../../database'
 import { useEnv } from '../../config/env'
@@ -8,6 +8,7 @@ import { IntegrationUnavailableError, retryAfterMilliseconds } from '../errors'
 import { logEvent } from '../../observability/logger'
 import { decryptCredential, encryptCredential } from './credential-crypto'
 import type { CalendarEventInput } from './provider'
+import { ensureDefaultCalendarDestination } from '../../repositories/calendar-connection'
 
 const GRAPH_ORIGIN = 'https://graph.microsoft.com'
 const GRAPH_BASE = `${GRAPH_ORIGIN}/v1.0`
@@ -394,17 +395,18 @@ export async function initializeMicrosoftCalendars(userId: string) {
   const primary = calendars.find(calendar => calendar.primary) ?? calendars[0]
   if (!primary) throw new MicrosoftCalendarUnavailableError('No Microsoft calendars were found.')
   const writable = [primary, ...calendars].find(calendar => ['writer', 'owner'].includes(calendar.accessRole))
-  const [otherDestination] = await useDatabase().select({ id: calendarConnections.id })
+  const [defaultDestination] = await useDatabase().select({ id: calendarConnections.id })
     .from(calendarConnections)
     .where(and(
       eq(calendarConnections.userId, userId),
-      ne(calendarConnections.provider, 'microsoft'),
-      isNotNull(calendarConnections.writeCalendarId)
+      eq(calendarConnections.isDefaultWriteDestination, true)
     )).limit(1)
+  const connection = await microsoftConnectionFor(userId)
 
   await useDatabase().update(calendarConnections).set({
     conflictCalendarIds: [primary.id],
-    writeCalendarId: otherDestination ? null : writable?.id ?? null,
+    writeCalendarId: writable?.id ?? null,
+    isDefaultWriteDestination: !defaultDestination || defaultDestination.id === connection?.id,
     lastCheckedAt: sql`now()`,
     updatedAt: sql`now()`
   }).where(and(
@@ -499,6 +501,8 @@ export async function microsoftCalendarConnection(userId: string) {
     configured,
     status: connection.status,
     setupRequired: connection.status === 'active' && !connection.preferencesConfiguredAt,
+    writeEnabled: Boolean(connection.writeCalendarId),
+    defaultForBookings: connection.isDefaultWriteDestination,
     supportsMicrosoftTeams: connection.supportsMicrosoftTeams,
     accountLabel: connection.accountLabel,
     conflictCalendarIds: connection.conflictCalendarIds,
@@ -511,7 +515,8 @@ export async function microsoftCalendarConnection(userId: string) {
 export async function updateMicrosoftCalendarSelection(
   userId: string,
   conflictCalendarIds: string[],
-  writeCalendarId: string | null
+  writeCalendarId: string | null,
+  defaultForBookings = false
 ) {
   const calendars = await listMicrosoftCalendars(userId)
   const byId = new Map(calendars.map(calendar => [calendar.id, calendar]))
@@ -535,19 +540,16 @@ export async function updateMicrosoftCalendarSelection(
   )
 
   await useDatabase().transaction(async (tx) => {
-    if (writeCalendarId) {
+    if (writeCalendarId && defaultForBookings) {
       await tx.update(calendarConnections).set({
-        writeCalendarId: null,
+        isDefaultWriteDestination: false,
         updatedAt: sql`now()`
-      }).where(and(
-        eq(calendarConnections.userId, userId),
-        ne(calendarConnections.provider, 'microsoft'),
-        isNotNull(calendarConnections.writeCalendarId)
-      ))
+      }).where(eq(calendarConnections.userId, userId))
     }
     await tx.update(calendarConnections).set({
       conflictCalendarIds,
       writeCalendarId,
+      ...(writeCalendarId && defaultForBookings ? { isDefaultWriteDestination: true } : {}),
       preferencesConfiguredAt: sql`now()`,
       lastCheckedAt: sql`now()`,
       lastError: null,
@@ -660,4 +662,5 @@ export async function disconnectMicrosoftCalendar(userId: string) {
     eq(calendarConnections.userId, userId),
     eq(calendarConnections.provider, 'microsoft')
   ))
+  await ensureDefaultCalendarDestination(userId)
 }

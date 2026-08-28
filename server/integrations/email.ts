@@ -22,6 +22,29 @@ export interface Email {
   footer?: string
 }
 
+export class EmailDeliveryError extends Error {
+  readonly permanent: boolean
+  readonly statusCode?: number
+
+  constructor(message: string, options: { permanent: boolean, statusCode?: number, cause?: unknown }) {
+    super(message, { cause: options.cause })
+    this.name = 'EmailDeliveryError'
+    this.permanent = options.permanent
+    this.statusCode = options.statusCode
+  }
+}
+
+/** Recipient/message validation failures cannot succeed on a later retry. */
+export function isPermanentEmailDeliveryError(error: unknown) {
+  if (error instanceof EmailDeliveryError) return error.permanent
+  if (!error || typeof error !== 'object') return false
+
+  const providerError = error as { code?: unknown, responseCode?: unknown }
+  const responseCode = Number(providerError.responseCode)
+  return providerError.code === 'EENVELOPE'
+    || (Number.isInteger(responseCode) && responseCode >= 500 && responseCode < 600)
+}
+
 function escapeHtml(value: string) {
   return value.replace(/[&<>'"]/g, character => ({
     '&': '&amp;',
@@ -145,14 +168,24 @@ export async function sendEmail(email: Email, idempotencyKey?: string) {
 
   if (env.emailDeliveryMode === 'smtp') {
     smtpTransport ??= nodemailer.createTransport(env.smtpUrl!)
-    await smtpTransport.sendMail({
-      from: env.emailFrom,
-      to: email.to,
-      subject: email.subject,
-      html,
-      text,
-      headers: idempotencyKey ? { 'X-Schedra-Idempotency-Key': idempotencyKey } : undefined
-    })
+    try {
+      await smtpTransport.sendMail({
+        from: env.emailFrom,
+        to: email.to,
+        subject: email.subject,
+        html,
+        text,
+        headers: idempotencyKey ? { 'X-Schedra-Idempotency-Key': idempotencyKey } : undefined
+      })
+    } catch (error) {
+      if (isPermanentEmailDeliveryError(error)) {
+        throw new EmailDeliveryError('Email provider permanently rejected the recipient or message.', {
+          permanent: true,
+          cause: error
+        })
+      }
+      throw error
+    }
     return
   }
 
@@ -173,6 +206,11 @@ export async function sendEmail(email: Email, idempotencyKey?: string) {
   })
 
   if (!response.ok) {
-    throw new Error(`Email provider request failed (${response.status}).`)
+    throw new EmailDeliveryError(`Email provider request failed (${response.status}).`, {
+      // Resend uses 422 for an invalid recipient or invalid message payload.
+      // Repeating the same request cannot repair user input.
+      permanent: response.status === 422,
+      statusCode: response.status
+    })
   }
 }

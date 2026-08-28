@@ -3,6 +3,7 @@ import {
   apiErrorMessage,
   bookingsApi,
   publicBookingApi,
+  invitationBookingApi,
   publicTeamApi,
   type AvailabilityResponse,
   type BookingDetail,
@@ -16,9 +17,10 @@ import { formatMoney } from '#shared/payments'
  * duplicating 700 lines of calendar would guarantee they drift apart.
  */
 const props = defineProps<{
-  mode: 'personal' | 'team'
+  mode: 'personal' | 'team' | 'invite'
   owner: string
   slug: string
+  inviteToken?: string
   embedded?: boolean
   prefillName?: string
   prefillEmail?: string
@@ -39,6 +41,7 @@ const route = useRoute()
 const owner = computed(() => props.owner)
 const slug = computed(() => props.slug)
 const isTeam = computed(() => props.mode === 'team')
+const isInvite = computed(() => props.mode === 'invite')
 
 const rescheduleOf = computed(() => {
   const value = route.query.reschedule
@@ -80,20 +83,24 @@ const weekStart = computed(() => addDays(firstMonday, weekOffset.value * 7))
 const days = computed(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart.value, i)))
 
 const availabilityRequest = useFetch<AvailabilityResponse>(
-  () => isTeam.value ? publicTeamApi.availabilityEndpoint : publicBookingApi.availabilityEndpoint,
+  () => isInvite.value && props.inviteToken
+    ? invitationBookingApi.availabilityEndpoint(props.inviteToken)
+    : isTeam.value ? publicTeamApi.availabilityEndpoint : publicBookingApi.availabilityEndpoint,
   {
     query: computed(() => ({
-      ...(isTeam.value ? { team: owner.value } : { username: owner.value }),
-      slug: slug.value,
+      ...(!isInvite.value && (isTeam.value ? { team: owner.value } : { username: owner.value })),
+      ...(!isInvite.value ? { slug: slug.value } : {}),
       from: isoDate(firstMonday),
       to: isoDate(addDays(firstMonday, 62))
     }))
   }
 )
 
-const pageRequest = useFetch<PublicBookingPage>(() => isTeam.value
-  ? publicTeamApi.pageEndpoint(owner.value, slug.value)
-  : publicBookingApi.pageEndpoint(owner.value, slug.value))
+const pageRequest = useFetch<PublicBookingPage>(() => isInvite.value && props.inviteToken
+  ? invitationBookingApi.pageEndpoint(props.inviteToken)
+  : isTeam.value
+    ? publicTeamApi.pageEndpoint(owner.value, slug.value)
+    : publicBookingApi.pageEndpoint(owner.value, slug.value))
 const [
   { data, status, error: availabilityError, refresh },
   { data: page, status: pageStatus, error: pageError, refresh: refreshPage }
@@ -313,7 +320,12 @@ async function confirm() {
 
     const result = isTeam.value
       ? await publicTeamApi.create({ ...shared, team: owner.value, rescheduleOf: rescheduleOf.value })
-      : await bookingsApi.create({ ...shared, username: owner.value, rescheduleOf: rescheduleOf.value })
+      : await bookingsApi.create({
+          ...shared,
+          username: owner.value,
+          inviteToken: props.inviteToken,
+          rescheduleOf: rescheduleOf.value
+        })
     if (result.checkoutUrl) {
       // Hosted checkout must own the top-level window so bank/card security
       // challenges also work when Schedra is embedded on another website.
@@ -354,7 +366,9 @@ async function confirm() {
 const { url: siteUrl, indexable } = useSiteUrl()
 const canonicalUrl = computed(() => isTeam.value
   ? `${siteUrl.value}/team/${encodeURIComponent(owner.value)}/${encodeURIComponent(slug.value)}`
-  : `${siteUrl.value}/${encodeURIComponent(owner.value)}/${encodeURIComponent(slug.value)}`)
+  : isInvite.value && props.inviteToken
+    ? `${siteUrl.value}/meeting/${encodeURIComponent(props.inviteToken)}`
+    : `${siteUrl.value}/${encodeURIComponent(owner.value)}/${encodeURIComponent(slug.value)}`)
 const seoDescription = computed(() => page.value?.description
   || (page.value
     ? `${page.value.durationMinutes}-minute meeting with ${page.value.hostName}. Choose an available time online.`
@@ -365,7 +379,7 @@ useSeoMeta({
   description: () => seoDescription.value,
   // A move link is private, booking-specific state. Keep the canonical public
   // booking page indexable while preventing reschedule URLs entering search.
-  robots: () => indexable.value && page.value && !loadingFailure.value && !rescheduleOf.value && !props.embedded
+  robots: () => indexable.value && page.value && !loadingFailure.value && !rescheduleOf.value && !props.embedded && !isInvite.value
     ? 'index, follow'
     : 'noindex, nofollow',
   ogType: 'website',

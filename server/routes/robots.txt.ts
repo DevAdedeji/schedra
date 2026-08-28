@@ -11,6 +11,7 @@ const disallowed = [
   '/integrations',
   '/operations',
   '/invite/',
+  '/meeting/',
   '/login',
   '/reset-password',
   '/settings',

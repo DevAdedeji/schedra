@@ -20,6 +20,8 @@ import {
   openPaidBookingCheckout,
   paymentForBooking
 } from '../services/paid-booking'
+import { bookingLinkTokenHash, filterInvitationSlots, requireUsableBookingLink } from '../services/booking-links'
+import { claimBookingLink } from '../repositories/booking-links'
 
 const SLOT_TAKEN = '23P01'
 
@@ -36,11 +38,21 @@ export default defineEventHandler(async (event) => {
 
   const {
     username, slug, start, name, email, guestEmails: submittedGuestEmails,
-    timeZone, notes, answers, source, attribution, rescheduleOf
+    timeZone, notes, answers, source, attribution, inviteToken, rescheduleOf
   } = parsed.data
-  const eventType = await findPublicEventType(username, slug)
+  if (inviteToken && rescheduleOf) {
+    throw createError({ statusCode: 400, statusMessage: 'Use the booking management link to move an existing meeting.' })
+  }
+  const invitation = inviteToken ? await requireUsableBookingLink(inviteToken) : null
+  const eventType = invitation ?? await findPublicEventType(username, slug)
 
   if (!eventType) {
+    throw createError({ statusCode: 404, statusMessage: 'No such booking page' })
+  }
+  if (invitation && (
+    invitation.username.toLowerCase() !== username.toLowerCase()
+    || invitation.slug.toLowerCase() !== slug.toLowerCase()
+  )) {
     throw createError({ statusCode: 404, statusMessage: 'No such booking page' })
   }
 
@@ -76,7 +88,8 @@ export default defineEventHandler(async (event) => {
   let offered
   try {
     await requireLocationIntegration(eventType.hostId, eventType.locationType)
-    offered = await slotsFor(eventType, day(-1), day(1), now)
+    const available = await slotsFor(eventType, day(-1), day(1), now)
+    offered = invitation ? filterInvitationSlots(invitation, available) : available
   } catch (error) {
     if (error instanceof CalendarUnavailableError || (
       ['google_meet', 'microsoft_teams', 'zoom'].includes(eventType.locationType)
@@ -130,6 +143,12 @@ export default defineEventHandler(async (event) => {
     // either both happen or neither, or a guest can lose their time and get
     // nothing back.
     await useDatabase().transaction(async (tx) => {
+      if (inviteToken) {
+        const claimed = await claimBookingLink(bookingLinkTokenHash(inviteToken), eventType.id, tx)
+        if (!claimed) {
+          throw createError({ statusCode: 409, statusMessage: 'This invitation was just used or is no longer available.' })
+        }
+      }
       if (previous && previous.status !== 'cancelled') {
         const [moved] = await tx
           .update(bookings)

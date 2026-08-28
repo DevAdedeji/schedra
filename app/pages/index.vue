@@ -19,6 +19,7 @@ useHead({
       },
       'featureList': [
         'Booking pages',
+        'Single-use links and one-off meeting invitations',
         'Timezone-correct scheduling',
         'Reusable availability schedules',
         'Routing forms',

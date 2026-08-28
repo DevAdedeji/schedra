@@ -51,7 +51,9 @@ describe.skipIf(!url)('Microsoft Calendar integration', () => {
   beforeEach(async () => {
     await configure()
     const { clearMicrosoftBusyCache } = await import('../integrations/calendar/microsoft')
+    const { clearGoogleBusyCache } = await import('../integrations/calendar/google')
     clearMicrosoftBusyCache()
+    clearGoogleBusyCache()
     await sql`
       truncate table
         calendar_sync_jobs, booking_calendar_events, calendar_connections,
@@ -149,6 +151,60 @@ describe.skipIf(!url)('Microsoft Calendar integration', () => {
     expect(connection?.refresh_token_encrypted).not.toContain('plain-refresh-token')
   })
 
+  it('combines busy periods from every selected Google and Microsoft calendar', async () => {
+    const hostId = await createHost()
+    await connect(hostId)
+    const { saveGoogleConnection } = await import('../integrations/calendar/google')
+    await saveGoogleConnection(hostId, {
+      access_token: 'google-access-token',
+      refresh_token: 'google-refresh-token',
+      expires_in: 3600,
+      scope: 'calendar scopes'
+    })
+    await sql`
+      update calendar_connections
+      set conflict_calendar_ids = case provider
+        when 'google' then '["google-primary"]'::jsonb
+        else '["microsoft-primary"]'::jsonb
+      end,
+      write_calendar_id = case provider
+        when 'google' then 'google-primary'
+        else 'microsoft-primary'
+      end
+      where user_id = ${hostId}
+    `
+
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('googleapis.com/calendar/v3/freeBusy')) {
+        return json({ calendars: { 'google-primary': { busy: [
+          { start: '2026-09-07T09:00:00Z', end: '2026-09-07T09:30:00Z' }
+        ] } } })
+      }
+      if (url.includes('graph.microsoft.com/v1.0/me/calendars/')) {
+        return json({ value: [{
+          showAs: 'busy',
+          isCancelled: false,
+          start: { dateTime: '2026-09-07T10:00:00' },
+          end: { dateTime: '2026-09-07T10:30:00' }
+        }] })
+      }
+      return json({}, 404)
+    }))
+
+    const { calendarBusyTimes } = await import('../integrations/calendar/providers')
+    const periods = await calendarBusyTimes(
+      hostId,
+      '2026-09-07T08:00:00Z',
+      '2026-09-07T12:00:00Z'
+    )
+
+    expect(periods).toEqual(expect.arrayContaining([
+      { start: '2026-09-07T09:00:00Z', end: '2026-09-07T09:30:00Z' },
+      { start: '2026-09-07T10:00:00Z', end: '2026-09-07T10:30:00Z' }
+    ]))
+  })
+
   it('reads recurring calendar-view occurrences and respects Microsoft throttling guidance', async () => {
     const hostId = await createHost()
     await connect(hostId)
@@ -240,7 +296,7 @@ describe.skipIf(!url)('Microsoft Calendar integration', () => {
     })
   })
 
-  it('makes Microsoft the only booking destination while keeping Google connected for conflicts', async () => {
+  it('makes Microsoft the default without disabling Google provider bookings', async () => {
     const hostId = await createHost()
     await connect(hostId)
     await sql`
@@ -262,14 +318,15 @@ describe.skipIf(!url)('Microsoft Calendar integration', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const { updateMicrosoftCalendarSelection } = await import('../integrations/calendar/microsoft')
-    await updateMicrosoftCalendarSelection(hostId, ['outlook-primary'], 'outlook-primary')
+    await updateMicrosoftCalendarSelection(hostId, ['outlook-primary'], 'outlook-primary', true)
 
-    const connections = await sql<{ provider: string, write_calendar_id: string | null }[]>`
-      select provider, write_calendar_id from calendar_connections where user_id = ${hostId} order by provider
+    const connections = await sql<{ provider: string, write_calendar_id: string | null, is_default_write_destination: boolean }[]>`
+      select provider, write_calendar_id, is_default_write_destination
+      from calendar_connections where user_id = ${hostId} order by provider
     `
     expect(connections).toEqual([
-      { provider: 'google', write_calendar_id: null },
-      { provider: 'microsoft', write_calendar_id: 'outlook-primary' }
+      { provider: 'google', write_calendar_id: 'host@gmail.com', is_default_write_destination: false },
+      { provider: 'microsoft', write_calendar_id: 'outlook-primary', is_default_write_destination: true }
     ])
   })
 
@@ -279,11 +336,11 @@ describe.skipIf(!url)('Microsoft Calendar integration', () => {
       insert into calendar_connections (
         user_id, provider, account_label, access_token_encrypted,
         refresh_token_encrypted, access_token_expires_at, scope, status,
-        conflict_calendar_ids, write_calendar_id
+        conflict_calendar_ids, write_calendar_id, is_default_write_destination
       ) values (
         ${hostId}, 'google', 'host@gmail.com', 'encrypted-access',
         'encrypted-refresh', now() + interval '1 hour', 'calendar', 'needs_reauthorization',
-        '["host@gmail.com"]'::jsonb, 'host@gmail.com'
+        '["host@gmail.com"]'::jsonb, 'host@gmail.com', true
       )
     `
     await connect(hostId)
@@ -294,12 +351,13 @@ describe.skipIf(!url)('Microsoft Calendar integration', () => {
     const { initializeMicrosoftCalendars } = await import('../integrations/calendar/microsoft')
     await initializeMicrosoftCalendars(hostId)
 
-    const connections = await sql<{ provider: string, write_calendar_id: string | null }[]>`
-      select provider, write_calendar_id from calendar_connections where user_id = ${hostId} order by provider
+    const connections = await sql<{ provider: string, write_calendar_id: string | null, is_default_write_destination: boolean }[]>`
+      select provider, write_calendar_id, is_default_write_destination
+      from calendar_connections where user_id = ${hostId} order by provider
     `
     expect(connections).toEqual([
-      { provider: 'google', write_calendar_id: 'host@gmail.com' },
-      { provider: 'microsoft', write_calendar_id: null }
+      { provider: 'google', write_calendar_id: 'host@gmail.com', is_default_write_destination: true },
+      { provider: 'microsoft', write_calendar_id: 'outlook-primary', is_default_write_destination: false }
     ])
   })
 })
