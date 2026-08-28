@@ -36,13 +36,13 @@ const trialNotice = computed(() => {
 
 const personalLinks = computed(() => [
   { label: 'Overview', to: '/dashboard', icon: 'i-lucide-layout-dashboard' },
+  { label: 'Analytics', to: '/analytics', icon: 'i-lucide-chart-no-axes-combined' },
   { label: 'Event types', to: '/event-types', icon: 'i-lucide-link-2' },
   { label: 'Bookings', to: '/bookings', icon: 'i-lucide-calendar-days' },
   { label: 'Availability', to: '/availability', icon: 'i-lucide-clock' },
   { label: 'Integrations', to: '/integrations', icon: 'i-lucide-blocks' },
   { label: 'Workflows', to: '/workflows', icon: 'i-lucide-workflow' },
   { label: 'Routing forms', to: '/routing-forms', icon: 'i-lucide-git-branch' },
-  { label: 'Analytics', to: '/analytics', icon: 'i-lucide-chart-no-axes-combined' },
   { label: 'Payments', to: '/payments', icon: 'i-lucide-wallet-cards' },
   ...(data.value?.isPlatformAdmin
     ? [{ label: 'Operations', to: '/operations', icon: 'i-lucide-activity' }]
@@ -51,11 +51,11 @@ const personalLinks = computed(() => [
 
 const links = computed(() => (teamSlug.value
   ? [
+      { label: 'Analytics', to: `/t/${teamSlug.value}/analytics`, icon: 'i-lucide-chart-no-axes-combined' },
       { label: 'Event types', to: `/t/${teamSlug.value}/event-types`, icon: 'i-lucide-link-2' },
       { label: 'Bookings', to: `/t/${teamSlug.value}/bookings`, icon: 'i-lucide-calendar-days' },
       { label: 'Workflows', to: `/t/${teamSlug.value}/workflows`, icon: 'i-lucide-workflow' },
       { label: 'Routing forms', to: `/t/${teamSlug.value}/routing-forms`, icon: 'i-lucide-git-branch' },
-      { label: 'Analytics', to: `/t/${teamSlug.value}/analytics`, icon: 'i-lucide-chart-no-axes-combined' },
       { label: 'Payments', to: `/t/${teamSlug.value}/payments`, icon: 'i-lucide-wallet-cards' },
       { label: 'Members', to: `/t/${teamSlug.value}/members`, icon: 'i-lucide-users' },
       { label: 'Activity log', to: `/t/${teamSlug.value}/history`, icon: 'i-lucide-activity' },
