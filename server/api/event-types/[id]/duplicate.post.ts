@@ -48,6 +48,7 @@ export default defineEventHandler(async (event) => {
     reminderMinutes: source.reminderMinutes,
     bookingQuestions: source.bookingQuestions,
     requiresConfirmation: source.requiresConfirmation,
+    capacity: source.capacity,
     hidden: true
   }).returning({ id: eventTypes.id })
 

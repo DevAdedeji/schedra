@@ -23,6 +23,7 @@ export default defineEventHandler(async (event) => {
     durationMinutes: found.durationMinutes,
     bookingQuestions: found.bookingQuestions,
     requiresConfirmation: found.requiresConfirmation,
+    capacity: found.capacity,
     locationType: found.locationType,
     locationDetails: ['google_meet', 'microsoft_teams', 'zoom'].includes(found.locationType)
       ? `A private ${found.locationType === 'zoom' ? 'Zoom' : found.locationType === 'microsoft_teams' ? 'Microsoft Teams' : 'Google Meet'} link will be created when you book.`

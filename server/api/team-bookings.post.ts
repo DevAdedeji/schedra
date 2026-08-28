@@ -18,6 +18,11 @@ import { findBookingByUid } from '../repositories/booking'
 import { cancelBookingReminders } from '../services/email-outbox'
 import { cancelPendingAutomationRuns, publishBookingEvent } from '../services/workflows'
 import { requireTeamLocationIntegrations } from '../services/event-location'
+import {
+  assignedHostsForGroupSessions,
+  claimGroupSession,
+  isGroupSessionFullError
+} from '../services/group-events'
 
 const SLOT_TAKEN = '23P01'
 
@@ -146,7 +151,24 @@ export default defineEventHandler(async (event) => {
         await cancelPendingAutomationRuns(previous.id, tx)
       }
 
-      const assigned = await chooseHosts(eventType, slot, tx)
+      const groupSession = eventType.capacity > 1
+        ? await claimGroupSession({
+            eventTypeId: eventType.id,
+            startsAt: new Date(slot.start),
+            endsAt: new Date(slot.end),
+            capacity: eventType.capacity,
+            partySize: 1 + additionalGuestEmails.length
+          }, tx)
+        : null
+      const existingGroupHosts = groupSession?.occupiedSeats
+        ? (await assignedHostsForGroupSessions([groupSession.id], tx)).map(host => host.userId)
+        : []
+      const assigned = existingGroupHosts.length
+        ? existingGroupHosts.filter(userId => slot.hostIds.includes(userId))
+        : await chooseHosts(eventType, slot, tx)
+      if (existingGroupHosts.length && assigned.length !== existingGroupHosts.length) {
+        throw createError({ statusCode: 409, statusMessage: 'That group session is no longer available.' })
+      }
       if (!assigned.length) {
         throw createError({ statusCode: 409, statusMessage: 'That time is no longer available.' })
       }
@@ -179,6 +201,7 @@ export default defineEventHandler(async (event) => {
       const [created] = await tx.insert(bookings).values({
         organizationId: eventType.organizationId,
         eventTypeId: eventType.id,
+        groupSessionId: groupSession?.id ?? null,
         // The organizer owns the calendar event and the meeting link. A trigger
         // reserves their time; the co-hosts are added just below.
         hostId: organizer.userId,
@@ -214,6 +237,7 @@ export default defineEventHandler(async (event) => {
         // moment between the availability check and this write.
         await tx.insert(bookingHosts).values(coHosts.map(userId => ({
           bookingId: created.id,
+          groupSessionId: groupSession?.id ?? null,
           userId,
           isOrganizer: false,
           startsAt: new Date(slot.start),
@@ -259,6 +283,9 @@ export default defineEventHandler(async (event) => {
   } catch (error) {
     if ((error as { code?: string }).code === SLOT_TAKEN) {
       throw createError({ statusCode: 409, statusMessage: 'Someone just booked that time.' })
+    }
+    if (isGroupSessionFullError(error)) {
+      throw createError({ statusCode: 409, statusMessage: 'That group session has just filled up.' })
     }
     throw error
   }

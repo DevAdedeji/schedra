@@ -9,6 +9,7 @@ export interface HostSlots {
 export interface TeamSlot {
   start: string
   end: string
+  availableSeats?: number
   /** Every host free for this slot, in the order they were supplied. */
   hostIds: string[]
 }

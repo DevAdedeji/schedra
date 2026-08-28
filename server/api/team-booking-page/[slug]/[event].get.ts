@@ -33,6 +33,7 @@ export default defineEventHandler(async (request) => {
     locationDetails: eventType.locationDetails,
     bookingQuestions: eventType.bookingQuestions,
     requiresConfirmation: eventType.requiresConfirmation,
+    capacity: eventType.capacity,
     hosts: hosts.map(host => ({ name: host.name, avatarUrl: host.avatarUrl }))
   }
 })

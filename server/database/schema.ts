@@ -492,6 +492,9 @@ export const eventTypes = pgTable('event_types', {
   reminderMinutes: jsonb('reminder_minutes').$type<number[]>().notNull().default(sql`'[1440, 60]'::jsonb`),
   bookingQuestions: jsonb('booking_questions').$type<BookingQuestion[]>().notNull().default(sql`'[]'::jsonb`),
   requiresConfirmation: boolean('requires_confirmation').notNull().default(false),
+  // A capacity above one turns a slot into a group session. Each guest keeps a
+  // private booking capability while the host receives one shared meeting.
+  capacity: integer('capacity').notNull().default(1),
 
   // Personal event types always have exactly one host, so 'single' is both the
   // default and the only mode that applies when organizationId is null.
@@ -528,7 +531,8 @@ export const eventTypes = pgTable('event_types', {
   check(
     'event_types_max_per_day_positive',
     sql`${table.maxPerDay} is null or ${table.maxPerDay} > 0`
-  )
+  ),
+  check('event_types_capacity_range', sql`${table.capacity} between 1 and 500`)
 ])
 
 /**
@@ -569,10 +573,30 @@ export const bookingStatus = pgEnum('booking_status', [
   'rejected'
 ])
 
+/**
+ * One occurrence of a seated event. Locking this row serializes seat claims,
+ * while the immutable capacity snapshot prevents an event-type edit from
+ * unexpectedly evicting guests who already booked.
+ */
+export const groupEventSessions = pgTable('group_event_sessions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  eventTypeId: uuid('event_type_id').notNull().references(() => eventTypes.id, { onDelete: 'restrict' }),
+  startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+  endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
+  capacity: integer('capacity').notNull(),
+  ...timestamps
+}, table => [
+  uniqueIndex('group_event_sessions_event_time_key').on(table.eventTypeId, table.startsAt, table.endsAt),
+  index('group_event_sessions_event_starts_idx').on(table.eventTypeId, table.startsAt),
+  check('group_event_sessions_ends_after_starts', sql`${table.endsAt} > ${table.startsAt}`),
+  check('group_event_sessions_capacity_range', sql`${table.capacity} between 2 and 500`)
+])
+
 export const bookings = pgTable('bookings', {
   id: uuid('id').primaryKey().defaultRandom(),
   organizationId: uuid('organization_id').references(() => organizations.id, { onDelete: 'set null' }),
   eventTypeId: uuid('event_type_id').notNull().references(() => eventTypes.id, { onDelete: 'restrict' }),
+  groupSessionId: uuid('group_session_id').references(() => groupEventSessions.id, { onDelete: 'restrict' }),
   hostId: uuid('host_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
 
   uid: text('uid').notNull(),
@@ -602,6 +626,7 @@ export const bookings = pgTable('bookings', {
   index('bookings_host_id_starts_at_idx').on(table.hostId, table.startsAt),
   index('bookings_host_status_ends_at_idx').on(table.hostId, table.status, table.endsAt),
   index('bookings_event_type_id_idx').on(table.eventTypeId),
+  index('bookings_group_session_status_idx').on(table.groupSessionId, table.status),
   check('bookings_ends_after_starts', sql`${table.endsAt} > ${table.startsAt}`)
 ])
 
@@ -614,6 +639,7 @@ export const bookings = pgTable('bookings', {
 export const bookingHosts = pgTable('booking_hosts', {
   id: uuid('id').primaryKey().defaultRandom(),
   bookingId: uuid('booking_id').notNull().references(() => bookings.id, { onDelete: 'cascade' }),
+  groupSessionId: uuid('group_session_id').references(() => groupEventSessions.id, { onDelete: 'restrict' }),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   // The organizer owns the calendar event and the meeting link; the rest attend.
   isOrganizer: boolean('is_organizer').notNull().default(false),
@@ -628,6 +654,7 @@ export const bookingHosts = pgTable('booking_hosts', {
 }, table => [
   uniqueIndex('booking_hosts_booking_user_key').on(table.bookingId, table.userId),
   index('booking_hosts_user_starts_idx').on(table.userId, table.startsAt),
+  index('booking_hosts_group_session_idx').on(table.groupSessionId),
   check('booking_hosts_ends_after_starts', sql`${table.endsAt} > ${table.startsAt}`)
 ])
 

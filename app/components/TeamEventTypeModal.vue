@@ -59,6 +59,7 @@ function emptyForm(): TeamEventTypeInput {
     reminderMinutes: [1440, 60],
     bookingQuestions: [],
     requiresConfirmation: false,
+    capacity: 1,
     hidden: false,
     assignmentMode: 'round_robin',
     hosts: []
@@ -66,6 +67,10 @@ function emptyForm(): TeamEventTypeInput {
 }
 
 const form = reactive<TeamEventTypeInput>(emptyForm())
+const groupEventEnabled = computed({
+  get: () => form.capacity > 1,
+  set: (enabled) => { form.capacity = enabled ? 10 : 1 }
+})
 
 const assignmentOptions = [
   {
@@ -350,6 +355,37 @@ function initials(name: string) {
                 {{ option.hint }}
               </p>
             </button>
+          </div>
+        </section>
+
+        <section class="overflow-hidden rounded-xl border border-default bg-muted/40">
+          <label class="flex cursor-pointer items-start justify-between gap-4 px-4 py-4">
+            <span>
+              <span class="block text-[13px] font-medium text-highlighted">Offer multiple seats at each time</span>
+              <span class="mt-0.5 block text-[12px] leading-relaxed text-muted">Keep the assigned host or hosts together while several guests join one shared session.</span>
+            </span>
+            <USwitch
+              v-model="groupEventEnabled"
+              aria-label="Offer multiple seats per team event time"
+            />
+          </label>
+          <div
+            v-if="groupEventEnabled"
+            class="border-t border-default px-4 py-4"
+          >
+            <UFormField
+              label="Seats available at each time"
+              help="Capacity includes the main guest for each reservation, not the hosts."
+            >
+              <UInput
+                v-model.number="form.capacity"
+                type="number"
+                min="2"
+                max="500"
+                size="lg"
+                class="w-full sm:max-w-48"
+              />
+            </UFormField>
           </div>
         </section>
 
