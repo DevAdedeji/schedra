@@ -10,6 +10,7 @@ export default defineEventHandler(async (event) => {
     owner: { organizationId: context.organization.id },
     email: context.userEmail,
     name: context.organization.name,
+    representativeName: context.userName,
     returnPath: `/t/${encodeURIComponent(context.organization.slug)}/payments`
   })
 })
