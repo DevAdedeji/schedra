@@ -15,6 +15,24 @@ export type PaymentRecipientOwner
   = | { userId: string, organizationId?: never }
     | { organizationId: string, userId?: never }
 
+const REVIEW_STATUSES = new Set([
+  'awaiting_review',
+  'in_review',
+  'pending',
+  'pending_review',
+  'submitted',
+  'under_review',
+  'verification_pending',
+  'verifying'
+])
+const COMPLETE_STATUSES = new Set(['active', 'approved', 'complete', 'completed', 'enabled', 'verified'])
+const RESTRICTED_STATUSES = new Set(['declined', 'rejected', 'restricted', 'suspended', 'unsupported'])
+const DISABLED_STATUSES = new Set(['closed', 'deactivated', 'disabled'])
+
+function providerStatus(value?: string | null) {
+  return value?.trim().toLowerCase().replaceAll('-', '_').replaceAll(' ', '_') ?? ''
+}
+
 function ownerWhere(owner: PaymentRecipientOwner) {
   return 'userId' in owner && owner.userId
     ? and(eq(paymentRecipients.userId, owner.userId), isNull(paymentRecipients.organizationId))
@@ -22,32 +40,59 @@ function ownerWhere(owner: PaymentRecipientOwner) {
 }
 
 export function recipientStatus(account: BachsConnectedAccount) {
-  if (account.is_active === false) return 'disabled' as const
+  const accountStatus = providerStatus(account.status)
+  const setupStatus = providerStatus(
+    account.requirements?.setup_status
+    ?? account.setup_status
+    ?? account.onboarding_status
+  )
+  if (account.is_active === false || DISABLED_STATUSES.has(accountStatus)) return 'disabled' as const
   const requirements = account.requirements
-  const setupStatus = requirements?.setup_status ?? account.setup_status
+  const payout = account.capabilities?.payouts
+  const transfer = account.capabilities?.transfers
+  const payoutStatus = providerStatus(payout?.status)
+  const transferStatus = providerStatus(transfer?.status)
+
   // Requirements are the authoritative onboarding gate. A provider can report
   // a capability as active before the hosted flow has collected the account
   // holder and payout destination (the sandbox does this in particular). Never
   // let that contradictory capability flag unlock paid bookings.
   if (requirements?.errors?.length || requirements?.past_due?.length) return 'restricted' as const
   if (requirements?.currently_due?.length) return 'onboarding' as const
+  if (RESTRICTED_STATUSES.has(accountStatus)
+    || RESTRICTED_STATUSES.has(setupStatus)
+    || RESTRICTED_STATUSES.has(payoutStatus)
+    || RESTRICTED_STATUSES.has(transferStatus)) return 'restricted' as const
+
   // Bachs can return active capability flags while the account-wide setup is
   // still incomplete. The hosted checklist is the source of truth: funds must
   // not be accepted until the payout destination and identity steps are done.
-  if (setupStatus === 'incomplete') return 'onboarding' as const
+  if (account.details_submitted === false || accountStatus === 'incomplete' || setupStatus === 'incomplete') {
+    return 'onboarding' as const
+  }
 
-  const payout = account.capabilities?.payouts
   if (
     requirements?.pending_verification?.length
-    || setupStatus === 'awaiting_review'
-    || payout?.status === 'pending'
+    || REVIEW_STATUSES.has(accountStatus)
+    || REVIEW_STATUSES.has(setupStatus)
+    || REVIEW_STATUSES.has(payoutStatus)
+    || REVIEW_STATUSES.has(transferStatus)
   ) {
     return 'pending_review' as const
   }
-  if (payout?.requested && ['restricted', 'unsupported'].includes(payout.status ?? '')) {
-    return 'restricted' as const
-  }
-  if (payout?.status === 'active') return 'active' as const
+
+  // A destination charge needs transfers, and the recipient needs payouts to
+  // receive the proceeds. Both must be explicitly active. Account-level flags,
+  // when Bachs supplies them, are additional vetoes rather than substitutes.
+  const moneyMovementReady = payoutStatus === 'active' && transferStatus === 'active'
+  const providerFlagsReady = account.payouts_enabled !== false && account.transfers_enabled !== false
+  if (moneyMovementReady && providerFlagsReady) return 'active' as const
+
+  // Submitted/complete account details with capabilities still unavailable is
+  // a provider review state, not a prompt to collect bank details in Schedra.
+  if (account.details_submitted === true
+    || COMPLETE_STATUSES.has(accountStatus)
+    || COMPLETE_STATUSES.has(setupStatus)) return 'pending_review' as const
   return 'onboarding' as const
 }
 

@@ -24,6 +24,7 @@ const {
   refresh: refreshSummary
 } = await useLazyFetch<PaymentSummary>(summaryEndpoint)
 const starting = ref(false)
+const checking = ref(false)
 
 function money(totals: PaymentMoneyTotal[]) {
   return totals.map(total => formatMoney(total.amountCents, total.currency))
@@ -38,16 +39,23 @@ function providerMoney(totals: PaymentMoneyTotal[]) {
 
 const statusCopy = computed(() => ({
   not_started: ['Set up payouts', 'Complete Bachs’ secure setup once, including the bank account for your payouts.'],
-  onboarding: ['Finish setup', 'Continue the secure Bachs flow to complete identity and payout-account details.'],
-  pending_review: ['Under review', 'Your information was submitted. We will enable paid bookings when Bachs approves payouts.'],
-  active: ['Ready for paid bookings', 'Guests can pay securely. Bachs settles your share and routes it to the bank account saved during setup.'],
-  restricted: ['Action required', 'Update your payment account before accepting new paid bookings.'],
+  onboarding: ['Setup incomplete', 'Bachs reports that setup is incomplete. Finish its identity and bank-account steps before accepting paid bookings.'],
+  pending_review: ['Under Bachs review', 'Your details were submitted, but Bachs has not approved transfers and payouts yet. Paid bookings remain disabled.'],
+  active: ['Approved for paid bookings', 'Bachs has approved both transfers and payouts. Guests can now pay securely for bookings.'],
+  restricted: ['Action required', 'Bachs needs updated information. Paid bookings remain disabled until the restriction is resolved.'],
   disabled: ['Payments unavailable', 'This payout account is disabled. Contact support if this was unexpected.']
 } as const)[data.value?.status ?? 'not_started'])
 
 const actionLabel = computed(() => data.value?.ready
   ? 'Manage in Bachs'
-  : data.value?.configured ? 'Continue setup' : 'Set up payouts')
+  : data.value?.configured ? 'Continue in Bachs' : 'Set up payouts')
+
+const statusTone = computed(() => {
+  if (data.value?.ready) return 'success' as const
+  if (data.value?.status === 'pending_review' || data.value?.status === 'onboarding') return 'warning' as const
+  if (data.value?.status === 'restricted' || data.value?.status === 'disabled') return 'error' as const
+  return 'neutral' as const
+})
 
 function takeNextAction() {
   void start()
@@ -69,6 +77,33 @@ async function start() {
   }
 }
 
+async function checkStatus(notify = true) {
+  checking.value = true
+  try {
+    await refresh()
+    if (!notify) return
+    if (error.value) {
+      toast.add({
+        title: 'Could not check Bachs status',
+        description: 'No payment setting was changed. Try again in a moment.',
+        color: 'error'
+      })
+      return
+    }
+    const copy = ({
+      onboarding: ['Setup is still incomplete', 'Finish the remaining steps in Bachs before enabling paid bookings.'],
+      pending_review: ['Still under Bachs review', 'No action is needed unless Bachs asks for more information. Paid bookings remain disabled.'],
+      active: ['Payments are approved', 'Bachs has approved transfers and payouts. You can now accept paid bookings.'],
+      restricted: ['Bachs needs more information', 'Open Bachs to review and resolve the account restriction.'],
+      disabled: ['Payments are unavailable', 'Contact support if Bachs disabled this account unexpectedly.'],
+      not_started: ['Payout setup has not started', 'Open Bachs to submit your payout details.']
+    } as const)[data.value?.status ?? 'not_started']
+    toast.add({ title: copy[0], description: copy[1], color: data.value?.ready ? 'success' : 'neutral' })
+  } finally {
+    checking.value = false
+  }
+}
+
 async function checkSetupOnReturn() {
   if (document.visibilityState !== 'visible' || !data.value?.configured || data.value.ready) return
   await refresh()
@@ -77,12 +112,7 @@ async function checkSetupOnReturn() {
 onMounted(async () => {
   document.addEventListener('visibilitychange', checkSetupOnReturn)
   if (route.query.payments === 'returned') {
-    await refresh()
-    toast.add({
-      title: data.value?.ready ? 'Payments are ready' : 'Payment details received',
-      description: data.value?.ready ? 'You can now charge for bookings.' : 'Your payout account may still be under review.',
-      color: data.value?.ready ? 'success' : 'neutral'
-    })
+    await checkStatus()
   } else if (route.query.payments === 'refresh') {
     await start()
   }
@@ -113,7 +143,7 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', checkSetu
                 Payout account
               </h2>
               <UBadge
-                :color="data?.ready ? 'success' : data?.status === 'pending_review' ? 'warning' : 'neutral'"
+                :color="statusTone"
                 variant="subtle"
               >
                 {{ statusCopy[0] }}
@@ -124,15 +154,39 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', checkSetu
             </p>
           </div>
         </div>
-        <UButton
-          v-if="data?.ready || data?.nextAction !== 'none'"
-          :loading="starting"
-          icon="i-lucide-external-link"
-          class="mobile-compact-action h-9 min-h-9 shrink-0 text-center"
-          @click="takeNextAction"
-        >
-          {{ actionLabel }}
-        </UButton>
+        <div class="flex shrink-0 flex-wrap items-center gap-2">
+          <UButton
+            v-if="data?.configured"
+            label="Check status"
+            icon="i-lucide-refresh-cw"
+            color="neutral"
+            variant="outline"
+            :loading="checking || status === 'pending'"
+            class="mobile-compact-action h-9 min-h-9"
+            @click="checkStatus()"
+          />
+          <UButton
+            v-if="data?.ready || data?.nextAction !== 'none'"
+            :loading="starting"
+            icon="i-lucide-external-link"
+            class="mobile-compact-action h-9 min-h-9 text-center"
+            @click="takeNextAction"
+          >
+            {{ actionLabel }}
+          </UButton>
+        </div>
+      </div>
+      <div
+        v-if="data?.configured && !data.ready"
+        class="flex gap-3 border-t border-warning/30 bg-warning/5 px-6 py-4 text-sm text-toned sm:px-7"
+      >
+        <UIcon
+          name="i-lucide-shield-alert"
+          class="mt-0.5 size-4 shrink-0 text-warning"
+        />
+        <p>
+          Schedra checks the account directly with Bachs and will not create a checkout until account setup, transfers and payouts are all approved.
+        </p>
       </div>
       <div class="surface-secondary grid gap-px border-t border-default sm:grid-cols-2 lg:grid-cols-4">
         <div class="p-5">
@@ -164,7 +218,7 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', checkSetu
             Withdrawals
           </p>
           <p class="mt-2 text-sm text-toned">
-            Bachs routes settled funds to the bank account you added during its secure setup.
+            After approval, Bachs handles delivery to the bank account saved during its secure setup.
           </p>
         </div>
       </div>
@@ -313,7 +367,7 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', checkSetu
             </p>
           </div>
           <p class="mt-2 text-xs text-muted">
-            Settled funds waiting for Bachs to complete the bank payout.
+            {{ data?.ready ? 'Settled funds waiting for Bachs to complete the bank payout.' : 'Funds remain with Bachs until the payout account is approved.' }}
           </p>
         </div>
         <div class="bg-default p-5 sm:p-6">

@@ -235,8 +235,14 @@ export interface BachsConnectedAccount {
   id: string
   name?: string | null
   contact_email?: string | null
+  /** Account-wide state shown by Bachs (for example, `incomplete`). */
+  status?: string | null
   setup_status?: string | null
+  onboarding_status?: string | null
   is_active?: boolean
+  details_submitted?: boolean
+  payouts_enabled?: boolean
+  transfers_enabled?: boolean
   capabilities?: Record<string, {
     status?: string
     requested?: boolean

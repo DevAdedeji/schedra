@@ -1025,7 +1025,9 @@ async function save() {
                   class="surface-secondary flex flex-wrap items-center justify-between gap-3 px-5 py-4"
                 >
                   <p class="text-[12px] text-muted">
-                    Set up a payout account before charging for bookings.
+                    {{ paymentAccount?.status === 'pending_review'
+                      ? 'Bachs is reviewing your payout account. Paid bookings stay disabled until transfers and payouts are approved.'
+                      : 'Complete your payout account in Bachs before charging for bookings.' }}
                   </p>
                   <UButton
                     to="/payments"
@@ -1037,6 +1039,16 @@ async function save() {
                   >
                     Set up payments
                   </UButton>
+                </div>
+                <div
+                  v-else-if="form.paymentEnabled && !paymentAccount?.ready"
+                  class="surface-secondary flex items-center gap-2 px-5 py-4 text-[12px] text-warning"
+                >
+                  <UIcon
+                    name="i-lucide-shield-alert"
+                    class="size-4 shrink-0"
+                  />
+                  Paid bookings are paused until Bachs approves this payout account.
                 </div>
                 <div
                   v-if="form.paymentEnabled"
