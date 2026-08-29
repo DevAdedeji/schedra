@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { analyticsAllowedForRoute } from '#shared/analytics'
+
 type AnalyticsConsent = 'granted' | 'denied'
 type Clarity = (
   command: 'consentv2',
@@ -9,20 +11,7 @@ const storageKey = 'schedra:analytics-consent:v1'
 const route = useRoute()
 const open = ref(false)
 const hasChoice = ref(false)
-const excludedRouteNames = new Set([
-  'username',
-  'username-slug',
-  'team-slug',
-  'team-slug-event',
-  'team-slug-route-form',
-  'route-owner-slug',
-  'meeting-token',
-  'booking-uid'
-])
-const excluded = computed(() => {
-  const name = String(route.name ?? '')
-  return name.startsWith('embed-') || excludedRouteNames.has(name)
-})
+const excluded = computed(() => !analyticsAllowedForRoute(route.name))
 
 function tellClarity(analytics: AnalyticsConsent) {
   const clarity = (window as typeof window & { clarity?: Clarity }).clarity

@@ -10,6 +10,7 @@ import { paymentRecipients } from '../database/schema'
 import { useDatabase } from '../database'
 import { useEnv } from '../config/env'
 import { logEvent } from '../observability/logger'
+import { recordSecurityAudit } from './security-audit'
 
 export type PaymentRecipientOwner
   = | { userId: string, organizationId?: never }
@@ -123,14 +124,18 @@ export async function syncPaymentRecipient(row: NonNullable<Awaited<ReturnType<t
   if (!row.bachsAccountId) return row
   try {
     const account = await getConnectedAccount(row.bachsAccountId)
+    const nextStatus = recipientStatus(account)
     const [updated] = await useDatabase().update(paymentRecipients).set({
-      status: recipientStatus(account),
+      status: nextStatus,
       capabilities: account.capabilities ?? {},
       requirements: account.requirements ?? {},
       lastError: null,
       lastCheckedAt: sql`now()`,
       updatedAt: sql`now()`
     }).where(eq(paymentRecipients.id, row.id)).returning()
+    if (updated && nextStatus !== row.status) {
+      await auditRecipientStatus(updated, row.status, nextStatus)
+    }
     return updated ?? row
   } catch (error) {
     await useDatabase().update(paymentRecipients).set({
@@ -237,13 +242,30 @@ export async function updateRecipientFromWebhook(account: BachsConnectedAccount)
   const [row] = await useDatabase().select().from(paymentRecipients)
     .where(eq(paymentRecipients.bachsAccountId, account.id)).limit(1)
   if (!row) return false
+  const nextStatus = recipientStatus(account)
   await useDatabase().update(paymentRecipients).set({
-    status: recipientStatus(account),
+    status: nextStatus,
     capabilities: account.capabilities ?? row.capabilities,
     requirements: account.requirements ?? row.requirements,
     lastError: null,
     lastCheckedAt: sql`now()`,
     updatedAt: sql`now()`
   }).where(eq(paymentRecipients.id, row.id))
+  if (nextStatus !== row.status) await auditRecipientStatus(row, row.status, nextStatus)
   return true
+}
+
+function auditRecipientStatus(
+  row: Pick<typeof paymentRecipients.$inferSelect, 'id' | 'userId' | 'organizationId'>,
+  previousStatus: string,
+  status: string
+) {
+  return recordSecurityAudit({
+    action: 'payments.recipient_status_changed',
+    actorUserId: null,
+    organizationId: row.organizationId,
+    targetType: 'payment_recipient',
+    targetId: row.id,
+    metadata: { previousStatus, status, ownerType: row.organizationId ? 'organization' : 'user' }
+  })
 }

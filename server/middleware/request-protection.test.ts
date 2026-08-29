@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { requestProtectionFailure } from '../security/request-protection'
+import {
+  apiBodyLimit,
+  AVATAR_BODY_BYTES,
+  requestProtectionFailure,
+  sensitiveRateLimit,
+  WEBHOOK_BODY_BYTES
+} from '../security/request-protection'
 
 const request = {
   pathname: '/api/profile',
@@ -38,5 +44,23 @@ describe('API request protection', () => {
       contentLength: String(64 * 1024 + 1),
       origin: 'https://attacker.example'
     })).toBeUndefined()
+  })
+
+  it('uses narrow defaults with explicit upload and provider exceptions', () => {
+    expect(apiBodyLimit('/api/profile/avatar')).toBe(AVATAR_BODY_BYTES)
+    expect(apiBodyLimit('/api/webhooks/bachs')).toBe(WEBHOOK_BODY_BYTES)
+    expect(apiBodyLimit('/api/auth/sign-in/email')).toBe(16 * 1024)
+    expect(apiBodyLimit('/api/bookings')).toBe(64 * 1024)
+  })
+
+  it('adds stricter policies for authentication and destructive actions', () => {
+    expect(sensitiveRateLimit('/api/auth/sign-in/email', 'POST')).toMatchObject({ limit: 10 })
+    expect(sensitiveRateLimit('/api/account', 'DELETE')).toMatchObject({ limit: 3 })
+    expect(sensitiveRateLimit('/api/account', 'GET')).toBeUndefined()
+  })
+
+  it('rejects malformed declared lengths', () => {
+    expect(requestProtectionFailure({ ...request, contentLength: '-1' })).toMatchObject({ statusCode: 400 })
+    expect(requestProtectionFailure({ ...request, contentLength: 'not-a-number' })).toMatchObject({ statusCode: 400 })
   })
 })

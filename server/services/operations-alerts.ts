@@ -1,5 +1,10 @@
-import { and, eq, inArray, lt, notInArray, sql } from 'drizzle-orm'
-import { operationsAlerts, webhookDeliveries } from '../database/schema'
+import { and, count, eq, inArray, isNotNull, lt, notInArray, sql } from 'drizzle-orm'
+import {
+  bookingPayments,
+  operationsAlerts,
+  paymentRecipients,
+  webhookDeliveries
+} from '../database/schema'
 import { useDatabase } from '../database'
 import { useEnv } from '../config/env'
 import { enqueueEmails } from './email-outbox'
@@ -12,6 +17,14 @@ interface AlertCandidate {
   severity: 'warning' | 'critical'
   summary: string
   details: Record<string, unknown>
+}
+
+export interface FinancialAlertCounts {
+  expiredPendingPayments: number
+  staleRefunds: number
+  failedRefunds: number
+  restrictedRecipients: number
+  ignoredFinancialWebhooks: number
 }
 
 export function shouldNotifyOperationsAlert(existing?: {
@@ -38,6 +51,7 @@ export async function evaluateOperationsAlerts() {
   if (email.stale) candidates.push(candidate('email-stale', 'email_delivery', 'warning', `${email.stale} email${email.stale === 1 ? ' is' : 's are'} delayed`, { count: email.stale, thresholdMinutes: 15 }))
   if (webhook.failed) candidates.push(candidate('webhook-failed', 'webhook', 'critical', `${webhook.failed} webhook${webhook.failed === 1 ? '' : 's'} failed processing`, { count: webhook.failed }))
   if (webhook.stale) candidates.push(candidate('webhook-stale', 'webhook', 'critical', `${webhook.stale} webhook${webhook.stale === 1 ? ' is' : 's are'} stuck processing`, { count: webhook.stale, thresholdMinutes: 15 }))
+  candidates.push(...financialAlertCandidates(await financialAlertCounts()))
 
   const activeKeys = candidates.map(item => item.key)
   if (activeKeys.length) {
@@ -112,6 +126,86 @@ export async function evaluateOperationsAlerts() {
   await db.delete(webhookDeliveries).where(lt(webhookDeliveries.receivedAt, sql`now() - interval '90 days'`))
 
   return candidates.length
+}
+
+export function financialAlertCandidates(financial: FinancialAlertCounts): AlertCandidate[] {
+  const items: AlertCandidate[] = []
+  if (financial.expiredPendingPayments) items.push(candidate(
+    'payments-expired-pending',
+    'paid_booking',
+    'critical',
+    `${financial.expiredPendingPayments} expired checkout${financial.expiredPendingPayments === 1 ? ' is' : 's are'} still pending locally`,
+    { count: financial.expiredPendingPayments, thresholdMinutes: 15 }
+  ))
+  if (financial.staleRefunds) items.push(candidate(
+    'payments-refund-stale',
+    'refund',
+    'critical',
+    `${financial.staleRefunds} refund${financial.staleRefunds === 1 ? ' has' : 's have'} been pending for more than 24 hours`,
+    { count: financial.staleRefunds, thresholdHours: 24 }
+  ))
+  if (financial.failedRefunds) items.push(candidate(
+    'payments-refund-failed',
+    'refund',
+    'critical',
+    `${financial.failedRefunds} refund${financial.failedRefunds === 1 ? '' : 's'} need manual review`,
+    { count: financial.failedRefunds }
+  ))
+  if (financial.restrictedRecipients) items.push(candidate(
+    'payments-recipient-restricted',
+    'payout_account',
+    'warning',
+    `${financial.restrictedRecipients} payout account${financial.restrictedRecipients === 1 ? ' is' : 's are'} restricted or disabled`,
+    { count: financial.restrictedRecipients }
+  ))
+  if (financial.ignoredFinancialWebhooks) items.push(candidate(
+    'payments-financial-webhook-ignored',
+    'payment_webhook',
+    'critical',
+    `${financial.ignoredFinancialWebhooks} failed payout, dispute or exceptional payment webhook${financial.ignoredFinancialWebhooks === 1 ? ' was' : 's were'} not applied`,
+    { count: financial.ignoredFinancialWebhooks, lookbackDays: 7 }
+  ))
+  return items
+}
+
+async function financialAlertCounts(): Promise<FinancialAlertCounts> {
+  const db = useDatabase()
+  const [[expiredPending], [staleRefunds], [failedRefunds], [restrictedRecipients], [ignoredFinancialWebhooks]] = await Promise.all([
+    db.select({ value: count() }).from(bookingPayments).where(and(
+      eq(bookingPayments.status, 'pending'),
+      isNotNull(bookingPayments.checkoutExpiresAt),
+      lt(bookingPayments.checkoutExpiresAt, sql`now() - interval '15 minutes'`)
+    )),
+    db.select({ value: count() }).from(bookingPayments).where(and(
+      eq(bookingPayments.status, 'refund_pending'),
+      lt(bookingPayments.updatedAt, sql`now() - interval '24 hours'`)
+    )),
+    db.select({ value: count() }).from(bookingPayments)
+      .where(eq(bookingPayments.status, 'refund_failed')),
+    db.select({ value: count() }).from(paymentRecipients).where(and(
+      isNotNull(paymentRecipients.bachsAccountId),
+      inArray(paymentRecipients.status, ['restricted', 'disabled'])
+    )),
+    db.select({ value: count() }).from(webhookDeliveries).where(and(
+      eq(webhookDeliveries.provider, 'bachs'),
+      eq(webhookDeliveries.status, 'ignored'),
+      inArray(webhookDeliveries.eventType, [
+        'collection.underpaid',
+        'collection.overpaid',
+        'dispute.created',
+        'dispute.updated',
+        'payout.failed'
+      ]),
+      sql`${webhookDeliveries.receivedAt} >= now() - interval '7 days'`
+    ))
+  ])
+  return {
+    expiredPendingPayments: expiredPending?.value ?? 0,
+    staleRefunds: staleRefunds?.value ?? 0,
+    failedRefunds: failedRefunds?.value ?? 0,
+    restrictedRecipients: restrictedRecipients?.value ?? 0,
+    ignoredFinancialWebhooks: ignoredFinancialWebhooks?.value ?? 0
+  }
 }
 
 function candidate(key: string, type: string, severity: AlertCandidate['severity'], summary: string, details: Record<string, unknown>): AlertCandidate {

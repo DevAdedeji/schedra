@@ -22,6 +22,7 @@ import { enqueueCalendarSync } from './calendar-sync'
 import { publishBookingEvent } from './workflows'
 import { logEvent } from '../observability/logger'
 import { addToInstant } from '../utils/date-time'
+import { recordSecurityAudit } from './security-audit'
 import {
   findPaymentRecipient,
   syncPaymentRecipient,
@@ -706,6 +707,17 @@ export async function requestPaidBookingRefund(bookingId: string, reason: string
     })
     throw error
   }
+  await recordSecurityAudit({
+    action: 'payments.refund_requested',
+    targetType: 'booking_payment',
+    targetId: payment.id,
+    metadata: {
+      bookingId: payment.bookingId,
+      amountCents: payment.amountCents,
+      currency: payment.currency,
+      providerReference: reference
+    }
+  })
   return { required: true as const }
 }
 
@@ -725,6 +737,7 @@ export async function applyRefundEvent(input: {
       updatedAt: sql`now()`
     }).where(eq(bookingPayments.id, id)).returning({
       id: bookingPayments.id,
+      bookingId: bookingPayments.bookingId,
       amountCents: bookingPayments.amountCents,
       currency: bookingPayments.currency,
       chargeId: bookingPayments.bachsChargeId
@@ -744,6 +757,19 @@ export async function applyRefundEvent(input: {
     }, tx)
     return payment
   })
+  if (updated) {
+    await recordSecurityAudit({
+      action: input.status === 'paid' ? 'payments.refund_completed' : 'payments.refund_failed',
+      targetType: 'booking_payment',
+      targetId: updated.id,
+      metadata: {
+        bookingId: updated.bookingId,
+        amountCents: updated.amountCents,
+        currency: updated.currency,
+        providerEventId: input.providerEventId ?? null
+      }
+    })
+  }
   return Boolean(updated)
 }
 

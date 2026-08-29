@@ -236,6 +236,29 @@ export const organizationAuditLogs = pgTable('organization_audit_logs', {
   index('organization_audit_logs_action_idx').on(table.organizationId, table.action)
 ])
 
+/**
+ * Cross-cutting security and money-operation history. Organization audit logs
+ * remain the customer-visible team record; this table covers personal payout
+ * owners, guest capability actions and private platform administration too.
+ */
+export const securityAuditLogs = pgTable('security_audit_logs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').references(() => organizations.id, { onDelete: 'set null' }),
+  actorUserId: uuid('actor_user_id').references(() => users.id, { onDelete: 'set null' }),
+  actorEmail: text('actor_email'),
+  action: text('action').notNull(),
+  targetType: text('target_type'),
+  targetId: text('target_id'),
+  requestId: text('request_id'),
+  metadata: jsonb('metadata').$type<Record<string, unknown>>(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+}, table => [
+  index('security_audit_logs_created_idx').on(table.createdAt),
+  index('security_audit_logs_action_created_idx').on(table.action, table.createdAt),
+  index('security_audit_logs_actor_created_idx').on(table.actorUserId, table.createdAt),
+  index('security_audit_logs_organization_created_idx').on(table.organizationId, table.createdAt)
+])
+
 /** Keeps /team/<old-slug> links resolving after a rename. */
 export const organizationSlugHistory = pgTable('organization_slug_history', {
   id: uuid('id').primaryKey().defaultRandom(),

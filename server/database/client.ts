@@ -16,8 +16,19 @@ export function isPooledUrl(url: string) {
 
 export function createDatabase(url: string, options: postgres.Options<Record<string, never>> = {}) {
   const client = postgres(url, {
-    prepare: isPooledUrl(url) ? false : undefined,
-    ...options
+    max: 10,
+    connect_timeout: 10,
+    idle_timeout: 20,
+    max_lifetime: 30 * 60,
+    ...options,
+    connection: {
+      application_name: 'schedra',
+      statement_timeout: 15_000,
+      lock_timeout: 5_000,
+      idle_in_transaction_session_timeout: 15_000,
+      ...options.connection
+    },
+    prepare: isPooledUrl(url) ? false : options.prepare
   })
 
   return { db: drizzle(client, { schema, casing: 'snake_case' }), client }
