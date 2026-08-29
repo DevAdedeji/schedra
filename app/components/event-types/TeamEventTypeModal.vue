@@ -389,8 +389,10 @@ async function save() {
             >
               <p class="text-[13px] text-muted">
                 {{ paymentAccount?.status === 'pending_review'
-                  ? 'Bachs is reviewing the team payout account. Paid bookings stay disabled until transfers and payouts are approved.'
-                  : 'A team owner must complete payout setup in Bachs first.' }}
+                  ? 'Bachs is reviewing the team account or bank destination. Paid bookings stay disabled until both are approved.'
+                  : paymentAccount?.status === 'unavailable'
+                    ? 'Schedra could not verify this team payout account with Bachs. Paid bookings stay disabled for safety.'
+                    : 'A team owner must complete payout setup and add an approved bank destination in Bachs first.' }}
               </p>
               <UButton
                 :to="`/t/${teamSlug}/payments`"
@@ -411,7 +413,7 @@ async function save() {
                 name="i-lucide-shield-alert"
                 class="size-4 shrink-0"
               />
-              Paid bookings are paused until Bachs approves the team payout account.
+              Paid bookings are paused until Schedra verifies both the Bachs account and a usable payout destination.
             </div>
             <div
               v-if="form.paymentEnabled"

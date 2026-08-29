@@ -1,7 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { recipientNextAction, recipientStatus } from './payment-recipient'
+import { recipientNextAction, recipientStatus, unavailableRecipient } from './payment-recipient'
 
 describe('payment recipient status', () => {
+  it('fails closed when Bachs cannot be checked even if the cached row was active', () => {
+    expect(unavailableRecipient({
+      bachsAccountId: 'acct_cached_active',
+      status: 'active'
+    } as never)).toMatchObject({
+      status: 'unavailable',
+      ready: false,
+      nextAction: 'none'
+    })
+  })
+
   it('only marks an account ready when transfers and payouts are active', () => {
     expect(recipientStatus({
       id: 'acct_ready',
@@ -9,7 +20,15 @@ describe('payment recipient status', () => {
         payouts: { requested: true, status: 'active' },
         transfers: { requested: true, status: 'active' }
       }
-    })).toBe('active')
+    }, [{
+      id: 'pd_ready',
+      name: 'Primary bank',
+      type: 'bank_account',
+      currency: 'NGN',
+      status: 'approved',
+      is_usable: true,
+      is_default: true
+    }])).toBe('active')
   })
 
   it('does not mark an account ready when transfers are still under review', () => {
@@ -112,6 +131,52 @@ describe('payment recipient status', () => {
       id: 'acct_payout_only',
       capabilities: { payouts: { requested: true, status: 'active' } }
     })).not.toBe('active')
+  })
+
+  it('does not mark active capabilities ready without a usable payout destination', () => {
+    expect(recipientStatus({
+      id: 'acct_no_destination',
+      capabilities: {
+        payouts: { requested: true, status: 'active' },
+        transfers: { requested: true, status: 'active' }
+      }
+    }, [])).toBe('onboarding')
+  })
+
+  it('waits while the bank destination is under review', () => {
+    expect(recipientStatus({
+      id: 'acct_destination_review',
+      capabilities: {
+        payouts: { requested: true, status: 'active' },
+        transfers: { requested: true, status: 'active' }
+      }
+    }, [{
+      id: 'pd_review',
+      name: 'Primary bank',
+      type: 'bank_account',
+      currency: 'NGN',
+      status: 'pending_review',
+      is_usable: false,
+      is_default: false
+    }])).toBe('pending_review')
+  })
+
+  it('surfaces a rejected payout destination as restricted', () => {
+    expect(recipientStatus({
+      id: 'acct_destination_rejected',
+      capabilities: {
+        payouts: { requested: true, status: 'active' },
+        transfers: { requested: true, status: 'active' }
+      }
+    }, [{
+      id: 'pd_rejected',
+      name: 'Primary bank',
+      type: 'bank_account',
+      currency: 'NGN',
+      status: 'rejected',
+      is_usable: false,
+      is_default: false
+    }])).toBe('restricted')
   })
 
   it('maps an account-level review state even when capabilities look active', () => {
