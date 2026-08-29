@@ -374,6 +374,31 @@ describe('bachs checkout payment methods', () => {
     }
   })
 
+  it('reads reviewed payout destinations in the connected account context', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      destinations: [{
+        id: 'pd_ready',
+        name: 'Primary bank',
+        type: 'bank_account',
+        currency: 'NGN',
+        status: 'approved',
+        is_usable: true,
+        is_default: true
+      }],
+      total: 1,
+      limit: 100,
+      offset: 0
+    }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { listConnectedAccountPayoutDestinations } = await import('./bachs')
+    await expect(listConnectedAccountPayoutDestinations('acct_host')).resolves.toHaveLength(1)
+
+    const [url, options] = fetchMock.mock.calls[0] as [URL, RequestInit]
+    expect(String(url)).toBe('https://sandbox-api.bachs.io/v1/payouts/destinations?limit=100&offset=0')
+    expect(new Headers(options.headers).get('X-Account-Id')).toBe('acct_host')
+  })
+
   it('creates onboarding links through the account resource', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       id: 'alnk_test',
