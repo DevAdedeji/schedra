@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { TeamSummary } from '~/services/schedra-api'
+import { getInitials } from '~/utils/text'
 
 const props = defineProps<{ collapsedLabel?: string }>()
 
@@ -17,10 +18,6 @@ const active = computed(() => teams.value.find(item => item.slug === activeSlug.
 watch(() => route.fullPath, () => {
   menuOpen.value = false
 })
-
-function initials(name: string) {
-  return name.split(' ').map(part => part[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
-}
 
 const items = computed(() => [
   [{ label: 'Team', type: 'label' as const }],
@@ -84,7 +81,7 @@ async function onCreated(slug: string) {
             class="size-3.5"
           />
           <template v-else>
-            {{ initials(active.name) }}
+            {{ getInitials(active.name) }}
           </template>
         </span>
         <span class="min-w-0 flex-1 truncate text-[14px] font-medium text-highlighted">

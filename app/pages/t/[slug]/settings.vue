@@ -7,6 +7,7 @@ import {
   type TeamDetail,
   type TeamMembersResponse
 } from '~/services/schedra-api'
+import { DEFAULT_LIST_PAGE_SIZE } from '~/constants/lists'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 
@@ -113,19 +114,14 @@ async function saveProfile() {
 
 const transferring = ref(false)
 const transferTarget = ref('')
-const transferSearchInput = ref('')
-const transferSearch = ref('')
+const {
+  query: transferSearchInput,
+  search: transferSearch,
+  clearSearch: clearTransferSearch
+} = useDebouncedSearch()
 const transferBusy = ref(false)
-let transferSearchTimer: ReturnType<typeof setTimeout> | undefined
-watch(transferSearchInput, (value) => {
-  clearTimeout(transferSearchTimer)
-  transferSearchTimer = setTimeout(() => {
-    transferSearch.value = value.trim()
-  }, 250)
-})
-onBeforeUnmount(() => clearTimeout(transferSearchTimer))
 
-const transferMembersQuery = computed(() => ({ pageSize: 10, search: transferSearch.value }))
+const transferMembersQuery = computed(() => ({ pageSize: DEFAULT_LIST_PAGE_SIZE, search: transferSearch.value }))
 const { data: members, refresh: refreshMembers } = await useLazyFetch<TeamMembersResponse>(
   () => teamsApi.membersEndpoint(slug.value),
   { query: transferMembersQuery, immediate: false }
@@ -135,8 +131,7 @@ watch(transferring, (open) => {
   if (open) refreshMembers()
   else {
     transferTarget.value = ''
-    transferSearchInput.value = ''
-    transferSearch.value = ''
+    clearTransferSearch()
   }
 })
 

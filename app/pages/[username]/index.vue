@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { publicBookingApi, type PublicProfile } from '~/services/schedra-api'
+import { getInitials } from '~/utils/text'
 
 definePageMeta({ layout: 'bare' })
 
@@ -12,13 +13,7 @@ const { url: siteUrl, host, indexable } = useSiteUrl()
 if (error.value) setResponseStatus(error.value.statusCode === 404 ? 404 : 503)
 const missingProfile = computed(() => error.value?.statusCode === 404)
 
-const initials = computed(() => (profile.value?.name ?? '')
-  .split(' ')
-  .map(part => part[0])
-  .filter(Boolean)
-  .slice(0, 2)
-  .join('')
-  .toUpperCase())
+const initials = computed(() => getInitials(profile.value?.name ?? ''))
 
 useSeoMeta({
   title: () => profile.value ? `Book time with ${profile.value.name}` : 'Not found',

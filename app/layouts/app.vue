@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { getInitials } from '~/utils/text'
+
 const { data } = await useCurrentUser()
 const { signOut } = useAuthClient()
 const { host } = useSiteUrl()
@@ -11,8 +13,7 @@ onMounted(() => {
 })
 
 const user = computed(() => data.value?.user)
-const initials = computed(() => (user.value?.name ?? '')
-  .split(' ').map(part => part[0]).filter(Boolean).slice(0, 2).join('').toUpperCase())
+const initials = computed(() => getInitials(user.value?.name ?? ''))
 
 const leaving = ref(false)
 const route = useRoute()

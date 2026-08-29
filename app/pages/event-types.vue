@@ -3,15 +3,14 @@ import { apiErrorMessage, eventTypesApi, type EventTypesResponse } from '~/servi
 import type { EventTypeRecord } from '~/types/event-type'
 import { compactActionMenuUi } from '~/utils/action-menu'
 import { formatMoney } from '#shared/payments'
+import { DEFAULT_LIST_PAGE_SIZE } from '~/constants/lists'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 useSeoMeta({ title: 'Event types', robots: 'noindex, nofollow' })
 
-const query = ref('')
-const search = ref('')
 const filter = ref<'all' | 'active' | 'hidden'>('all')
-const page = ref(1)
-const apiQuery = computed(() => ({ filter: filter.value, search: search.value, page: page.value, pageSize: 10 }))
+const { query, search, page, resetPage } = useListQueryState()
+const apiQuery = computed(() => ({ filter: filter.value, search: search.value, page: page.value, pageSize: DEFAULT_LIST_PAGE_SIZE }))
 const { data, refresh, status, error: loadFailure } = await useLazyFetch<EventTypesResponse>(eventTypesApi.listEndpoint, { query: apiQuery })
 const { data: currentUser } = await useCurrentUser()
 const { host, url: siteUrl } = useSiteUrl()
@@ -37,27 +36,14 @@ const filters = [
 
 const filtered = computed(() => data.value?.items ?? [])
 const counts = computed(() => data.value?.counts ?? { all: 0, active: 0, hidden: 0 })
-const initialLoading = computed(() => status.value === 'pending' && !data.value)
-const refreshing = computed(() => status.value === 'pending' && Boolean(data.value))
-const blockingFailure = computed(() => Boolean(loadFailure.value && !data.value))
+const { initialLoading, refreshing, blockingFailure } = useListLoadingState(status, data, loadFailure)
 
 const filterOptions = computed(() => filters.map(option => ({
   ...option,
   count: counts.value[option.value]
 })))
 
-let searchTimer: ReturnType<typeof setTimeout> | undefined
-watch(query, (value) => {
-  clearTimeout(searchTimer)
-  searchTimer = setTimeout(() => {
-    search.value = value.trim()
-    page.value = 1
-  }, 250)
-})
-watch(filter, () => {
-  page.value = 1
-})
-onBeforeUnmount(() => clearTimeout(searchTimer))
+watch(filter, resetPage)
 
 function createNew() {
   selected.value = null

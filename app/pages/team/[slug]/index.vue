@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { publicTeamApi, type PublicTeamProfile } from '~/services/schedra-api'
+import { getInitials } from '~/utils/text'
 
 definePageMeta({ layout: 'bare' })
 
@@ -16,8 +17,7 @@ const missing = computed(() => error.value?.statusCode === 404)
 // current one so search engines do not index both.
 const canonical = computed(() => `${siteUrl.value}/team/${encodeURIComponent(team.value?.slug ?? slug)}`)
 
-const initials = computed(() => (team.value?.name ?? '')
-  .split(' ').map(part => part[0]).filter(Boolean).slice(0, 2).join('').toUpperCase())
+const initials = computed(() => getInitials(team.value?.name ?? ''))
 
 const modeLabel: Record<string, string> = {
   single: 'One host',

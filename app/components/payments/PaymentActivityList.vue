@@ -1,15 +1,14 @@
 <script setup lang="ts">
 import { formatMoney } from '#shared/payments'
 import { operationsApi, paymentsApi, type PaymentActivityRecord, type PaymentActivityResponse } from '~/services/schedra-api'
+import { DEFAULT_LIST_PAGE_SIZE } from '~/constants/lists'
 
 const props = withDefaults(defineProps<{ teamSlug?: string, operations?: boolean }>(), { operations: false })
 const direction = ref<'all' | 'in' | 'out'>('all')
 const state = ref<'all' | 'pending' | 'succeeded' | 'failed' | 'expired'>('all')
 const from = ref('')
 const to = ref('')
-const query = ref('')
-const search = ref('')
-const page = ref(1)
+const { query, search, page, resetPage, clearSearch } = useListQueryState()
 const apiQuery = computed(() => ({
   direction: direction.value,
   status: state.value,
@@ -17,15 +16,14 @@ const apiQuery = computed(() => ({
   to: to.value || undefined,
   search: search.value,
   page: page.value,
-  pageSize: 10
+  pageSize: DEFAULT_LIST_PAGE_SIZE
 }))
 const { data, status, error, refresh } = await useLazyFetch<PaymentActivityResponse>(
   () => props.operations ? operationsApi.paymentsEndpoint : paymentsApi.activityEndpoint(props.teamSlug),
   { query: apiQuery }
 )
 
-const initialLoading = computed(() => status.value === 'pending' && !data.value)
-const refreshing = computed(() => status.value === 'pending' && Boolean(data.value))
+const { initialLoading, refreshing } = useListLoadingState(status, data)
 const directionOptions = [
   { label: 'All activity', value: 'all' },
   { label: 'Into payout account', value: 'in' },
@@ -39,18 +37,9 @@ const statusOptions = [
   { label: 'Expired', value: 'expired' }
 ]
 
-let searchTimer: ReturnType<typeof setTimeout> | undefined
-watch(query, (value) => {
-  clearTimeout(searchTimer)
-  searchTimer = setTimeout(() => {
-    search.value = value.trim()
-    page.value = 1
-  }, 250)
-})
 watch([direction, state, from, to], () => {
-  page.value = 1
+  resetPage()
 })
-onBeforeUnmount(() => clearTimeout(searchTimer))
 
 const statusColor = (value: PaymentActivityRecord['status']) => ({
   succeeded: 'success', pending: 'warning', failed: 'error', expired: 'neutral'
@@ -62,11 +51,6 @@ const hasFilters = computed(() => Boolean(
 
 function shortDate(value: string) {
   return new Intl.DateTimeFormat('en', { dateStyle: 'medium' }).format(new Date(`${value}T00:00:00`))
-}
-
-function clearSearch() {
-  query.value = ''
-  search.value = ''
 }
 
 function clearDates() {

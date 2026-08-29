@@ -1,33 +1,20 @@
 <script setup lang="ts">
 import { apiErrorMessage, bookingsApi, type BookingRecord, type BookingsResponse } from '~/services/schedra-api'
+import { DEFAULT_LIST_PAGE_SIZE } from '~/constants/lists'
+import { getInitials } from '~/utils/text'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 useSeoMeta({ title: 'Your bookings', robots: 'noindex, nofollow' })
 
 const filter = ref<'all' | 'upcoming' | 'pending' | 'past' | 'cancelled'>('upcoming')
-const query = ref('')
-const search = ref('')
-const page = ref(1)
-const apiQuery = computed(() => ({ filter: filter.value, search: search.value, page: page.value, pageSize: 10 }))
+const { query, search, page, resetPage } = useListQueryState()
+const apiQuery = computed(() => ({ filter: filter.value, search: search.value, page: page.value, pageSize: DEFAULT_LIST_PAGE_SIZE }))
 const { data, refresh, status, error: loadFailure } = await useLazyFetch<BookingsResponse>(bookingsApi.listEndpoint, { query: apiQuery })
 const feedback = useFeedback()
 const list = computed(() => data.value?.items ?? [])
-const initialLoading = computed(() => status.value === 'pending' && !data.value)
-const refreshing = computed(() => status.value === 'pending' && Boolean(data.value))
-const blockingFailure = computed(() => Boolean(loadFailure.value && !data.value))
+const { initialLoading, refreshing, blockingFailure } = useListLoadingState(status, data, loadFailure)
 
-let searchTimer: ReturnType<typeof setTimeout> | undefined
-watch(query, (value) => {
-  clearTimeout(searchTimer)
-  searchTimer = setTimeout(() => {
-    search.value = value.trim()
-    page.value = 1
-  }, 250)
-})
-watch(filter, () => {
-  page.value = 1
-})
-onBeforeUnmount(() => clearTimeout(searchTimer))
+watch(filter, resetPage)
 
 const filterOptions = computed(() => [
   { value: 'all', label: 'All', count: data.value?.counts.all ?? 0 },
@@ -77,10 +64,6 @@ const grouped = computed(() => {
   }
   return [...map.values()]
 })
-
-function initials(name: string) {
-  return name.split(' ').map(part => part[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
-}
 
 function time(iso: string) {
   return new Intl.DateTimeFormat('en-GB', {
@@ -266,7 +249,7 @@ async function reject(uid: string) {
               >
                 <div class="flex flex-wrap items-start gap-4">
                   <span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[14px] font-semibold text-primary">
-                    {{ initials(item.attendeeName) }}
+                    {{ getInitials(item.attendeeName) }}
                   </span>
 
                   <div class="min-w-0 flex-1">

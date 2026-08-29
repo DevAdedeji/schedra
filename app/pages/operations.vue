@@ -8,6 +8,8 @@ import {
   type OperationKind,
   type OperationStatus
 } from '~/services/schedra-api'
+import { DEFAULT_LIST_PAGE_SIZE } from '~/constants/lists'
+import { formatDateTime } from '~/utils/date-time'
 
 definePageMeta({ layout: 'app', middleware: ['auth', 'platform-admin'] })
 useSeoMeta({ title: 'Operations — Schedra', robots: 'noindex, nofollow' })
@@ -32,7 +34,7 @@ const { data: diagnostics, status: diagnosticsStatus, error: diagnosticsError, r
 )
 const { data: jobs, status: jobsStatus, error: jobsError, refresh: refreshJobs } = await useAsyncData(
   'operations-jobs', (_nuxtApp, { signal }) => requestFetch<OperationsJobsResponse>(operationsApi.jobsEndpoint, {
-    query: { kind: kind.value, status: filter.value, page: page.value, pageSize: 10 },
+    query: { kind: kind.value, status: filter.value, page: page.value, pageSize: DEFAULT_LIST_PAGE_SIZE },
     signal
   }),
   { watch: [kind, filter, page] }
@@ -90,10 +92,6 @@ const systemState = computed(() => {
   }
   return { label: 'All systems operational', description: 'Queues, workers and configured providers are responding normally.', icon: 'i-lucide-circle-check-big', tone: 'success' as const }
 })
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
-}
 
 // Operators scan for "how long ago", not for a calendar date. The absolute time
 // stays available on hover.
@@ -294,7 +292,7 @@ async function acknowledgeAlert(id: string) {
                 />
               </div>
               <p class="mt-1 text-[13px] text-muted">
-                Last detected {{ formatDate(alert.lastSeenAt) }}
+                Last detected {{ formatDateTime(alert.lastSeenAt) }}
               </p>
             </div>
             <UButton
@@ -533,7 +531,7 @@ async function acknowledgeAlert(id: string) {
                     :class="job.delayed ? 'text-warning' : job.status === 'failed' ? 'text-error' : ''"
                   >{{ job.delayed ? 'delayed' : job.status }}</span>
                   <span class="text-dimmed">·</span>
-                  <span :title="formatDate(job.updatedAt)">{{ ago(job.updatedAt) }}</span>
+                  <span :title="formatDateTime(job.updatedAt)">{{ ago(job.updatedAt) }}</span>
                   <span class="text-dimmed">·</span>
                   <span>{{ job.attempts }} attempt{{ job.attempts === 1 ? '' : 's' }}</span>
                   <template v-if="job.provider">

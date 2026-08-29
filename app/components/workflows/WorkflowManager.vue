@@ -1,14 +1,13 @@
 <script setup lang="ts">
-import { workflowInputSchema, type WorkflowInput, type WorkflowTrigger } from '#shared/workflows'
 import {
-  apiErrorMessage,
   workflowsApi,
   type EventTypesResponse,
   type TeamEventTypesResponse,
-  type WorkflowRecord,
   type WorkflowsResponse
 } from '~/services/schedra-api'
 import { compactActionMenuUi } from '~/utils/action-menu'
+import { DEFAULT_LIST_PAGE_SIZE } from '~/constants/lists'
+import { WORKFLOW_OFFSET_OPTIONS, WORKFLOW_RECIPIENT_OPTIONS, WORKFLOW_TRIGGER_OPTIONS } from '~/constants/workflows'
 
 const props = defineProps<{
   teamSlug?: string
@@ -16,83 +15,31 @@ const props = defineProps<{
   canManage: boolean
 }>()
 
-const feedback = useFeedback()
-const { copied, copy } = useCopy()
 const page = ref(1)
 const { data, refresh, status, error: loadFailure } = await useLazyFetch<WorkflowsResponse>(
   () => workflowsApi.listEndpoint(props.teamSlug),
-  { query: computed(() => ({ page: page.value, pageSize: 10 })) }
+  { query: computed(() => ({ page: page.value, pageSize: DEFAULT_LIST_PAGE_SIZE })) }
 )
 
 const list = computed(() => data.value?.items ?? [])
-const initialLoading = computed(() => status.value === 'pending' && !data.value)
-const refreshing = computed(() => status.value === 'pending' && Boolean(data.value))
-
-const triggerOptions: Array<{ label: string, value: WorkflowTrigger, description: string }> = [
-  { label: 'A booking is confirmed', value: 'booking_created', description: 'Runs immediately after a guest books.' },
-  { label: 'A booking needs approval', value: 'booking_requested', description: 'Runs when a guest submits a request.' },
-  { label: 'A request is approved', value: 'booking_approved', description: 'Runs after the host confirms it.' },
-  { label: 'A request is declined', value: 'booking_rejected', description: 'Runs after the host declines it.' },
-  { label: 'A booking is cancelled', value: 'booking_cancelled', description: 'Runs for guest or host cancellations.' },
-  { label: 'A booking is rescheduled', value: 'booking_rescheduled', description: 'Runs after a guest chooses a new time.' },
-  { label: 'Before a meeting starts', value: 'before_start', description: 'Useful for reminders and preparation.' },
-  { label: 'After a meeting ends', value: 'after_end', description: 'Useful for follow-ups and feedback.' }
-]
-
-const offsetOptions = [
-  { label: 'Immediately', value: 0 },
-  { label: '15 minutes', value: 15 },
-  { label: '30 minutes', value: 30 },
-  { label: '1 hour', value: 60 },
-  { label: '2 hours', value: 120 },
-  { label: '1 day', value: 1440 },
-  { label: '2 days', value: 2880 },
-  { label: '1 week', value: 10080 }
-]
-
-const recipientOptions = [
-  { label: 'The attendee', value: 'attendee' },
-  { label: 'The host or assigned hosts', value: 'hosts' },
-  { label: 'A specific email address', value: 'custom' }
-]
-
-function emptyForm(): WorkflowInput {
-  return {
-    name: '',
-    trigger: 'booking_created',
-    offsetMinutes: 0,
-    eventTypeId: null,
-    action: {
-      type: 'email',
-      recipient: 'attendee',
-      subject: 'About {{event_name}}',
-      body: 'Hi {{guest_name}},\n\nYour meeting with {{host_name}} is scheduled for {{start_time}}.',
-      customRecipient: undefined
-    },
-    active: true
-  }
-}
-
-const modalOpen = ref(false)
-const editing = ref<WorkflowRecord | null>(null)
-const form = reactive<WorkflowInput>(emptyForm())
-const saving = ref(false)
-const formError = ref('')
-const eventSearchInput = ref('')
-const eventSearch = ref('')
-let eventSearchTimer: ReturnType<typeof setTimeout> | undefined
-
-watch(eventSearchInput, (value) => {
-  clearTimeout(eventSearchTimer)
-  eventSearchTimer = setTimeout(() => {
-    eventSearch.value = value.trim()
-  }, 250)
-})
-onBeforeUnmount(() => clearTimeout(eventSearchTimer))
+const { initialLoading, refreshing } = useListLoadingState(status, data)
+const {
+  modalOpen, editing, form, saving, formError, secret, secretOpen, copied,
+  busyId, deleting, startCreate, startEdit, setActionType, save, toggle, remove,
+  triggerLabel, timing, actionLabel, variableToken, copySecret
+} = useWorkflowManager({ teamSlug: () => props.teamSlug, refresh })
+const triggerOptions = WORKFLOW_TRIGGER_OPTIONS
+const offsetOptions = WORKFLOW_OFFSET_OPTIONS
+const recipientOptions = WORKFLOW_RECIPIENT_OPTIONS
+const {
+  query: eventSearchInput,
+  search: eventSearch,
+  clearSearch: clearEventSearch
+} = useDebouncedSearch()
 
 const { data: eventTypes, status: eventTypesStatus, refresh: refreshEventTypes } = await useLazyFetch<EventTypesResponse | TeamEventTypesResponse>(
   () => props.eventTypesEndpoint,
-  { query: computed(() => ({ page: 1, pageSize: 10, search: eventSearch.value })), immediate: false }
+  { query: computed(() => ({ page: 1, pageSize: DEFAULT_LIST_PAGE_SIZE, search: eventSearch.value })), immediate: false }
 )
 
 const eventTypeOptions = computed(() => {
@@ -106,139 +53,9 @@ const eventTypeOptions = computed(() => {
 
 watch(modalOpen, async (open) => {
   if (!open) return
-  eventSearchInput.value = ''
-  eventSearch.value = ''
+  clearEventSearch()
   await refreshEventTypes()
 })
-
-function startCreate() {
-  editing.value = null
-  Object.assign(form, emptyForm())
-  formError.value = ''
-  modalOpen.value = true
-}
-
-function startEdit(workflow: WorkflowRecord) {
-  editing.value = workflow
-  Object.assign(form, {
-    name: workflow.name,
-    trigger: workflow.trigger,
-    offsetMinutes: workflow.offsetMinutes,
-    eventTypeId: workflow.eventTypeId,
-    action: structuredClone(workflow.action),
-    active: workflow.active
-  })
-  formError.value = ''
-  modalOpen.value = true
-}
-
-watch(() => form.trigger, (trigger) => {
-  if (trigger === 'before_start' && form.offsetMinutes < 5) form.offsetMinutes = 60
-  if (trigger === 'after_end' && form.offsetMinutes < 0) form.offsetMinutes = 0
-  if (!['before_start', 'after_end'].includes(trigger)) form.offsetMinutes = 0
-})
-
-function setActionType(type: 'email' | 'webhook') {
-  form.action = type === 'email'
-    ? {
-        type: 'email', recipient: 'attendee', customRecipient: undefined,
-        subject: 'About {{event_name}}',
-        body: 'Hi {{guest_name}},\n\nYour meeting with {{host_name}} is scheduled for {{start_time}}.'
-      }
-    : { type: 'webhook', url: '' }
-}
-
-const secret = ref('')
-const secretOpen = ref(false)
-
-async function save() {
-  if (saving.value) return
-  const parsed = workflowInputSchema.safeParse(form)
-  if (!parsed.success) {
-    formError.value = parsed.error.issues[0]?.message ?? 'Check the workflow details.'
-    return
-  }
-  saving.value = true
-  formError.value = ''
-  try {
-    const result = editing.value
-      ? await workflowsApi.update(editing.value.id, parsed.data, props.teamSlug)
-      : await workflowsApi.create(parsed.data, props.teamSlug)
-    modalOpen.value = false
-    await refresh()
-    feedback.success({
-      title: editing.value ? 'Workflow updated' : 'Workflow created',
-      description: parsed.data.active ? 'It is active now.' : 'It is saved as paused.'
-    })
-    if (result.webhookSecret) {
-      secret.value = result.webhookSecret
-      secretOpen.value = true
-    }
-  } catch (failure) {
-    formError.value = apiErrorMessage(failure, 'Could not save this workflow.')
-  } finally {
-    saving.value = false
-  }
-}
-
-const busyId = ref('')
-async function toggle(workflow: WorkflowRecord, active: boolean) {
-  busyId.value = workflow.id
-  try {
-    await workflowsApi.setActive(workflow.id, active, props.teamSlug)
-    await refresh()
-    feedback.success({ title: active ? 'Workflow resumed' : 'Workflow paused' })
-  } catch (failure) {
-    feedback.error({ title: 'Could not update workflow', description: apiErrorMessage(failure, 'Please try again.') })
-  } finally {
-    busyId.value = ''
-  }
-}
-
-const deleting = ref<WorkflowRecord | null>(null)
-async function remove() {
-  if (!deleting.value) return
-  busyId.value = deleting.value.id
-  try {
-    await workflowsApi.remove(deleting.value.id, props.teamSlug)
-    deleting.value = null
-    await refresh()
-    feedback.success({ title: 'Workflow deleted' })
-  } catch (failure) {
-    feedback.error({ title: 'Could not delete workflow', description: apiErrorMessage(failure, 'Please try again.') })
-  } finally {
-    busyId.value = ''
-  }
-}
-
-function triggerLabel(trigger: WorkflowTrigger) {
-  return triggerOptions.find(option => option.value === trigger)?.label ?? trigger
-}
-
-function timing(workflow: WorkflowRecord) {
-  if (!['before_start', 'after_end'].includes(workflow.trigger)) return 'Immediately'
-  const offset = offsetOptions.find(option => option.value === workflow.offsetMinutes)?.label ?? `${workflow.offsetMinutes} minutes`
-  return workflow.trigger === 'before_start' ? `${offset} before` : `${offset} after`
-}
-
-function actionLabel(workflow: WorkflowRecord) {
-  if (workflow.action.type === 'webhook') return `Webhook · ${new URL(workflow.action.url).hostname}`
-  return workflow.action.recipient === 'attendee'
-    ? 'Email attendee'
-    : workflow.action.recipient === 'hosts'
-      ? 'Email hosts'
-      : `Email ${workflow.action.customRecipient}`
-}
-
-function variableToken(variable: string) {
-  return `{{${variable}}}`
-}
-
-async function copySecret() {
-  const written = await copy(secret.value)
-  if (written) feedback.success({ title: 'Signing secret copied' })
-  else feedback.error({ title: 'Could not copy signing secret' })
-}
 </script>
 
 <template>

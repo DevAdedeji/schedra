@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { teamAuditApi, teamsApi, type TeamAuditResponse, type TeamDetail } from '~/services/schedra-api'
+import { DEFAULT_LIST_PAGE_SIZE } from '~/constants/lists'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 
@@ -15,12 +16,11 @@ useSeoMeta({
 const page = ref(1)
 const { data, refresh, status, error: loadFailure } = await useLazyFetch<TeamAuditResponse>(
   () => teamAuditApi.listEndpoint(slug.value),
-  { query: computed(() => ({ page: page.value, pageSize: 10 })) }
+  { query: computed(() => ({ page: page.value, pageSize: DEFAULT_LIST_PAGE_SIZE })) }
 )
 
 const list = computed(() => data.value?.items ?? [])
-const initialLoading = computed(() => status.value === 'pending' && !data.value)
-const refreshing = computed(() => status.value === 'pending' && Boolean(data.value))
+const { initialLoading, refreshing } = useListLoadingState(status, data)
 
 // Every action the audit log records, said in plain language.
 const PHRASES: Record<string, string> = {

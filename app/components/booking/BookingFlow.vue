@@ -48,39 +48,8 @@ const rescheduleOf = computed(() => {
   return typeof value === 'string' && value ? value : undefined
 })
 
-const viewerTimeZone = ref('UTC')
-const viewerTimeZoneReady = ref(false)
-const zones = Intl.supportedValuesOf('timeZone')
-const weekOffset = ref(0)
-const maxWeekOffset = 8
-const selectedDate = ref<string | null>(null)
-const selectedSlot = ref<string | null>(null)
-const jumped = ref(false)
-
-onMounted(() => {
-  viewerTimeZone.value = Intl.DateTimeFormat().resolvedOptions().timeZone
-  viewerTimeZoneReady.value = true
-})
-
-watch(viewerTimeZone, () => {
-  selectedDate.value = null
-  selectedSlot.value = null
-  jumped.value = false
-})
-
-function isoDate(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-}
-
-function addDays(date: Date, count: number) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + count)
-}
-
 const today = new Date()
-const firstMonday = addDays(today, -((today.getDay() + 6) % 7))
-
-const weekStart = computed(() => addDays(firstMonday, weekOffset.value * 7))
-const days = computed(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart.value, i)))
+const firstMonday = addCalendarDays(today, -((today.getDay() + 6) % 7))
 
 const availabilityRequest = useFetch<AvailabilityResponse>(
   () => isInvite.value && props.inviteToken
@@ -90,8 +59,8 @@ const availabilityRequest = useFetch<AvailabilityResponse>(
     query: computed(() => ({
       ...(!isInvite.value && (isTeam.value ? { team: owner.value } : { username: owner.value })),
       ...(!isInvite.value ? { slug: slug.value } : {}),
-      from: isoDate(firstMonday),
-      to: isoDate(addDays(firstMonday, 62))
+      from: isoCalendarDate(firstMonday),
+      to: isoCalendarDate(addCalendarDays(firstMonday, 62))
     }))
   }
 )
@@ -122,62 +91,20 @@ if (rescheduleOf.value) {
   rescheduleBooking.value = await bookingsApi.get(rescheduleOf.value)
     .catch(() => null)
 }
+const {
+  viewerTimeZone, viewerTimeZoneReady, zones, weekOffset, maxWeekOffset,
+  selectedDate, selectedSlot, days, slotsByDate, daySlots,
+  hasAnything, additionalGuestLimit, monthLabel,
+  longSelected, timeLabel, locationLabel, locationIcon, isoDate
+} = useBookingCalendar({ availability: data, page })
 
-const slotsByDate = computed(() => {
-  const grouped = new Map<string, AvailabilityResponse['slots']>()
-  if (!data.value) return grouped
-
-  const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: viewerTimeZone.value })
-  for (const slot of data.value.slots) {
-    const key = formatter.format(new Date(slot.start))
-    grouped.set(key, [...(grouped.get(key) ?? []), slot])
-  }
-  return grouped
+const { booking, bookingAnswers, guestEmails, addGuest, removeGuest } = useBookingGuestForm({
+  prefillName: () => props.prefillName,
+  prefillEmail: () => props.prefillEmail,
+  rescheduleBooking,
+  page,
+  additionalGuestLimit
 })
-
-watchEffect(() => {
-  if (jumped.value || !slotsByDate.value.size) return
-
-  const first = [...slotsByDate.value.keys()].sort()[0]!
-  const target = new Date(`${first}T12:00:00`)
-  const monday = addDays(target, -((target.getDay() + 6) % 7))
-  weekOffset.value = Math.min(maxWeekOffset, Math.max(0,
-    Math.round((monday.getTime() - firstMonday.getTime()) / 6048e5)))
-  selectedDate.value = first
-  jumped.value = true
-})
-
-watchEffect(() => {
-  if (selectedDate.value && slotsByDate.value.has(selectedDate.value)) return
-  const inWeek = days.value.map(isoDate).find(key => slotsByDate.value.has(key))
-  if (inWeek) selectedDate.value = inWeek
-})
-
-const daySlots = computed(() => (selectedDate.value ? slotsByDate.value.get(selectedDate.value) ?? [] : []))
-const hasAnything = computed(() => slotsByDate.value.size > 0)
-const selectedSlotDetails = computed(() => daySlots.value.find(slot => slot.start === selectedSlot.value))
-const additionalGuestLimit = computed(() => {
-  if (!page.value || page.value.capacity === 1) return 10
-  const remainingSeats = selectedSlotDetails.value?.availableSeats ?? page.value.capacity
-  return Math.max(0, Math.min(10, remainingSeats - 1))
-})
-
-function timeLabel(iso: string) {
-  return new Intl.DateTimeFormat('en-GB', {
-    hour: '2-digit', minute: '2-digit', timeZone: viewerTimeZone.value
-  }).format(new Date(iso))
-}
-
-const monthLabel = computed(() =>
-  new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric' }).format(weekStart.value))
-
-const longSelected = computed(() => selectedDate.value
-  ? new Intl.DateTimeFormat('en', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(`${selectedDate.value}T12:00:00`))
-  : '')
-
-const booking = reactive({ name: '', email: '', notes: '' })
-const bookingAnswers = reactive<Record<string, string>>({})
-const guestEmails = ref<string[]>([])
 
 const bookingSource = computed(() => props.embedded ? 'embed' as const : 'hosted' as const)
 const bookingAttribution = computed(() => props.embedded
@@ -190,36 +117,6 @@ const bookingAttribution = computed(() => props.embedded
       utmContent: typeof route.query.utm_content === 'string' ? route.query.utm_content : undefined
     }
   : undefined)
-if (rescheduleBooking.value) {
-  booking.name = rescheduleBooking.value.attendeeName
-  booking.email = rescheduleBooking.value.attendeeEmail
-  booking.notes = rescheduleBooking.value.notes ?? ''
-  guestEmails.value = [...rescheduleBooking.value.additionalGuestEmails]
-  for (const answer of rescheduleBooking.value.answers) {
-    if (page.value?.bookingQuestions.some(question => question.id === answer.questionId)) {
-      bookingAnswers[answer.questionId] = answer.value
-    }
-  }
-} else {
-  booking.name = props.prefillName?.trim() ?? ''
-  booking.email = props.prefillEmail?.trim().toLowerCase() ?? ''
-  if (import.meta.client && !booking.name && !booking.email) {
-    const key = `schedra:routing-prefill:${window.location.pathname}`
-    const stored = sessionStorage.getItem(key)
-    sessionStorage.removeItem(key)
-    if (stored) {
-      try {
-        const prefill = JSON.parse(stored) as { name?: string, email?: string, expiresAt?: number }
-        if ((prefill.expiresAt ?? 0) > Date.now()) {
-          booking.name = prefill.name?.trim() ?? ''
-          booking.email = prefill.email?.trim().toLocaleLowerCase() ?? ''
-        }
-      } catch {
-        // Ignore malformed browser state. The guest can still type their details.
-      }
-    }
-  }
-}
 const submitting = ref(false)
 const bookingError = ref('')
 const confirmed = ref<{
@@ -242,38 +139,6 @@ const confirmedWhen = computed(() => confirmed.value
       timeZone: viewerTimeZone.value
     }).format(new Date(confirmed.value.start))
   : '')
-
-function locationLabel(type?: string) {
-  return ({
-    google_meet: 'Google Meet',
-    microsoft_teams: 'Microsoft Teams',
-    zoom: 'Zoom',
-    video_link: 'Video call',
-    phone: 'Phone call',
-    in_person: 'In person',
-    custom: 'Meeting details'
-  } as Record<string, string>)[type ?? ''] ?? 'Meeting details'
-}
-
-function locationIcon(type?: string) {
-  return ({
-    google_meet: 'i-simple-icons-googlemeet',
-    microsoft_teams: 'i-simple-icons-microsoftteams',
-    zoom: 'i-simple-icons-zoom',
-    video_link: 'i-lucide-video',
-    phone: 'i-lucide-phone',
-    in_person: 'i-lucide-map-pin',
-    custom: 'i-lucide-message-square-text'
-  } as Record<string, string>)[type ?? ''] ?? 'i-lucide-map-pin'
-}
-
-function addGuest() {
-  if (guestEmails.value.length < additionalGuestLimit.value) guestEmails.value.push('')
-}
-
-function removeGuest(index: number) {
-  guestEmails.value.splice(index, 1)
-}
 
 async function confirm() {
   if (!selectedSlot.value) return

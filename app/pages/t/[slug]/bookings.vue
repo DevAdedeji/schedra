@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { teamBookingsApi, teamsApi, type TeamBookingsResponse, type TeamDetail } from '~/services/schedra-api'
+import { DEFAULT_LIST_PAGE_SIZE } from '~/constants/lists'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 
@@ -13,32 +14,18 @@ useSeoMeta({
 })
 
 const filter = ref<'upcoming' | 'pending' | 'past' | 'cancelled'>('upcoming')
-const query = ref('')
-const search = ref('')
-const page = ref(1)
+const { query, search, page, resetPage } = useListQueryState()
 const listQuery = computed(() => ({
-  filter: filter.value, search: search.value, page: page.value, pageSize: 10
+  filter: filter.value, search: search.value, page: page.value, pageSize: DEFAULT_LIST_PAGE_SIZE
 }))
 
 const { data, refresh, status, error: loadFailure }
   = await useLazyFetch<TeamBookingsResponse>(() => teamBookingsApi.listEndpoint(slug.value), { query: listQuery })
 
 const list = computed(() => data.value?.items ?? [])
-const initialLoading = computed(() => status.value === 'pending' && !data.value)
-const refreshing = computed(() => status.value === 'pending' && Boolean(data.value))
+const { initialLoading, refreshing } = useListLoadingState(status, data)
 
-let searchTimer: ReturnType<typeof setTimeout> | undefined
-watch(query, (value) => {
-  clearTimeout(searchTimer)
-  searchTimer = setTimeout(() => {
-    search.value = value.trim()
-    page.value = 1
-  }, 250)
-})
-watch(filter, () => {
-  page.value = 1
-})
-onBeforeUnmount(() => clearTimeout(searchTimer))
+watch(filter, resetPage)
 
 const filterOptions = computed(() => [
   { value: 'upcoming', label: 'Upcoming', count: data.value?.counts.upcoming ?? 0 },

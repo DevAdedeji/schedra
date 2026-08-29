@@ -26,7 +26,7 @@ const { data, refresh, status, error: loadFailure }
 const entitlement = computed(() => data.value?.entitlement)
 const invoices = computed(() => data.value?.invoices ?? [])
 const seatBilling = computed(() => data.value?.seatBilling)
-const initialLoading = computed(() => status.value === 'pending' && !data.value)
+const { initialLoading } = useListLoadingState(status, data)
 const seatMismatch = computed(() => Boolean(
   entitlement.value
   && (seatBilling.value?.billedSeats ?? 0) !== entitlement.value.seatsUsed

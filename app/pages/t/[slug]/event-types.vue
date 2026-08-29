@@ -10,6 +10,7 @@ import {
 } from '~/services/schedra-api'
 import { formatMoney } from '#shared/payments'
 import { compactActionMenuUi } from '~/utils/action-menu'
+import { DEFAULT_LIST_PAGE_SIZE } from '~/constants/lists'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 
@@ -28,28 +29,20 @@ useSeoMeta({
 
 const filter = ref<'all' | 'active' | 'hidden'>('all')
 const page = ref(1)
-const listQuery = computed(() => ({ filter: filter.value, page: page.value, pageSize: 10 }))
+const listQuery = computed(() => ({ filter: filter.value, page: page.value, pageSize: DEFAULT_LIST_PAGE_SIZE }))
 
 const { data, refresh, status, error: loadFailure }
   = await useLazyFetch<TeamEventTypesResponse>(() => teamEventTypesApi.listEndpoint(slug.value), { query: listQuery })
 
-const memberPage = ref(1)
-const memberSearchInput = ref('')
-const memberSearch = ref('')
-let memberSearchTimer: ReturnType<typeof setTimeout> | undefined
-
-watch(memberSearchInput, (value) => {
-  clearTimeout(memberSearchTimer)
-  memberSearchTimer = setTimeout(() => {
-    memberSearch.value = value.trim()
-    memberPage.value = 1
-  }, 250)
-})
-onBeforeUnmount(() => clearTimeout(memberSearchTimer))
+const {
+  page: memberPage,
+  query: memberSearchInput,
+  search: memberSearch
+} = useListQueryState()
 
 const membersQuery = computed(() => ({
   page: memberPage.value,
-  pageSize: 10,
+  pageSize: DEFAULT_LIST_PAGE_SIZE,
   search: memberSearch.value
 }))
 const {
@@ -65,8 +58,7 @@ const {
 const list = computed(() => data.value?.items ?? [])
 const memberList = computed(() => members.value?.items ?? [])
 const permissions = computed(() => team.value?.permissions)
-const initialLoading = computed(() => status.value === 'pending' && !data.value)
-const refreshing = computed(() => status.value === 'pending' && Boolean(data.value))
+const { initialLoading, refreshing } = useListLoadingState(status, data)
 
 watch(filter, () => {
   page.value = 1

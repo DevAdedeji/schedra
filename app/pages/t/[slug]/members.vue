@@ -9,6 +9,8 @@ import {
   type TeamMembersResponse
 } from '~/services/schedra-api'
 import { compactActionMenuUi } from '~/utils/action-menu'
+import { DEFAULT_LIST_PAGE_SIZE } from '~/constants/lists'
+import { getInitials } from '~/utils/text'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 
@@ -26,18 +28,16 @@ useSeoMeta({
 })
 
 const filter = ref<'all' | 'owner' | 'admin' | 'member'>('all')
-const query = ref('')
-const search = ref('')
-const page = ref(1)
+const { query, search, page, resetPage } = useListQueryState()
 
 const membersQuery = computed(() => ({
-  filter: filter.value, search: search.value, page: page.value, pageSize: 10
+  filter: filter.value, search: search.value, page: page.value, pageSize: DEFAULT_LIST_PAGE_SIZE
 }))
 const { data: members, refresh: refreshMembers, status, error: membersFailure }
   = await useLazyFetch<TeamMembersResponse>(() => teamsApi.membersEndpoint(slug.value), { query: membersQuery })
 
 const invitationPage = ref(1)
-const invitationsQuery = computed(() => ({ page: invitationPage.value, pageSize: 10 }))
+const invitationsQuery = computed(() => ({ page: invitationPage.value, pageSize: DEFAULT_LIST_PAGE_SIZE }))
 const { data: invitations, refresh: refreshInvitations }
   = await useLazyFetch<TeamInvitationsResponse>(() => teamsApi.invitationsEndpoint(slug.value), {
     query: invitationsQuery,
@@ -48,9 +48,8 @@ const permissions = computed(() => team.value?.permissions)
 const entitlement = computed(() => team.value?.entitlement)
 const list = computed(() => members.value?.items ?? [])
 const pendingInvites = computed(() => invitations.value?.items ?? [])
-const initialLoading = computed(() => status.value === 'pending' && !members.value)
-const refreshing = computed(() => status.value === 'pending' && Boolean(members.value))
-const blockingFailure = computed(() => Boolean((membersFailure.value || teamFailure.value) && !members.value))
+const combinedFailure = computed(() => membersFailure.value || teamFailure.value)
+const { initialLoading, refreshing, blockingFailure } = useListLoadingState(status, members, combinedFailure)
 
 watch(() => invitations.value?.pagination.totalPages, (totalPages) => {
   if (totalPages && invitationPage.value > totalPages) invitationPage.value = totalPages
@@ -60,18 +59,7 @@ watch(() => permissions.value?.inviteMembers, (allowed) => {
   if (allowed) refreshInvitations()
 }, { immediate: true })
 
-let searchTimer: ReturnType<typeof setTimeout> | undefined
-watch(query, (value) => {
-  clearTimeout(searchTimer)
-  searchTimer = setTimeout(() => {
-    search.value = value.trim()
-    page.value = 1
-  }, 250)
-})
-watch(filter, () => {
-  page.value = 1
-})
-onBeforeUnmount(() => clearTimeout(searchTimer))
+watch(filter, resetPage)
 
 const filterOptions = computed(() => [
   { value: 'all', label: 'All', count: members.value?.counts.all ?? 0 },
@@ -91,10 +79,6 @@ const roleOptions = invitableRoles.map(role => ({
   label: role === 'admin' ? 'Admin' : 'Member',
   value: role
 }))
-
-function initials(name: string) {
-  return name.split(' ').map(part => part[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
-}
 
 const roleColor: Record<OrganizationRole, 'primary' | 'info' | 'neutral'> = {
   owner: 'primary',
@@ -374,7 +358,7 @@ async function retry() {
               class="size-full object-cover"
             >
             <template v-else>
-              {{ initials(member.name) }}
+              {{ getInitials(member.name) }}
             </template>
           </span>
 

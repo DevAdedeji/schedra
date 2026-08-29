@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { bookingsApi, eventTypesApi, schedulesApi, type BookingsResponse, type EventTypesResponse, type SchedulesResponse } from '~/services/schedra-api'
+import { DEFAULT_LIST_PAGE_SIZE } from '~/constants/lists'
+import { getInitials } from '~/utils/text'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 useSeoMeta({ title: 'Overview', robots: 'noindex, nofollow' })
@@ -9,7 +11,7 @@ const bookingsRequest = useLazyFetch<BookingsResponse>(bookingsApi.listEndpoint,
   query: { filter: 'upcoming', pageSize: 3 }
 })
 const eventTypesRequest = useLazyFetch<EventTypesResponse>(eventTypesApi.listEndpoint, { query: { pageSize: 1 } })
-const schedulesRequest = useLazyFetch<SchedulesResponse>(schedulesApi.listEndpoint, { query: { pageSize: 10 } })
+const schedulesRequest = useLazyFetch<SchedulesResponse>(schedulesApi.listEndpoint, { query: { pageSize: DEFAULT_LIST_PAGE_SIZE } })
 const [
   { data },
   { data: bookings, status: bookingsStatus, error: bookingsFailure, refresh: refreshBookings },
@@ -56,10 +58,6 @@ function when(iso: string) {
   return new Intl.DateTimeFormat('en-GB', {
     weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: viewerTimeZone.value
   }).format(new Date(iso))
-}
-
-function initials(name: string) {
-  return name.split(' ').map(part => part[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
 }
 
 async function copyBookingPage() {
@@ -247,7 +245,7 @@ async function copyBookingPage() {
                 :to="`/booking/${booking.uid}`"
                 class="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-muted"
               >
-                <span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[13px] font-semibold text-primary">{{ initials(booking.attendeeName) }}</span>
+                <span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[13px] font-semibold text-primary">{{ getInitials(booking.attendeeName) }}</span>
                 <div class="min-w-0 flex-1"><p class="truncate text-[15px] font-semibold text-highlighted">{{ booking.eventTitle }}</p><p class="mt-0.5 truncate text-[13px] text-muted">{{ booking.attendeeName }} · {{ when(booking.startsAt) }}</p></div>
                 <UIcon
                   name="i-lucide-chevron-right"

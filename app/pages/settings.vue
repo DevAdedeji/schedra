@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { accountApi, apiErrorMessage, profileApi } from '~/services/schedra-api'
+import { getInitials } from '~/utils/text'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 useSeoMeta({ title: 'Settings', robots: 'noindex, nofollow' })
@@ -89,8 +90,7 @@ async function deleteAccount() {
   }
 }
 
-const initials = computed(() => (profile.name || '')
-  .split(' ').map(part => part[0]).filter(Boolean).slice(0, 2).join('').toUpperCase())
+const initials = computed(() => getInitials(profile.name))
 </script>
 
 <template>

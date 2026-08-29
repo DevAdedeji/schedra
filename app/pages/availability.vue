@@ -2,15 +2,14 @@
 import { apiErrorMessage, schedulesApi, type SchedulesResponse } from '~/services/schedra-api'
 import type { ScheduleRecord } from '~/types/schedule'
 import { compactActionMenuUi } from '~/utils/action-menu'
+import { DEFAULT_LIST_PAGE_SIZE } from '~/constants/lists'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 useSeoMeta({ title: 'Availability schedules', robots: 'noindex, nofollow' })
 
-const query = ref('')
-const search = ref('')
 const filter = ref<'all' | 'default'>('all')
-const page = ref(1)
-const apiQuery = computed(() => ({ filter: filter.value, search: search.value, page: page.value, pageSize: 10 }))
+const { query, search, page, resetPage } = useListQueryState()
+const apiQuery = computed(() => ({ filter: filter.value, search: search.value, page: page.value, pageSize: DEFAULT_LIST_PAGE_SIZE }))
 const { data, refresh, status, error: loadFailure } = await useLazyFetch<SchedulesResponse>(schedulesApi.listEndpoint, { query: apiQuery })
 const feedback = useFeedback()
 const zones = Intl.supportedValuesOf('timeZone')
@@ -32,22 +31,9 @@ const filterOptions = computed(() => [
 ])
 const filtered = computed(() => [...(data.value?.items ?? [])]
   .sort((a, b) => Number(b.isDefault) - Number(a.isDefault) || a.name.localeCompare(b.name)))
-const initialLoading = computed(() => status.value === 'pending' && !data.value)
-const refreshing = computed(() => status.value === 'pending' && Boolean(data.value))
-const blockingFailure = computed(() => Boolean(loadFailure.value && !data.value))
+const { initialLoading, refreshing, blockingFailure } = useListLoadingState(status, data, loadFailure)
 
-let searchTimer: ReturnType<typeof setTimeout> | undefined
-watch(query, (value) => {
-  clearTimeout(searchTimer)
-  searchTimer = setTimeout(() => {
-    search.value = value.trim()
-    page.value = 1
-  }, 250)
-})
-watch(filter, () => {
-  page.value = 1
-})
-onBeforeUnmount(() => clearTimeout(searchTimer))
+watch(filter, resetPage)
 
 onMounted(() => {
   draft.timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone

@@ -10,8 +10,7 @@ const { data, status, error, refresh } = await useLazyFetch<AnalyticsResponse>(
   { query: computed(() => ({ days: days.value, eventTypeId: eventTypeId.value || undefined })) }
 )
 
-const initialLoading = computed(() => status.value === 'pending' && !data.value)
-const refreshing = computed(() => status.value === 'pending' && Boolean(data.value))
+const { initialLoading, refreshing } = useListLoadingState(status, data)
 const maxDaily = computed(() => Math.max(1, ...((data.value?.daily ?? []).map(item => item.value))))
 const sourceTotal = computed(() => (data.value?.sources.hosted ?? 0) + (data.value?.sources.embed ?? 0))
 const options = computed(() => [
