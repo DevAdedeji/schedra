@@ -101,6 +101,45 @@ describe.skipIf(!url)('operations and durable webhooks', () => {
     expect(alerts[0]!.last_notified_at).toBeNull()
   })
 
+  it('keeps a checked alert hidden until the incident clears, then surfaces a new incident', async () => {
+    await sql`
+      insert into webhook_deliveries (
+        provider, provider_event_id, event_type, status, attempts, last_error
+      ) values ('bachs', 'checked-incident', 'invoice.paid', 'failed', 1, 'failed')
+    `
+    const { evaluateOperationsAlerts } = await import('../services/operations-alerts')
+    const { acknowledgeOperationsAlert } = await import('../services/operations')
+    await evaluateOperationsAlerts()
+    const [active] = await sql<{ id: string }[]>`
+      select id from operations_alerts where key = 'webhook-failed'
+    `
+    await expect(acknowledgeOperationsAlert(active!.id)).resolves.toBe(true)
+    await evaluateOperationsAlerts()
+    await expect(sql<{ status: string }[]>`
+      select status from operations_alerts where key = 'webhook-failed'
+    `).resolves.toMatchObject([{ status: 'acknowledged' }])
+
+    await sql`
+      update webhook_deliveries
+      set status = 'completed', processed_at = now()
+      where provider_event_id = 'checked-incident'
+    `
+    await evaluateOperationsAlerts()
+    await expect(sql<{ status: string }[]>`
+      select status from operations_alerts where key = 'webhook-failed'
+    `).resolves.toMatchObject([{ status: 'resolved' }])
+
+    await sql`
+      insert into webhook_deliveries (
+        provider, provider_event_id, event_type, status, attempts, last_error
+      ) values ('bachs', 'new-incident', 'invoice.paid', 'failed', 1, 'failed')
+    `
+    await evaluateOperationsAlerts()
+    await expect(sql<{ status: string }[]>`
+      select status from operations_alerts where key = 'webhook-failed'
+    `).resolves.toMatchObject([{ status: 'active' }])
+  })
+
   it('enqueues one notification for an active incident instead of repeating it', async () => {
     process.env.OPERATIONS_ALERT_EMAILS = 'ops@example.com'
     const { resetEnv } = await import('../config/env')

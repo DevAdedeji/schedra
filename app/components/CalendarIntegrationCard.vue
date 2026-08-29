@@ -160,7 +160,36 @@ watch(() => props.refreshSignal, async (next, previous) => {
 </script>
 
 <template>
-  <section class="flex min-h-56 flex-col rounded-xl border border-default bg-default p-5">
+  <IntegrationCardSkeleton v-if="status === 'pending' && !connection" />
+  <section
+    v-else-if="connectionFailure && !connection"
+    class="flex min-h-56 flex-col items-center justify-center rounded-xl border border-error/20 bg-default p-5 text-center"
+  >
+    <UIcon
+      name="i-lucide-cloud-alert"
+      class="size-5 text-error"
+    />
+    <h2 class="mt-3 text-[14px] font-semibold text-highlighted">
+      Could not check {{ name }}
+    </h2>
+    <p class="mt-1 text-[12px] text-muted">
+      Try loading its connection status again.
+    </p>
+    <UButton
+      color="neutral"
+      variant="outline"
+      size="sm"
+      icon="i-lucide-refresh-cw"
+      class="mt-4"
+      @click="retryConnection"
+    >
+      Try again
+    </UButton>
+  </section>
+  <section
+    v-else
+    class="flex min-h-56 flex-col rounded-xl border border-default bg-default p-5"
+  >
     <div class="flex items-start justify-between gap-3">
       <span class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-black/5">
         <UIcon

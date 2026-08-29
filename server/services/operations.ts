@@ -1,4 +1,4 @@
-import { and, count, desc, eq, sql } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, sql } from 'drizzle-orm'
 import { paginationMeta } from '#shared/pagination'
 import {
   automationRuns,
@@ -91,6 +91,24 @@ export async function operationsOverview() {
       lastSeenAt: alert.lastSeenAt.toISOString()
     }))
   }
+}
+
+export async function acknowledgeOperationsAlert(id: string) {
+  const db = useDatabase()
+  const [alert] = await db.update(operationsAlerts).set({
+    status: 'acknowledged',
+    updatedAt: new Date()
+  }).where(and(
+    eq(operationsAlerts.id, id),
+    eq(operationsAlerts.status, 'active')
+  )).returning({ id: operationsAlerts.id })
+  if (alert) return true
+  const [existing] = await db.select({ id: operationsAlerts.id }).from(operationsAlerts)
+    .where(and(
+      eq(operationsAlerts.id, id),
+      inArray(operationsAlerts.status, ['acknowledged', 'resolved'])
+    )).limit(1)
+  return Boolean(existing)
 }
 
 function statusWhere<TStatus extends string>(column: Parameters<typeof eq>[0], status: OperationStatus, mapping: Record<string, TStatus>) {

@@ -12,6 +12,7 @@ const props = defineProps<{ teamSlug?: string, canManage?: boolean }>()
 const feedback = useFeedback()
 const { data: currentUser } = await useCurrentUser()
 const { host } = useSiteUrl()
+const { copy, isCopied } = useCopy()
 const { data, refresh, status, error: loadFailure } = await useLazyFetch<RoutingFormsResponse>(
   () => routingFormsApi.listEndpoint(props.teamSlug)
 )
@@ -163,8 +164,9 @@ function publicPath(item: { slug: string }) {
 }
 
 async function copyLink(item: RoutingFormSummary) {
-  await navigator.clipboard.writeText(`${host.value}${publicPath(item)}`)
-  feedback.success({ title: 'Routing link copied' })
+  const written = await copy(`${host.value}${publicPath(item)}`, item.id)
+  if (written) feedback.success({ title: 'Routing link copied' })
+  else feedback.error({ title: 'Could not copy routing link' })
 }
 
 function routingActions(item: RoutingFormSummary) {
@@ -176,8 +178,8 @@ function routingActions(item: RoutingFormSummary) {
     target?: string
     color?: 'error'
   }> = [{
-    label: 'Copy link',
-    icon: 'i-lucide-copy',
+    label: isCopied(item.id) ? 'Copied' : 'Copy link',
+    icon: isCopied(item.id) ? 'i-lucide-check' : 'i-lucide-copy',
     onSelect: async () => { await copyLink(item) }
   }, {
     label: 'Open public form',

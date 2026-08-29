@@ -367,9 +367,10 @@ async function reject(uid: string) {
                     </UButton>
                     <UButton
                       v-if="isUpcoming(item) && !['cancelled', 'rejected'].includes(item.status)"
-                      color="neutral"
-                      variant="ghost"
+                      color="error"
+                      variant="soft"
                       size="sm"
+                      icon="i-lucide-calendar-x-2"
                       :loading="cancelling === item.uid"
                       class="font-medium"
                       @click="cancel(item.uid)"

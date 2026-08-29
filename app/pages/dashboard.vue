@@ -18,6 +18,7 @@ const [
 ] = await Promise.all([currentUserRequest, bookingsRequest, eventTypesRequest, schedulesRequest])
 const { url, host } = useSiteUrl()
 const { copied, copy } = useCopy()
+const feedback = useFeedback()
 
 const user = computed(() => data.value?.user)
 const link = computed(() => `${host.value}/${user.value?.username ?? ''}`)
@@ -59,6 +60,12 @@ function when(iso: string) {
 
 function initials(name: string) {
   return name.split(' ').map(part => part[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
+}
+
+async function copyBookingPage() {
+  const written = await copy(`${url.value}/${user.value?.username ?? ''}`)
+  if (written) feedback.success({ title: 'Booking link copied' })
+  else feedback.error({ title: 'Could not copy booking link' })
 }
 </script>
 
@@ -134,18 +141,22 @@ function initials(name: string) {
           </p>
           <button
             type="button"
-            class="mt-5 flex w-full max-w-2xl items-center gap-3 rounded-xl border border-default bg-muted px-4 py-3.5 text-left transition-colors hover:border-primary"
+            class="mt-5 flex w-full max-w-2xl items-center gap-3 rounded-xl border px-4 py-3.5 text-left transition-colors"
+            :class="copied ? 'border-success/30 bg-success/10' : 'border-default bg-muted hover:border-primary'"
             :aria-label="`Copy ${link}`"
-            @click="copy(`${url}/${user?.username ?? ''}`)"
+            @click="copyBookingPage"
           >
-            <span class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><UIcon
-              name="i-lucide-link"
+            <span
+              class="flex size-8 shrink-0 items-center justify-center rounded-lg"
+              :class="copied ? 'bg-success/15 text-success' : 'bg-primary/10 text-primary'"
+            ><UIcon
+              :name="copied ? 'i-lucide-check' : 'i-lucide-link'"
               class="size-4"
             /></span>
             <span class="min-w-0 flex-1 truncate text-[14px] font-medium text-highlighted">{{ link }}</span>
             <span
               class="flex items-center gap-1.5 text-[12px]"
-              :class="copied ? 'text-primary' : 'text-muted'"
+              :class="copied ? 'text-success' : 'text-muted'"
             ><UIcon
               :name="copied ? 'i-lucide-check' : 'i-lucide-copy'"
               class="size-4"

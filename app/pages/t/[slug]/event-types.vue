@@ -17,7 +17,7 @@ const route = useRoute()
 const slug = computed(() => String(route.params.slug ?? ''))
 const feedback = useFeedback()
 const { host, url: siteUrl } = useSiteUrl()
-const { copy } = useCopy()
+const { copy, isCopied } = useCopy()
 
 const { data: team } = await useLazyFetch<TeamDetail>(() => teamsApi.detailEndpoint(slug.value))
 
@@ -110,7 +110,7 @@ function publicUrl(eventType: TeamEventTypeRecord) {
 }
 
 async function copyLink(eventType: TeamEventTypeRecord) {
-  const written = await copy(publicUrl(eventType))
+  const written = await copy(publicUrl(eventType), eventType.id)
   if (written) feedback.success({ title: 'Booking link copied' })
   else feedback.error({ title: 'Could not copy', description: 'Try again or copy the address shown on the event type.' })
 }
@@ -130,8 +130,8 @@ async function remove(eventType: TeamEventTypeRecord) {
 
 function actions(eventType: TeamEventTypeRecord) {
   const items = [{
-    label: 'Copy link',
-    icon: 'i-lucide-link',
+    label: isCopied(eventType.id) ? 'Copied' : 'Copy link',
+    icon: isCopied(eventType.id) ? 'i-lucide-check' : 'i-lucide-copy',
     onSelect: async () => { await copyLink(eventType) }
   }, {
     label: 'Embed on website',
@@ -292,16 +292,17 @@ function activeHosts(eventType: TeamEventTypeRecord) {
 
           <div class="flex items-center gap-1">
             <UButton
-              color="neutral"
-              variant="soft"
+              :color="isCopied(eventType.id) ? 'success' : 'neutral'"
+              variant="outline"
               size="xs"
-              class="h-7 px-2.5 text-[12px] font-medium"
+              :icon="isCopied(eventType.id) ? 'i-lucide-check' : 'i-lucide-copy'"
+              class="h-8 rounded-lg px-3 text-[12px] font-medium"
               :disabled="eventType.hidden"
               :title="eventType.hidden ? 'Publish this event type before sharing it' : 'Copy booking link'"
               :aria-label="eventType.hidden ? `Publish ${eventType.title} before copying its booking link` : `Copy booking link for ${eventType.title}`"
               @click="copyLink(eventType)"
             >
-              Copy link
+              {{ isCopied(eventType.id) ? 'Copied' : 'Copy link' }}
             </UButton>
             <UDropdownMenu
               :items="actions(eventType)"

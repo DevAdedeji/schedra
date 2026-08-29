@@ -5,12 +5,16 @@ import { operationsApi, paymentsApi, type PaymentActivityRecord, type PaymentAct
 const props = withDefaults(defineProps<{ teamSlug?: string, operations?: boolean }>(), { operations: false })
 const direction = ref<'all' | 'in' | 'out'>('all')
 const state = ref<'all' | 'pending' | 'succeeded' | 'failed' | 'expired'>('all')
+const from = ref('')
+const to = ref('')
 const query = ref('')
 const search = ref('')
 const page = ref(1)
 const apiQuery = computed(() => ({
   direction: direction.value,
   status: state.value,
+  from: from.value || undefined,
+  to: to.value || undefined,
   search: search.value,
   page: page.value,
   pageSize: 10
@@ -43,7 +47,7 @@ watch(query, (value) => {
     page.value = 1
   }, 250)
 })
-watch([direction, state], () => {
+watch([direction, state, from, to], () => {
   page.value = 1
 })
 onBeforeUnmount(() => clearTimeout(searchTimer))
@@ -51,6 +55,20 @@ onBeforeUnmount(() => clearTimeout(searchTimer))
 const statusColor = (value: PaymentActivityRecord['status']) => ({
   succeeded: 'success', pending: 'warning', failed: 'error', expired: 'neutral'
 } as const)[value]
+
+const hasFilters = computed(() => Boolean(
+  query.value || direction.value !== 'all' || state.value !== 'all' || from.value || to.value
+))
+
+function clearFilters() {
+  query.value = ''
+  search.value = ''
+  direction.value = 'all'
+  state.value = 'all'
+  from.value = ''
+  to.value = ''
+  page.value = 1
+}
 
 function amount(item: PaymentActivityRecord) {
   if (item.amountCents == null) return 'Amount unavailable'
@@ -76,7 +94,7 @@ function traceRows(item: PaymentActivityRecord) {
 
 <template>
   <section class="overflow-hidden rounded-2xl border border-default bg-default">
-    <header class="flex flex-col gap-5 border-b border-default p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between surface-secondary">
+    <header class="flex flex-col gap-5 border-b border-default p-5 sm:p-6 surface-secondary">
       <div>
         <div class="flex items-center gap-2">
           <span class="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -92,17 +110,19 @@ function traceRows(item: PaymentActivityRecord) {
         <p class="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
           {{ operations
             ? 'Trace checkouts, customer payments, fees, settlements and refunds. Amounts shown are only values confirmed by Bachs.'
-            : 'See successful customer payments and provider-reported settlement amounts for this payout account.' }}
+            : 'Track customer payments, refunds and provider-reported settlements for this payout account.' }}
         </p>
       </div>
       <div
-        class="grid gap-2 lg:w-auto"
-        :class="operations ? 'sm:grid-cols-[minmax(12rem,1fr)_10rem_10rem]' : 'sm:w-72'"
+        class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4"
+        :class="operations
+          ? 'xl:grid-cols-[minmax(14rem,1fr)_11rem_10rem_10rem_10rem_auto]'
+          : 'xl:grid-cols-[minmax(14rem,1fr)_11rem_10rem_10rem_auto]'"
       >
         <UInput
           v-model="query"
           icon="i-lucide-search"
-          placeholder="Guest, event or reference"
+          placeholder="Account, guest, event or reference"
           aria-label="Search payment activity"
         />
         <USelectMenu
@@ -113,12 +133,33 @@ function traceRows(item: PaymentActivityRecord) {
           aria-label="Filter by direction"
         />
         <USelectMenu
-          v-if="operations"
           v-model="state"
           :items="statusOptions"
           value-key="value"
           aria-label="Filter by status"
         />
+        <UInput
+          v-model="from"
+          type="date"
+          :max="to || undefined"
+          aria-label="Payments from date"
+        />
+        <UInput
+          v-model="to"
+          type="date"
+          :min="from || undefined"
+          aria-label="Payments to date"
+        />
+        <UButton
+          v-if="hasFilters"
+          color="neutral"
+          variant="ghost"
+          icon="i-lucide-x"
+          aria-label="Clear payment filters"
+          @click="clearFilters"
+        >
+          Clear
+        </UButton>
       </div>
     </header>
 
@@ -149,8 +190,8 @@ function traceRows(item: PaymentActivityRecord) {
     <ListEmptyState
       v-else-if="!data?.items.length"
       icon="i-lucide-receipt-text"
-      :title="query || (operations && (direction !== 'all' || state !== 'all')) ? 'No matching payment activity' : 'No payment activity yet'"
-      :description="query || (operations && (direction !== 'all' || state !== 'all')) ? 'Try another search or remove a filter.' : operations ? 'Paid booking checkouts and money movements will appear here.' : 'Successful payments and provider-reported settlements will appear here.'"
+      :title="hasFilters ? 'No matching payment activity' : 'No payment activity yet'"
+      :description="hasFilters ? 'Try another search or remove a filter.' : operations ? 'Paid booking checkouts and money movements will appear here.' : 'Customer payments, refunds and provider-reported settlements will appear here.'"
     />
     <template v-else>
       <ul

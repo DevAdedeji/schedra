@@ -538,7 +538,10 @@ export const operationsApi = {
   diagnostics: () => $fetch<OperationsDiagnostics>('/api/operations/diagnostics'),
   retry: (kind: OperationKind, id: string) => $fetch<{ retried: true }>('/api/operations/retry', {
     method: 'POST', body: { kind, id }
-  })
+  }),
+  acknowledgeAlert: (id: string) => $fetch<{ acknowledged: true }>(
+    `/api/operations/alerts/${encodeURIComponent(id)}/acknowledge`, { method: 'POST' }
+  )
 }
 
 export const zoomApi = {
