@@ -357,6 +357,7 @@ async function copySecret() {
         :page="data?.pagination.page ?? 1"
         :total-pages="data?.pagination.totalPages ?? 1"
         :total="data?.pagination.total ?? 0"
+        :page-size="data?.pagination.pageSize"
         :disabled="refreshing"
         @change="page = $event"
       />
@@ -546,23 +547,27 @@ async function copySecret() {
         </form>
       </template>
       <template #footer>
-        <div class="flex w-full justify-end gap-2">
-          <UButton
-            color="neutral"
-            variant="soft"
-            :disabled="saving"
-            @click="modalOpen = false"
-          >
-            Cancel
-          </UButton>
-          <UButton
-            type="submit"
-            form="workflow-form"
-            :loading="saving"
-          >
-            {{ editing ? 'Save changes' : 'Create workflow' }}
-          </UButton>
-        </div>
+        <ModalFooter>
+          <template #cancel>
+            <UButton
+              color="neutral"
+              variant="soft"
+              :disabled="saving"
+              @click="modalOpen = false"
+            >
+              Cancel
+            </UButton>
+          </template>
+          <template #actions>
+            <UButton
+              type="submit"
+              form="workflow-form"
+              :loading="saving"
+            >
+              {{ editing ? 'Save changes' : 'Create workflow' }}
+            </UButton>
+          </template>
+        </ModalFooter>
       </template>
     </UModal>
 

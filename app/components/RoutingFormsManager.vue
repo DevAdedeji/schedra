@@ -565,24 +565,28 @@ async function remove() {
         </form>
       </template>
       <template #footer>
-        <div class="flex w-full justify-end gap-2">
-          <UButton
-            color="neutral"
-            variant="soft"
-            :disabled="saving"
-            @click="modalOpen = false"
-          >
-            Cancel
-          </UButton>
-          <UButton
-            type="submit"
-            form="routing-form"
-            :loading="saving"
-            :disabled="loadingForm"
-          >
-            {{ editingId ? 'Save changes' : 'Create routing form' }}
-          </UButton>
-        </div>
+        <ModalFooter>
+          <template #cancel>
+            <UButton
+              color="neutral"
+              variant="soft"
+              :disabled="saving"
+              @click="modalOpen = false"
+            >
+              Cancel
+            </UButton>
+          </template>
+          <template #actions>
+            <UButton
+              type="submit"
+              form="routing-form"
+              :loading="saving"
+              :disabled="loadingForm"
+            >
+              {{ editingId ? 'Save changes' : 'Create routing form' }}
+            </UButton>
+          </template>
+        </ModalFooter>
       </template>
     </UModal>
 

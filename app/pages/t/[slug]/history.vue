@@ -135,6 +135,7 @@ function when(iso: string) {
         :page="data?.pagination.page ?? 1"
         :total-pages="data?.pagination.totalPages ?? 1"
         :total="data?.pagination.total ?? 0"
+        :page-size="data?.pagination.pageSize"
         :disabled="refreshing"
         @change="page = $event"
       />

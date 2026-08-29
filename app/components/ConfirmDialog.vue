@@ -4,11 +4,13 @@ const props = withDefaults(defineProps<{
   title: string
   description?: string
   confirmLabel?: string
+  cancelLabel?: string
   confirmColor?: 'primary' | 'error'
   loading?: boolean
 }>(), {
   description: '',
   confirmLabel: 'Confirm',
+  cancelLabel: 'Cancel',
   confirmColor: 'primary',
   loading: false
 })
@@ -35,25 +37,29 @@ const isOpen = computed({ get: () => props.open, set: value => emit('update:open
       <slot name="body" />
     </template>
     <template #footer>
-      <div class="flex w-full justify-end gap-2">
-        <slot name="actions">
+      <ModalFooter>
+        <template #cancel>
           <UButton
             color="neutral"
             variant="soft"
             :disabled="loading"
             @click="isOpen = false"
           >
-            Cancel
+            {{ cancelLabel }}
           </UButton>
-          <UButton
-            :color="confirmColor"
-            :loading="loading"
-            @click="emit('confirm')"
-          >
-            {{ confirmLabel }}
-          </UButton>
-        </slot>
-      </div>
+        </template>
+        <template #actions>
+          <slot name="actions">
+            <UButton
+              :color="confirmColor"
+              :loading="loading"
+              @click="emit('confirm')"
+            >
+              {{ confirmLabel }}
+            </UButton>
+          </slot>
+        </template>
+      </ModalFooter>
     </template>
   </UModal>
 </template>

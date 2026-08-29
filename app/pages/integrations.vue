@@ -391,15 +391,17 @@ async function disconnectZoom() {
         </template>
       </template>
       <template #footer>
-        <div class="flex w-full items-center gap-3">
-          <UButton
-            color="neutral"
-            variant="soft"
-            @click="zoomManageOpen = false"
-          >
-            Close
-          </UButton>
-        </div>
+        <ModalFooter>
+          <template #actions>
+            <UButton
+              color="neutral"
+              variant="soft"
+              @click="zoomManageOpen = false"
+            >
+              Close
+            </UButton>
+          </template>
+        </ModalFooter>
       </template>
     </UModal>
 
@@ -414,22 +416,27 @@ async function disconnectZoom() {
         </p>
       </template>
       <template #footer>
-        <div class="flex w-full justify-end gap-2">
-          <UButton
-            color="neutral"
-            variant="ghost"
-            :disabled="zoomDisconnecting"
-            @click="zoomDisconnectOpen = false"
-          >
-            Keep connected
-          </UButton><UButton
-            color="error"
-            :loading="zoomDisconnecting"
-            @click="disconnectZoom"
-          >
-            Disconnect
-          </UButton>
-        </div>
+        <ModalFooter>
+          <template #cancel>
+            <UButton
+              color="neutral"
+              variant="soft"
+              :disabled="zoomDisconnecting"
+              @click="zoomDisconnectOpen = false"
+            >
+              Keep connected
+            </UButton>
+          </template>
+          <template #actions>
+            <UButton
+              color="error"
+              :loading="zoomDisconnecting"
+              @click="disconnectZoom"
+            >
+              Disconnect
+            </UButton>
+          </template>
+        </ModalFooter>
       </template>
     </UModal>
   </div>

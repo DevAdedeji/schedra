@@ -227,22 +227,26 @@ async function copySnippet() {
     </template>
 
     <template #footer>
-      <div class="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-between">
-        <UButton
-          color="neutral"
-          variant="ghost"
-          @click="model = false"
-        >
-          Done
-        </UButton>
-        <UButton
-          :color="copied ? 'success' : 'primary'"
-          :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"
-          @click="copySnippet"
-        >
-          {{ copied ? 'Copied' : 'Copy embed code' }}
-        </UButton>
-      </div>
+      <ModalFooter>
+        <template #cancel>
+          <UButton
+            color="neutral"
+            variant="soft"
+            @click="model = false"
+          >
+            Done
+          </UButton>
+        </template>
+        <template #actions>
+          <UButton
+            :color="copied ? 'success' : 'primary'"
+            :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"
+            @click="copySnippet"
+          >
+            {{ copied ? 'Copied' : 'Copy embed code' }}
+          </UButton>
+        </template>
+      </ModalFooter>
     </template>
   </UModal>
 

@@ -51,9 +51,17 @@ const kinds: Array<{ value: OperationKind, label: string, icon: string }> = [
 ]
 
 const filters: OperationStatus[] = ['all', 'pending', 'processing', 'completed', 'failed', 'ignored']
-const visibleFilters = computed(() => filters.filter(value => (
-  kind.value === 'webhook' ? value !== 'pending' : value !== 'ignored'
-)))
+const statusOptions = computed(() => filters
+  .filter(value => (kind.value === 'webhook' ? value !== 'pending' : value !== 'ignored'))
+  .map(value => ({ value, label: value === 'all' ? 'All statuses' : `${value[0]!.toUpperCase()}${value.slice(1)}` })))
+
+// The tab a queue lives on is also where its failures are worth advertising, so
+// an operator never has to open each one to find the broken queue.
+const kindTabs = computed(() => kinds.map(item => ({
+  ...item,
+  failed: overview.value?.queues[item.value].failed ?? 0
+})))
+const activeKindLabel = computed(() => kinds.find(item => item.value === kind.value)?.label ?? '')
 
 const queueCards = computed(() => overview.value
   ? [
@@ -266,32 +274,35 @@ async function acknowledgeAlert(id: string) {
           <div
             v-for="alert in overview.alerts"
             :key="alert.id"
-            class="flex items-start gap-3 px-5 py-4"
+            class="flex flex-wrap items-start gap-3 px-5 py-4"
           >
             <UIcon
               :name="alert.severity === 'critical' ? 'i-lucide-circle-alert' : 'i-lucide-triangle-alert'"
               class="mt-0.5 size-4.5 shrink-0 text-error"
             />
-            <div class="min-w-0 flex-1">
-              <p class="text-[14px] font-medium text-highlighted">
-                {{ alert.summary }}
-              </p>
+            <div class="min-w-56 flex-1">
+              <div class="flex flex-wrap items-center gap-2">
+                <p class="text-[14px] font-medium text-highlighted">
+                  {{ alert.summary }}
+                </p>
+                <UBadge
+                  :label="alert.severity"
+                  color="error"
+                  variant="subtle"
+                  size="sm"
+                  class="capitalize"
+                />
+              </div>
               <p class="mt-1 text-[12px] text-muted">
                 Last detected {{ formatDate(alert.lastSeenAt) }}
               </p>
             </div>
-            <UBadge
-              :label="alert.severity"
-              color="error"
-              variant="subtle"
-              class="capitalize"
-            />
             <UButton
-              label="Checked"
-              icon="i-lucide-check"
+              label="Mark as checked"
               color="neutral"
               variant="outline"
-              size="xs"
+              size="sm"
+              class="shrink-0"
               :loading="acknowledgingId === alert.id"
               @click="acknowledgeAlert(alert.id)"
             />
@@ -408,32 +419,64 @@ async function acknowledgeAlert(id: string) {
       </section>
 
       <section class="overflow-hidden rounded-2xl border border-default bg-default">
-        <div class="border-b border-default p-4 sm:p-5 surface-secondary">
-          <div class="flex flex-wrap gap-2 border-b pb-2 border-default">
-            <UButton
-              v-for="item in kinds"
-              :key="item.value"
-              :label="item.label"
-              :icon="item.icon"
-              color="neutral"
-              :variant="kind === item.value ? 'soft' : 'ghost'"
-              :aria-pressed="kind === item.value"
-              @click="kind = item.value"
-            />
+        <header class="surface-secondary flex flex-wrap items-start justify-between gap-x-4 gap-y-2 border-b border-default px-5 py-4">
+          <div class="min-w-0">
+            <h2 class="text-[15px] font-semibold text-highlighted">
+              Operations log
+            </h2>
+            <p class="mt-0.5 text-[12px] text-muted">
+              Individual background jobs, newest first.
+            </p>
           </div>
-          <div class="mt-4 flex flex-wrap gap-2">
+          <p class="tnum shrink-0 text-[12px] text-dimmed">
+            {{ jobs?.pagination.total ?? 0 }} in {{ activeKindLabel.toLowerCase() }}
+          </p>
+        </header>
+
+        <div
+          class="surface-secondary overflow-x-auto border-b border-default"
+          role="tablist"
+          aria-label="Operation queue"
+        >
+          <div class="flex min-w-max px-2 sm:px-3">
             <button
-              v-for="value in visibleFilters"
-              :key="value"
+              v-for="item in kindTabs"
+              :key="item.value"
               type="button"
-              class="rounded-lg px-3 py-1.5 text-[12px] font-medium capitalize transition-colors"
-              :class="filter === value ? 'bg-primary/15 text-primary' : 'text-muted hover:bg-muted hover:text-highlighted'"
-              :aria-pressed="filter === value"
-              @click="filter = value"
+              role="tab"
+              :aria-selected="kind === item.value"
+              class="relative flex shrink-0 items-center gap-2 px-3 py-3 text-[13px] font-medium transition-colors"
+              :class="kind === item.value ? 'text-highlighted' : 'text-muted hover:text-toned'"
+              @click="kind = item.value"
             >
-              {{ value }}
+              <UIcon
+                :name="item.icon"
+                class="size-4 shrink-0"
+                :class="kind === item.value ? 'text-primary' : 'text-dimmed'"
+              />
+              {{ item.label }}
+              <span
+                v-if="item.failed"
+                class="tnum rounded-md bg-error/10 px-1.5 py-0.5 text-[10px] font-semibold text-error"
+              >{{ item.failed }}</span>
+              <!-- The rail sits on the container border so the active tab reads
+                   as continuous with the list it controls. -->
+              <span
+                v-if="kind === item.value"
+                class="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-primary"
+              />
             </button>
           </div>
+        </div>
+
+        <div class="border-b border-default px-3 py-2 sm:px-4">
+          <ListFilter
+            :model-value="filter"
+            :options="statusOptions"
+            :disabled="jobsStatus === 'pending'"
+            label="Filter operations by status"
+            @update:model-value="filter = $event as OperationStatus"
+          />
         </div>
 
         <AsyncErrorState
@@ -461,14 +504,15 @@ async function acknowledgeAlert(id: string) {
           description="This queue has no records with the selected status."
           class="border-0"
         />
-        <div
+        <ul
           v-else
           class="divide-y divide-default"
+          :class="jobsStatus === 'pending' && 'opacity-60'"
         >
-          <article
+          <li
             v-for="job in jobs.items"
             :key="job.id"
-            class="px-5 py-4"
+            class="px-5 py-4 transition-colors hover:bg-elevated/40"
           >
             <div class="flex items-start gap-3">
               <!-- A dot, not a badge: status is repeated in words beneath, so
@@ -485,8 +529,8 @@ async function acknowledgeAlert(id: string) {
                 </p>
                 <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted">
                   <span
-                    class="capitalize"
-                    :class="job.status === 'failed' && 'text-error'"
+                    class="font-medium capitalize"
+                    :class="job.delayed ? 'text-warning' : job.status === 'failed' ? 'text-error' : ''"
                   >{{ job.delayed ? 'delayed' : job.status }}</span>
                   <span class="text-dimmed">·</span>
                   <span :title="formatDate(job.updatedAt)">{{ ago(job.updatedAt) }}</span>
@@ -517,20 +561,18 @@ async function acknowledgeAlert(id: string) {
             >
               {{ job.lastError }}
             </p>
-          </article>
-        </div>
-        <div
-          v-if="jobs && jobs.pagination.totalPages > 1"
-          class="border-t border-default p-4"
-        >
-          <ListPagination
-            :page="page"
-            :total-pages="jobs.pagination.totalPages"
-            :total="jobs.pagination.total"
-            :disabled="jobsStatus === 'pending'"
-            @change="page = $event"
-          />
-        </div>
+          </li>
+        </ul>
+
+        <ListPagination
+          v-if="jobs"
+          :page="page"
+          :total-pages="jobs.pagination.totalPages"
+          :total="jobs.pagination.total"
+          :page-size="jobs.pagination.pageSize"
+          :disabled="jobsStatus === 'pending'"
+          @change="page = $event"
+        />
 
         <p class="flex flex-wrap items-center gap-x-1.5 gap-y-1 border-t border-default px-5 py-3 text-[11px] text-dimmed">
           <UIcon

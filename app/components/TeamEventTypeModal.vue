@@ -594,19 +594,18 @@ function initials(name: string) {
     </template>
 
     <template #footer>
-      <div class="flex w-full items-center justify-between gap-3">
-        <p class="min-w-0 truncate text-[12px] text-muted">
-          {{ valid ? '' : validationMessage }}
-        </p>
-        <div class="flex shrink-0 gap-2">
+      <ModalFooter :hint="valid ? undefined : validationMessage">
+        <template #cancel>
           <UButton
             color="neutral"
-            variant="ghost"
+            variant="soft"
             :disabled="saving"
             @click="isOpen = false"
           >
             Cancel
           </UButton>
+        </template>
+        <template #actions>
           <UButton
             type="submit"
             form="team-event-type-form"
@@ -615,8 +614,8 @@ function initials(name: string) {
           >
             {{ eventType ? 'Save changes' : 'Create' }}
           </UButton>
-        </div>
-      </div>
+        </template>
+      </ModalFooter>
     </template>
   </UModal>
 </template>
