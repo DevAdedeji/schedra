@@ -122,7 +122,7 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
         >
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">
-              <p class="truncate text-[14px] font-medium text-highlighted">
+              <p class="truncate text-[15px] font-medium text-highlighted">
                 {{ booking.eventTitle }}
               </p>
               <UBadge
@@ -133,19 +133,19 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
                 {{ booking.status }}
               </UBadge>
             </div>
-            <p class="mt-1 text-[13px] text-muted">
+            <p class="mt-1 text-[14px] text-muted">
               {{ when(booking.startsAt) }} · {{ booking.attendeeName }}
               <span class="text-dimmed">({{ booking.attendeeEmail }})</span>
             </p>
             <p
               v-if="booking.hosts.length"
-              class="mt-1 text-[12px] text-muted"
+              class="mt-1 text-[13px] text-muted"
             >
               Hosted by {{ booking.hosts.map(host => host.name).join(', ') }}
             </p>
             <p
               v-if="booking.cancellationReason"
-              class="mt-1 text-[12px] text-muted"
+              class="mt-1 text-[13px] text-muted"
             >
               {{ booking.cancellationReason }}
             </p>

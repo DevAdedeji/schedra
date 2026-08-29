@@ -46,7 +46,7 @@ const year = new Date().getFullYear()
       <div class="grid gap-12 py-16 sm:grid-cols-2 lg:grid-cols-[1.4fr_repeat(3,1fr)]">
         <div>
           <SchedraMark />
-          <p class="mt-5 max-w-[28ch] text-[15px] leading-relaxed text-muted">
+          <p class="mt-5 max-w-[28ch] text-[16px] leading-relaxed text-muted">
             Share a link, get booked. Focused scheduling with clear timezone
             handling and no advertising trackers.
           </p>
@@ -66,14 +66,14 @@ const year = new Date().getFullYear()
             >
               <NuxtLink
                 :to="link.to"
-                class="text-[14px] text-muted transition-colors hover:text-highlighted"
+                class="text-[15px] text-muted transition-colors hover:text-highlighted"
               >{{ link.label }}</NuxtLink>
             </li>
           </ul>
         </div>
       </div>
 
-      <div class="flex flex-col gap-2 border-t border-default py-6 text-[13px] text-dimmed sm:flex-row sm:items-center sm:justify-between">
+      <div class="flex flex-col gap-2 border-t border-default py-6 text-[14px] text-dimmed sm:flex-row sm:items-center sm:justify-between">
         <span>© {{ year }} Schedra</span>
         <span>No ads. No data resale. Free for your own booking page.</span>
       </div>

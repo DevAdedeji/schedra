@@ -16,10 +16,10 @@ withDefaults(defineProps<{
         class="size-5"
       />
     </span>
-    <h2 class="mt-5 text-[16px] font-semibold text-highlighted">
+    <h2 class="mt-5 text-[17px] font-semibold text-highlighted">
       {{ title }}
     </h2>
-    <p class="mx-auto mt-2 max-w-sm text-[13px] leading-relaxed text-muted">
+    <p class="mx-auto mt-2 max-w-sm text-[14px] leading-relaxed text-muted">
       {{ description }}
     </p>
     <div

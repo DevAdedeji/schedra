@@ -46,7 +46,7 @@ async function onSubmit(event: FormSubmitEvent<ResetPasswordInput>) {
     <h1 class="font-editorial text-[2.75rem] leading-[1.02] tracking-[-0.02em] text-highlighted">
       Link expired.
     </h1>
-    <p class="mt-4 text-[15px] leading-relaxed text-muted">
+    <p class="mt-4 text-[16px] leading-relaxed text-muted">
       Reset links work once and last an hour. Ask for a fresh one and it will
       arrive in a moment.
     </p>
@@ -65,7 +65,7 @@ async function onSubmit(event: FormSubmitEvent<ResetPasswordInput>) {
     <h1 class="font-editorial text-[2.75rem] leading-[1.02] tracking-[-0.02em] text-highlighted">
       New password.
     </h1>
-    <p class="mt-3 text-[15px] leading-relaxed text-muted">
+    <p class="mt-3 text-[16px] leading-relaxed text-muted">
       Pick something long. You'll be signed out everywhere else.
     </p>
 
@@ -99,7 +99,7 @@ async function onSubmit(event: FormSubmitEvent<ResetPasswordInput>) {
 
       <p
         v-if="error"
-        class="rounded-lg border border-error/30 bg-error/10 px-3.5 py-2.5 text-[13px] text-error"
+        class="rounded-lg border border-error/30 bg-error/10 px-3.5 py-2.5 text-[14px] text-error"
         role="alert"
       >
         {{ error }}

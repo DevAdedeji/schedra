@@ -283,7 +283,7 @@ async function remove() {
           </span>
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">
-              <p class="truncate text-[14px] font-semibold text-highlighted">
+              <p class="truncate text-[15px] font-semibold text-highlighted">
                 {{ item.title }}
               </p>
               <UBadge
@@ -294,10 +294,10 @@ async function remove() {
                 {{ item.active ? 'Live' : 'Inactive' }}
               </UBadge>
             </div>
-            <p class="mt-1 truncate text-[12px] text-muted">
+            <p class="mt-1 truncate text-[13px] text-muted">
               {{ publicPath(item) }}
             </p>
-            <p class="mt-1 text-[11px] text-dimmed">
+            <p class="mt-1 text-[12px] text-dimmed">
               {{ item.questions.length }} {{ item.questions.length === 1 ? 'question' : 'questions' }} ·
               {{ item.responseCount }} {{ item.responseCount === 1 ? 'response' : 'responses' }} ·
               fallback to {{ item.defaultEventTitle }}
@@ -383,10 +383,10 @@ async function remove() {
           <section class="space-y-4">
             <div class="flex items-start justify-between gap-4">
               <div>
-                <h3 class="text-[14px] font-semibold text-highlighted">
+                <h3 class="text-[15px] font-semibold text-highlighted">
                   Questions
                 </h3>
-                <p class="mt-1 text-[12px] text-muted">
+                <p class="mt-1 text-[13px] text-muted">
                   Multiple-choice answers keep routing fast and predictable.
                 </p>
               </div>
@@ -406,7 +406,7 @@ async function remove() {
               class="space-y-4 rounded-xl border border-default bg-muted/30 p-4"
             >
               <div class="flex items-center gap-3">
-                <span class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-[11px] font-semibold text-primary">{{ questionIndex + 1 }}</span>
+                <span class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-[12px] font-semibold text-primary">{{ questionIndex + 1 }}</span>
                 <UInput
                   v-model="question.label"
                   placeholder="What would you like to discuss?"
@@ -461,10 +461,10 @@ async function remove() {
           <section class="space-y-4">
             <div class="flex items-start justify-between gap-4">
               <div>
-                <h3 class="text-[14px] font-semibold text-highlighted">
+                <h3 class="text-[15px] font-semibold text-highlighted">
                   Routes
                 </h3>
-                <p class="mt-1 text-[12px] text-muted">
+                <p class="mt-1 text-[13px] text-muted">
                   Send a specific answer to a specific event type.
                 </p>
               </div>
@@ -480,7 +480,7 @@ async function remove() {
             </div>
             <p
               v-if="!form.rules.length"
-              class="rounded-xl border border-dashed border-default px-4 py-5 text-center text-[12px] text-muted"
+              class="rounded-xl border border-dashed border-default px-4 py-5 text-center text-[13px] text-muted"
             >
               No special routes yet. Every answer will use the fallback below.
             </p>
@@ -557,7 +557,7 @@ async function remove() {
 
           <p
             v-if="formError"
-            class="rounded-lg border border-error/30 bg-error/5 px-3 py-2.5 text-[12px] text-error"
+            class="rounded-lg border border-error/30 bg-error/5 px-3 py-2.5 text-[13px] text-error"
             role="alert"
           >
             {{ formError }}

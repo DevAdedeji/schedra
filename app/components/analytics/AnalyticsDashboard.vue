@@ -56,7 +56,7 @@ function sourcePercentage(value: number) {
               v-for="option in [7, 30, 90] as const"
               :key="option"
               type="button"
-              class="rounded-md px-3 py-1.5 text-[12px] font-medium transition-colors"
+              class="rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors"
               :class="days === option ? 'bg-elevated text-highlighted shadow-sm' : 'text-muted hover:text-highlighted'"
               :aria-pressed="days === option"
               @click="days = option"
@@ -98,7 +98,7 @@ function sourcePercentage(value: number) {
     <template v-else-if="data">
       <p
         v-if="data.scope === 'mine'"
-        class="rounded-xl border border-default bg-default px-4 py-3 text-[12px] text-muted"
+        class="rounded-xl border border-default bg-default px-4 py-3 text-[13px] text-muted"
       >
         You are seeing meetings assigned to you. Team owners and admins can see the whole workspace.
       </p>
@@ -109,7 +109,7 @@ function sourcePercentage(value: number) {
       >
         <article class="rounded-xl border border-default bg-default p-5">
           <div class="flex items-center justify-between">
-            <p class="text-[12px] font-medium text-muted">
+            <p class="text-[13px] font-medium text-muted">
               Total bookings
             </p>
             <UIcon
@@ -120,13 +120,13 @@ function sourcePercentage(value: number) {
           <p class="mt-4 text-3xl font-semibold tracking-tight text-highlighted">
             {{ data.summary.total }}
           </p>
-          <p class="mt-2 text-[11px] text-dimmed">
+          <p class="mt-2 text-[12px] text-dimmed">
             {{ changeLabel(data.summary.totalChange) }}
           </p>
         </article>
         <article class="rounded-xl border border-default bg-default p-5">
           <div class="flex items-center justify-between">
-            <p class="text-[12px] font-medium text-muted">
+            <p class="text-[13px] font-medium text-muted">
               Confirmed
             </p>
             <UIcon
@@ -137,13 +137,13 @@ function sourcePercentage(value: number) {
           <p class="mt-4 text-3xl font-semibold tracking-tight text-highlighted">
             {{ data.summary.confirmed }}
           </p>
-          <p class="mt-2 text-[11px] text-dimmed">
+          <p class="mt-2 text-[12px] text-dimmed">
             {{ changeLabel(data.summary.confirmedChange) }}
           </p>
         </article>
         <article class="rounded-xl border border-default bg-default p-5">
           <div class="flex items-center justify-between">
-            <p class="text-[12px] font-medium text-muted">
+            <p class="text-[13px] font-medium text-muted">
               Cancellation rate
             </p>
             <UIcon
@@ -154,13 +154,13 @@ function sourcePercentage(value: number) {
           <p class="mt-4 text-3xl font-semibold tracking-tight text-highlighted">
             {{ data.summary.cancellationRate }}%
           </p>
-          <p class="mt-2 text-[11px] text-dimmed">
+          <p class="mt-2 text-[12px] text-dimmed">
             {{ data.summary.cancelled }} cancelled or declined
           </p>
         </article>
         <article class="rounded-xl border border-default bg-default p-5">
           <div class="flex items-center justify-between">
-            <p class="text-[12px] font-medium text-muted">
+            <p class="text-[13px] font-medium text-muted">
               Average booking notice
             </p>
             <UIcon
@@ -171,7 +171,7 @@ function sourcePercentage(value: number) {
           <p class="mt-4 text-3xl font-semibold tracking-tight text-highlighted">
             {{ leadTime(data.summary.averageLeadHours) }}
           </p>
-          <p class="mt-2 text-[11px] text-dimmed">
+          <p class="mt-2 text-[12px] text-dimmed">
             Time between booking and meeting
           </p>
         </article>
@@ -183,10 +183,10 @@ function sourcePercentage(value: number) {
       >
         <header class="flex flex-wrap items-start justify-between gap-4 border-b border-default px-5 py-4">
           <div>
-            <h2 class="text-[14px] font-semibold text-highlighted">
+            <h2 class="text-[15px] font-semibold text-highlighted">
               Bookings over time
             </h2>
-            <p class="mt-1 text-[11px] text-muted">
+            <p class="mt-1 text-[12px] text-muted">
               Created bookings, shown in UTC.
             </p>
           </div>
@@ -213,10 +213,10 @@ function sourcePercentage(value: number) {
             name="i-lucide-chart-no-axes-combined"
             class="size-4"
           /></span>
-          <h3 class="mt-4 text-[14px] font-semibold text-highlighted">
+          <h3 class="mt-4 text-[15px] font-semibold text-highlighted">
             No bookings in this period
           </h3>
-          <p class="mt-1 max-w-sm text-[12px] text-muted">
+          <p class="mt-1 max-w-sm text-[13px] text-muted">
             Try a longer date range or choose all event types.
           </p>
         </div>
@@ -242,7 +242,7 @@ function sourcePercentage(value: number) {
             </div>
           </div>
           <div
-            class="mt-2 flex min-w-[44rem] justify-between text-[10px] text-dimmed"
+            class="mt-2 flex min-w-[44rem] justify-between text-[12px] text-dimmed"
             :style="{ minWidth: `${Math.max(704, data.daily.length * 14)}px` }"
           >
             <span>{{ shortDate(data.daily[0]!.date) }}</span>
@@ -253,10 +253,10 @@ function sourcePercentage(value: number) {
 
       <div class="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
         <section class="rounded-xl border border-default bg-default p-5">
-          <h2 class="text-[14px] font-semibold text-highlighted">
+          <h2 class="text-[15px] font-semibold text-highlighted">
             Where guests book
           </h2>
-          <p class="mt-1 text-[11px] text-muted">
+          <p class="mt-1 text-[12px] text-muted">
             Hosted pages compared with your website embed.
           </p>
           <div class="mt-6 space-y-5">
@@ -264,7 +264,7 @@ function sourcePercentage(value: number) {
               v-for="source in [{ label: 'Schedra pages', value: data.sources.hosted }, { label: 'Website embed', value: data.sources.embed }]"
               :key="source.label"
             >
-              <div class="flex justify-between text-[12px]">
+              <div class="flex justify-between text-[13px]">
                 <span class="font-medium text-highlighted">{{ source.label }}</span><span class="text-muted">{{ source.value }} · {{ sourcePercentage(source.value) }}%</span>
               </div>
               <div class="mt-2 h-2 overflow-hidden rounded-full bg-elevated">
@@ -276,7 +276,7 @@ function sourcePercentage(value: number) {
             </div>
           </div>
           <div class="mt-7 border-t border-default pt-5">
-            <p class="text-[12px] font-medium text-muted">
+            <p class="text-[13px] font-medium text-muted">
               Gross revenue
             </p>
             <div
@@ -297,7 +297,7 @@ function sourcePercentage(value: number) {
             >
               —
             </p>
-            <p class="mt-1 text-[11px] text-dimmed">
+            <p class="mt-1 text-[12px] text-dimmed">
               Paid bookings before Schedra, Bachs processing and withdrawal fees. Refunds are excluded.
             </p>
           </div>
@@ -305,16 +305,16 @@ function sourcePercentage(value: number) {
 
         <section class="overflow-hidden rounded-xl border border-default bg-default">
           <header class="border-b border-default px-5 py-4">
-            <h2 class="text-[14px] font-semibold text-highlighted">
+            <h2 class="text-[15px] font-semibold text-highlighted">
               Event type performance
             </h2>
-            <p class="mt-1 text-[11px] text-muted">
+            <p class="mt-1 text-[12px] text-muted">
               Your ten most-booked event types in this period.
             </p>
           </header>
           <div
             v-if="!data.eventTypes.length"
-            class="px-5 py-12 text-center text-[12px] text-muted"
+            class="px-5 py-12 text-center text-[13px] text-muted"
           >
             Performance appears after your first booking.
           </div>
@@ -323,7 +323,7 @@ function sourcePercentage(value: number) {
             class="overflow-x-auto"
           >
             <table class="w-full min-w-[32rem] text-left">
-              <thead class="border-b border-default text-[10px] uppercase tracking-wide text-dimmed">
+              <thead class="border-b border-default text-[12px] uppercase tracking-wide text-dimmed">
                 <tr>
                   <th class="px-5 py-3 font-medium">
                     Event type
@@ -336,7 +336,7 @@ function sourcePercentage(value: number) {
                   </th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-default text-[12px]">
+              <tbody class="divide-y divide-default text-[13px]">
                 <tr
                   v-for="item in data.eventTypes"
                   :key="item.id"

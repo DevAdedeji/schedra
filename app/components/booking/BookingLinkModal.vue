@@ -170,11 +170,11 @@ async function copyCreated() {
           />
         </div>
         <div class="rounded-xl border border-default bg-muted p-4">
-          <p class="break-all font-mono text-[13px] leading-relaxed text-highlighted">
+          <p class="break-all font-mono text-[14px] leading-relaxed text-highlighted">
             {{ createdUrl }}
           </p>
         </div>
-        <div class="flex items-start gap-2 rounded-xl border border-default px-4 py-3 text-[12px] leading-relaxed text-muted">
+        <div class="flex items-start gap-2 rounded-xl border border-default px-4 py-3 text-[13px] leading-relaxed text-muted">
           <UIcon
             name="i-lucide-shield-check"
             class="mt-0.5 size-4 shrink-0 text-primary"
@@ -199,8 +199,8 @@ async function copyCreated() {
             :class="kind === option.value ? 'bg-default shadow-sm' : 'hover:bg-default/60'"
             @click="chooseKind(option.value)"
           >
-            <span class="block text-[13px] font-semibold text-highlighted">{{ option.label }}</span>
-            <span class="mt-0.5 block text-[11px] text-muted">{{ option.description }}</span>
+            <span class="block text-[14px] font-semibold text-highlighted">{{ option.label }}</span>
+            <span class="mt-0.5 block text-[12px] text-muted">{{ option.description }}</span>
           </button>
         </div>
 
@@ -220,10 +220,10 @@ async function copyCreated() {
           v-else-if="!eventOptions.length"
           class="rounded-xl border border-default px-4 py-4"
         >
-          <p class="text-[13px] font-semibold text-highlighted">
+          <p class="text-[14px] font-semibold text-highlighted">
             Create an event type first
           </p>
-          <p class="mt-1 text-[12px] leading-relaxed text-muted">
+          <p class="mt-1 text-[13px] leading-relaxed text-muted">
             Meeting links reuse an event type's duration, location and booking rules.
           </p>
           <UButton
@@ -258,7 +258,7 @@ async function copyCreated() {
           v-if="selectedEvent?.locationReady === false"
           class="flex items-start justify-between gap-3 rounded-xl border border-warning/25 bg-warning/10 px-4 py-3"
         >
-          <div class="flex min-w-0 items-start gap-2 text-[12px] leading-relaxed text-warning">
+          <div class="flex min-w-0 items-start gap-2 text-[13px] leading-relaxed text-warning">
             <UIcon
               name="i-lucide-triangle-alert"
               class="mt-0.5 size-4 shrink-0"
@@ -314,10 +314,10 @@ async function copyCreated() {
           <div class="border-b border-default px-4 py-3.5">
             <div class="flex items-center justify-between gap-3">
               <div>
-                <h3 class="text-[13px] font-semibold text-highlighted">
+                <h3 class="text-[14px] font-semibold text-highlighted">
                   Times your guest can choose
                 </h3>
-                <p class="mt-0.5 text-[11px] text-muted">
+                <p class="mt-0.5 text-[12px] text-muted">
                   Shown in {{ availability?.timeZone ?? 'your schedule timezone' }}.
                 </p>
               </div>
@@ -356,7 +356,7 @@ async function copyCreated() {
               :key="date"
               class="grid gap-2 sm:grid-cols-[7rem_1fr]"
             >
-              <p class="pt-2 text-[12px] font-medium text-muted">
+              <p class="pt-2 text-[13px] font-medium text-muted">
                 {{ dayLabel(date) }}
               </p>
               <div class="flex flex-wrap gap-2">
@@ -364,7 +364,7 @@ async function copyCreated() {
                   v-for="slot in slots"
                   :key="slot.start"
                   type="button"
-                  class="min-h-9 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors"
+                  class="min-h-9 rounded-lg border px-3 py-1.5 text-[13px] font-medium transition-colors"
                   :class="selectedStarts.includes(slot.start) ? 'border-primary bg-primary text-inverted' : 'border-default text-toned hover:border-primary'"
                   :aria-pressed="selectedStarts.includes(slot.start)"
                   @click="toggleSlot(slot.start)"
@@ -376,7 +376,7 @@ async function copyCreated() {
           </div>
           <p
             v-else
-            class="px-4 py-10 text-center text-[13px] text-muted"
+            class="px-4 py-10 text-center text-[14px] text-muted"
           >
             No available times in the next 30 days.
           </p>
@@ -384,7 +384,7 @@ async function copyCreated() {
 
         <p
           v-if="submitError"
-          class="rounded-lg border border-error/30 bg-error/10 px-3.5 py-3 text-[13px] text-error"
+          class="rounded-lg border border-error/30 bg-error/10 px-3.5 py-3 text-[14px] text-error"
           role="alert"
         >
           {{ submitError }}

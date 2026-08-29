@@ -356,10 +356,10 @@ async function save() {
                 class="size-4"
               /></span>
               <div>
-                <h3 class="text-[14px] font-semibold text-highlighted">
+                <h3 class="text-[15px] font-semibold text-highlighted">
                   Event details
                 </h3>
-                <p class="mt-0.5 text-[12px] text-muted">
+                <p class="mt-0.5 text-[13px] text-muted">
                   What guests see when they open your link.
                 </p>
               </div>
@@ -438,10 +438,10 @@ async function save() {
                 class="size-4"
               /></span>
               <div>
-                <h3 class="text-[14px] font-semibold text-highlighted">
+                <h3 class="text-[15px] font-semibold text-highlighted">
                   Meeting location
                 </h3>
-                <p class="mt-0.5 text-[12px] text-muted">
+                <p class="mt-0.5 text-[13px] text-muted">
                   Make it obvious how guests should join or find you.
                 </p>
               </div>
@@ -465,7 +465,7 @@ async function save() {
                 v-if="selectedGeneratedProvider && !selectedGeneratedProvider.connected"
                 class="flex items-center justify-between gap-3 rounded-lg border border-default bg-muted px-4 py-3"
               >
-                <p class="text-[12px] leading-relaxed text-muted">
+                <p class="text-[13px] leading-relaxed text-muted">
                   {{ selectedGeneratedProvider.unavailable }}
                 </p>
                 <UButton
@@ -536,9 +536,9 @@ async function save() {
                   class="size-4"
                 /></span>
                 <span class="min-w-0 flex-1">
-                  <span class="block text-[14px] font-semibold text-highlighted">Availability &amp; limits</span>
+                  <span class="block text-[15px] font-semibold text-highlighted">Availability &amp; limits</span>
                   <span
-                    class="mt-0.5 block truncate text-[12px]"
+                    class="mt-0.5 block truncate text-[13px]"
                     :class="form.scheduleId ? 'text-muted' : 'text-error'"
                   >{{ sectionSummaries.availability }}</span>
                 </span>
@@ -556,8 +556,8 @@ async function save() {
                 <div class="rounded-xl border border-default bg-muted/40 sm:col-span-2">
                   <label class="flex cursor-pointer items-start justify-between gap-4 px-4 py-4">
                     <span>
-                      <span class="block text-[13px] font-medium text-highlighted">Let several guests join the same time</span>
-                      <span class="mt-0.5 block text-[12px] text-muted">Useful for classes, webinars, office hours and group sessions.</span>
+                      <span class="block text-[14px] font-medium text-highlighted">Let several guests join the same time</span>
+                      <span class="mt-0.5 block text-[13px] text-muted">Useful for classes, webinars, office hours and group sessions.</span>
                     </span>
                     <USwitch
                       v-model="groupEventEnabled"
@@ -640,8 +640,8 @@ async function save() {
                 <div class="rounded-xl border border-default bg-muted/40 sm:col-span-2">
                   <label class="flex cursor-pointer items-start justify-between gap-4 px-4 py-4">
                     <span>
-                      <span class="block text-[13px] font-medium text-highlighted">Add time between meetings</span>
-                      <span class="mt-0.5 block text-[12px] text-muted">Protect time to prepare or wrap up.</span>
+                      <span class="block text-[14px] font-medium text-highlighted">Add time between meetings</span>
+                      <span class="mt-0.5 block text-[13px] text-muted">Protect time to prepare or wrap up.</span>
                     </span>
                     <USwitch
                       v-model="breaksEnabled"
@@ -693,8 +693,8 @@ async function save() {
                 <div class="rounded-xl border border-default bg-muted/40 sm:col-span-2">
                   <label class="flex cursor-pointer items-start justify-between gap-4 px-4 py-4">
                     <span>
-                      <span class="block text-[13px] font-medium text-highlighted">Limit bookings per day</span>
-                      <span class="mt-0.5 block text-[12px] text-muted">Stop offering times after this event reaches its daily limit.</span>
+                      <span class="block text-[14px] font-medium text-highlighted">Limit bookings per day</span>
+                      <span class="mt-0.5 block text-[13px] text-muted">Stop offering times after this event reaches its daily limit.</span>
                     </span>
                     <USwitch
                       v-model="dailyLimitEnabled"
@@ -723,9 +723,9 @@ async function save() {
               </div>
               <div class="surface-secondary flex flex-wrap items-center justify-between gap-3 border-t border-default px-5 py-4">
                 <div>
-                  <p class="text-[13px] font-medium text-highlighted">
+                  <p class="text-[14px] font-medium text-highlighted">
                     {{ selectedSchedule?.name ?? 'Availability schedule' }}
-                  </p><p class="mt-0.5 text-[12px] text-muted">
+                  </p><p class="mt-0.5 text-[13px] text-muted">
                     {{ selectedSchedule ? `${selectedSchedule.timeZone.replace(/_/g, ' ')} · ${selectedSchedule.rules.length} weekly windows` : 'Available times come from Availability.' }}
                   </p>
                 </div>
@@ -756,8 +756,8 @@ async function save() {
                   class="size-4"
                 /></span>
                 <span class="min-w-0 flex-1">
-                  <span class="block text-[14px] font-semibold text-highlighted">Guest questions</span>
-                  <span class="mt-0.5 block truncate text-[12px] text-muted">{{ sectionSummaries.questions }}</span>
+                  <span class="block text-[15px] font-semibold text-highlighted">Guest questions</span>
+                  <span class="mt-0.5 block truncate text-[13px] text-muted">{{ sectionSummaries.questions }}</span>
                 </span>
                 <UIcon
                   name="i-lucide-chevron-down"
@@ -772,7 +772,7 @@ async function save() {
                 class="border-t border-default"
               >
                 <div class="flex flex-col gap-3 border-b border-default px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                  <p class="text-[12px] leading-relaxed text-muted">
+                  <p class="text-[13px] leading-relaxed text-muted">
                     Name and email are always requested. Add up to 10 of your own.
                   </p>
                   <UButton
@@ -798,7 +798,7 @@ async function save() {
                     class="rounded-xl border border-default bg-muted p-4"
                   >
                     <div class="flex items-center justify-between gap-3">
-                      <p class="text-[12px] font-semibold text-muted">
+                      <p class="text-[13px] font-semibold text-muted">
                         Question {{ questionIndex + 1 }}
                       </p>
                       <div class="flex items-center gap-0.5">
@@ -867,7 +867,7 @@ async function save() {
                       class="mt-4 rounded-lg border border-default bg-default p-3"
                     >
                       <div class="flex items-center justify-between gap-3">
-                        <p class="text-[12px] font-medium text-toned">
+                        <p class="text-[13px] font-medium text-toned">
                           Choices
                         </p>
                         <UButton
@@ -908,7 +908,7 @@ async function save() {
                       </div>
                     </div>
 
-                    <label class="mt-4 flex cursor-pointer items-center gap-2.5 text-[13px] text-toned">
+                    <label class="mt-4 flex cursor-pointer items-center gap-2.5 text-[14px] text-toned">
                       <UCheckbox v-model="question.required" />
                       Guests must answer this question
                     </label>
@@ -923,10 +923,10 @@ async function save() {
                     name="i-lucide-message-circle-question"
                     class="mx-auto size-5 text-dimmed"
                   />
-                  <p class="mt-2 text-[13px] font-medium text-toned">
+                  <p class="mt-2 text-[14px] font-medium text-toned">
                     No extra questions
                   </p>
-                  <p class="mx-auto mt-1 max-w-sm text-[12px] leading-relaxed text-muted">
+                  <p class="mx-auto mt-1 max-w-sm text-[13px] leading-relaxed text-muted">
                     Guests will only provide their name, email and optional notes.
                   </p>
                 </div>
@@ -946,8 +946,8 @@ async function save() {
                   class="size-4"
                 /></span>
                 <span class="min-w-0 flex-1">
-                  <span class="block text-[14px] font-semibold text-highlighted">Reminders</span>
-                  <span class="mt-0.5 block truncate text-[12px] text-muted">{{ sectionSummaries.notifications }}</span>
+                  <span class="block text-[15px] font-semibold text-highlighted">Reminders</span>
+                  <span class="mt-0.5 block truncate text-[13px] text-muted">{{ sectionSummaries.notifications }}</span>
                 </span>
                 <UIcon
                   name="i-lucide-chevron-down"
@@ -966,7 +966,7 @@ async function save() {
                     aria-label="Send a reminder one day before"
                     @update:model-value="toggleReminder(1440, Boolean($event))"
                   />
-                  <span class="text-[13px] text-toned">1 day before</span>
+                  <span class="text-[14px] text-toned">1 day before</span>
                 </label>
                 <label class="flex cursor-pointer items-center gap-3 rounded-lg border border-default bg-muted/40 px-3.5 py-3">
                   <UCheckbox
@@ -974,7 +974,7 @@ async function save() {
                     aria-label="Send a reminder one hour before"
                     @update:model-value="toggleReminder(60, Boolean($event))"
                   />
-                  <span class="text-[13px] text-toned">1 hour before</span>
+                  <span class="text-[14px] text-toned">1 hour before</span>
                 </label>
               </div>
             </section>
@@ -992,8 +992,8 @@ async function save() {
                   class="size-4"
                 /></span>
                 <span class="min-w-0 flex-1">
-                  <span class="block text-[14px] font-semibold text-highlighted">Payments</span>
-                  <span class="mt-0.5 block truncate text-[12px] text-muted">{{ sectionSummaries.payments }}</span>
+                  <span class="block text-[15px] font-semibold text-highlighted">Payments</span>
+                  <span class="mt-0.5 block truncate text-[13px] text-muted">{{ sectionSummaries.payments }}</span>
                 </span>
                 <UIcon
                   name="i-lucide-chevron-down"
@@ -1008,11 +1008,11 @@ async function save() {
               >
                 <label class="flex cursor-pointer items-start justify-between gap-5 border-b border-default px-5 py-5">
                   <span>
-                    <span class="flex items-center gap-2 text-[14px] font-semibold text-highlighted"><UIcon
+                    <span class="flex items-center gap-2 text-[15px] font-semibold text-highlighted"><UIcon
                       name="i-lucide-credit-card"
                       class="size-4 text-muted"
                     />Require payment</span>
-                    <span class="mt-1.5 block max-w-xl text-[12px] leading-relaxed text-muted">Guests pay during checkout. Their time is confirmed only after Schedra verifies payment.</span>
+                    <span class="mt-1.5 block max-w-xl text-[13px] leading-relaxed text-muted">Guests pay during checkout. Their time is confirmed only after Schedra verifies payment.</span>
                   </span>
                   <USwitch
                     v-model="paidBookingEnabled"
@@ -1024,7 +1024,7 @@ async function save() {
                   v-if="!paymentAccount?.ready && !form.paymentEnabled"
                   class="surface-secondary flex flex-wrap items-center justify-between gap-3 px-5 py-4"
                 >
-                  <p class="text-[12px] text-muted">
+                  <p class="text-[13px] text-muted">
                     {{ paymentAccount?.status === 'pending_review'
                       ? 'Bachs is reviewing your payout account. Paid bookings stay disabled until transfers and payouts are approved.'
                       : 'Complete your payout account in Bachs before charging for bookings.' }}
@@ -1042,7 +1042,7 @@ async function save() {
                 </div>
                 <div
                   v-else-if="form.paymentEnabled && !paymentAccount?.ready"
-                  class="surface-secondary flex items-center gap-2 px-5 py-4 text-[12px] text-warning"
+                  class="surface-secondary flex items-center gap-2 px-5 py-4 text-[13px] text-warning"
                 >
                   <UIcon
                     name="i-lucide-shield-alert"
@@ -1097,8 +1097,8 @@ async function save() {
                   class="size-4"
                 /></span>
                 <span class="min-w-0 flex-1">
-                  <span class="block text-[14px] font-semibold text-highlighted">Approval &amp; visibility</span>
-                  <span class="mt-0.5 block truncate text-[12px] text-muted">{{ sectionSummaries.rules }}</span>
+                  <span class="block text-[15px] font-semibold text-highlighted">Approval &amp; visibility</span>
+                  <span class="mt-0.5 block truncate text-[13px] text-muted">{{ sectionSummaries.rules }}</span>
                 </span>
                 <UIcon
                   name="i-lucide-chevron-down"
@@ -1113,11 +1113,11 @@ async function save() {
               >
                 <label class="flex cursor-pointer items-start justify-between gap-5 border-b border-default px-5 py-5">
                   <span>
-                    <span class="flex items-center gap-2 text-[14px] font-semibold text-highlighted"><UIcon
+                    <span class="flex items-center gap-2 text-[15px] font-semibold text-highlighted"><UIcon
                       name="i-lucide-shield-question"
                       class="size-4 text-muted"
                     />Approve bookings first</span>
-                    <span class="mt-1.5 block max-w-xl text-[12px] leading-relaxed text-muted">Hold each requested time until you approve or decline it. Guests are told that their booking is awaiting confirmation.</span>
+                    <span class="mt-1.5 block max-w-xl text-[13px] leading-relaxed text-muted">Hold each requested time until you approve or decline it. Guests are told that their booking is awaiting confirmation.</span>
                   </span>
                   <USwitch
                     v-model="form.requiresConfirmation"
@@ -1127,11 +1127,11 @@ async function save() {
                 </label>
                 <label class="flex cursor-pointer items-start justify-between gap-5 px-5 py-5">
                   <span>
-                    <span class="flex items-center gap-2 text-[14px] font-semibold text-highlighted"><UIcon
+                    <span class="flex items-center gap-2 text-[15px] font-semibold text-highlighted"><UIcon
                       name="i-lucide-eye-off"
                       class="size-4 text-muted"
                     />Hide from public profile</span>
-                    <span class="mt-1.5 block max-w-xl text-[12px] leading-relaxed text-muted">Keep this event private while you finish setting it up. Existing bookings are unaffected.</span>
+                    <span class="mt-1.5 block max-w-xl text-[13px] leading-relaxed text-muted">Keep this event private while you finish setting it up. Existing bookings are unaffected.</span>
                   </span>
                   <USwitch
                     v-model="form.hidden"
@@ -1144,7 +1144,7 @@ async function save() {
 
           <p
             v-if="error"
-            class="order-9 rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-[13px] text-error"
+            class="order-9 rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-[14px] text-error"
             role="alert"
           >
             {{ error }}

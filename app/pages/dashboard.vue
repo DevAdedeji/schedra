@@ -117,7 +117,7 @@ async function copyBookingPage() {
 
       <div
         v-else-if="overviewRefreshing"
-        class="flex items-center gap-2 rounded-lg border border-default bg-default px-4 py-2 text-[11px] text-muted"
+        class="flex items-center gap-2 rounded-lg border border-default bg-default px-4 py-2 text-[12px] text-muted"
         role="status"
         aria-live="polite"
       >
@@ -130,13 +130,13 @@ async function copyBookingPage() {
 
       <section class="grid overflow-hidden rounded-xl border border-default bg-default lg:grid-cols-[minmax(0,1fr)_18rem]">
         <div class="px-5 py-6 sm:px-6">
-          <p class="text-[11px] font-semibold uppercase tracking-[0.1em] text-dimmed">
+          <p class="text-[12px] font-semibold uppercase tracking-[0.1em] text-dimmed">
             Your booking link
           </p>
           <h2 class="mt-2 text-[18px] font-semibold text-highlighted">
             Ready when you are.
           </h2>
-          <p class="mt-1 max-w-xl text-[13px] leading-relaxed text-muted">
+          <p class="mt-1 max-w-xl text-[14px] leading-relaxed text-muted">
             Share one link and let guests choose from every active event type.
           </p>
           <button
@@ -153,9 +153,9 @@ async function copyBookingPage() {
               :name="copied ? 'i-lucide-check' : 'i-lucide-link'"
               class="size-4"
             /></span>
-            <span class="min-w-0 flex-1 truncate text-[14px] font-medium text-highlighted">{{ link }}</span>
+            <span class="min-w-0 flex-1 truncate text-[15px] font-medium text-highlighted">{{ link }}</span>
             <span
-              class="flex items-center gap-1.5 text-[12px]"
+              class="flex items-center gap-1.5 text-[13px]"
               :class="copied ? 'text-success' : 'text-muted'"
             ><UIcon
               :name="copied ? 'i-lucide-check' : 'i-lucide-copy'"
@@ -171,10 +171,10 @@ async function copyBookingPage() {
             :name="activeEventTypeCount ? 'i-lucide-circle-check' : 'i-lucide-circle-alert'"
             class="size-4.5"
           /></span>
-          <p class="mt-3 text-[13px] font-semibold text-highlighted">
+          <p class="mt-3 text-[14px] font-semibold text-highlighted">
             {{ activeEventTypeCount ? 'Booking page is live' : 'No active booking links' }}
           </p>
-          <p class="mt-1 text-[11px] leading-relaxed text-muted">
+          <p class="mt-1 text-[12px] leading-relaxed text-muted">
             {{ activeEventTypeCount
               ? `${activeEventTypeCount} active ${activeEventTypeCount === 1 ? 'event type is' : 'event types are'} ready to share.`
               : 'Create an event type or make a hidden one active before sharing your page.' }}
@@ -199,7 +199,7 @@ async function copyBookingPage() {
           class="rounded-xl border border-default bg-default px-4 py-4 sm:px-5"
         >
           <div class="flex items-center justify-between gap-3">
-            <p class="text-[12px] font-medium text-muted">
+            <p class="text-[13px] font-medium text-muted">
               {{ stat.label }}
             </p><UIcon
               :name="stat.icon"
@@ -209,7 +209,7 @@ async function copyBookingPage() {
           <p class="tnum mt-3 text-[27px] font-semibold leading-none text-highlighted">
             {{ stat.value }}
           </p>
-          <p class="mt-2 hidden text-[11px] text-dimmed sm:block">
+          <p class="mt-2 hidden text-[12px] text-dimmed sm:block">
             {{ stat.hint }}
           </p>
         </div>
@@ -219,9 +219,9 @@ async function copyBookingPage() {
         <section class="overflow-hidden rounded-xl border border-default bg-default">
           <div class="flex items-center justify-between gap-4 border-b border-default px-5 py-4">
             <div>
-              <h2 class="text-[15px] font-semibold text-highlighted">
+              <h2 class="text-[16px] font-semibold text-highlighted">
                 Next up
-              </h2><p class="mt-0.5 text-[12px] text-muted">
+              </h2><p class="mt-0.5 text-[13px] text-muted">
                 The meetings that need your attention first.
               </p>
             </div>
@@ -247,8 +247,8 @@ async function copyBookingPage() {
                 :to="`/booking/${booking.uid}`"
                 class="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-muted"
               >
-                <span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[12px] font-semibold text-primary">{{ initials(booking.attendeeName) }}</span>
-                <div class="min-w-0 flex-1"><p class="truncate text-[14px] font-semibold text-highlighted">{{ booking.eventTitle }}</p><p class="mt-0.5 truncate text-[12px] text-muted">{{ booking.attendeeName }} · {{ when(booking.startsAt) }}</p></div>
+                <span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[13px] font-semibold text-primary">{{ initials(booking.attendeeName) }}</span>
+                <div class="min-w-0 flex-1"><p class="truncate text-[15px] font-semibold text-highlighted">{{ booking.eventTitle }}</p><p class="mt-0.5 truncate text-[13px] text-muted">{{ booking.attendeeName }} · {{ when(booking.startsAt) }}</p></div>
                 <UIcon
                   name="i-lucide-chevron-right"
                   class="size-4 shrink-0 text-dimmed"
@@ -281,9 +281,9 @@ async function copyBookingPage() {
           <section class="overflow-hidden rounded-xl border border-default bg-default">
             <div class="flex items-center justify-between border-b border-default px-5 py-4">
               <div>
-                <h2 class="text-[14px] font-semibold text-highlighted">
+                <h2 class="text-[15px] font-semibold text-highlighted">
                   Weekly availability
-                </h2><p class="mt-0.5 text-[11px] text-muted">
+                </h2><p class="mt-0.5 text-[12px] text-muted">
                   {{ schedule?.name }} · {{ schedule?.timeZone?.replace(/_/g, ' ') }}
                 </p>
               </div><UButton
@@ -303,25 +303,25 @@ async function copyBookingPage() {
                 :key="day.label"
                 class="text-center"
               >
-                <span class="text-[9px] font-semibold uppercase tracking-wide text-dimmed">{{ day.label }}</span><span
-                  class="mx-auto mt-2 flex size-8 items-center justify-center rounded-lg text-[10px] font-medium"
+                <span class="text-[12px] font-semibold uppercase tracking-wide text-dimmed">{{ day.label }}</span><span
+                  class="mx-auto mt-2 flex size-8 items-center justify-center rounded-lg text-[12px] font-medium"
                   :class="day.rules.length ? 'bg-primary/10 text-primary' : 'bg-muted text-dimmed'"
                 >{{ day.rules.length ? day.rules.length : '—' }}</span>
               </div>
             </div>
-            <p class="surface-secondary border-t border-default px-4 py-3 text-[11px] leading-relaxed text-muted">
+            <p class="surface-secondary border-t border-default px-4 py-3 text-[12px] leading-relaxed text-muted">
               Numbers show how many availability windows are open each day.
             </p>
           </section>
 
           <section class="rounded-xl border border-default bg-default p-5">
-            <h2 class="text-[14px] font-semibold text-highlighted">
+            <h2 class="text-[15px] font-semibold text-highlighted">
               Quick actions
             </h2>
             <div class="mt-3 grid gap-2">
               <NuxtLink
                 to="/event-types?create=1"
-                class="flex items-center gap-3 rounded-lg border border-default px-3.5 py-3 text-[13px] font-medium text-highlighted transition-colors hover:border-primary/40 hover:bg-muted"
+                class="flex items-center gap-3 rounded-lg border border-default px-3.5 py-3 text-[14px] font-medium text-highlighted transition-colors hover:border-primary/40 hover:bg-muted"
               ><UIcon
                 name="i-lucide-plus"
                 class="size-4 text-primary"
@@ -331,7 +331,7 @@ async function copyBookingPage() {
               /></NuxtLink>
               <NuxtLink
                 to="/availability"
-                class="flex items-center gap-3 rounded-lg border border-default px-3.5 py-3 text-[13px] font-medium text-highlighted transition-colors hover:border-primary/40 hover:bg-muted"
+                class="flex items-center gap-3 rounded-lg border border-default px-3.5 py-3 text-[14px] font-medium text-highlighted transition-colors hover:border-primary/40 hover:bg-muted"
               ><UIcon
                 name="i-lucide-calendar-range"
                 class="size-4 text-primary"

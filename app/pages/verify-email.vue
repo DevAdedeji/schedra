@@ -48,7 +48,7 @@ async function resend() {
     <h1 class="mt-7 font-editorial text-[2.75rem] leading-[1.02] tracking-[-0.02em] text-highlighted">
       Email confirmed.
     </h1>
-    <p class="mt-4 text-[15px] leading-relaxed text-muted">
+    <p class="mt-4 text-[16px] leading-relaxed text-muted">
       Your account is ready and your booking link is yours.
     </p>
 
@@ -73,7 +73,7 @@ async function resend() {
     <h1 class="mt-7 font-editorial text-[2.75rem] leading-[1.02] tracking-[-0.02em] text-highlighted">
       That link did not work.
     </h1>
-    <p class="mt-4 text-[15px] leading-relaxed text-muted">
+    <p class="mt-4 text-[16px] leading-relaxed text-muted">
       It may have expired or already been used. Send a fresh confirmation email
       and try the newest link.
     </p>
@@ -103,14 +103,14 @@ async function resend() {
 
       <p
         v-if="sent"
-        class="text-[13px] leading-relaxed text-muted"
+        class="text-[14px] leading-relaxed text-muted"
       >
         If this address belongs to an unverified account, a fresh link is on its way.
       </p>
 
       <p
         v-if="error"
-        class="text-[13px] text-error"
+        class="text-[14px] text-error"
         role="alert"
       >
         {{ error }}
@@ -130,7 +130,7 @@ async function resend() {
       Check your email.
     </h1>
 
-    <p class="mt-4 text-[15px] leading-relaxed text-muted">
+    <p class="mt-4 text-[16px] leading-relaxed text-muted">
       We sent a confirmation link to
       <span
         v-if="email"
@@ -139,7 +139,7 @@ async function resend() {
       <span v-else>your inbox</span>. Click it and your booking link goes live.
     </p>
 
-    <p class="mt-4 text-[14px] leading-relaxed text-dimmed">
+    <p class="mt-4 text-[15px] leading-relaxed text-dimmed">
       Your account is not usable until the address is confirmed — that way a
       typo can never lock you out of it.
     </p>
@@ -161,21 +161,21 @@ async function resend() {
 
       <p
         v-if="sent"
-        class="text-[13px] leading-relaxed text-muted"
+        class="text-[14px] leading-relaxed text-muted"
       >
         If this address belongs to an unverified account, a fresh link is on its way.
       </p>
 
       <p
         v-if="error"
-        class="text-[13px] text-error"
+        class="text-[14px] text-error"
         role="alert"
       >
         {{ error }}
       </p>
     </div>
 
-    <p class="mt-8 border-t border-default pt-6 text-[14px] text-muted">
+    <p class="mt-8 border-t border-default pt-6 text-[15px] text-muted">
       Wrong address?
       <NuxtLink
         to="/signup"

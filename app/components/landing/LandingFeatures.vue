@@ -16,7 +16,7 @@ import { landingFeatureHighlights as features } from '~/data/product-features'
           <h2 class="mt-6 font-editorial text-[clamp(2.25rem,5vw,3.5rem)] leading-[1.05] tracking-[-0.02em] text-highlighted">
             Everything you need. Nothing you don't.
           </h2>
-          <p class="mt-6 max-w-[38ch] text-[16px] leading-relaxed text-muted">
+          <p class="mt-6 max-w-[38ch] text-[17px] leading-relaxed text-muted">
             Start with scheduling, then add routing, automation, analytics or
             payments when the experience calls for them.
           </p>
@@ -37,10 +37,10 @@ import { landingFeatureHighlights as features } from '~/data/product-features'
             :key="title"
             class="grid gap-2 py-7 sm:grid-cols-[13rem_1fr] sm:gap-8"
           >
-            <dt class="text-[16px] font-semibold tracking-tight text-highlighted">
+            <dt class="text-[17px] font-semibold tracking-tight text-highlighted">
               {{ title }}
             </dt>
-            <dd class="text-[15px] leading-relaxed text-muted">
+            <dd class="text-[16px] leading-relaxed text-muted">
               {{ body }}
             </dd>
           </div>

@@ -243,7 +243,7 @@ async function leave() {
         </span>
         <div class="min-w-0 flex-1">
           <div class="flex flex-wrap items-center gap-2">
-            <h2 class="text-[14px] font-semibold text-highlighted">
+            <h2 class="text-[15px] font-semibold text-highlighted">
               Billing and plan
             </h2>
             <UBadge
@@ -254,7 +254,7 @@ async function leave() {
               {{ entitlement.status.replace('_', ' ') }}
             </UBadge>
           </div>
-          <p class="mt-1 text-[12px] leading-relaxed text-muted">
+          <p class="mt-1 text-[13px] leading-relaxed text-muted">
             <template v-if="entitlement.status === 'trialing'">
               {{ entitlement.daysLeftInTrial }} days remain in the trial.
             </template>
@@ -282,10 +282,10 @@ async function leave() {
         class="overflow-hidden rounded-xl border border-default bg-default"
       >
         <header class="border-b border-default px-5 py-4">
-          <h2 class="text-[14px] font-semibold text-highlighted">
+          <h2 class="text-[15px] font-semibold text-highlighted">
             Team profile
           </h2>
-          <p class="mt-1 text-[12px] text-muted">
+          <p class="mt-1 text-[13px] text-muted">
             The name and address people see on your public team booking page.
           </p>
         </header>
@@ -324,7 +324,7 @@ async function leave() {
             />
             <p
               v-if="availability && !availability.available"
-              class="mt-1.5 text-[12px] text-error"
+              class="mt-1.5 text-[13px] text-error"
             >
               {{ availability.message }}
             </p>
@@ -343,19 +343,19 @@ async function leave() {
 
       <section class="overflow-hidden rounded-xl border border-default bg-default">
         <header class="border-b border-default px-5 py-4">
-          <h2 class="text-[14px] font-semibold text-highlighted">
+          <h2 class="text-[15px] font-semibold text-highlighted">
             Your membership
           </h2>
         </header>
         <div class="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center">
           <div class="min-w-0 flex-1">
-            <p class="text-[13px] text-muted">
+            <p class="text-[14px] text-muted">
               You are {{ team.role === 'owner' ? 'the owner' : `an ${team.role}` }} of this team.
               Leaving does not touch your personal booking page, schedules or calendar.
             </p>
             <p
               v-if="team.role === 'owner'"
-              class="mt-2 text-[12px] text-muted"
+              class="mt-2 text-[13px] text-muted"
             >
               An owner cannot leave. Transfer ownership first, or archive the team.
             </p>
@@ -390,12 +390,12 @@ async function leave() {
         class="overflow-hidden rounded-xl border border-error/30 bg-default"
       >
         <header class="border-b border-error/20 px-5 py-4">
-          <h2 class="text-[14px] font-semibold text-highlighted">
+          <h2 class="text-[15px] font-semibold text-highlighted">
             Archive team
           </h2>
         </header>
         <div class="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center">
-          <p class="min-w-0 flex-1 text-[13px] leading-relaxed text-muted">
+          <p class="min-w-0 flex-1 text-[14px] leading-relaxed text-muted">
             Archiving closes the team for everyone and cancels upcoming team bookings, notifying their guests.
             Nothing is deleted — bookings, history and exports are retained, and the address stays reserved so
             nobody else can claim it.

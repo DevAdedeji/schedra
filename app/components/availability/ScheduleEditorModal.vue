@@ -187,7 +187,7 @@ async function save() {
             />
           </UFormField>
           <label class="flex cursor-pointer items-center justify-between gap-4 rounded-lg bg-muted px-4 py-3 sm:col-span-2">
-            <span><span class="block text-[13px] font-medium text-highlighted">Default schedule</span><span class="mt-0.5 block text-[11px] text-muted">New event types will use this schedule automatically.</span></span>
+            <span><span class="block text-[14px] font-medium text-highlighted">Default schedule</span><span class="mt-0.5 block text-[12px] text-muted">New event types will use this schedule automatically.</span></span>
             <USwitch
               v-model="isDefault"
               :disabled="schedule?.isDefault"
@@ -214,7 +214,7 @@ async function save() {
             </UButton>
             <p
               v-else
-              class="text-[11px] text-muted"
+              class="text-[12px] text-muted"
             >
               Add up to three windows per day
             </p>
@@ -239,7 +239,7 @@ async function save() {
                 <div class="min-w-0 flex-1">
                   <div class="flex min-h-8 items-center justify-between gap-2">
                     <p
-                      class="text-[13px] font-medium"
+                      class="text-[14px] font-medium"
                       :class="row.enabled ? 'text-highlighted' : 'text-dimmed'"
                     >
                       {{ row.label }}
@@ -274,7 +274,7 @@ async function save() {
                   </div>
                   <p
                     v-if="!row.enabled"
-                    class="mt-1 text-[11px] text-dimmed"
+                    class="mt-1 text-[12px] text-dimmed"
                   >
                     Unavailable
                   </p>
@@ -288,7 +288,7 @@ async function save() {
                       class="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto] items-center gap-2 sm:max-w-md"
                     >
                       <TimeSelect v-model="window.start" />
-                      <span class="text-[11px] text-dimmed">to</span>
+                      <span class="text-[12px] text-dimmed">to</span>
                       <TimeSelect v-model="window.end" />
                       <UButton
                         color="neutral"
@@ -303,7 +303,7 @@ async function save() {
                     </div>
                     <p
                       v-if="row.windows.some(window => window.end <= window.start)"
-                      class="text-[11px] text-error"
+                      class="text-[12px] text-error"
                     >
                       Finish must be after start.
                     </p>
@@ -328,9 +328,9 @@ async function save() {
                   class="size-4"
                 /></span>
                 <div class="min-w-0 flex-1">
-                  <p class="text-[13px] font-medium text-highlighted">
+                  <p class="text-[14px] font-medium text-highlighted">
                     {{ formatDate(override.date) }}
-                  </p><p class="mt-0.5 text-[11px] text-muted">
+                  </p><p class="mt-0.5 text-[12px] text-muted">
                     {{ override.start ? `${override.start}–${override.end}` : 'Unavailable all day' }}
                   </p>
                 </div>
@@ -365,7 +365,7 @@ async function save() {
         </section>
         <p
           v-if="error"
-          class="rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-[13px] text-error"
+          class="rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-[14px] text-error"
           role="alert"
         >
           {{ error }}
@@ -419,7 +419,7 @@ async function save() {
           <div class="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
             <button
               type="button"
-              class="rounded-md px-3 py-2 text-[13px] font-medium"
+              class="rounded-md px-3 py-2 text-[14px] font-medium"
               :class="!draftOverride.available ? 'bg-default text-highlighted shadow-sm' : 'text-muted'"
               @click="draftOverride.available = false"
             >
@@ -427,7 +427,7 @@ async function save() {
             </button>
             <button
               type="button"
-              class="rounded-md px-3 py-2 text-[13px] font-medium"
+              class="rounded-md px-3 py-2 text-[14px] font-medium"
               :class="draftOverride.available ? 'bg-default text-highlighted shadow-sm' : 'text-muted'"
               @click="draftOverride.available = true"
             >
@@ -440,13 +440,13 @@ async function save() {
           >
             <UFormField label="Start">
               <TimeSelect v-model="draftOverride.start" />
-            </UFormField><span class="pb-2 text-[11px] text-dimmed">to</span><UFormField label="Finish">
+            </UFormField><span class="pb-2 text-[12px] text-dimmed">to</span><UFormField label="Finish">
               <TimeSelect v-model="draftOverride.end" />
             </UFormField>
           </div>
           <p
             v-if="overrideError"
-            class="text-[13px] text-error"
+            class="text-[14px] text-error"
             role="alert"
           >
             {{ overrideError }}

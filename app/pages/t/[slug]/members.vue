@@ -232,7 +232,7 @@ async function retry() {
         name="i-lucide-circle-alert"
         class="size-4 shrink-0 text-error"
       />
-      <p class="min-w-0 flex-1 text-[13px] text-muted">
+      <p class="min-w-0 flex-1 text-[14px] text-muted">
         <span class="font-medium text-highlighted">This team is read-only.</span>
         Team booking pages are not taking new bookings. Everything is still here and exportable.
       </p>
@@ -246,7 +246,7 @@ async function retry() {
         name="i-lucide-receipt-text"
         class="mt-0.5 size-4 shrink-0 text-primary"
       />
-      <p class="text-[13px] leading-relaxed text-muted">
+      <p class="text-[14px] leading-relaxed text-muted">
         Pending invitations are free. When someone accepts, they become a paid member and the
         subscription is updated for the remaining time in your current billing period.
       </p>
@@ -257,10 +257,10 @@ async function retry() {
       class="overflow-hidden rounded-xl border border-default bg-default"
     >
       <header class="flex items-center justify-between gap-3 border-b border-default px-4 py-3 sm:px-5">
-        <h2 class="text-[13px] font-semibold text-highlighted">
+        <h2 class="text-[14px] font-semibold text-highlighted">
           Pending invitations
         </h2>
-        <span class="tnum rounded-md bg-muted px-1.5 py-0.5 text-[11px] text-dimmed">
+        <span class="tnum rounded-md bg-muted px-1.5 py-0.5 text-[12px] text-dimmed">
           {{ invitations?.pagination.total ?? pendingInvites.length }}
         </span>
       </header>
@@ -277,10 +277,10 @@ async function retry() {
             />
           </span>
           <div class="min-w-0 flex-1">
-            <p class="truncate text-[13px] font-medium text-highlighted">
+            <p class="truncate text-[14px] font-medium text-highlighted">
               {{ invite.email }}
             </p>
-            <p class="mt-0.5 text-[11px] text-muted">
+            <p class="mt-0.5 text-[12px] text-muted">
               Invited as {{ invite.role }} by {{ invite.inviterName }}
               <span v-if="invite.expired"> · expired</span>
             </p>
@@ -366,7 +366,7 @@ async function retry() {
           :key="member.id"
           class="flex items-center gap-3 px-4 py-4 sm:gap-4 sm:px-5"
         >
-          <span class="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-primary/10 text-[12px] font-semibold text-primary">
+          <span class="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-primary/10 text-[13px] font-semibold text-primary">
             <img
               v-if="member.avatarUrl"
               :src="member.avatarUrl"
@@ -380,7 +380,7 @@ async function retry() {
 
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">
-              <p class="truncate text-[14px] font-medium text-highlighted">
+              <p class="truncate text-[15px] font-medium text-highlighted">
                 {{ member.name }}
               </p>
               <UBadge
@@ -392,10 +392,10 @@ async function retry() {
               </UBadge>
               <span
                 v-if="member.isYou"
-                class="text-[11px] text-dimmed"
+                class="text-[12px] text-dimmed"
               >You</span>
             </div>
-            <p class="mt-0.5 truncate text-[12px] text-muted">
+            <p class="mt-0.5 truncate text-[13px] text-muted">
               {{ member.email }}
             </p>
           </div>
@@ -468,14 +468,14 @@ async function retry() {
               size="lg"
               class="w-full"
             />
-            <p class="mt-1.5 text-[12px] text-muted">
+            <p class="mt-1.5 text-[13px] text-muted">
               Admins can invite people and manage team event types. Ownership can only be transferred, never invited.
             </p>
           </UFormField>
 
           <p
             v-if="inviteError"
-            class="text-[13px] text-error"
+            class="text-[14px] text-error"
             role="alert"
           >
             {{ inviteError }}

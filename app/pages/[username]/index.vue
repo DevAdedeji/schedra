@@ -129,7 +129,7 @@ useSeoMeta({
               </p>
               <p
                 v-if="profile?.bio"
-                class="mt-3 text-[15px] leading-relaxed text-muted"
+                class="mt-3 text-[16px] leading-relaxed text-muted"
               >
                 {{ profile.bio }}
               </p>
@@ -145,16 +145,16 @@ useSeoMeta({
                 class="flex items-center justify-between gap-5 rounded-xl border border-default px-5 py-4 transition-colors hover:border-primary hover:bg-muted"
               >
                 <span class="min-w-0">
-                  <span class="block truncate text-[15px] font-semibold text-highlighted">
+                  <span class="block truncate text-[16px] font-semibold text-highlighted">
                     {{ type.title }}
                   </span>
-                  <span class="mt-0.5 block truncate text-[13px] text-muted">
+                  <span class="mt-0.5 block truncate text-[14px] text-muted">
                     {{ type.durationMinutes }} minutes
                     <template v-if="type.description">· {{ type.description }}</template>
                   </span>
                 </span>
 
-                <span class="shrink-0 rounded-full bg-primary px-4 py-1.5 text-[13px] font-medium text-white">
+                <span class="shrink-0 rounded-full bg-primary px-4 py-1.5 text-[14px] font-medium text-white">
                   Book
                 </span>
               </NuxtLink>

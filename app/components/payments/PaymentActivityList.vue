@@ -223,10 +223,10 @@ function traceRows(item: PaymentActivityRecord) {
                 </UFormField>
 
                 <fieldset>
-                  <legend class="text-[13px] font-medium text-highlighted">
+                  <legend class="text-[14px] font-medium text-highlighted">
                     When it happened
                   </legend>
-                  <p class="mt-0.5 text-[12px] leading-relaxed text-muted">
+                  <p class="mt-0.5 text-[13px] leading-relaxed text-muted">
                     Start and end of the range. Both match the date the money moved, not the date the booking is for.
                   </p>
                   <div class="mt-2.5 grid grid-cols-2 gap-2">
@@ -279,7 +279,7 @@ function traceRows(item: PaymentActivityRecord) {
           >
             <button
               type="button"
-              class="flex items-center gap-1.5 rounded-full border border-default bg-default py-1 pl-2.5 pr-2 text-[12px] text-toned transition-colors hover:border-error/40 hover:text-error"
+              class="flex items-center gap-1.5 rounded-full border border-default bg-default py-1 pl-2.5 pr-2 text-[13px] text-toned transition-colors hover:border-error/40 hover:text-error"
               :aria-label="`Remove filter: ${chip.label}`"
               @click="chip.clear()"
             >
@@ -364,7 +364,7 @@ function traceRows(item: PaymentActivityRecord) {
                 <p class="mt-1 truncate text-xs text-muted">
                   {{ item.eventTitle }} · {{ item.from }} → {{ item.to }}
                 </p>
-                <p class="mt-0.5 text-[11px] text-dimmed">
+                <p class="mt-0.5 text-[12px] text-dimmed">
                   {{ timestamp(item.occurredAt) }}
                 </p>
               </div>
@@ -392,7 +392,7 @@ function traceRows(item: PaymentActivityRecord) {
                   :key="label"
                   class="min-w-0"
                 >
-                  <dt class="text-[10px] font-medium uppercase tracking-wide text-dimmed">
+                  <dt class="text-[12px] font-medium uppercase tracking-wide text-dimmed">
                     {{ label }}
                   </dt>
                   <dd class="mt-1 break-all text-xs text-toned">

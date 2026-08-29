@@ -225,10 +225,10 @@ async function acknowledgeAlert(id: string) {
             ]"
           />
           <div class="min-w-0 flex-1">
-            <h2 class="text-[14px] font-semibold text-highlighted">
+            <h2 class="text-[15px] font-semibold text-highlighted">
               {{ systemState.label }}
             </h2>
-            <p class="mt-0.5 text-[12px] text-muted">
+            <p class="mt-0.5 text-[13px] text-muted">
               {{ systemState.description }}
             </p>
           </div>
@@ -240,7 +240,7 @@ async function acknowledgeAlert(id: string) {
             :key="stat.label"
             class="bg-default px-5 py-4"
           >
-            <dt class="text-[11px] font-medium uppercase tracking-wide text-dimmed">
+            <dt class="text-[12px] font-medium uppercase tracking-wide text-dimmed">
               {{ stat.label }}
             </dt>
             <dd
@@ -263,10 +263,10 @@ async function acknowledgeAlert(id: string) {
         class="overflow-hidden rounded-2xl border border-error/30 bg-error/5"
       >
         <div class="border-b border-error/20 px-5 py-4">
-          <h2 class="text-[15px] font-semibold text-highlighted">
+          <h2 class="text-[16px] font-semibold text-highlighted">
             Active alerts
           </h2>
-          <p class="mt-1 text-[13px] text-muted">
+          <p class="mt-1 text-[14px] text-muted">
             Grouped conditions that currently need attention.
           </p>
         </div>
@@ -282,7 +282,7 @@ async function acknowledgeAlert(id: string) {
             />
             <div class="min-w-56 flex-1">
               <div class="flex flex-wrap items-center gap-2">
-                <p class="text-[14px] font-medium text-highlighted">
+                <p class="text-[15px] font-medium text-highlighted">
                   {{ alert.summary }}
                 </p>
                 <UBadge
@@ -293,7 +293,7 @@ async function acknowledgeAlert(id: string) {
                   class="capitalize"
                 />
               </div>
-              <p class="mt-1 text-[12px] text-muted">
+              <p class="mt-1 text-[13px] text-muted">
                 Last detected {{ formatDate(alert.lastSeenAt) }}
               </p>
             </div>
@@ -322,7 +322,7 @@ async function acknowledgeAlert(id: string) {
               :name="queue.icon"
               class="size-4 shrink-0 text-dimmed"
             />
-            <h2 class="min-w-0 flex-1 truncate text-[13px] font-medium text-highlighted">
+            <h2 class="min-w-0 flex-1 truncate text-[14px] font-medium text-highlighted">
               {{ queue.label }}
             </h2>
           </div>
@@ -334,18 +334,18 @@ async function acknowledgeAlert(id: string) {
             class="mt-3 flex items-baseline gap-1.5"
           >
             <span class="text-[26px] font-semibold leading-none text-error">{{ queue.failed }}</span>
-            <span class="text-[12px] text-muted">failed</span>
+            <span class="text-[13px] text-muted">failed</span>
           </p>
           <p
             v-else-if="queue.stale"
             class="mt-3 flex items-baseline gap-1.5"
           >
             <span class="text-[26px] font-semibold leading-none text-warning">{{ queue.stale }}</span>
-            <span class="text-[12px] text-muted">delayed</span>
+            <span class="text-[13px] text-muted">delayed</span>
           </p>
           <p
             v-else
-            class="mt-3 flex items-center gap-1.5 text-[13px] text-muted"
+            class="mt-3 flex items-center gap-1.5 text-[14px] text-muted"
           >
             <UIcon
               name="i-lucide-check"
@@ -354,7 +354,7 @@ async function acknowledgeAlert(id: string) {
             Healthy
           </p>
 
-          <p class="mt-2.5 text-[11px] text-dimmed">
+          <p class="mt-2.5 text-[12px] text-dimmed">
             {{ queue.processing }} running · {{ queue.pending }} queued<template v-if="queue.failed && queue.stale">
               · {{ queue.stale }} delayed
             </template>
@@ -365,14 +365,14 @@ async function acknowledgeAlert(id: string) {
       <section class="overflow-hidden rounded-2xl border border-default surface-secondary">
         <header class="flex flex-wrap items-center justify-between gap-3 border-b border-default px-5 py-4">
           <div>
-            <h2 class="text-[14px] font-semibold text-highlighted">
+            <h2 class="text-[15px] font-semibold text-highlighted">
               Readiness
             </h2>
-            <p class="mt-0.5 text-[12px] text-muted">
+            <p class="mt-0.5 text-[13px] text-muted">
               Reported without exposing any credential.
             </p>
           </div>
-          <div class="flex flex-wrap items-center gap-2 text-[12px]">
+          <div class="flex flex-wrap items-center gap-2 text-[13px]">
             <span class="rounded-lg border border-default px-2.5 py-1 text-muted">
               Database <span class="font-medium text-highlighted">{{ diagnostics?.database.latencyMs ?? '—' }} ms</span>
             </span>
@@ -396,10 +396,10 @@ async function acknowledgeAlert(id: string) {
             :key="provider.key"
             class="flex items-center justify-between gap-3 bg-default px-5 py-3"
           >
-            <span class="min-w-0 truncate text-[13px] capitalize text-toned">{{ provider.label }}</span>
+            <span class="min-w-0 truncate text-[14px] capitalize text-toned">{{ provider.label }}</span>
             <span
               v-if="provider.configured"
-              class="flex shrink-0 items-center gap-1.5 text-[12px] text-muted"
+              class="flex shrink-0 items-center gap-1.5 text-[13px] text-muted"
             >
               <UIcon
                 name="i-lucide-check"
@@ -409,7 +409,7 @@ async function acknowledgeAlert(id: string) {
             </span>
             <span
               v-else
-              class="shrink-0 text-[12px]"
+              class="shrink-0 text-[13px]"
               :class="provider.optional ? 'text-dimmed' : 'text-warning'"
             >
               {{ provider.optional ? 'Not set up' : 'Missing' }}
@@ -421,14 +421,14 @@ async function acknowledgeAlert(id: string) {
       <section class="overflow-hidden rounded-2xl border border-default bg-default">
         <header class="surface-secondary flex flex-wrap items-start justify-between gap-x-4 gap-y-2 border-b border-default px-5 py-4">
           <div class="min-w-0">
-            <h2 class="text-[15px] font-semibold text-highlighted">
+            <h2 class="text-[16px] font-semibold text-highlighted">
               Operations log
             </h2>
-            <p class="mt-0.5 text-[12px] text-muted">
+            <p class="mt-0.5 text-[13px] text-muted">
               Individual background jobs, newest first.
             </p>
           </div>
-          <p class="tnum shrink-0 text-[12px] text-dimmed">
+          <p class="tnum shrink-0 text-[13px] text-dimmed">
             {{ jobs?.pagination.total ?? 0 }} in {{ activeKindLabel.toLowerCase() }}
           </p>
         </header>
@@ -445,7 +445,7 @@ async function acknowledgeAlert(id: string) {
               type="button"
               role="tab"
               :aria-selected="kind === item.value"
-              class="relative flex shrink-0 items-center gap-2 px-3 py-3 text-[13px] font-medium transition-colors"
+              class="relative flex shrink-0 items-center gap-2 px-3 py-3 text-[14px] font-medium transition-colors"
               :class="kind === item.value ? 'text-highlighted' : 'text-muted hover:text-toned'"
               @click="kind = item.value"
             >
@@ -457,7 +457,7 @@ async function acknowledgeAlert(id: string) {
               {{ item.label }}
               <span
                 v-if="item.failed"
-                class="tnum rounded-md bg-error/10 px-1.5 py-0.5 text-[10px] font-semibold text-error"
+                class="tnum rounded-md bg-error/10 px-1.5 py-0.5 text-[12px] font-semibold text-error"
               >{{ item.failed }}</span>
               <!-- The rail sits on the container border so the active tab reads
                    as continuous with the list it controls. -->
@@ -524,10 +524,10 @@ async function acknowledgeAlert(id: string) {
                     : job.status === 'processing' ? 'bg-info' : 'bg-dimmed'"
               />
               <div class="min-w-0 flex-1">
-                <p class="truncate text-[14px] font-medium text-highlighted">
+                <p class="truncate text-[15px] font-medium text-highlighted">
                   {{ job.label }}
                 </p>
-                <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted">
+                <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-muted">
                   <span
                     class="font-medium capitalize"
                     :class="job.delayed ? 'text-warning' : job.status === 'failed' ? 'text-error' : ''"
@@ -557,7 +557,7 @@ async function acknowledgeAlert(id: string) {
 
             <p
               v-if="job.lastError"
-              class="mt-2.5 ml-4.5 overflow-x-auto rounded-lg border border-error/20 bg-error/5 px-3 py-2 font-mono text-[11px] leading-relaxed text-error"
+              class="mt-2.5 ml-4.5 overflow-x-auto rounded-lg border border-error/20 bg-error/5 px-3 py-2 font-mono text-[12px] leading-relaxed text-error"
             >
               {{ job.lastError }}
             </p>
@@ -574,7 +574,7 @@ async function acknowledgeAlert(id: string) {
           @change="page = $event"
         />
 
-        <p class="flex flex-wrap items-center gap-x-1.5 gap-y-1 border-t border-default px-5 py-3 text-[11px] text-dimmed">
+        <p class="flex flex-wrap items-center gap-x-1.5 gap-y-1 border-t border-default px-5 py-3 text-[12px] text-dimmed">
           <UIcon
             name="i-lucide-info"
             class="size-3.5"

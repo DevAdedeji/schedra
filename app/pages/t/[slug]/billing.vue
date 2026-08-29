@@ -209,7 +209,7 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
         name="i-lucide-circle-check"
         class="size-4 shrink-0 text-success"
       />
-      <p class="text-[13px] text-muted">
+      <p class="text-[14px] text-muted">
         Payment received. If the status below still says pending, it will settle within a moment —
         we confirm from Bachs directly, never from this redirect.
       </p>
@@ -236,10 +236,10 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
           name="i-lucide-triangle-alert"
           class="mt-0.5 size-4 shrink-0 text-warning"
         />
-        <p class="text-[13px] leading-relaxed text-muted">
+        <p class="text-[14px] leading-relaxed text-muted">
           Billing is not configured on this environment, so checkout is unavailable.
-          Set <code class="text-[12px]">BACHS_SECRET_KEY</code> and
-          <code class="text-[12px]">BACHS_WEBHOOK_SECRET</code> to enable it.
+          Set <code class="text-[13px]">BACHS_SECRET_KEY</code> and
+          <code class="text-[13px]">BACHS_WEBHOOK_SECRET</code> to enable it.
         </p>
       </div>
 
@@ -254,7 +254,7 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
           class="size-4 shrink-0"
           :class="seatBilling?.syncStatus === 'failed' ? 'text-error' : 'text-info'"
         />
-        <p class="min-w-0 flex-1 text-[13px] text-muted">
+        <p class="min-w-0 flex-1 text-[14px] text-muted">
           <template v-if="seatBilling?.syncStatus === 'failed'">
             We could not update the subscription for {{ entitlement.seatsUsed }} active
             {{ entitlement.seatsUsed === 1 ? 'member' : 'members' }}. No change has been hidden;
@@ -288,7 +288,7 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
           name="i-lucide-triangle-alert"
           class="mt-0.5 size-4 shrink-0 text-warning"
         />
-        <p class="text-[13px] leading-relaxed text-muted">
+        <p class="text-[14px] leading-relaxed text-muted">
           This team now has {{ entitlement.seatsUsed }} active members, but the last paid invoice
           covered {{ seatBilling?.billedSeats ?? 0 }}. Bank transfers cannot be charged automatically;
           start checkout below to update the paid term for the current team size.
@@ -310,10 +310,10 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
                   'text-dimmed': statusTone.color === 'neutral'
                 }"
               />
-              <span class="text-[12px] font-medium text-toned">{{ statusTone.label }}</span>
+              <span class="text-[13px] font-medium text-toned">{{ statusTone.label }}</span>
               <span
                 v-if="entitlement.status === 'trialing' && entitlement.daysLeftInTrial !== null"
-                class="text-[12px] text-muted"
+                class="text-[13px] text-muted"
               >· {{ entitlement.daysLeftInTrial }} days left</span>
             </div>
 
@@ -323,10 +323,10 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
               <span class="text-[44px] font-semibold leading-none tracking-[-0.02em] text-highlighted">
                 {{ formatUsd(headlineCents) }}
               </span>
-              <span class="text-[14px] text-muted">/{{ headlinePeriod }}</span>
+              <span class="text-[15px] text-muted">/{{ headlinePeriod }}</span>
             </p>
 
-            <p class="mt-3 text-[13px] leading-relaxed text-muted">
+            <p class="mt-3 text-[14px] leading-relaxed text-muted">
               {{ billedSeats }} {{ billedSeats === 1 ? 'member' : 'members' }} ×
               {{ formatUsd(perSeatCents) }}/{{ headlinePeriod }}<template v-if="billedSeats !== seats">
                 — billed at the {{ billedSeats }}-member minimum
@@ -336,19 +336,19 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
 
             <p
               v-if="entitlement.status === 'past_due'"
-              class="mt-3 text-[13px] leading-relaxed text-muted"
+              class="mt-3 text-[14px] leading-relaxed text-muted"
             >
               A payment failed. It is being retried automatically and the team keeps working meanwhile.
             </p>
             <p
               v-else-if="entitlement.status === 'unpaid'"
-              class="mt-3 text-[13px] leading-relaxed text-muted"
+              class="mt-3 text-[14px] leading-relaxed text-muted"
             >
               Payment retries are exhausted, so the team is read-only. Paying below restores it immediately.
             </p>
             <p
               v-else-if="entitlement.readOnly"
-              class="mt-3 text-[13px] leading-relaxed text-muted"
+              class="mt-3 text-[14px] leading-relaxed text-muted"
             >
               This team is read-only. Team booking pages are not taking new bookings until an invoice is paid.
             </p>
@@ -359,10 +359,10 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
               v-if="nextEvent"
               class="bg-default px-4 py-3.5"
             >
-              <dt class="text-[11px] font-medium uppercase tracking-wide text-dimmed">
+              <dt class="text-[12px] font-medium uppercase tracking-wide text-dimmed">
                 {{ nextEvent.label }}
               </dt>
-              <dd class="mt-1 text-[14px] font-medium text-highlighted">
+              <dd class="mt-1 text-[15px] font-medium text-highlighted">
                 {{ nextEvent.value }}
               </dd>
             </div>
@@ -370,7 +370,7 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
               v-if="hasBillingHistory"
               class="bg-default px-4 py-3.5"
             >
-              <dt class="text-[11px] font-medium uppercase tracking-wide text-dimmed">
+              <dt class="text-[12px] font-medium uppercase tracking-wide text-dimmed">
                 Paying with
               </dt>
               <dd class="mt-1 flex items-start gap-2">
@@ -379,8 +379,8 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
                   class="mt-0.5 size-3.5 shrink-0 text-dimmed"
                 />
                 <span class="min-w-0">
-                  <span class="block text-[14px] font-medium text-highlighted">{{ paymentMethod.label }}</span>
-                  <span class="mt-0.5 block text-[11px] leading-snug text-muted">{{ paymentMethod.detail }}</span>
+                  <span class="block text-[15px] font-medium text-highlighted">{{ paymentMethod.label }}</span>
+                  <span class="mt-0.5 block text-[12px] leading-snug text-muted">{{ paymentMethod.detail }}</span>
                 </span>
               </dd>
             </div>
@@ -398,10 +398,10 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
             class="space-y-5 rounded-xl border border-default bg-muted/30 p-4 sm:p-5"
           >
             <div>
-              <h3 class="text-[14px] font-semibold text-highlighted">
+              <h3 class="text-[15px] font-semibold text-highlighted">
                 Choose how to pay
               </h3>
-              <p class="mt-1 text-[12px] text-muted">
+              <p class="mt-1 text-[13px] text-muted">
                 Review the billing period and payment method before opening secure checkout.
               </p>
             </div>
@@ -450,7 +450,7 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
               name="i-lucide-mail-warning"
               class="mt-0.5 size-4 shrink-0 text-warning"
             />
-            <p class="text-[13px] leading-relaxed text-muted">
+            <p class="text-[14px] leading-relaxed text-muted">
               Bachs is managing this payment issue. Use the secure payment-update link sent to
               the billing email instead of starting a second subscription.
             </p>
@@ -461,14 +461,14 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
       <section class="overflow-hidden rounded-2xl border border-default bg-default">
         <header class="flex items-center justify-between gap-3 border-b border-default px-5 py-4 sm:px-6">
           <div>
-            <h2 class="text-[14px] font-semibold text-highlighted">
+            <h2 class="text-[15px] font-semibold text-highlighted">
               Invoice history
             </h2>
-            <p class="mt-1 text-[12px] text-muted">
+            <p class="mt-1 text-[13px] text-muted">
               A record of attempted and completed team payments.
             </p>
           </div>
-          <span class="tnum rounded-lg bg-muted px-2 py-1 text-[11px] text-muted">
+          <span class="tnum rounded-lg bg-muted px-2 py-1 text-[12px] text-muted">
             {{ invoices.length }}
           </span>
         </header>
@@ -490,10 +490,10 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
             class="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 px-5 py-3.5 sm:grid-cols-[1fr_auto_6.5rem] sm:px-6"
           >
             <div class="min-w-0">
-              <p class="truncate text-[13px] text-highlighted">
+              <p class="truncate text-[14px] text-highlighted">
                 {{ formatDate(invoice.periodStart) }} – {{ formatDate(invoice.periodEnd) }}
               </p>
-              <p class="mt-0.5 text-[11px] text-muted">
+              <p class="mt-0.5 text-[12px] text-muted">
                 {{ invoice.seats }} {{ invoice.seats === 1 ? 'member' : 'members' }} · {{ invoice.interval }}
                 <template v-if="invoice.collectionCurrency !== 'USD'">
                   · charged in {{ invoice.collectionCurrency }}
@@ -502,7 +502,7 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
             </div>
 
             <!-- A column of figures, so these get tabular digits to align. -->
-            <p class="tnum text-right text-[14px] font-medium text-highlighted">
+            <p class="tnum text-right text-[15px] font-medium text-highlighted">
               {{ formatUsd(invoice.amountCents) }}
             </p>
 

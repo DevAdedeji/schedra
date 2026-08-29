@@ -70,7 +70,7 @@ async function continueToBooking() {
         />
         <template v-else-if="data">
           <header class="border-b border-default px-5 py-6 sm:px-8 sm:py-8">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
+            <p class="text-[12px] font-semibold uppercase tracking-[0.16em] text-primary">
               Find the right meeting
             </p>
             <h1 class="mt-3 text-2xl font-semibold tracking-tight text-highlighted sm:text-3xl">
@@ -78,11 +78,11 @@ async function continueToBooking() {
             </h1>
             <p
               v-if="data.description"
-              class="mt-3 max-w-xl text-[14px] leading-6 text-muted"
+              class="mt-3 max-w-xl text-[15px] leading-6 text-muted"
             >
               {{ data.description }}
             </p>
-            <p class="mt-3 text-[12px] text-dimmed">
+            <p class="mt-3 text-[13px] text-dimmed">
               With {{ data.ownerName }}
             </p>
           </header>
@@ -134,7 +134,7 @@ async function continueToBooking() {
             </UFormField>
             <p
               v-if="submitError"
-              class="rounded-lg border border-error/30 bg-error/5 px-3 py-2.5 text-[12px] text-error"
+              class="rounded-lg border border-error/30 bg-error/5 px-3 py-2.5 text-[13px] text-error"
               role="alert"
             >
               {{ submitError }}
@@ -152,7 +152,7 @@ async function continueToBooking() {
           </form>
         </template>
       </section>
-      <p class="mt-5 text-center text-[11px] text-dimmed">
+      <p class="mt-5 text-center text-[12px] text-dimmed">
         Scheduling powered by Schedra
       </p>
     </div>

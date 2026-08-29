@@ -135,7 +135,7 @@ function dateLabel(value: string) {
       <template v-else>
         <div
           v-if="refreshing"
-          class="surface-secondary flex items-center gap-2 border-b border-default px-4 py-2 text-[11px] text-muted sm:px-5"
+          class="surface-secondary flex items-center gap-2 border-b border-default px-4 py-2 text-[12px] text-muted sm:px-5"
           role="status"
         >
           <UIcon
@@ -162,7 +162,7 @@ function dateLabel(value: string) {
             </span>
             <div class="min-w-0 flex-1">
               <div class="flex flex-wrap items-center gap-2">
-                <h2 class="text-[15px] font-semibold text-highlighted">
+                <h2 class="text-[16px] font-semibold text-highlighted">
                   {{ item.label || item.eventTitle }}
                 </h2>
                 <UBadge
@@ -172,10 +172,10 @@ function dateLabel(value: string) {
                   {{ item.status }}
                 </UBadge>
               </div>
-              <p class="mt-1 text-[13px] text-muted">
+              <p class="mt-1 text-[14px] text-muted">
                 {{ kindLabel(item) }} · {{ item.eventTitle }}
               </p>
-              <div class="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[11px] text-dimmed">
+              <div class="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[12px] text-dimmed">
                 <span class="flex items-center gap-1.5"><UIcon
                   name="i-lucide-calendar-clock"
                   class="size-3.5"
@@ -241,7 +241,7 @@ function dateLabel(value: string) {
       </template>
     </section>
 
-    <div class="flex items-start gap-3 rounded-xl border border-default bg-muted px-4 py-3.5 text-[12px] leading-relaxed text-muted">
+    <div class="flex items-start gap-3 rounded-xl border border-default bg-muted px-4 py-3.5 text-[13px] leading-relaxed text-muted">
       <UIcon
         name="i-lucide-shield-check"
         class="mt-0.5 size-4 shrink-0 text-primary"

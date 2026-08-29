@@ -332,7 +332,7 @@ function initials(name: string) {
 
           <div
             v-if="['google_meet', 'microsoft_teams', 'zoom'].includes(form.locationType)"
-            class="rounded-lg border border-default bg-muted px-4 py-3 text-[12px] leading-relaxed text-muted"
+            class="rounded-lg border border-default bg-muted px-4 py-3 text-[13px] leading-relaxed text-muted"
           >
             {{ form.locationType === 'zoom'
               ? 'Schedra creates and maintains one Zoom meeting through the assigned organizer’s connected account.'
@@ -343,14 +343,14 @@ function initials(name: string) {
 
           <div
             v-else-if="selectedMembers.length && (!googleMeetReady || !microsoftTeamsReady || !zoomReady)"
-            class="rounded-lg border border-default bg-muted px-4 py-3 text-[12px] leading-relaxed text-muted"
+            class="rounded-lg border border-default bg-muted px-4 py-3 text-[13px] leading-relaxed text-muted"
           >
             Generated meeting providers become available after the required hosts connect them from Integrations.
           </div>
         </section>
 
         <section class="space-y-3">
-          <h3 class="text-[13px] font-semibold text-highlighted">
+          <h3 class="text-[14px] font-semibold text-highlighted">
             How is a host chosen?
           </h3>
           <div class="grid gap-2 sm:grid-cols-3">
@@ -369,10 +369,10 @@ function initials(name: string) {
                 class="size-4"
                 :class="form.assignmentMode === option.value ? 'text-primary' : 'text-dimmed'"
               />
-              <p class="mt-2 text-[13px] font-medium text-highlighted">
+              <p class="mt-2 text-[14px] font-medium text-highlighted">
                 {{ option.label }}
               </p>
-              <p class="mt-0.5 text-[11px] leading-relaxed text-muted">
+              <p class="mt-0.5 text-[12px] leading-relaxed text-muted">
                 {{ option.hint }}
               </p>
             </button>
@@ -382,8 +382,8 @@ function initials(name: string) {
         <section class="overflow-hidden rounded-xl border border-default bg-muted/40">
           <label class="flex cursor-pointer items-start justify-between gap-4 px-4 py-4">
             <span>
-              <span class="block text-[13px] font-medium text-highlighted">Offer multiple seats at each time</span>
-              <span class="mt-0.5 block text-[12px] leading-relaxed text-muted">Keep the assigned host or hosts together while several guests join one shared session.</span>
+              <span class="block text-[14px] font-medium text-highlighted">Offer multiple seats at each time</span>
+              <span class="mt-0.5 block text-[13px] leading-relaxed text-muted">Keep the assigned host or hosts together while several guests join one shared session.</span>
             </span>
             <USwitch
               v-model="groupEventEnabled"
@@ -412,10 +412,10 @@ function initials(name: string) {
 
         <section class="space-y-3">
           <div class="flex items-baseline justify-between gap-3">
-            <h3 class="text-[13px] font-semibold text-highlighted">
+            <h3 class="text-[14px] font-semibold text-highlighted">
               Hosts
             </h3>
-            <p class="text-[11px] text-muted">
+            <p class="text-[12px] text-muted">
               {{ form.hosts.length }} selected · each host uses their own availability and calendar.
             </p>
           </div>
@@ -433,7 +433,7 @@ function initials(name: string) {
             class="flex items-center justify-between gap-3 rounded-xl border border-error/30 bg-error/5 px-4 py-3"
             role="alert"
           >
-            <p class="text-[12px] text-error">
+            <p class="text-[13px] text-error">
               Could not load team members.
             </p>
             <UButton
@@ -481,7 +481,7 @@ function initials(name: string) {
                 :aria-label="`${member.name} as host`"
                 @update:model-value="toggleHost(member)"
               />
-              <span class="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary/10 text-[11px] font-semibold text-primary">
+              <span class="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary/10 text-[12px] font-semibold text-primary">
                 <img
                   v-if="member.avatarUrl"
                   :src="member.avatarUrl"
@@ -493,10 +493,10 @@ function initials(name: string) {
                 </template>
               </span>
               <div class="min-w-0 flex-1">
-                <p class="truncate text-[13px] font-medium text-highlighted">
+                <p class="truncate text-[14px] font-medium text-highlighted">
                   {{ member.name }}
                 </p>
-                <p class="truncate text-[11px] text-muted">
+                <p class="truncate text-[12px] text-muted">
                   {{ member.email }}
                 </p>
               </div>
@@ -517,8 +517,8 @@ function initials(name: string) {
           <div class="overflow-hidden rounded-xl border border-default bg-muted/40">
             <label class="flex cursor-pointer items-start justify-between gap-4 px-4 py-4">
               <span>
-                <span class="block text-[13px] font-medium text-highlighted">Require payment</span>
-                <span class="mt-0.5 block text-[12px] leading-relaxed text-muted">The reservation is confirmed only after Schedra verifies checkout.</span>
+                <span class="block text-[14px] font-medium text-highlighted">Require payment</span>
+                <span class="mt-0.5 block text-[13px] leading-relaxed text-muted">The reservation is confirmed only after Schedra verifies checkout.</span>
               </span>
               <USwitch
                 v-model="paidBookingEnabled"
@@ -530,7 +530,7 @@ function initials(name: string) {
               v-if="!paymentAccount?.ready && !form.paymentEnabled"
               class="surface-secondary flex items-center justify-between gap-3 border-t border-default px-4 py-3"
             >
-              <p class="text-[12px] text-muted">
+              <p class="text-[13px] text-muted">
                 {{ paymentAccount?.status === 'pending_review'
                   ? 'Bachs is reviewing the team payout account. Paid bookings stay disabled until transfers and payouts are approved.'
                   : 'A team owner must complete payout setup in Bachs first.' }}
@@ -548,7 +548,7 @@ function initials(name: string) {
             </div>
             <div
               v-else-if="form.paymentEnabled && !paymentAccount?.ready"
-              class="surface-secondary flex items-center gap-2 border-t border-default px-4 py-3 text-[12px] text-warning"
+              class="surface-secondary flex items-center gap-2 border-t border-default px-4 py-3 text-[13px] text-warning"
             >
               <UIcon
                 name="i-lucide-shield-alert"
@@ -597,7 +597,7 @@ function initials(name: string) {
 
         <p
           v-if="error"
-          class="text-[13px] text-error"
+          class="text-[14px] text-error"
           role="alert"
         >
           {{ error }}

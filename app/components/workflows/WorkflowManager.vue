@@ -305,7 +305,7 @@ async function copySecret() {
           </span>
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">
-              <p class="truncate text-[14px] font-semibold text-highlighted">
+              <p class="truncate text-[15px] font-semibold text-highlighted">
                 {{ workflow.name }}
               </p>
               <UBadge
@@ -316,10 +316,10 @@ async function copySecret() {
                 {{ workflow.active ? 'Active' : 'Paused' }}
               </UBadge>
             </div>
-            <p class="mt-1 text-[12px] leading-relaxed text-muted">
+            <p class="mt-1 text-[13px] leading-relaxed text-muted">
               {{ triggerLabel(workflow.trigger) }} · {{ timing(workflow) }} · {{ actionLabel(workflow) }}
             </p>
-            <p class="mt-0.5 text-[11px] text-dimmed">
+            <p class="mt-0.5 text-[12px] text-dimmed">
               {{ workflow.eventTypeTitle ?? 'All event types' }}
             </p>
           </div>
@@ -429,17 +429,17 @@ async function copySecret() {
               size="lg"
               class="w-full"
             />
-            <p class="mt-1.5 text-[12px] text-muted">
+            <p class="mt-1.5 text-[13px] text-muted">
               Leave this on all event types to reuse one workflow everywhere.
             </p>
           </UFormField>
 
           <section class="space-y-4 rounded-xl border border-default bg-muted/40 p-4 sm:p-5">
             <div>
-              <h3 class="text-[13px] font-semibold text-highlighted">
+              <h3 class="text-[14px] font-semibold text-highlighted">
                 What should Schedra do?
               </h3>
-              <p class="mt-1 text-[12px] text-muted">
+              <p class="mt-1 text-[13px] text-muted">
                 Email is best for people. Webhooks securely notify another application.
               </p>
             </div>
@@ -451,7 +451,7 @@ async function copySecret() {
                 ]"
                 :key="option.value"
                 type="button"
-                class="flex min-h-12 items-center gap-2 rounded-lg border px-3 text-left text-[13px] font-medium transition-colors"
+                class="flex min-h-12 items-center gap-2 rounded-lg border px-3 text-left text-[14px] font-medium transition-colors"
                 :class="form.action.type === option.value ? 'border-primary bg-primary/10 text-highlighted' : 'border-default bg-default text-muted hover:text-highlighted'"
                 :aria-pressed="form.action.type === option.value"
                 @click="setActionType(option.value as 'email' | 'webhook')"
@@ -511,7 +511,7 @@ async function copySecret() {
                   class="w-full"
                 />
               </UFormField>
-              <p class="text-[11px] leading-relaxed text-dimmed">
+              <p class="text-[12px] leading-relaxed text-dimmed">
                 Available details:
                 <code
                   v-for="variable in ['guest_name', 'host_name', 'event_name', 'start_time', 'booking_url', 'meeting_url', 'team_name']"
@@ -539,7 +539,7 @@ async function copySecret() {
 
           <p
             v-if="formError"
-            class="rounded-lg border border-error/30 bg-error/5 px-3 py-2.5 text-[12px] text-error"
+            class="rounded-lg border border-error/30 bg-error/5 px-3 py-2.5 text-[13px] text-error"
             role="alert"
           >
             {{ formError }}
@@ -578,7 +578,7 @@ async function copySecret() {
     >
       <template #body>
         <div class="flex items-center gap-2 rounded-lg border border-default bg-muted p-2">
-          <code class="min-w-0 flex-1 break-all px-2 text-[12px] text-highlighted">{{ secret }}</code>
+          <code class="min-w-0 flex-1 break-all px-2 text-[13px] text-highlighted">{{ secret }}</code>
           <UButton
             color="neutral"
             variant="soft"

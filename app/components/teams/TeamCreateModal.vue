@@ -142,7 +142,7 @@ async function create() {
           />
           <p
             v-if="availability && !availability.available"
-            class="mt-1.5 text-[12px] text-error"
+            class="mt-1.5 text-[13px] text-error"
           >
             {{ availability.message }}
           </p>
@@ -156,7 +156,7 @@ async function create() {
                 class="size-4"
               />
             </span>
-            <div class="min-w-0 text-[12px] leading-relaxed text-muted">
+            <div class="min-w-0 text-[13px] leading-relaxed text-muted">
               <p class="font-medium text-highlighted">
                 {{ TEAM_PLAN.trialDays }} days free, no card needed
               </p>
@@ -171,7 +171,7 @@ async function create() {
 
         <p
           v-if="error"
-          class="text-[13px] text-error"
+          class="text-[14px] text-error"
           role="alert"
         >
           {{ error }}

@@ -169,10 +169,10 @@ watch(() => props.refreshSignal, async (next, previous) => {
       name="i-lucide-cloud-alert"
       class="size-5 text-error"
     />
-    <h2 class="mt-3 text-[14px] font-semibold text-highlighted">
+    <h2 class="mt-3 text-[15px] font-semibold text-highlighted">
       Could not check {{ name }}
     </h2>
-    <p class="mt-1 text-[12px] text-muted">
+    <p class="mt-1 text-[13px] text-muted">
       Try loading its connection status again.
     </p>
     <UButton
@@ -200,21 +200,21 @@ watch(() => props.refreshSignal, async (next, previous) => {
       </span>
       <span
         v-if="connection?.connected && connection.setupRequired"
-        class="inline-flex items-center gap-1.5 rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-warning"
+        class="inline-flex items-center gap-1.5 rounded-full bg-warning/10 px-2 py-0.5 text-[12px] font-medium text-warning"
       ><span class="size-1.5 rounded-full bg-warning" />Setup required</span>
       <span
         v-else-if="connection?.connected"
-        class="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-2 py-0.5 text-[11px] font-medium text-success"
+        class="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-2 py-0.5 text-[12px] font-medium text-success"
       ><span class="size-1.5 rounded-full bg-success" />{{ connection.defaultForBookings ? 'Default calendar' : 'Connected' }}</span>
       <span
         v-else-if="connection?.status === 'needs_reauthorization'"
-        class="inline-flex items-center gap-1.5 rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-warning"
+        class="inline-flex items-center gap-1.5 rounded-full bg-warning/10 px-2 py-0.5 text-[12px] font-medium text-warning"
       ><span class="size-1.5 rounded-full bg-warning" />Needs attention</span>
     </div>
-    <h2 class="mt-4 text-[16px] font-semibold text-highlighted">
+    <h2 class="mt-4 text-[17px] font-semibold text-highlighted">
       {{ name }}
     </h2>
-    <p class="mt-1 line-clamp-2 text-[13px] leading-relaxed text-muted">
+    <p class="mt-1 line-clamp-2 text-[14px] leading-relaxed text-muted">
       {{ connection?.accountLabel || description }}
     </p>
     <div class="mt-auto pt-5">
@@ -287,10 +287,10 @@ watch(() => props.refreshSignal, async (next, previous) => {
                 class="size-4"
               /></span>
               <div class="min-w-0">
-                <p class="text-[13px] font-medium text-highlighted">
+                <p class="text-[14px] font-medium text-highlighted">
                   Connected account
                 </p>
-                <p class="truncate text-[12px] text-muted">
+                <p class="truncate text-[13px] text-muted">
                   {{ connection?.accountLabel }}
                 </p>
               </div>
@@ -317,7 +317,7 @@ watch(() => props.refreshSignal, async (next, previous) => {
           />
           <div
             v-else-if="connection?.lastError"
-            class="flex items-start gap-3 bg-warning/5 px-5 py-3 text-[12px] text-warning sm:px-6"
+            class="flex items-start gap-3 bg-warning/5 px-5 py-3 text-[13px] text-warning sm:px-6"
           >
             <UIcon
               name="i-lucide-triangle-alert"
@@ -327,11 +327,11 @@ watch(() => props.refreshSignal, async (next, previous) => {
 
           <section class="px-5 py-5 sm:px-6">
             <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-              <h3 class="text-[14px] font-semibold text-highlighted">
+              <h3 class="text-[15px] font-semibold text-highlighted">
                 Calendars that block booking times
               </h3>
               <p
-                class="text-[12px]"
+                class="text-[13px]"
                 :class="selectedConflictIds.length ? 'text-dimmed' : 'text-error'"
               >
                 {{ selectedConflictIds.length
@@ -339,7 +339,7 @@ watch(() => props.refreshSignal, async (next, previous) => {
                   : 'Choose at least one' }}
               </p>
             </div>
-            <p class="mt-1 max-w-2xl text-[13px] leading-relaxed text-muted">
+            <p class="mt-1 max-w-2xl text-[14px] leading-relaxed text-muted">
               A busy event on a selected calendar hides that time from guests. Holiday and
               week-number calendars usually stay unchecked.
             </p>
@@ -361,22 +361,22 @@ watch(() => props.refreshSignal, async (next, previous) => {
                   :style="{ backgroundColor: calendar.unavailable ? '#737373' : (calendar.backgroundColor || (isGoogle ? '#4285F4' : '#0078D4')) }"
                 />
                 <span class="min-w-0 flex-1">
-                  <span class="block truncate text-[14px] font-medium text-highlighted">{{ calendar.summary }}</span>
-                  <span class="mt-0.5 block truncate text-[12px] text-dimmed">{{ relationship(calendar) }}</span>
+                  <span class="block truncate text-[15px] font-medium text-highlighted">{{ calendar.summary }}</span>
+                  <span class="mt-0.5 block truncate text-[13px] text-dimmed">{{ relationship(calendar) }}</span>
                 </span>
                 <span
                   v-if="calendar.primary"
-                  class="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary"
+                  class="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[12px] font-medium text-primary"
                 >Recommended</span>
               </label>
             </div>
           </section>
 
           <section class="px-5 py-5 sm:px-6">
-            <h3 class="text-[14px] font-semibold text-highlighted">
+            <h3 class="text-[15px] font-semibold text-highlighted">
               Calendar for new bookings
             </h3>
-            <p class="mt-1 max-w-2xl text-[13px] leading-relaxed text-muted">
+            <p class="mt-1 max-w-2xl text-[14px] leading-relaxed text-muted">
               Where this provider creates booking events. Google Meet and Microsoft Teams always
               use their matching provider.
             </p>
@@ -392,7 +392,7 @@ watch(() => props.refreshSignal, async (next, previous) => {
             />
             <p
               v-if="!writableCalendars.length || writeCalendarMissing"
-              class="mt-2 text-[12px] text-error"
+              class="mt-2 text-[13px] text-error"
             >
               {{ writeCalendarMissing ? 'The previous destination is unavailable. Choose another.' : `This ${name} account has no calendar Schedra can edit.` }}
             </p>
@@ -404,14 +404,14 @@ watch(() => props.refreshSignal, async (next, previous) => {
                 aria-label="Use this provider as the default calendar"
               />
               <span>
-                <span class="block text-[13px] font-medium text-highlighted">Use as my default calendar</span>
-                <span class="mt-0.5 block text-[12px] leading-relaxed text-muted">Used for Zoom, phone, in-person and custom meeting locations. Choose the other provider here to switch the default.</span>
+                <span class="block text-[14px] font-medium text-highlighted">Use as my default calendar</span>
+                <span class="mt-0.5 block text-[13px] leading-relaxed text-muted">Used for Zoom, phone, in-person and custom meeting locations. Choose the other provider here to switch the default.</span>
               </span>
             </label>
           </section>
           <div
             v-if="pageError"
-            class="bg-error/10 px-5 py-3 text-[12px] text-error"
+            class="bg-error/10 px-5 py-3 text-[13px] text-error"
             role="alert"
           >
             {{ pageError }}
@@ -449,7 +449,7 @@ watch(() => props.refreshSignal, async (next, previous) => {
       description="Schedra will stop checking this provider and syncing booking changes to it."
     >
       <template #body>
-        <p class="text-[13px] leading-relaxed text-muted">
+        <p class="text-[14px] leading-relaxed text-muted">
           Previously created events remain in the provider and can be removed there manually.
         </p>
       </template>

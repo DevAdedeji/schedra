@@ -47,8 +47,8 @@ const items = computed(() => [
 
 const menuUi = {
   content: 'w-60',
-  label: 'px-2.5 py-2 text-[13px]',
-  item: 'items-center gap-2 px-2.5 py-2 text-[13px]',
+  label: 'px-2.5 py-2 text-[14px]',
+  item: 'items-center gap-2 px-2.5 py-2 text-[14px]',
   itemLeadingIcon: 'size-3.5'
 }
 
@@ -75,7 +75,7 @@ async function onCreated(slug: string) {
         :aria-label="`Current team: ${active?.name ?? 'Personal'}. Switch team`"
       >
         <span
-          class="flex size-6 shrink-0 items-center justify-center rounded-md text-[10px] font-semibold"
+          class="flex size-6 shrink-0 items-center justify-center rounded-md text-[12px] font-semibold"
           :class="active ? 'bg-primary/15 text-primary' : 'bg-elevated text-toned'"
         >
           <UIcon
@@ -87,7 +87,7 @@ async function onCreated(slug: string) {
             {{ initials(active.name) }}
           </template>
         </span>
-        <span class="min-w-0 flex-1 truncate text-[13px] font-medium text-highlighted">
+        <span class="min-w-0 flex-1 truncate text-[14px] font-medium text-highlighted">
           {{ active?.name ?? props.collapsedLabel ?? 'Personal' }}
         </span>
         <UIcon

@@ -160,7 +160,7 @@ async function copySnippet() {
           </div>
 
           <details class="rounded-xl border border-default bg-muted/40 px-4 py-3">
-            <summary class="cursor-pointer text-[13px] font-medium text-highlighted">
+            <summary class="cursor-pointer text-[14px] font-medium text-highlighted">
               Prefill visitor details
             </summary>
             <div class="mt-4 grid gap-4">
@@ -185,7 +185,7 @@ async function copySnippet() {
                   class="w-full"
                 />
               </UFormField>
-              <p class="text-[11px] leading-relaxed text-muted">
+              <p class="text-[12px] leading-relaxed text-muted">
                 Use prefilling only on pages where you already know the visitor. The values are sent directly to Schedra when the overlay opens.
               </p>
             </div>
@@ -195,10 +195,10 @@ async function copySnippet() {
         <div class="surface-secondary min-w-0 space-y-4 px-5 py-5 sm:px-6">
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p class="text-[13px] font-medium text-highlighted">
+              <p class="text-[14px] font-medium text-highlighted">
                 Installation code
               </p>
-              <p class="mt-0.5 text-[11px] text-muted">
+              <p class="mt-0.5 text-[12px] text-muted">
                 Works with plain HTML, website builders and framework apps.
               </p>
             </div>
@@ -213,9 +213,9 @@ async function copySnippet() {
             </UButton>
           </div>
 
-          <pre class="max-h-96 overflow-auto rounded-xl border border-default bg-inverted p-4 text-[12px] leading-relaxed text-inverted"><code>{{ snippet }}</code></pre>
+          <pre class="max-h-96 overflow-auto rounded-xl border border-default bg-inverted p-4 text-[13px] leading-relaxed text-inverted"><code>{{ snippet }}</code></pre>
 
-          <div class="flex items-start gap-2 rounded-xl border border-default bg-default px-3.5 py-3 text-[12px] leading-relaxed text-muted">
+          <div class="flex items-start gap-2 rounded-xl border border-default bg-default px-3.5 py-3 text-[13px] leading-relaxed text-muted">
             <UIcon
               name="i-lucide-shield-check"
               class="mt-0.5 size-4 shrink-0 text-primary"

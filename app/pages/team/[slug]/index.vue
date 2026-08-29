@@ -64,7 +64,7 @@ useHead({ link: [{ key: 'canonical', rel: 'canonical', href: canonical }] })
           <h1 class="text-[20px] font-semibold text-highlighted">
             No such team page
           </h1>
-          <p class="mx-auto mt-2 max-w-sm text-[14px] leading-relaxed text-muted">
+          <p class="mx-auto mt-2 max-w-sm text-[15px] leading-relaxed text-muted">
             This link may have changed, or the team may no longer be taking bookings.
           </p>
         </div>
@@ -76,7 +76,7 @@ useHead({ link: [{ key: 'canonical', rel: 'canonical', href: canonical }] })
           <h1 class="text-[20px] font-semibold text-highlighted">
             This page is temporarily unavailable
           </h1>
-          <p class="mx-auto mt-2 max-w-sm text-[14px] leading-relaxed text-muted">
+          <p class="mx-auto mt-2 max-w-sm text-[15px] leading-relaxed text-muted">
             Please try again in a moment.
           </p>
         </div>
@@ -99,7 +99,7 @@ useHead({ link: [{ key: 'canonical', rel: 'canonical', href: canonical }] })
                 <h1 class="text-[24px] font-semibold tracking-tight text-highlighted">
                   {{ team.name }}
                 </h1>
-                <p class="mt-1.5 text-[14px] text-muted">
+                <p class="mt-1.5 text-[15px] text-muted">
                   Pick a meeting and choose a time that suits you.
                 </p>
               </div>
@@ -119,7 +119,7 @@ useHead({ link: [{ key: 'canonical', rel: 'canonical', href: canonical }] })
                 class="block rounded-2xl border border-default bg-default px-6 py-5 transition-colors hover:border-primary/40 hover:bg-elevated"
               >
                 <div class="flex flex-wrap items-center gap-2">
-                  <span class="text-[16px] font-medium text-highlighted">{{ eventType.title }}</span>
+                  <span class="text-[17px] font-medium text-highlighted">{{ eventType.title }}</span>
                   <UBadge
                     color="neutral"
                     variant="subtle"
@@ -145,7 +145,7 @@ useHead({ link: [{ key: 'canonical', rel: 'canonical', href: canonical }] })
                 </div>
                 <p
                   v-if="eventType.description"
-                  class="mt-1.5 text-[13px] leading-relaxed text-muted"
+                  class="mt-1.5 text-[14px] leading-relaxed text-muted"
                 >
                   {{ eventType.description }}
                 </p>
@@ -157,7 +157,7 @@ useHead({ link: [{ key: 'canonical', rel: 'canonical', href: canonical }] })
             v-else
             class="mt-4 rounded-2xl border border-default bg-default px-7 py-12 text-center"
           >
-            <p class="text-[14px] text-muted">
+            <p class="text-[15px] text-muted">
               This team has not published any booking links yet.
             </p>
           </div>

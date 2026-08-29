@@ -25,7 +25,7 @@ const model = defineModel<string>({ required: true })
       role="tab"
       :aria-selected="model === option.value"
       :disabled="disabled"
-      class="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-2 text-[12px] font-medium transition-colors sm:gap-2 sm:px-3 sm:text-[13px]"
+      class="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors sm:gap-2 sm:px-3 sm:text-[14px]"
       :class="[
         model === option.value
           ? 'bg-elevated text-highlighted'
@@ -37,7 +37,7 @@ const model = defineModel<string>({ required: true })
       {{ option.label }}
       <span
         v-if="option.count !== undefined"
-        class="tnum rounded-md px-1.5 py-0.5 text-[10px]"
+        class="tnum rounded-md px-1.5 py-0.5 text-[12px]"
         :class="model === option.value ? 'bg-default text-toned' : 'bg-muted text-dimmed'"
       >
         {{ option.count }}

@@ -229,7 +229,7 @@ function activeHosts(eventType: TeamEventTypeRecord) {
         >
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">
-              <p class="truncate text-[14px] font-medium text-highlighted">
+              <p class="truncate text-[15px] font-medium text-highlighted">
                 {{ eventType.title }}
               </p>
               <UBadge
@@ -272,19 +272,19 @@ function activeHosts(eventType: TeamEventTypeRecord) {
               </UBadge>
             </div>
 
-            <p class="mt-1 truncate text-[12px] text-muted">
+            <p class="mt-1 truncate text-[13px] text-muted">
               {{ host }}/team/{{ slug }}/{{ eventType.slug }}
             </p>
 
             <p
               v-if="!activeHosts(eventType).length"
-              class="mt-1.5 text-[12px] text-error"
+              class="mt-1.5 text-[13px] text-error"
             >
               No active hosts — this link cannot be booked until someone is added.
             </p>
             <p
               v-else
-              class="mt-1.5 text-[12px] text-muted"
+              class="mt-1.5 text-[13px] text-muted"
             >
               {{ activeHosts(eventType).map(entry => entry.name).join(', ') }}
             </p>
@@ -296,7 +296,7 @@ function activeHosts(eventType: TeamEventTypeRecord) {
               variant="outline"
               size="xs"
               :icon="isCopied(eventType.id) ? 'i-lucide-check' : 'i-lucide-copy'"
-              class="h-8 rounded-lg px-3 text-[12px] font-medium"
+              class="h-8 rounded-lg px-3 text-[13px] font-medium"
               :disabled="eventType.hidden"
               :title="eventType.hidden ? 'Publish this event type before sharing it' : 'Copy booking link'"
               :aria-label="eventType.hidden ? `Publish ${eventType.title} before copying its booking link` : `Copy booking link for ${eventType.title}`"

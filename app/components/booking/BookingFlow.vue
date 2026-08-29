@@ -507,10 +507,10 @@ useHead({
                 class="mt-0.5 size-4 shrink-0 text-warning"
               />
               <div>
-                <p class="text-[13px] font-medium text-highlighted">
+                <p class="text-[14px] font-medium text-highlighted">
                   No calendar event yet
                 </p>
-                <p class="mt-0.5 text-[12px] leading-relaxed text-muted">
+                <p class="mt-0.5 text-[13px] leading-relaxed text-muted">
                   Schedra will send the final meeting details after the host approves your request.
                 </p>
               </div>
@@ -521,7 +521,7 @@ useHead({
                 class="mt-0.5 size-4 shrink-0 text-primary"
               />
               <div class="min-w-0">
-                <p class="text-[13px] font-medium text-highlighted">
+                <p class="text-[14px] font-medium text-highlighted">
                   {{ locationLabel(confirmed.locationType) }}
                 </p>
                 <a
@@ -529,11 +529,11 @@ useHead({
                   :href="confirmed.meetingUrl"
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="mt-0.5 block truncate text-[12px] text-primary hover:underline"
+                  class="mt-0.5 block truncate text-[13px] text-primary hover:underline"
                 >Join meeting</a>
                 <p
                   v-else
-                  class="mt-0.5 text-[12px] leading-relaxed text-muted"
+                  class="mt-0.5 text-[13px] leading-relaxed text-muted"
                 >
                   {{ ['google_meet', 'microsoft_teams', 'zoom'].includes(confirmed.locationType) ? `Your private ${confirmed.locationType === 'zoom' ? 'Zoom' : confirmed.locationType === 'microsoft_teams' ? 'Microsoft Teams' : 'Google Meet'} link is being prepared and will appear in the booking details.` : confirmed.locationDetails }}
                 </p>
@@ -561,7 +561,7 @@ useHead({
           <aside class="border-b border-default px-6 py-7 sm:px-7 lg:border-b-0 lg:border-r">
             <div
               v-if="rescheduleOf"
-              class="mb-5 flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2.5 text-[12px] leading-relaxed text-toned"
+              class="mb-5 flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2.5 text-[13px] leading-relaxed text-toned"
             >
               <UIcon
                 name="i-lucide-calendar-sync"
@@ -606,7 +606,7 @@ useHead({
               </p>
               <p
                 v-if="page && page.capacity > 1"
-                class="pl-6.5 text-[12px] leading-relaxed text-muted"
+                class="pl-6.5 text-[13px] leading-relaxed text-muted"
               >
                 This is a shared session. Calendar guests may be visible to one another.
               </p>
@@ -619,7 +619,7 @@ useHead({
                   <p class="text-toned">
                     {{ locationLabel(page?.locationType) }}
                   </p>
-                  <p class="mt-0.5 text-[12px] leading-relaxed text-muted">
+                  <p class="mt-0.5 text-[13px] leading-relaxed text-muted">
                     {{ page?.locationDetails }}
                   </p>
                 </div>
@@ -694,10 +694,10 @@ useHead({
                 :aria-pressed="selectedDate === isoDate(day)"
                 @click="selectedDate = isoDate(day); selectedSlot = null"
               >
-                <span class="block text-[10px] font-semibold uppercase tracking-wide opacity-70">
+                <span class="block text-[12px] font-semibold uppercase tracking-wide opacity-70">
                   {{ new Intl.DateTimeFormat('en', { weekday: 'short' }).format(day).slice(0, 2) }}
                 </span>
-                <span class="tnum mt-0.5 block text-[15px] font-semibold">{{ day.getDate() }}</span>
+                <span class="tnum mt-0.5 block text-[16px] font-semibold">{{ day.getDate() }}</span>
               </button>
             </div>
 
@@ -727,7 +727,7 @@ useHead({
               </p>
 
               <template v-else-if="daySlots.length">
-                <p class="text-[13px] font-medium text-muted">
+                <p class="text-[14px] font-medium text-muted">
                   {{ longSelected }}
                 </p>
                 <div class="tnum mt-3 grid max-h-64 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3">
@@ -736,7 +736,7 @@ useHead({
                     :key="slot.start"
                     data-testid="booking-slot"
                     type="button"
-                    class="min-h-11 rounded-lg border py-2 text-[13px] font-medium transition-colors"
+                    class="min-h-11 rounded-lg border py-2 text-[14px] font-medium transition-colors"
                     :class="selectedSlot === slot.start
                       ? 'border-primary bg-primary text-inverted'
                       : 'border-default text-toned hover:border-primary'"
@@ -747,7 +747,7 @@ useHead({
                     <span class="block">{{ timeLabel(slot.start) }}</span>
                     <span
                       v-if="slot.availableSeats !== undefined"
-                      class="mt-0.5 block text-[10px] font-normal opacity-75"
+                      class="mt-0.5 block text-[12px] font-normal opacity-75"
                     >{{ slot.availableSeats }} {{ slot.availableSeats === 1 ? 'seat' : 'seats' }} left</span>
                   </button>
                 </div>
@@ -803,10 +803,10 @@ useHead({
               <div class="rounded-xl border border-default bg-muted px-4 py-3.5">
                 <div class="flex items-center justify-between gap-3">
                   <div>
-                    <p class="text-[13px] font-medium text-highlighted">
+                    <p class="text-[14px] font-medium text-highlighted">
                       Additional guests
                     </p>
-                    <p class="mt-0.5 text-[11px] leading-relaxed text-muted">
+                    <p class="mt-0.5 text-[12px] leading-relaxed text-muted">
                       {{ page && page.capacity > 1
                         ? `Invite up to ${additionalGuestLimit} more people. Each person uses a seat.`
                         : 'Invite up to 10 people who should receive meeting updates.' }}
@@ -905,7 +905,7 @@ useHead({
 
               <p
                 v-if="bookingError"
-                class="rounded-lg border border-error/30 bg-error/10 px-3.5 py-2.5 text-[13px] text-error"
+                class="rounded-lg border border-error/30 bg-error/10 px-3.5 py-2.5 text-[14px] text-error"
                 role="alert"
               >
                 {{ bookingError }}

@@ -63,7 +63,7 @@ async function go() {
 
     <p
       v-if="error"
-      class="mt-3 text-[13px] text-error"
+      class="mt-3 text-[14px] text-error"
       role="alert"
     >
       {{ error }}

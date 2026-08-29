@@ -122,7 +122,7 @@ async function disconnectZoom() {
 
     <div
       v-if="callbackNotice"
-      class="flex items-start gap-3 rounded-xl border px-4 py-3 text-[12px]"
+      class="flex items-start gap-3 rounded-xl border px-4 py-3 text-[13px]"
       :class="callbackNotice.tone === 'success'
         ? 'border-success/25 bg-success/10 text-success'
         : callbackNotice.tone === 'warning'
@@ -147,10 +147,10 @@ async function disconnectZoom() {
           class="mt-0.5 size-4 shrink-0 text-error"
         />
         <div class="min-w-0">
-          <p class="text-[12px] font-semibold text-error">
+          <p class="text-[13px] font-semibold text-error">
             {{ health.failed }} booking {{ health.failed === 1 ? 'update needs' : 'updates need' }} attention
           </p>
-          <p class="mt-0.5 truncate text-[11px] text-muted">
+          <p class="mt-0.5 truncate text-[12px] text-muted">
             {{ healthProviderName }} did not receive the latest change. {{ health.lastError }}
           </p>
         </div>
@@ -168,7 +168,7 @@ async function disconnectZoom() {
     </div>
     <div
       v-else-if="health && (health.pending || health.processing)"
-      class="surface-secondary flex items-center gap-3 rounded-xl border border-default px-4 py-3 text-[11px] text-muted"
+      class="surface-secondary flex items-center gap-3 rounded-xl border border-default px-4 py-3 text-[12px] text-muted"
       role="status"
     >
       <UIcon
@@ -214,10 +214,10 @@ async function disconnectZoom() {
           name="i-lucide-cloud-alert"
           class="size-5 text-error"
         />
-        <h2 class="mt-3 text-[14px] font-semibold text-highlighted">
+        <h2 class="mt-3 text-[15px] font-semibold text-highlighted">
           Could not check Zoom
         </h2>
-        <p class="mt-1 text-[12px] text-muted">
+        <p class="mt-1 text-[13px] text-muted">
           Try loading its connection status again.
         </p>
         <UButton
@@ -242,17 +242,17 @@ async function disconnectZoom() {
           /></span>
           <span
             v-if="zoomConnection?.connected"
-            class="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-medium text-success"
+            class="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-2 py-0.5 text-[12px] font-medium text-success"
           ><span class="size-1.5 rounded-full bg-success" />Connected</span>
           <span
             v-else-if="zoomConnection?.status === 'needs_reauthorization'"
-            class="inline-flex items-center gap-1.5 rounded-full bg-warning/10 px-2 py-0.5 text-[10px] font-medium text-warning"
+            class="inline-flex items-center gap-1.5 rounded-full bg-warning/10 px-2 py-0.5 text-[12px] font-medium text-warning"
           ><span class="size-1.5 rounded-full bg-warning" />Needs attention</span>
         </div>
-        <h2 class="mt-4 text-[15px] font-semibold text-highlighted">
+        <h2 class="mt-4 text-[16px] font-semibold text-highlighted">
           Zoom
         </h2>
-        <p class="mt-1 line-clamp-2 text-[12px] leading-relaxed text-muted">
+        <p class="mt-1 line-clamp-2 text-[13px] leading-relaxed text-muted">
           {{ zoomConnection?.accountLabel || 'Create a unique Zoom meeting for every confirmed booking.' }}
         </p>
         <div class="mt-auto pt-5">
@@ -297,10 +297,10 @@ async function disconnectZoom() {
         name="i-lucide-blocks"
         class="mx-auto size-4 text-muted"
       />
-      <h2 class="mt-3 text-[13px] font-semibold text-highlighted">
+      <h2 class="mt-3 text-[14px] font-semibold text-highlighted">
         More integrations are coming
       </h2>
-      <p class="mx-auto mt-1 max-w-md text-[11px] leading-relaxed text-muted">
+      <p class="mx-auto mt-1 max-w-md text-[12px] leading-relaxed text-muted">
         Additional calendars, video providers and automation tools will appear here without cluttering settings.
       </p>
     </section>
@@ -329,9 +329,9 @@ async function disconnectZoom() {
                 class="size-4"
               /></span>
               <div class="min-w-0">
-                <p class="text-[12px] font-medium text-highlighted">
+                <p class="text-[13px] font-medium text-highlighted">
                   Connected account
-                </p><p class="truncate text-[11px] text-muted">
+                </p><p class="truncate text-[12px] text-muted">
                   {{ zoomConnection?.accountLabel }}
                 </p>
               </div>
@@ -358,16 +358,16 @@ async function disconnectZoom() {
               <UIcon
                 :name="benefit[0]"
                 class="size-4 text-primary"
-              /><p class="mt-2 text-[12px] font-semibold text-highlighted">
+              /><p class="mt-2 text-[13px] font-semibold text-highlighted">
                 {{ benefit[1] }}
-              </p><p class="mt-1 text-[11px] leading-relaxed text-muted">
+              </p><p class="mt-1 text-[12px] leading-relaxed text-muted">
                 {{ benefit[2] }}
               </p>
             </div>
           </div>
           <div
             v-if="zoomChecking"
-            class="surface-secondary flex items-center gap-2 border-t border-default px-5 py-3 text-[11px] text-muted"
+            class="surface-secondary flex items-center gap-2 border-t border-default px-5 py-3 text-[12px] text-muted"
           >
             <UIcon
               name="i-lucide-loader-circle"
@@ -376,7 +376,7 @@ async function disconnectZoom() {
           </div>
           <div
             v-if="zoomPageError"
-            class="flex items-center justify-between gap-3 border-t border-error/25 bg-error/10 px-5 py-3 text-[11px] text-error"
+            class="flex items-center justify-between gap-3 border-t border-error/25 bg-error/10 px-5 py-3 text-[12px] text-error"
             role="alert"
           >
             <span>{{ zoomPageError }}</span><UButton
@@ -411,7 +411,7 @@ async function disconnectZoom() {
       description="Schedra will stop creating and updating Zoom meetings for future booking changes."
     >
       <template #body>
-        <p class="text-[13px] leading-relaxed text-muted">
+        <p class="text-[14px] leading-relaxed text-muted">
           Meetings already created remain in your Zoom account. Change event types using Zoom before accepting new bookings.
         </p>
       </template>

@@ -40,7 +40,7 @@ function toggleColorMode() {
             :key="link.label"
             :to="link.to.startsWith('#') ? `/${link.to}` : link.to"
             prefetch
-            class="text-[14px] text-muted transition-colors hover:text-highlighted"
+            class="text-[15px] text-muted transition-colors hover:text-highlighted"
           >{{ link.label }}</NuxtLink>
         </nav>
 
@@ -84,7 +84,7 @@ function toggleColorMode() {
           :key="link.label"
           :to="link.to.startsWith('#') ? `/${link.to}` : link.to"
           prefetch
-          class="block py-2.5 text-[15px] text-muted transition-colors hover:text-highlighted"
+          class="block py-2.5 text-[16px] text-muted transition-colors hover:text-highlighted"
           @click="open = false"
         >{{ link.label }}</NuxtLink>
 

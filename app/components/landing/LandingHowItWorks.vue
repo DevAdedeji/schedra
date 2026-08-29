@@ -39,7 +39,7 @@ const steps = [
           <h3 class="mt-5 text-[19px] font-semibold tracking-tight text-highlighted">
             {{ step.title }}
           </h3>
-          <p class="mt-3 max-w-[34ch] text-[15px] leading-relaxed text-muted">
+          <p class="mt-3 max-w-[34ch] text-[16px] leading-relaxed text-muted">
             {{ step.body }}
           </p>
         </li>

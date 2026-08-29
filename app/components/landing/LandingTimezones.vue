@@ -21,11 +21,11 @@ const zones = [
           <h2 class="mt-6 max-w-[14ch] font-editorial text-[clamp(2.25rem,5vw,3.75rem)] leading-[1.02] tracking-[-0.02em] text-highlighted">
             Nobody turns up an hour <em class="text-primary">late.</em>
           </h2>
-          <p class="mt-7 max-w-[44ch] text-[16px] leading-[1.65] text-toned">
+          <p class="mt-7 max-w-[44ch] text-[17px] leading-[1.65] text-toned">
             You are in Lagos. They are in New York. You each see your own clock,
             and neither of you has to work anything out.
           </p>
-          <p class="mt-4 max-w-[44ch] text-[16px] leading-[1.65] text-muted">
+          <p class="mt-4 max-w-[44ch] text-[17px] leading-[1.65] text-muted">
             Twice a year the clocks change, on different days in different
             countries. That is when scheduling tools quietly put meetings in the
             wrong hour. It is the part we built first, and the part we test
@@ -47,10 +47,10 @@ const zones = [
               class="flex items-center gap-4 px-5 py-4"
             >
               <div class="min-w-0 flex-1">
-                <p class="text-[15px] font-semibold tracking-tight text-highlighted">
+                <p class="text-[16px] font-semibold tracking-tight text-highlighted">
                   {{ entry.city }}
                 </p>
-                <p class="truncate text-[12px] text-dimmed">
+                <p class="truncate text-[13px] text-dimmed">
                   {{ entry.country }}
                 </p>
               </div>
@@ -62,7 +62,7 @@ const zones = [
                   {{ entry.time }}
                 </p>
                 <p
-                  class="tnum mt-1 text-[11px]"
+                  class="tnum mt-1 text-[12px]"
                   :class="entry.rollover ? 'text-primary' : 'text-dimmed'"
                 >
                   {{ entry.date }}
@@ -71,7 +71,7 @@ const zones = [
             </div>
           </div>
 
-          <p class="border-t border-default px-5 py-4 text-[13px] leading-relaxed text-muted">
+          <p class="border-t border-default px-5 py-4 text-[14px] leading-relaxed text-muted">
             It is already tomorrow in Tokyo. Everyone still sees the right time
             on the booking page before they confirm.
           </p>

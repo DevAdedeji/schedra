@@ -44,9 +44,9 @@ const { isSignedIn, accountDestination } = await useLandingNavigation()
             </UButton>
           </div>
 
-          <p class="mt-8 text-[13px] text-dimmed">
+          <p class="mt-8 text-[14px] text-dimmed">
             For people who never want to send
-            <em class="font-editorial text-[16px] not-italic text-toned">“does Tuesday work?”</em>
+            <em class="font-editorial text-[17px] not-italic text-toned">“does Tuesday work?”</em>
             again.
           </p>
         </div>

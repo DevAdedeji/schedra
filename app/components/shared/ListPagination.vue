@@ -52,7 +52,7 @@ function go(next: number) {
     :aria-busy="disabled"
     aria-label="Pagination"
   >
-    <p class="tnum shrink-0 text-[12px] text-muted">
+    <p class="tnum shrink-0 text-[13px] text-muted">
       {{ summary }}
     </p>
 
@@ -69,7 +69,7 @@ function go(next: number) {
         @click="go(page - 1)"
       />
 
-      <p class="tnum px-2 text-[12px] font-medium text-toned sm:hidden">
+      <p class="tnum px-2 text-[13px] font-medium text-toned sm:hidden">
         {{ page }} / {{ totalPages }}
       </p>
 
@@ -79,13 +79,13 @@ function go(next: number) {
       >
         <span
           v-if="entry === 'gap'"
-          class="hidden size-8 items-center justify-center text-[12px] text-dimmed sm:flex"
+          class="hidden size-8 items-center justify-center text-[13px] text-dimmed sm:flex"
           aria-hidden="true"
         >…</span>
         <button
           v-else
           type="button"
-          class="tnum hidden size-8 shrink-0 items-center justify-center rounded-lg text-[12px] font-medium transition-colors sm:flex"
+          class="tnum hidden size-8 shrink-0 items-center justify-center rounded-lg text-[13px] font-medium transition-colors sm:flex"
           :class="entry === page
             ? 'bg-inverted text-inverted'
             : 'text-muted hover:bg-elevated hover:text-highlighted'"

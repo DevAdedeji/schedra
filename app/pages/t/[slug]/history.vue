@@ -118,11 +118,11 @@ function when(iso: string) {
             />
           </span>
           <div class="min-w-0 flex-1">
-            <p class="text-[13px] text-highlighted">
+            <p class="text-[14px] text-highlighted">
               <span class="font-medium">{{ entry.actorName ?? entry.actorEmail ?? 'Schedra' }}</span>
               {{ phrase(entry.action) }}
             </p>
-            <p class="mt-0.5 text-[11px] text-muted">
+            <p class="mt-0.5 text-[12px] text-muted">
               {{ when(entry.createdAt) }}<template v-if="detail(entry)">
                 · {{ detail(entry) }}
               </template>

@@ -58,7 +58,7 @@ withDefaults(defineProps<{
 
     <span
       v-if="wordmark"
-      class="text-[15px] font-semibold tracking-[-0.03em]"
+      class="text-[16px] font-semibold tracking-[-0.03em]"
       :class="inverted ? 'text-white' : 'text-highlighted'"
     >schedra</span>
   </span>

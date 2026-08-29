@@ -166,7 +166,7 @@ async function reject(uid: string) {
 
     <p
       v-if="actionError"
-      class="mt-7 rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-[13px] text-error"
+      class="mt-7 rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-[14px] text-error"
       role="alert"
     >
       {{ actionError }}
@@ -234,7 +234,7 @@ async function reject(uid: string) {
 
         <div
           v-else-if="refreshing"
-          class="surface-secondary flex items-center gap-2 border-b border-default px-4 py-2 text-[11px] text-muted sm:px-5"
+          class="surface-secondary flex items-center gap-2 border-b border-default px-4 py-2 text-[12px] text-muted sm:px-5"
           role="status"
           aria-live="polite"
         >
@@ -253,7 +253,7 @@ async function reject(uid: string) {
             v-for="group in grouped"
             :key="group.heading"
           >
-            <h2 class="text-[12px] font-semibold uppercase tracking-[0.1em] text-dimmed">
+            <h2 class="text-[13px] font-semibold uppercase tracking-[0.1em] text-dimmed">
               {{ group.heading }}
             </h2>
 
@@ -265,48 +265,48 @@ async function reject(uid: string) {
                 :class="item.status === 'cancelled' && 'opacity-60'"
               >
                 <div class="flex flex-wrap items-start gap-4">
-                  <span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[13px] font-semibold text-primary">
+                  <span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[14px] font-semibold text-primary">
                     {{ initials(item.attendeeName) }}
                   </span>
 
                   <div class="min-w-0 flex-1">
                     <div class="flex flex-wrap items-center gap-2">
-                      <span class="tnum text-[15px] font-semibold text-highlighted">
+                      <span class="tnum text-[16px] font-semibold text-highlighted">
                         {{ time(item.startsAt) }}–{{ time(item.endsAt) }}
                       </span>
                       <span
                         v-if="item.status === 'cancelled'"
-                        class="rounded-full bg-elevated px-2.5 py-0.5 text-[11px] font-medium text-muted"
+                        class="rounded-full bg-elevated px-2.5 py-0.5 text-[12px] font-medium text-muted"
                       >
                         Cancelled
                       </span>
                       <span
                         v-else-if="item.status === 'pending'"
-                        class="rounded-full bg-warning/10 px-2.5 py-0.5 text-[11px] font-medium text-warning"
+                        class="rounded-full bg-warning/10 px-2.5 py-0.5 text-[12px] font-medium text-warning"
                       >
                         Needs approval
                       </span>
                       <span
                         v-else-if="item.status === 'rejected'"
-                        class="rounded-full bg-elevated px-2.5 py-0.5 text-[11px] font-medium text-muted"
+                        class="rounded-full bg-elevated px-2.5 py-0.5 text-[12px] font-medium text-muted"
                       >
                         Declined
                       </span>
                     </div>
 
-                    <p class="mt-1 text-[14px] text-toned">
+                    <p class="mt-1 text-[15px] text-toned">
                       {{ item.eventTitle }}
                     </p>
-                    <p class="mt-0.5 truncate text-[13px] text-muted">
+                    <p class="mt-0.5 truncate text-[14px] text-muted">
                       {{ item.attendeeName }} · {{ item.attendeeEmail }}
                     </p>
                     <p
                       v-if="item.additionalGuestEmails.length"
-                      class="mt-0.5 text-[12px] text-dimmed"
+                      class="mt-0.5 text-[13px] text-dimmed"
                     >
                       + {{ item.additionalGuestEmails.length }} additional guest{{ item.additionalGuestEmails.length === 1 ? '' : 's' }}
                     </p>
-                    <p class="mt-1.5 flex items-center gap-1.5 text-[12px] text-muted">
+                    <p class="mt-1.5 flex items-center gap-1.5 text-[13px] text-muted">
                       <UIcon
                         :name="locationIcon(item)"
                         class="size-3.5 shrink-0 text-dimmed"
@@ -316,7 +316,7 @@ async function reject(uid: string) {
 
                     <p
                       v-if="item.notes"
-                      class="mt-3 rounded-lg border border-default bg-muted px-3.5 py-2.5 text-[13px] leading-relaxed text-muted"
+                      class="mt-3 rounded-lg border border-default bg-muted px-3.5 py-2.5 text-[14px] leading-relaxed text-muted"
                     >
                       {{ item.notes }}
                     </p>

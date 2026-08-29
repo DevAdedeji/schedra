@@ -10,7 +10,7 @@ defineProps<{ hint?: string }>()
 
     <p
       v-if="hint"
-      class="hidden min-w-0 flex-1 truncate text-center text-[12px] text-muted sm:block"
+      class="hidden min-w-0 flex-1 truncate text-center text-[13px] text-muted sm:block"
     >
       {{ hint }}
     </p>

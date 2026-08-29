@@ -32,10 +32,10 @@ const emit = defineEmits<{ retry: [] }>()
         />
       </span>
       <div :class="!compact && 'max-w-sm'">
-        <h2 class="text-[14px] font-semibold text-highlighted">
+        <h2 class="text-[15px] font-semibold text-highlighted">
           {{ title }}
         </h2>
-        <p class="mt-1 text-[12px] leading-relaxed text-muted">
+        <p class="mt-1 text-[13px] leading-relaxed text-muted">
           {{ description }}
         </p>
       </div>

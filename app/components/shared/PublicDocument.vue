@@ -22,7 +22,7 @@ defineProps<{
         </p>
         <p
           v-if="updated"
-          class="mt-5 text-[13px] text-dimmed"
+          class="mt-5 text-[14px] text-dimmed"
         >
           Last updated {{ updated }}
         </p>

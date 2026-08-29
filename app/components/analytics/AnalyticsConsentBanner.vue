@@ -99,13 +99,13 @@ watch(excluded, (isExcluded) => {
       <div class="min-w-0 flex-1">
         <h2
           id="analytics-consent-title"
-          class="text-[15px] font-semibold text-highlighted"
+          class="text-[16px] font-semibold text-highlighted"
         >
           Optional analytics
         </h2>
         <p
           id="analytics-consent-description"
-          class="mt-1 text-[13px] leading-relaxed text-muted"
+          class="mt-1 text-[14px] leading-relaxed text-muted"
         >
           Help us find usability issues and improve Schedra. Sensitive form content is masked, and
           analytics are not used for advertising. Read our

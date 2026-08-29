@@ -272,7 +272,7 @@ function locationIcon(item: EventTypeRecord) {
 
         <div
           v-else-if="refreshing"
-          class="surface-secondary flex items-center gap-2 border-b border-default px-4 py-2 text-[11px] text-muted sm:px-5"
+          class="surface-secondary flex items-center gap-2 border-b border-default px-4 py-2 text-[12px] text-muted sm:px-5"
           role="status"
           aria-live="polite"
         >
@@ -304,28 +304,28 @@ function locationIcon(item: EventTypeRecord) {
                 /></span>
                 <div class="min-w-0 flex-1 pr-28">
                   <div class="flex flex-wrap items-center gap-2">
-                    <h2 class="text-[15px] font-semibold text-highlighted sm:text-[16px]">
+                    <h2 class="text-[16px] font-semibold text-highlighted sm:text-[17px]">
                       {{ item.title }}
                     </h2>
                     <span
                       v-if="item.hidden"
-                      class="inline-flex items-center gap-1 rounded-full border border-default bg-muted px-2 py-0.5 text-[10px] font-medium text-muted"
+                      class="inline-flex items-center gap-1 rounded-full border border-default bg-muted px-2 py-0.5 text-[12px] font-medium text-muted"
                     ><UIcon
                       name="i-lucide-eye-off"
                       class="size-3"
                     />Hidden</span>
                     <span
                       v-else
-                      class="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-medium text-success"
+                      class="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-[12px] font-medium text-success"
                     ><span class="size-1.5 rounded-full bg-success" />Active</span>
                   </div>
                   <p
                     v-if="item.description"
-                    class="mt-1.5 line-clamp-2 max-w-2xl text-[13px] leading-relaxed text-muted"
+                    class="mt-1.5 line-clamp-2 max-w-2xl text-[14px] leading-relaxed text-muted"
                   >
                     {{ item.description }}
                   </p>
-                  <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] text-toned">
+                  <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-toned">
                     <span class="flex items-center gap-1.5"><UIcon
                       name="i-lucide-clock-3"
                       class="size-3.5 text-dimmed"
@@ -378,7 +378,7 @@ function locationIcon(item: EventTypeRecord) {
                       class="size-3.5 text-dimmed"
                     />Approval required</span>
                   </div>
-                  <p class="mt-3 truncate font-mono text-[11px] text-dimmed">
+                  <p class="mt-3 truncate font-mono text-[12px] text-dimmed">
                     {{ host }}{{ bookingPath(item) }}
                   </p>
                 </div>
@@ -391,7 +391,7 @@ function locationIcon(item: EventTypeRecord) {
                 variant="outline"
                 size="xs"
                 :icon="isCopied(item.id) ? 'i-lucide-check' : 'i-lucide-copy'"
-                class="h-8 rounded-lg px-3 text-[12px] font-medium"
+                class="h-8 rounded-lg px-3 text-[13px] font-medium"
                 :disabled="item.hidden"
                 :title="item.hidden ? 'Publish this event type before sharing it' : 'Copy booking link'"
                 :aria-label="item.hidden ? `Publish ${item.title} before copying its booking link` : `Copy booking link for ${item.title}`"
@@ -473,7 +473,7 @@ function locationIcon(item: EventTypeRecord) {
       </template>
     </section>
 
-    <div class="flex items-start gap-3 rounded-xl border border-default bg-muted px-4 py-3.5 text-[12px] leading-relaxed text-muted">
+    <div class="flex items-start gap-3 rounded-xl border border-default bg-muted px-4 py-3.5 text-[13px] leading-relaxed text-muted">
       <UIcon
         name="i-lucide-shield-check"
         class="mt-0.5 size-4 shrink-0 text-primary"
@@ -500,12 +500,12 @@ function locationIcon(item: EventTypeRecord) {
       description="This cannot be undone."
     >
       <template #body>
-        <p class="text-[14px] leading-relaxed text-muted">
+        <p class="text-[15px] leading-relaxed text-muted">
           <span class="font-medium text-highlighted">{{ deletingItem?.title }}</span> will be removed from your account and its booking link will stop working.
         </p>
         <p
           v-if="deleteError"
-          class="mt-4 rounded-lg border border-error/30 bg-error/10 px-3.5 py-3 text-[13px] text-error"
+          class="mt-4 rounded-lg border border-error/30 bg-error/10 px-3.5 py-3 text-[14px] text-error"
           role="alert"
         >
           {{ deleteError }}

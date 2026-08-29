@@ -50,7 +50,7 @@ const {
   >
     <span
       class="flex shrink-0 select-none items-center border-r border-accented bg-muted px-3 leading-none text-muted"
-      :class="size === 'lg' ? 'text-[13px]' : 'text-[14px]'"
+      :class="size === 'lg' ? 'text-[14px]' : 'text-[15px]'"
     >
       {{ prefix }}
     </span>
@@ -66,7 +66,7 @@ const {
       spellcheck="false"
       :placeholder="placeholder"
       class="h-full min-w-0 flex-1 bg-default px-3 text-highlighted outline-none placeholder:text-dimmed"
-      :class="size === 'lg' ? 'text-[14px]' : 'text-[15px]'"
+      :class="size === 'lg' ? 'text-[15px]' : 'text-[16px]'"
       v-bind="{ ...ariaAttrs, ...$attrs }"
       @input="emitFormInput"
       @change="emitFormChange"

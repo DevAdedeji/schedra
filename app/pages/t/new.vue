@@ -23,7 +23,7 @@ watch(open, async (value) => {
     <h1 class="font-editorial text-[2rem] leading-tight tracking-[-0.02em] text-highlighted">
       Create a team
     </h1>
-    <p class="mt-3 text-[15px] leading-relaxed text-muted">
+    <p class="mt-3 text-[16px] leading-relaxed text-muted">
       Share one booking link the whole team hosts. Your personal page stays exactly as it is.
     </p>
 
