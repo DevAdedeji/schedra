@@ -1,0 +1,1 @@
+ALTER TYPE "public"."operations_alert_status" ADD VALUE 'acknowledged' BEFORE 'resolved';

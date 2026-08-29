@@ -1,4 +1,4 @@
-import { and, count, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm'
+import { and, count, desc, eq, gte, ilike, inArray, lte, or, sql } from 'drizzle-orm'
 import type { Database } from '../database/client'
 import {
   bookingPayments,
@@ -39,7 +39,9 @@ export async function appendPaymentLedgerEntry(input: {
     provider: 'bachs',
     message: input.message?.slice(0, 1000) ?? null,
     metadata: input.metadata ?? {}
-  }).onConflictDoNothing({ target: paymentLedgerEntries.dedupeKey }).returning({ id: paymentLedgerEntries.id })
+  // Successful money rows also have a per-payment/per-kind uniqueness guard.
+  // Omitting a conflict target makes either invariant safely idempotent.
+  }).onConflictDoNothing().returning({ id: paymentLedgerEntries.id })
   return entry ?? null
 }
 
@@ -76,6 +78,8 @@ export async function paymentActivityRows(
     kinds?.length ? inArray(paymentLedgerEntries.kind, kinds) : undefined,
     query.direction === 'all' ? undefined : eq(paymentLedgerEntries.direction, query.direction),
     query.status === 'all' ? undefined : eq(paymentLedgerEntries.status, query.status),
+    query.from ? gte(paymentLedgerEntries.occurredAt, new Date(`${query.from}T00:00:00.000Z`)) : undefined,
+    query.to ? lte(paymentLedgerEntries.occurredAt, new Date(`${query.to}T23:59:59.999Z`)) : undefined,
     search
   )
 

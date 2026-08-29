@@ -448,16 +448,25 @@ export async function completePaidBooking(input: {
   // the normal idempotent refund path.
   if (currentBooking.status === 'cancelled' || ['failed', 'expired'].includes(payment.status)) {
     if (!input.chargeId) throw new Error('A late paid booking did not include a refundable charge id.')
-    await useDatabase().transaction(async (tx) => {
-      await tx.update(bookingPayments).set({
+    const claimed = await useDatabase().transaction(async (tx) => {
+      const [updated] = await tx.update(bookingPayments).set({
         status: 'paid',
         bachsChargeId: input.chargeId,
-        paidAt: new Date(),
+        paidAt: payment.paidAt ?? new Date(),
         lastError: null,
         updatedAt: new Date()
-      }).where(eq(bookingPayments.id, payment.id))
+      }).where(and(
+        eq(bookingPayments.id, payment.id),
+        inArray(bookingPayments.status, ['pending', 'failed', 'expired', 'refund_failed'])
+      )).returning({ id: bookingPayments.id })
+      if (!updated) return false
       if (!payment.paidAt) await recordSuccessfulPaymentEntries(payment, input, tx)
+      return true
     })
+    // A webhook and browser reconciliation can race after a late charge. Only
+    // the request that atomically moved the payment to `paid` may write money
+    // entries or start the refund; the other observes the completed claim.
+    if (!claimed) return { matched: true, applied: false, reason: 'already-paid' }
     await requestPaidBookingRefund(payment.bookingId, 'The booking hold was cancelled before payment settled.')
     return { matched: true, applied: true, reason: 'late-payment-refund-started' }
   }
@@ -739,7 +748,10 @@ async function recordSuccessfulPaymentEntries(
   executor: PaymentExecutor
 ) {
   const objectId = input.chargeId ?? input.checkoutId
-  const suffix = input.providerEventId ?? objectId
+  // Provider events are delivery attempts around the same charge. Use the
+  // charge (or checkout fallback) as the financial identity so webhook and
+  // browser recovery paths converge on one ledger entry.
+  const suffix = objectId
   const metadata = {
     platformFeeCents: payment.platformFeeCents,
     amountPaidCents: input.amountPaidCents ?? null,

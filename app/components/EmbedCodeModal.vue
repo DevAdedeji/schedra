@@ -10,7 +10,7 @@ const props = defineProps<{
 const emit = defineEmits<{ 'update:open': [value: boolean] }>()
 const model = computed({ get: () => props.open, set: value => emit('update:open', value) })
 const feedback = useFeedback()
-const { copy } = useCopy()
+const { copied, copy } = useCopy()
 
 const installType = ref<'button' | 'existing' | 'floating'>('button')
 const theme = ref<EmbedTheme>('auto')
@@ -236,10 +236,11 @@ async function copySnippet() {
           Done
         </UButton>
         <UButton
-          icon="i-lucide-copy"
+          :color="copied ? 'success' : 'primary'"
+          :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"
           @click="copySnippet"
         >
-          Copy embed code
+          {{ copied ? 'Copied' : 'Copy embed code' }}
         </UButton>
       </div>
     </template>

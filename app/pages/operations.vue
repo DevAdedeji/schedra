@@ -17,6 +17,7 @@ const kind = ref<OperationKind>('calendar')
 const filter = ref<OperationStatus>('all')
 const page = ref(1)
 const retryingId = ref<string | null>(null)
+const acknowledgingId = ref<string | null>(null)
 const requestFetch = useRequestFetch()
 
 const { data: overview, status: overviewStatus, error: overviewError, refresh: refreshOverview } = await useAsyncData(
@@ -144,6 +145,25 @@ async function retry(jobKind: OperationKind, id: string) {
     retryingId.value = null
   }
 }
+
+async function acknowledgeAlert(id: string) {
+  if (!overview.value || acknowledgingId.value) return
+  const previous = overview.value
+  acknowledgingId.value = id
+  overview.value = {
+    ...overview.value,
+    alerts: overview.value.alerts.filter(alert => alert.id !== id)
+  }
+  try {
+    await operationsApi.acknowledgeAlert(id)
+    feedback.success({ title: 'Alert marked as checked' })
+  } catch (failure) {
+    overview.value = previous
+    feedback.error({ title: apiErrorMessage(failure, 'The alert could not be marked as checked.') })
+  } finally {
+    acknowledgingId.value = null
+  }
+}
 </script>
 
 <template>
@@ -265,6 +285,15 @@ async function retry(jobKind: OperationKind, id: string) {
               color="error"
               variant="subtle"
               class="capitalize"
+            />
+            <UButton
+              label="Checked"
+              icon="i-lucide-check"
+              color="neutral"
+              variant="outline"
+              size="xs"
+              :loading="acknowledgingId === alert.id"
+              @click="acknowledgeAlert(alert.id)"
             />
           </div>
         </div>

@@ -17,6 +17,7 @@ const props = defineProps<{
 }>()
 
 const feedback = useFeedback()
+const { copied, copy } = useCopy()
 const page = ref(1)
 const { data, refresh, status, error: loadFailure } = await useLazyFetch<WorkflowsResponse>(
   () => workflowsApi.listEndpoint(props.teamSlug),
@@ -234,8 +235,9 @@ function variableToken(variable: string) {
 }
 
 async function copySecret() {
-  await navigator.clipboard.writeText(secret.value)
-  feedback.success({ title: 'Signing secret copied' })
+  const written = await copy(secret.value)
+  if (written) feedback.success({ title: 'Signing secret copied' })
+  else feedback.error({ title: 'Could not copy signing secret' })
 }
 </script>
 
@@ -575,10 +577,10 @@ async function copySecret() {
           <UButton
             color="neutral"
             variant="soft"
-            icon="i-lucide-copy"
+            :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"
             @click="copySecret"
           >
-            Copy
+            {{ copied ? 'Copied' : 'Copy' }}
           </UButton>
         </div>
       </template>

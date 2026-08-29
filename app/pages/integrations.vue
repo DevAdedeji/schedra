@@ -205,7 +205,36 @@ async function disconnectZoom() {
         @saved="calendarSaved"
       />
 
-      <section class="flex min-h-56 flex-col rounded-xl border border-default bg-default p-5">
+      <IntegrationCardSkeleton v-if="zoomStatus === 'pending' && !zoomConnection" />
+      <section
+        v-else-if="zoomFailure && !zoomConnection"
+        class="flex min-h-56 flex-col items-center justify-center rounded-xl border border-error/20 bg-default p-5 text-center"
+      >
+        <UIcon
+          name="i-lucide-cloud-alert"
+          class="size-5 text-error"
+        />
+        <h2 class="mt-3 text-[14px] font-semibold text-highlighted">
+          Could not check Zoom
+        </h2>
+        <p class="mt-1 text-[12px] text-muted">
+          Try loading its connection status again.
+        </p>
+        <UButton
+          color="neutral"
+          variant="outline"
+          size="sm"
+          icon="i-lucide-refresh-cw"
+          class="mt-4"
+          @click="() => refreshZoomConnection()"
+        >
+          Try again
+        </UButton>
+      </section>
+      <section
+        v-else
+        class="flex min-h-56 flex-col rounded-xl border border-default bg-default p-5"
+      >
         <div class="flex items-start justify-between gap-3">
           <span class="flex size-11 items-center justify-center rounded-xl bg-[#2D8CFF] text-white shadow-sm"><UIcon
             name="i-simple-icons-zoom"

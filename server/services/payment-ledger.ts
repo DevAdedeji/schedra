@@ -25,15 +25,12 @@ export async function listPaymentActivity(
   query: PaymentActivityQuery,
   audience: 'account' | 'operator' = 'account'
 ) {
-  const accountQuery = audience === 'account'
-    ? { ...query, status: 'succeeded' as const }
-    : query
   const { rows, total } = await paymentActivityRows(
     owner,
-    accountQuery,
-    audience === 'account' ? ['customer_payment'] : undefined
+    query,
+    audience === 'account' ? ['customer_payment', 'settlement', 'refund'] : undefined
   )
-  return paymentActivityResponse(rows, total, accountQuery, () => ownerLabel, false)
+  return paymentActivityResponse(rows, total, query, () => ownerLabel, false)
 }
 
 export async function listOperationsPaymentActivity(query: PaymentActivityQuery) {

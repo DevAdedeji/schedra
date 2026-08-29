@@ -780,6 +780,9 @@ export const paymentLedgerEntries = pgTable('payment_ledger_entries', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
 }, table => [
   uniqueIndex('payment_ledger_entries_dedupe_key').on(table.dedupeKey),
+  uniqueIndex('payment_ledger_entries_success_kind_key')
+    .on(table.bookingPaymentId, table.kind)
+    .where(sql`${table.status} = 'succeeded' and ${table.kind} in ('customer_payment', 'platform_fee', 'processing_fee', 'settlement')`),
   index('payment_ledger_entries_payment_occurred_idx').on(table.bookingPaymentId, table.occurredAt),
   index('payment_ledger_entries_status_occurred_idx').on(table.status, table.occurredAt),
   index('payment_ledger_entries_provider_event_idx').on(table.provider, table.providerEventId)
@@ -973,6 +976,7 @@ export const webhookDeliveryStatus = pgEnum('webhook_delivery_status', [
 
 export const operationsAlertStatus = pgEnum('operations_alert_status', [
   'active',
+  'acknowledged',
   'resolved'
 ])
 

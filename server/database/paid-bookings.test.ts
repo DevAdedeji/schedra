@@ -112,6 +112,34 @@ describe.skipIf(!url)('paid booking database invariants', () => {
     `).rejects.toMatchObject({ code: 'P0001' })
   })
 
+  it('allows only one successful entry of each money kind per payment', async () => {
+    const [payment] = await sql<{ id: string }[]>`
+      insert into booking_payments (
+        booking_id, recipient_id, reference, amount_cents, currency, platform_fee_cents
+      ) values (${bookingId}, ${recipientId}, 'booking-ledger-success', 2500, 'USD', 125)
+      returning id
+    `
+    await sql`
+      insert into payment_ledger_entries (
+        booking_payment_id, dedupe_key, kind, direction, status,
+        amount_cents, currency, provider_event_id, provider_object_id
+      ) values (
+        ${payment!.id}, 'payment:success:event-1', 'customer_payment', 'in', 'succeeded',
+        2500, 'USD', 'event-1', 'charge-1'
+      )
+    `
+
+    await expect(sql`
+      insert into payment_ledger_entries (
+        booking_payment_id, dedupe_key, kind, direction, status,
+        amount_cents, currency, provider_event_id, provider_object_id
+      ) values (
+        ${payment!.id}, 'payment:success:event-2', 'customer_payment', 'in', 'succeeded',
+        2500, 'USD', 'event-2', 'charge-1'
+      )
+    `).rejects.toMatchObject({ code: '23505' })
+  })
+
   it('rejects invalid money movement classifications', async () => {
     const [payment] = await sql<{ id: string }[]>`
       insert into booking_payments (

@@ -8,7 +8,7 @@ const emit = defineEmits<{
 }>()
 
 const { url: siteUrl } = useSiteUrl()
-const { copy } = useCopy()
+const { copied, copy } = useCopy()
 const feedback = useFeedback()
 const open = computed({ get: () => props.open, set: value => emit('update:open', value) })
 const {
@@ -404,10 +404,11 @@ async function copyCreated() {
         </UButton>
         <UButton
           v-if="createdUrl"
-          icon="i-lucide-copy"
+          :color="copied ? 'success' : 'primary'"
+          :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"
           @click="copyCreated"
         >
-          Copy private link
+          {{ copied ? 'Copied' : 'Copy private link' }}
         </UButton>
         <UButton
           v-else

@@ -20,6 +20,9 @@ describe('operations email recovery', () => {
 })
 
 describe('operations alert notifications', () => {
+  it('does not notify again after an operator acknowledges an incident', () => {
+    expect(shouldNotifyOperationsAlert({ status: 'acknowledged', lastNotifiedAt: null })).toBe(false)
+  })
   it('notifies once while an incident remains active', () => {
     expect(shouldNotifyOperationsAlert(null)).toBe(true)
     expect(shouldNotifyOperationsAlert({ status: 'active', lastNotifiedAt: new Date() })).toBe(false)

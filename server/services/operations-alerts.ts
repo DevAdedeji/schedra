@@ -18,6 +18,7 @@ export function shouldNotifyOperationsAlert(existing?: {
   status: string
   lastNotifiedAt: Date | null
 } | null) {
+  if (existing?.status === 'acknowledged') return false
   return !existing || existing.status === 'resolved' || !existing.lastNotifiedAt
 }
 
@@ -45,7 +46,7 @@ export async function evaluateOperationsAlerts() {
       resolvedAt: sql`now()`,
       updatedAt: sql`now()`
     }).where(and(
-      eq(operationsAlerts.status, 'active'),
+      inArray(operationsAlerts.status, ['active', 'acknowledged']),
       notInArray(operationsAlerts.key, activeKeys)
     ))
   } else {
@@ -53,7 +54,7 @@ export async function evaluateOperationsAlerts() {
       status: 'resolved',
       resolvedAt: sql`now()`,
       updatedAt: sql`now()`
-    }).where(eq(operationsAlerts.status, 'active'))
+    }).where(inArray(operationsAlerts.status, ['active', 'acknowledged']))
   }
 
   const now = new Date()
@@ -75,7 +76,7 @@ export async function evaluateOperationsAlerts() {
       set: {
         type: item.type,
         severity: item.severity,
-        status: 'active',
+        status: existing?.status === 'acknowledged' ? 'acknowledged' : 'active',
         summary: item.summary,
         details: item.details,
         firstSeenAt: incidentStartedAt,
