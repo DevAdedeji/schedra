@@ -9,6 +9,7 @@ import { disconnectZoom } from '../../integrations/video/zoom'
 import { activeTeamsOwnedBy } from '../../services/organization'
 import { useAuth } from '../../services/auth'
 import { enqueueSubscriptionSeatSync } from '../../services/subscription-seat-sync'
+import { recordSecurityAudit } from '../../services/security-audit'
 
 export default defineEventHandler(async (event) => {
   const session = await requireAuthSession(event)
@@ -36,16 +37,29 @@ export default defineEventHandler(async (event) => {
   await disconnectGoogleCalendar(session.user.id)
   await disconnectMicrosoftCalendar(session.user.id)
   await disconnectZoom(session.user.id)
-  const deleted = await db.transaction(async (tx) => {
+  await db.transaction(async (tx) => {
+    // Write this before deleting the user so the foreign key is valid. The
+    // deletion then nulls actorUserId while actorEmail preserves attribution.
+    const audited = await recordSecurityAudit({
+      action: 'account.deleted',
+      actorUserId: session.user.id,
+      actorEmail: session.user.email,
+      targetType: 'user',
+      targetId: session.user.id
+    }, event, tx)
+    if (!audited) {
+      throw createError({ statusCode: 503, statusMessage: 'Account deletion could not be safely audited. Please try again.' })
+    }
+
     const rows = await tx.delete(users).where(eq(users.id, session.user.id)).returning({ id: users.id })
-    if (rows.length) {
-      for (const membership of memberships) {
-        await enqueueSubscriptionSeatSync(membership.organizationId, tx)
-      }
+    if (!rows.length) {
+      throw createError({ statusCode: 404, statusMessage: 'Your account could not be found.' })
+    }
+    for (const membership of memberships) {
+      await enqueueSubscriptionSeatSync(membership.organizationId, tx)
     }
     return rows
   })
-  if (!deleted.length) throw createError({ statusCode: 404, statusMessage: 'Your account could not be found.' })
 
   // Database cascades remove the session row, but Better Auth's signed cookie
   // cache can otherwise keep authorizing this browser for a few minutes. Run

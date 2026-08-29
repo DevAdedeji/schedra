@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { EmailDeliveryError, isPermanentEmailDeliveryError } from '../integrations/email'
-import { shouldNotifyOperationsAlert } from './operations-alerts'
+import { financialAlertCandidates, shouldNotifyOperationsAlert } from './operations-alerts'
 import { isRetryableEmailJob } from './operations'
 
 describe('operations email recovery', () => {
@@ -30,6 +30,19 @@ describe('operations alert notifications', () => {
 
   it('notifies once again when a resolved condition becomes a new incident', () => {
     expect(shouldNotifyOperationsAlert({ status: 'resolved', lastNotifiedAt: new Date() })).toBe(true)
+  })
+
+  it('turns abnormal money states into grouped operational alerts', () => {
+    const candidates = financialAlertCandidates({
+      expiredPendingPayments: 2,
+      staleRefunds: 1,
+      failedRefunds: 1,
+      restrictedRecipients: 3,
+      ignoredFinancialWebhooks: 1
+    })
+    expect(candidates).toHaveLength(5)
+    expect(candidates.map(item => item.key)).toContain('payments-refund-failed')
+    expect(candidates.every(item => ['warning', 'critical'].includes(item.severity))).toBe(true)
   })
 })
 

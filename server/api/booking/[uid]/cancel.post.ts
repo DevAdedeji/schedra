@@ -10,13 +10,14 @@ import { enqueueCalendarSync } from '../../../services/calendar-sync'
 import { cancelBookingReminders } from '../../../services/email-outbox'
 import { cancelPendingAutomationRuns, publishBookingEvent } from '../../../services/workflows'
 import { requestPaidBookingRefund } from '../../../services/paid-booking'
+import { recordSecurityAudit } from '../../../services/security-audit'
 
 export default defineEventHandler(async (event) => {
   const uid = getRouterParam(event, 'uid')
   await enforceRateLimit(event, {
     namespace: 'cancel-booking',
     identity: uid,
-    limit: 20,
+    limit: 8,
     windowSeconds: 600
   })
   const parsed = await readValidatedBody(event, cancelBookingSchema.safeParse)
@@ -92,6 +93,16 @@ export default defineEventHandler(async (event) => {
   if (!cancelled) {
     return { ok: true, alreadyCancelled: true }
   }
+
+  await recordSecurityAudit({
+    action: 'booking.cancelled',
+    actorUserId: session?.user.id,
+    actorEmail: session?.user.email,
+    organizationId: booking.organizationId,
+    targetType: 'booking',
+    targetId: booking.id,
+    metadata: { actor, paidRefundRequired: refund.required }
+  }, event)
 
   return { ok: true, alreadyCancelled: false, refundPending: refund.required }
 })

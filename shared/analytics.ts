@@ -8,6 +8,26 @@ export const analyticsQuerySchema = z.object({
 
 export type AnalyticsQuery = z.infer<typeof analyticsQuerySchema>
 
+/**
+ * Clarity is deliberately limited to informational marketing pages. Public
+ * booking pages, authenticated screens and capability-link routes can contain
+ * attendee, authentication or financial context and must never load a session
+ * recorder, even when storage consent is denied.
+ */
+const ANALYTICS_ROUTE_NAMES = new Set([
+  'index',
+  'features',
+  'pricing',
+  'privacy',
+  'support',
+  'terms',
+  'docs-integrations-zoom'
+])
+
+export function analyticsAllowedForRoute(routeName: unknown) {
+  return ANALYTICS_ROUTE_NAMES.has(String(routeName ?? ''))
+}
+
 export function percentage(part: number, total: number) {
   return total > 0 ? Math.round((part / total) * 1000) / 10 : 0
 }
