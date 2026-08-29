@@ -1,4 +1,4 @@
-import { and, eq, inArray, lte, sql } from 'drizzle-orm'
+import { and, eq, inArray, lte } from 'drizzle-orm'
 import type { Database } from '../database/client'
 import {
   bookingPayments,
@@ -21,6 +21,11 @@ import { bookingNoticeFromManaged, queueBookingEmails } from './booking-emails'
 import { enqueueCalendarSync } from './calendar-sync'
 import { publishBookingEvent } from './workflows'
 import { logEvent } from '../observability/logger'
+import {
+  findPaymentRecipient,
+  syncPaymentRecipient,
+  type PaymentRecipientOwner
+} from './payment-recipient'
 
 type PaymentExecutor = Pick<Database, 'insert' | 'select' | 'update'>
 
@@ -33,12 +38,18 @@ export function platformFeeCents(amountCents: number) {
 }
 
 export async function readyPaymentRecipient(owner: { userId?: string | null, organizationId?: string | null }) {
-  const clause = owner.organizationId
-    ? eq(paymentRecipients.organizationId, owner.organizationId)
-    : owner.userId ? eq(paymentRecipients.userId, owner.userId) : sql`false`
-  const [recipient] = await useDatabase().select().from(paymentRecipients)
-    .where(and(clause, eq(paymentRecipients.status, 'active'))).limit(1)
-  return recipient ?? null
+  const normalized: PaymentRecipientOwner | null = owner.organizationId
+    ? { organizationId: owner.organizationId }
+    : owner.userId ? { userId: owner.userId } : null
+  if (!normalized) return null
+  const stored = await findPaymentRecipient(normalized)
+  if (!stored?.bachsAccountId) return null
+
+  // Local status is only a cache. Re-check Bachs at the moment a paid feature
+  // is enabled or used so a newly incomplete/restricted account cannot accept
+  // money based on yesterday's capability flags.
+  const current = await syncPaymentRecipient(stored)
+  return current.status === 'active' ? current : null
 }
 
 export async function requirePaymentRecipient(
@@ -114,12 +125,22 @@ export async function openPaidBookingCheckout(uid: string) {
     amountCents: bookingPayments.amountCents,
     currency: bookingPayments.currency,
     platformFeeCents: bookingPayments.platformFeeCents,
-    recipientAccountId: paymentRecipients.bachsAccountId,
-    recipientStatus: paymentRecipients.status
+    recipientId: paymentRecipients.id,
+    recipientAccountId: paymentRecipients.bachsAccountId
   }).from(bookingPayments)
     .innerJoin(paymentRecipients, eq(paymentRecipients.id, bookingPayments.recipientId))
     .where(eq(bookingPayments.bookingId, booking.id)).limit(1)
-  if (!payment?.recipientAccountId || payment.recipientStatus !== 'active') {
+  if (!payment?.recipientAccountId) {
+    await cancelUnpaidBooking(booking.id, 'The host payment account is not ready.')
+    throw createError({ statusCode: 409, statusMessage: 'This host cannot accept payments right now.' })
+  }
+
+  const [storedRecipient] = await useDatabase().select().from(paymentRecipients)
+    .where(eq(paymentRecipients.id, payment.recipientId)).limit(1)
+  const currentRecipient = storedRecipient?.bachsAccountId
+    ? await syncPaymentRecipient(storedRecipient)
+    : null
+  if (!currentRecipient || currentRecipient.status !== 'active') {
     await cancelUnpaidBooking(booking.id, 'The host payment account is not ready.')
     throw createError({ statusCode: 409, statusMessage: 'This host cannot accept payments right now.' })
   }
@@ -137,7 +158,7 @@ export async function openPaidBookingCheckout(uid: string) {
       cancelUrl: `${base}/booking/${encodeURIComponent(uid)}?payment=cancelled`,
       metadata: { schedra_booking_uid: uid, schedra_payment_reference: payment.reference },
       platformFee: toDecimalString(payment.platformFeeCents),
-      destinationAccountId: payment.recipientAccountId,
+      destinationAccountId: currentRecipient.bachsAccountId!,
       expiresInMinutes: 60
     })
     const expiresAt = session.expires_at ? new Date(session.expires_at) : new Date(Date.now() + 60 * 60_000)

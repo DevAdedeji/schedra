@@ -50,12 +50,12 @@ describe('payment recipient status', () => {
     expect(recipientStatus({ id: 'acct_disabled', is_active: false })).toBe('disabled')
   })
 
-  it('directs API-only payout destination requirements to the native setup step', () => {
+  it('keeps payout destination requirements inside hosted onboarding', () => {
     expect(recipientNextAction({
       bachsAccountId: 'acct_destination',
       status: 'onboarding',
       requirements: { currently_due: ['payout_destination'] }
-    } as never)).toBe('add_payout_destination')
+    } as never)).toBe('provider_onboarding')
   })
 
   it('keeps identity requirements in the hosted provider flow', () => {
@@ -64,5 +64,14 @@ describe('payment recipient status', () => {
       status: 'onboarding',
       requirements: { currently_due: ['individual.id_document'] }
     } as never)).toBe('provider_onboarding')
+  })
+
+  it('does not enable payments while the account-wide setup is incomplete', () => {
+    expect(recipientStatus({
+      id: 'acct_incomplete',
+      setup_status: 'incomplete',
+      capabilities: { payouts: { requested: true, status: 'active' } },
+      requirements: { setup_status: 'incomplete', currently_due: [] }
+    })).toBe('onboarding')
   })
 })

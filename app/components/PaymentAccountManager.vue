@@ -24,7 +24,6 @@ const {
   refresh: refreshSummary
 } = await useLazyFetch<PaymentSummary>(summaryEndpoint)
 const starting = ref(false)
-const payoutDestinationOpen = ref(false)
 
 function money(totals: PaymentMoneyTotal[]) {
   return totals.map(total => formatMoney(total.amountCents, total.currency))
@@ -38,29 +37,19 @@ function providerMoney(totals: PaymentMoneyTotal[]) {
 }
 
 const statusCopy = computed(() => ({
-  not_started: ['Set up payouts', 'Bachs securely verifies your identity. You will add the bank account for your payouts as the final step.'],
-  onboarding: data.value?.nextAction === 'add_payout_destination'
-    ? ['Add payout account', 'Your identity details are complete. Add the bank account where you want to receive payouts.']
-    : ['Finish setup', 'Continue the secure Bachs flow to provide any remaining identity details.'],
+  not_started: ['Set up payouts', 'Complete Bachs’ secure setup once, including the bank account for your payouts.'],
+  onboarding: ['Finish setup', 'Continue the secure Bachs flow to complete identity and payout-account details.'],
   pending_review: ['Under review', 'Your information was submitted. We will enable paid bookings when Bachs approves payouts.'],
-  active: ['Ready for paid bookings', 'Guests can pay securely and your share is routed to this payout account.'],
+  active: ['Ready for paid bookings', 'Guests can pay securely. Bachs settles your share and routes it to the bank account saved during setup.'],
   restricted: ['Action required', 'Update your payment account before accepting new paid bookings.'],
   disabled: ['Payments unavailable', 'This payout account is disabled. Contact support if this was unexpected.']
 } as const)[data.value?.status ?? 'not_started'])
 
-const actionLabel = computed(() => data.value?.nextAction === 'add_payout_destination'
-  ? 'Add payout account'
+const actionLabel = computed(() => data.value?.ready
+  ? 'Manage in Bachs'
   : data.value?.configured ? 'Continue setup' : 'Set up payouts')
 
-const actionIcon = computed(() => data.value?.nextAction === 'add_payout_destination'
-  ? 'i-lucide-landmark'
-  : 'i-lucide-external-link')
-
 function takeNextAction() {
-  if (data.value?.nextAction === 'add_payout_destination') {
-    payoutDestinationOpen.value = true
-    return
-  }
   void start()
 }
 
@@ -85,17 +74,6 @@ async function checkSetupOnReturn() {
   await refresh()
 }
 
-async function payoutDestinationSaved() {
-  await Promise.all([refresh(), refreshSummary()])
-  toast.add({
-    title: data.value?.ready ? 'Payout account added' : 'Payout account submitted',
-    description: data.value?.ready
-      ? 'Paid bookings are now ready to use.'
-      : 'Bachs is reviewing the bank details. We will update the status when the review finishes.',
-    color: data.value?.ready ? 'success' : 'neutral'
-  })
-}
-
 onMounted(async () => {
   document.addEventListener('visibilitychange', checkSetupOnReturn)
   if (route.query.payments === 'returned') {
@@ -117,7 +95,7 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', checkSetu
   <div class="space-y-6">
     <PageHeader
       title="Payments"
-      description="Accept payment when a guest books. Schedra handles checkout and sends your share to your connected payout account."
+      description="Accept payment when a guest books. Schedra handles checkout while Bachs settles and pays out your share."
     />
 
     <section class="overflow-hidden rounded-2xl border border-default bg-default">
@@ -147,9 +125,9 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', checkSetu
           </div>
         </div>
         <UButton
-          v-if="!data?.ready && data?.nextAction !== 'none'"
+          v-if="data?.ready || data?.nextAction !== 'none'"
           :loading="starting"
-          :icon="actionIcon"
+          icon="i-lucide-external-link"
           class="mobile-compact-action h-9 min-h-9 shrink-0 text-center"
           @click="takeNextAction"
         >
@@ -186,7 +164,7 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', checkSetu
             Withdrawals
           </p>
           <p class="mt-2 text-sm text-toned">
-            Bachs applies the payout account's withdrawal fee when funds are withdrawn.
+            Bachs routes settled funds to the bank account you added during its secure setup.
           </p>
         </div>
       </div>
@@ -315,7 +293,7 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', checkSetu
               class="size-4"
             />
             <p class="text-xs font-medium uppercase tracking-wide">
-              Ready for payout
+              Awaiting bank payout
             </p>
           </div>
           <div class="mt-3 space-y-1 text-xl font-semibold tabular-nums text-highlighted">
@@ -335,7 +313,7 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', checkSetu
             </p>
           </div>
           <p class="mt-2 text-xs text-muted">
-            Funds held by Bachs and ready to be sent to your bank.
+            Settled funds waiting for Bachs to complete the bank payout.
           </p>
         </div>
         <div class="bg-default p-5 sm:p-6">
@@ -365,18 +343,12 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', checkSetu
             </p>
           </div>
           <p class="mt-2 text-xs text-muted">
-            Completed payouts Bachs has delivered to your payout account.
+            Completed payouts Bachs has delivered to the bank account saved during setup.
           </p>
         </div>
       </div>
     </section>
 
     <PaymentActivityList :team-slug="teamSlug" />
-
-    <PayoutDestinationModal
-      v-model:open="payoutDestinationOpen"
-      :team-slug="teamSlug"
-      @saved="payoutDestinationSaved"
-    />
   </div>
 </template>
