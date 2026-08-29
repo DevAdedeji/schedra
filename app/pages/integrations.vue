@@ -329,9 +329,9 @@ async function disconnectZoom() {
                 class="size-4"
               /></span>
               <div class="min-w-0">
-                <p class="text-[13px] font-medium text-highlighted">
+                <p class="text-[14px] font-medium text-highlighted">
                   Connected account
-                </p><p class="truncate text-[12px] text-muted">
+                </p><p class="truncate text-[13px] text-muted">
                   {{ zoomConnection?.accountLabel }}
                 </p>
               </div>
@@ -339,10 +339,12 @@ async function disconnectZoom() {
             <UButton
               color="error"
               variant="soft"
+              size="sm"
               icon="i-lucide-unplug"
+              class="shrink-0 self-start sm:self-auto"
               @click="zoomDisconnectOpen = true"
             >
-              Disconnect integration
+              Disconnect
             </UButton>
           </div>
           <div class="grid gap-px border-t border-default bg-border sm:grid-cols-3">

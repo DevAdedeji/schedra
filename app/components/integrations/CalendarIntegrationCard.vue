@@ -23,6 +23,13 @@ const {
   refreshSignal: () => props.refreshSignal,
   onSaved: () => emit('saved')
 })
+
+// Something has to be the default, so the switch only turns on: you move it by
+// turning the other provider on.
+const alreadyDefault = computed(() => Boolean(connection.value?.defaultForBookings))
+const defaultDescription = computed(() => (alreadyDefault.value
+  ? 'Zoom, phone, in-person and custom meetings are created in this account. To move the default, turn this on for your other calendar.'
+  : 'Turn this on to create Zoom, phone, in-person and custom meetings here instead of your other calendar.'))
 </script>
 
 <template>
@@ -146,31 +153,54 @@ const {
           v-else
           class="divide-y divide-default"
         >
-          <div class="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-            <div class="flex min-w-0 items-center gap-3">
-              <span class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-success/10 text-success"><UIcon
-                name="i-lucide-circle-check"
-                class="size-4"
-              /></span>
-              <div class="min-w-0">
-                <p class="text-[14px] font-medium text-highlighted">
-                  Connected account
-                </p>
-                <p class="truncate text-[13px] text-muted">
-                  {{ connection?.accountLabel }}
-                </p>
+          <div>
+            <div class="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+              <div class="flex min-w-0 items-center gap-3">
+                <span class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-success/10 text-success"><UIcon
+                  name="i-lucide-circle-check"
+                  class="size-4"
+                /></span>
+                <div class="min-w-0">
+                  <p class="text-[14px] font-medium text-highlighted">
+                    Connected account
+                  </p>
+                  <p class="truncate text-[13px] text-muted">
+                    {{ connection?.accountLabel }}
+                  </p>
+                </div>
               </div>
+              <UButton
+                color="error"
+                variant="soft"
+                size="sm"
+                icon="i-lucide-unplug"
+                class="shrink-0 self-start sm:self-auto"
+                @click="disconnectOpen = true"
+              >
+                Disconnect
+              </UButton>
             </div>
-            <UButton
-              color="error"
-              variant="ghost"
-              size="sm"
-              icon="i-lucide-unplug"
-              class="shrink-0 self-start sm:self-auto"
-              @click="disconnectOpen = true"
+
+            <!-- Which provider wins is an account-level choice, so it belongs
+                 with the account rather than under a per-calendar control. -->
+            <label
+              class="flex items-start justify-between gap-4 border-t border-default px-5 py-4 transition-colors sm:px-6"
+              :class="alreadyDefault ? 'cursor-default' : 'cursor-pointer hover:bg-elevated/50'"
             >
-              Disconnect
-            </UButton>
+              <span class="min-w-0">
+                <span class="block text-[14px] font-medium text-highlighted">Default for bookings</span>
+                <span class="mt-0.5 block max-w-xl text-[13px] leading-relaxed text-muted">{{ defaultDescription }}</span>
+                <span class="mt-1 block max-w-xl text-[13px] leading-relaxed text-dimmed">
+                  Google Meet and Microsoft Teams always use their own provider.
+                </span>
+              </span>
+              <USwitch
+                v-model="defaultForBookings"
+                :disabled="alreadyDefault"
+                class="mt-0.5 shrink-0"
+                aria-label="Use this account for meetings without their own provider"
+              />
+            </label>
           </div>
           <AsyncErrorState
             v-if="calendarFailure"
@@ -243,8 +273,7 @@ const {
               Calendar for new bookings
             </h3>
             <p class="mt-1 max-w-2xl text-[14px] leading-relaxed text-muted">
-              Where this provider creates booking events. Google Meet and Microsoft Teams always
-              use their matching provider.
+              Every booking this account handles lands in the calendar you choose here.
             </p>
 
             <USelectMenu
@@ -262,18 +291,6 @@ const {
             >
               {{ writeCalendarMissing ? 'The previous destination is unavailable. Choose another.' : `This ${name} account has no calendar Schedra can edit.` }}
             </p>
-
-            <label class="mt-3 flex max-w-2xl cursor-pointer items-start gap-2.5 rounded-xl border border-default px-3.5 py-3 transition-colors hover:bg-elevated/50">
-              <UCheckbox
-                v-model="defaultForBookings"
-                :disabled="Boolean(connection?.defaultForBookings)"
-                aria-label="Use this provider as the default calendar"
-              />
-              <span>
-                <span class="block text-[14px] font-medium text-highlighted">Use as my default calendar</span>
-                <span class="mt-0.5 block text-[13px] leading-relaxed text-muted">Used for Zoom, phone, in-person and custom meeting locations. Choose the other provider here to switch the default.</span>
-              </span>
-            </label>
           </section>
           <div
             v-if="pageError"
