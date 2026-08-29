@@ -60,6 +60,60 @@ const hasFilters = computed(() => Boolean(
   query.value || direction.value !== 'all' || state.value !== 'all' || from.value || to.value
 ))
 
+function shortDate(value: string) {
+  return new Intl.DateTimeFormat('en', { dateStyle: 'medium' }).format(new Date(`${value}T00:00:00`))
+}
+
+function clearSearch() {
+  query.value = ''
+  search.value = ''
+}
+
+function clearDates() {
+  from.value = ''
+  to.value = ''
+}
+
+const dateRangeLabel = computed(() => {
+  if (from.value && to.value) return `${shortDate(from.value)} – ${shortDate(to.value)}`
+  if (from.value) return `On or after ${shortDate(from.value)}`
+  if (to.value) return `On or before ${shortDate(to.value)}`
+  return ''
+})
+
+/**
+ * Search stays in the header because it is used constantly; everything else
+ * folds into one popover so the row cannot outgrow the section. Whatever is
+ * applied comes back as a removable chip, so a hidden filter never silently
+ * shapes the list.
+ */
+const appliedFilters = computed(() => {
+  const chips: Array<{ key: string, label: string, clear: () => void }> = []
+  if (search.value) {
+    chips.push({ key: 'search', label: `Matching “${search.value}”`, clear: clearSearch })
+  }
+  if (direction.value !== 'all') {
+    chips.push({
+      key: 'direction',
+      label: directionOptions.find(option => option.value === direction.value)?.label ?? '',
+      clear: () => { direction.value = 'all' }
+    })
+  }
+  if (state.value !== 'all') {
+    chips.push({
+      key: 'status',
+      label: `Status: ${statusOptions.find(option => option.value === state.value)?.label ?? ''}`,
+      clear: () => { state.value = 'all' }
+    })
+  }
+  if (dateRangeLabel.value) {
+    chips.push({ key: 'dates', label: `Happened ${dateRangeLabel.value.toLowerCase()}`, clear: clearDates })
+  }
+  return chips
+})
+
+const popoverFilterCount = computed(() => appliedFilters.value.filter(chip => chip.key !== 'search').length)
+
 function clearFilters() {
   query.value = ''
   search.value = ''
@@ -113,53 +167,130 @@ function traceRows(item: PaymentActivityRecord) {
             : 'Track customer payments, refunds and provider-reported settlements for this payout account.' }}
         </p>
       </div>
-      <div
-        class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4"
-        :class="operations
-          ? 'xl:grid-cols-[minmax(14rem,1fr)_11rem_10rem_10rem_10rem_auto]'
-          : 'xl:grid-cols-[minmax(14rem,1fr)_11rem_10rem_10rem_auto]'"
-      >
-        <UInput
-          v-model="query"
-          icon="i-lucide-search"
-          placeholder="Account, guest, event or reference"
-          aria-label="Search payment activity"
-        />
-        <USelectMenu
-          v-if="operations"
-          v-model="direction"
-          :items="directionOptions"
-          value-key="value"
-          aria-label="Filter by direction"
-        />
-        <USelectMenu
-          v-model="state"
-          :items="statusOptions"
-          value-key="value"
-          aria-label="Filter by status"
-        />
-        <UInput
-          v-model="from"
-          type="date"
-          :max="to || undefined"
-          aria-label="Payments from date"
-        />
-        <UInput
-          v-model="to"
-          type="date"
-          :min="from || undefined"
-          aria-label="Payments to date"
-        />
-        <UButton
-          v-if="hasFilters"
-          color="neutral"
-          variant="ghost"
-          icon="i-lucide-x"
-          aria-label="Clear payment filters"
-          @click="clearFilters"
+      <div class="flex flex-col gap-3">
+        <div class="flex flex-wrap items-center gap-2">
+          <UInput
+            v-model="query"
+            icon="i-lucide-search"
+            placeholder="Account, guest, event or reference"
+            aria-label="Search payment activity"
+            class="min-w-52 flex-1 sm:max-w-sm"
+          />
+
+          <UPopover :content="{ align: 'start' }">
+            <UButton
+              color="neutral"
+              variant="outline"
+              icon="i-lucide-list-filter"
+              trailing-icon="i-lucide-chevron-down"
+            >
+              Filters
+              <UBadge
+                v-if="popoverFilterCount"
+                :label="String(popoverFilterCount)"
+                color="primary"
+                variant="subtle"
+                size="sm"
+                class="tnum"
+              />
+            </UButton>
+
+            <template #content>
+              <div class="w-[19rem] max-w-[calc(100vw-2rem)] space-y-4 p-4">
+                <UFormField
+                  v-if="operations"
+                  label="Activity"
+                  size="sm"
+                >
+                  <USelectMenu
+                    v-model="direction"
+                    :items="directionOptions"
+                    value-key="value"
+                    class="w-full"
+                  />
+                </UFormField>
+
+                <UFormField
+                  label="Status"
+                  size="sm"
+                >
+                  <USelectMenu
+                    v-model="state"
+                    :items="statusOptions"
+                    value-key="value"
+                    class="w-full"
+                  />
+                </UFormField>
+
+                <fieldset>
+                  <legend class="text-[13px] font-medium text-highlighted">
+                    When it happened
+                  </legend>
+                  <p class="mt-0.5 text-[12px] leading-relaxed text-muted">
+                    Start and end of the range. Both match the date the money moved, not the date the booking is for.
+                  </p>
+                  <div class="mt-2.5 grid grid-cols-2 gap-2">
+                    <UFormField
+                      label="From"
+                      size="xs"
+                    >
+                      <UInput
+                        v-model="from"
+                        type="date"
+                        :max="to || undefined"
+                        class="w-full"
+                      />
+                    </UFormField>
+                    <UFormField
+                      label="To"
+                      size="xs"
+                    >
+                      <UInput
+                        v-model="to"
+                        type="date"
+                        :min="from || undefined"
+                        class="w-full"
+                      />
+                    </UFormField>
+                  </div>
+                </fieldset>
+              </div>
+            </template>
+          </UPopover>
+
+          <UButton
+            v-if="hasFilters"
+            color="neutral"
+            variant="ghost"
+            icon="i-lucide-x"
+            @click="clearFilters"
+          >
+            Clear all
+          </UButton>
+        </div>
+
+        <ul
+          v-if="appliedFilters.length"
+          class="flex flex-wrap items-center gap-1.5"
         >
-          Clear
-        </UButton>
+          <li
+            v-for="chip in appliedFilters"
+            :key="chip.key"
+          >
+            <button
+              type="button"
+              class="flex items-center gap-1.5 rounded-full border border-default bg-default py-1 pl-2.5 pr-2 text-[12px] text-toned transition-colors hover:border-error/40 hover:text-error"
+              :aria-label="`Remove filter: ${chip.label}`"
+              @click="chip.clear()"
+            >
+              {{ chip.label }}
+              <UIcon
+                name="i-lucide-x"
+                class="size-3"
+              />
+            </button>
+          </li>
+        </ul>
       </div>
     </header>
 
@@ -291,6 +422,7 @@ function traceRows(item: PaymentActivityRecord) {
         :page="data.pagination.page"
         :total-pages="data.pagination.totalPages"
         :total="data.pagination.total"
+        :page-size="data.pagination.pageSize"
         :disabled="refreshing"
         @change="page = $event"
       />

@@ -408,6 +408,7 @@ async function reject(uid: string) {
           :page="data.pagination.page"
           :total-pages="data.pagination.totalPages"
           :total="data.pagination.total"
+          :page-size="data.pagination.pageSize"
           :disabled="refreshing"
           @change="page = $event"
         />

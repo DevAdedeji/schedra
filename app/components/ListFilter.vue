@@ -2,11 +2,12 @@
 interface FilterOption {
   value: string
   label: string
-  count: number
+  count?: number
 }
 
-withDefaults(defineProps<{ options: FilterOption[], disabled?: boolean }>(), {
-  disabled: false
+withDefaults(defineProps<{ options: FilterOption[], disabled?: boolean, label?: string }>(), {
+  disabled: false,
+  label: 'Filter list'
 })
 const model = defineModel<string>({ required: true })
 </script>
@@ -15,7 +16,7 @@ const model = defineModel<string>({ required: true })
   <div
     class="flex gap-1 overflow-x-auto"
     role="tablist"
-    aria-label="Filter list"
+    :aria-label="label"
   >
     <button
       v-for="option in options"
@@ -35,6 +36,7 @@ const model = defineModel<string>({ required: true })
     >
       {{ option.label }}
       <span
+        v-if="option.count !== undefined"
         class="tnum rounded-md px-1.5 py-0.5 text-[10px]"
         :class="model === option.value ? 'bg-default text-toned' : 'bg-muted text-dimmed'"
       >

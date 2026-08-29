@@ -341,24 +341,28 @@ const initials = computed(() => (profile.name || '')
         </div>
       </template>
       <template #footer>
-        <div class="flex w-full justify-end gap-2">
-          <UButton
-            color="neutral"
-            variant="ghost"
-            :disabled="deletingAccount"
-            @click="deleteOpen = false"
-          >
-            Keep account
-          </UButton>
-          <UButton
-            color="error"
-            :disabled="deleteForm.email.toLowerCase() !== user?.email?.toLowerCase() || deleteForm.confirmation !== 'DELETE'"
-            :loading="deletingAccount"
-            @click="deleteAccount"
-          >
-            Delete permanently
-          </UButton>
-        </div>
+        <ModalFooter>
+          <template #cancel>
+            <UButton
+              color="neutral"
+              variant="soft"
+              :disabled="deletingAccount"
+              @click="deleteOpen = false"
+            >
+              Keep account
+            </UButton>
+          </template>
+          <template #actions>
+            <UButton
+              color="error"
+              :disabled="deleteForm.email.toLowerCase() !== user?.email?.toLowerCase() || deleteForm.confirmation !== 'DELETE'"
+              :loading="deletingAccount"
+              @click="deleteAccount"
+            >
+              Delete permanently
+            </UButton>
+          </template>
+        </ModalFooter>
       </template>
     </UModal>
   </div>

@@ -256,7 +256,7 @@ watch(() => props.refreshSignal, async (next, previous) => {
       v-model:open="settingsOpen"
       :title="`${name} preferences`"
       description="Choose which calendars protect your time and where new booking events are created."
-      :ui="{ content: 'w-full max-w-5xl', body: 'p-0 sm:p-0', footer: 'border-t border-default px-5 py-4 sm:px-6' }"
+      :ui="{ content: 'w-full max-w-3xl', body: 'p-0 sm:p-0', footer: 'border-t border-default px-5 py-4 sm:px-6' }"
     >
       <template #body>
         <IntegrationPreferencesSkeleton v-if="status === 'pending'" />
@@ -297,11 +297,13 @@ watch(() => props.refreshSignal, async (next, previous) => {
             </div>
             <UButton
               color="error"
-              variant="soft"
+              variant="ghost"
+              size="sm"
               icon="i-lucide-unplug"
+              class="shrink-0 self-start sm:self-auto"
               @click="disconnectOpen = true"
             >
-              Disconnect integration
+              Disconnect
             </UButton>
           </div>
           <AsyncErrorState
@@ -323,94 +325,90 @@ watch(() => props.refreshSignal, async (next, previous) => {
             />{{ connection.lastError }}
           </div>
 
-          <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,0.72fr)_minmax(0,1.28fr)]">
-            <div class="min-w-0 px-5 py-6 sm:px-6">
+          <section class="px-5 py-5 sm:px-6">
+            <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
               <h3 class="text-[14px] font-semibold text-highlighted">
                 Calendars that block booking times
               </h3>
-              <p class="mt-1 text-[13px] leading-relaxed text-muted">
-                Select calendars where a busy event means a guest should not be able to book you. Holiday and week-number calendars usually stay unchecked.
+              <p
+                class="text-[12px]"
+                :class="selectedConflictIds.length ? 'text-dimmed' : 'text-error'"
+              >
+                {{ selectedConflictIds.length
+                  ? `${selectedConflictIds.length} of ${conflictCalendars.length} selected`
+                  : 'Choose at least one' }}
               </p>
             </div>
-            <div class="surface-secondary min-w-0 px-4 py-5 sm:px-5">
-              <div class="max-h-80 overflow-y-auto rounded-lg border border-default bg-default">
-                <label
-                  v-for="calendar in conflictCalendars"
-                  :key="calendar.id"
-                  class="flex cursor-pointer items-center gap-3 border-b border-default px-3.5 py-3 last:border-b-0 hover:bg-muted"
-                >
-                  <UCheckbox
-                    :model-value="selectedConflictIds.includes(calendar.id)"
-                    :aria-label="`Check ${calendar.summary} for conflicts`"
-                    @update:model-value="toggleConflict(calendar.id, Boolean($event))"
-                  />
-                  <span
-                    class="size-2.5 shrink-0 rounded-full"
-                    :style="{ backgroundColor: calendar.unavailable ? '#737373' : (calendar.backgroundColor || (isGoogle ? '#4285F4' : '#0078D4')) }"
-                  />
-                  <span class="min-w-0 flex-1">
-                    <span class="block truncate text-[14px] font-medium text-highlighted">{{ calendar.summary }}</span>
-                    <span class="mt-0.5 block truncate text-[12px] text-dimmed">{{ relationship(calendar) }}</span>
-                  </span>
-                  <span
-                    v-if="calendar.primary"
-                    class="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary"
-                  >Recommended</span>
-                </label>
-              </div>
-              <p
-                v-if="!selectedConflictIds.length"
-                class="mt-2 text-[12px] text-error"
-              >
-                Choose at least one calendar to prevent conflicts.
-              </p>
-              <p
-                v-else
-                class="mt-2 text-[12px] text-dimmed"
-              >
-                {{ selectedConflictIds.length }} {{ selectedConflictIds.length === 1 ? 'calendar' : 'calendars' }} checked for conflicts.
-              </p>
-            </div>
-          </div>
+            <p class="mt-1 max-w-2xl text-[13px] leading-relaxed text-muted">
+              A busy event on a selected calendar hides that time from guests. Holiday and
+              week-number calendars usually stay unchecked.
+            </p>
 
-          <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,0.72fr)_minmax(0,1.28fr)]">
-            <div class="min-w-0 px-5 py-6 sm:px-6">
-              <h3 class="text-[14px] font-semibold text-highlighted">
-                Calendar for new bookings
-              </h3>
-              <p class="mt-1 text-[13px] leading-relaxed text-muted">
-                Choose where this provider creates booking events. Google Meet and Microsoft Teams always use their matching provider.
-              </p>
-            </div>
-            <div class="surface-secondary flex min-w-0 flex-col justify-center px-4 py-5 sm:px-5">
-              <USelectMenu
-                v-model="writeCalendarId"
-                :items="writableCalendars"
-                value-key="value"
-                label-key="label"
-                icon="i-lucide-calendar-days"
-                placeholder="Choose a calendar"
-                class="mobile-compact-action min-h-11 w-full text-center sm:min-h-8"
-              />
-              <label class="mt-3 flex items-start gap-2.5 rounded-lg border border-default bg-default px-3 py-2.5">
-                <UCheckbox
-                  v-model="defaultForBookings"
-                  :disabled="Boolean(connection?.defaultForBookings)"
-                  aria-label="Use this provider as the default calendar"
-                />
-                <span>
-                  <span class="block text-[13px] font-medium text-highlighted">Use as my default calendar</span>
-                  <span class="mt-0.5 block text-[12px] leading-relaxed text-muted">Used for Zoom, phone, in-person and custom meeting locations. Choose the other provider here to switch the default.</span>
-                </span>
-              </label>
-              <p
-                v-if="!writableCalendars.length || writeCalendarMissing"
-                class="mt-2 text-[12px] text-error"
+            <div class="mt-3 max-h-72 overflow-y-auto rounded-xl border border-default">
+              <label
+                v-for="calendar in conflictCalendars"
+                :key="calendar.id"
+                class="flex cursor-pointer items-center gap-3 border-b border-default px-3.5 py-3 transition-colors last:border-b-0"
+                :class="selectedConflictIds.includes(calendar.id) ? 'bg-primary/5' : 'hover:bg-elevated/50'"
               >
-                {{ writeCalendarMissing ? 'The previous destination is unavailable. Choose another.' : `This ${name} account has no calendar Schedra can edit.` }}
-              </p>
+                <UCheckbox
+                  :model-value="selectedConflictIds.includes(calendar.id)"
+                  :aria-label="`Check ${calendar.summary} for conflicts`"
+                  @update:model-value="toggleConflict(calendar.id, Boolean($event))"
+                />
+                <span
+                  class="size-2.5 shrink-0 rounded-full"
+                  :style="{ backgroundColor: calendar.unavailable ? '#737373' : (calendar.backgroundColor || (isGoogle ? '#4285F4' : '#0078D4')) }"
+                />
+                <span class="min-w-0 flex-1">
+                  <span class="block truncate text-[14px] font-medium text-highlighted">{{ calendar.summary }}</span>
+                  <span class="mt-0.5 block truncate text-[12px] text-dimmed">{{ relationship(calendar) }}</span>
+                </span>
+                <span
+                  v-if="calendar.primary"
+                  class="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary"
+                >Recommended</span>
+              </label>
             </div>
-          </div>
+          </section>
+
+          <section class="px-5 py-5 sm:px-6">
+            <h3 class="text-[14px] font-semibold text-highlighted">
+              Calendar for new bookings
+            </h3>
+            <p class="mt-1 max-w-2xl text-[13px] leading-relaxed text-muted">
+              Where this provider creates booking events. Google Meet and Microsoft Teams always
+              use their matching provider.
+            </p>
+
+            <USelectMenu
+              v-model="writeCalendarId"
+              :items="writableCalendars"
+              value-key="value"
+              label-key="label"
+              icon="i-lucide-calendar-days"
+              placeholder="Choose a calendar"
+              class="mt-3 w-full sm:max-w-sm"
+            />
+            <p
+              v-if="!writableCalendars.length || writeCalendarMissing"
+              class="mt-2 text-[12px] text-error"
+            >
+              {{ writeCalendarMissing ? 'The previous destination is unavailable. Choose another.' : `This ${name} account has no calendar Schedra can edit.` }}
+            </p>
+
+            <label class="mt-3 flex max-w-2xl cursor-pointer items-start gap-2.5 rounded-xl border border-default px-3.5 py-3 transition-colors hover:bg-elevated/50">
+              <UCheckbox
+                v-model="defaultForBookings"
+                :disabled="Boolean(connection?.defaultForBookings)"
+                aria-label="Use this provider as the default calendar"
+              />
+              <span>
+                <span class="block text-[13px] font-medium text-highlighted">Use as my default calendar</span>
+                <span class="mt-0.5 block text-[12px] leading-relaxed text-muted">Used for Zoom, phone, in-person and custom meeting locations. Choose the other provider here to switch the default.</span>
+              </span>
+            </label>
+          </section>
           <div
             v-if="pageError"
             class="bg-error/10 px-5 py-3 text-[12px] text-error"
@@ -421,23 +419,27 @@ watch(() => props.refreshSignal, async (next, previous) => {
         </div>
       </template>
       <template #footer>
-        <div class="flex w-full flex-wrap items-center justify-between gap-3">
-          <UButton
-            color="neutral"
-            variant="soft"
-            :disabled="saving"
-            @click="settingsOpen = false"
-          >
-            Close
-          </UButton>
-          <UButton
-            :loading="saving"
-            :disabled="(!dirty && !connection?.setupRequired) || !selectedConflictIds.length || !writeCalendarId || writeCalendarMissing"
-            @click="save"
-          >
-            Save preferences
-          </UButton>
-        </div>
+        <ModalFooter :hint="dirty ? 'You have unsaved changes' : undefined">
+          <template #cancel>
+            <UButton
+              color="neutral"
+              variant="soft"
+              :disabled="saving"
+              @click="settingsOpen = false"
+            >
+              Close
+            </UButton>
+          </template>
+          <template #actions>
+            <UButton
+              :loading="saving"
+              :disabled="(!dirty && !connection?.setupRequired) || !selectedConflictIds.length || !writeCalendarId || writeCalendarMissing"
+              @click="save"
+            >
+              Save preferences
+            </UButton>
+          </template>
+        </ModalFooter>
       </template>
     </UModal>
 
@@ -452,23 +454,27 @@ watch(() => props.refreshSignal, async (next, previous) => {
         </p>
       </template>
       <template #footer>
-        <div class="flex w-full justify-end gap-2">
-          <UButton
-            color="neutral"
-            variant="ghost"
-            :disabled="disconnecting"
-            @click="disconnectOpen = false"
-          >
-            Keep connected
-          </UButton>
-          <UButton
-            color="error"
-            :loading="disconnecting"
-            @click="disconnect"
-          >
-            Disconnect
-          </UButton>
-        </div>
+        <ModalFooter>
+          <template #cancel>
+            <UButton
+              color="neutral"
+              variant="soft"
+              :disabled="disconnecting"
+              @click="disconnectOpen = false"
+            >
+              Keep connected
+            </UButton>
+          </template>
+          <template #actions>
+            <UButton
+              color="error"
+              :loading="disconnecting"
+              @click="disconnect"
+            >
+              Disconnect
+            </UButton>
+          </template>
+        </ModalFooter>
       </template>
     </UModal>
   </section>

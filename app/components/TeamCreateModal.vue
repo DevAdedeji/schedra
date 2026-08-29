@@ -180,24 +180,28 @@ async function create() {
     </template>
 
     <template #footer>
-      <div class="flex w-full justify-end gap-2">
-        <UButton
-          color="neutral"
-          variant="ghost"
-          :disabled="saving"
-          @click="isOpen = false"
-        >
-          Cancel
-        </UButton>
-        <UButton
-          type="submit"
-          form="team-create-form"
-          :loading="saving"
-          :disabled="!valid"
-        >
-          Create team
-        </UButton>
-      </div>
+      <ModalFooter>
+        <template #cancel>
+          <UButton
+            color="neutral"
+            variant="soft"
+            :disabled="saving"
+            @click="isOpen = false"
+          >
+            Cancel
+          </UButton>
+        </template>
+        <template #actions>
+          <UButton
+            type="submit"
+            form="team-create-form"
+            :loading="saving"
+            :disabled="!valid"
+          >
+            Create team
+          </UButton>
+        </template>
+      </ModalFooter>
     </template>
   </UModal>
 </template>

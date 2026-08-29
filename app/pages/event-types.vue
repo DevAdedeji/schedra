@@ -466,6 +466,7 @@ function locationIcon(item: EventTypeRecord) {
           :page="data.pagination.page"
           :total-pages="data.pagination.totalPages"
           :total="data.pagination.total"
+          :page-size="data.pagination.pageSize"
           :disabled="refreshing"
           @change="page = $event"
         />
@@ -511,24 +512,27 @@ function locationIcon(item: EventTypeRecord) {
         </p>
       </template>
       <template #footer>
-        <div class="flex w-full justify-end gap-2">
-          <UButton
-            color="neutral"
-            variant="ghost"
-            :disabled="deleting"
-            @click="deleteOpen = false"
-          >
-            Keep event type
-          </UButton>
-          <UButton
-            color="error"
-            :loading="deleting"
-            icon="i-lucide-trash-2"
-            @click="confirmDelete"
-          >
-            Delete
-          </UButton>
-        </div>
+        <ModalFooter>
+          <template #cancel>
+            <UButton
+              color="neutral"
+              variant="soft"
+              :disabled="deleting"
+              @click="deleteOpen = false"
+            >
+              Keep event type
+            </UButton>
+          </template>
+          <template #actions>
+            <UButton
+              color="error"
+              :loading="deleting"
+              @click="confirmDelete"
+            >
+              Delete
+            </UButton>
+          </template>
+        </ModalFooter>
       </template>
     </UModal>
   </div>

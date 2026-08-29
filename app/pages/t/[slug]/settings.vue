@@ -438,23 +438,27 @@ async function leave() {
         </UFormField>
       </template>
       <template #footer>
-        <div class="flex w-full justify-end gap-2">
-          <UButton
-            color="neutral"
-            variant="ghost"
-            :disabled="transferBusy"
-            @click="transferring = false"
-          >
-            Cancel
-          </UButton>
-          <UButton
-            :loading="transferBusy"
-            :disabled="!transferTarget"
-            @click="transfer"
-          >
-            Transfer
-          </UButton>
-        </div>
+        <ModalFooter>
+          <template #cancel>
+            <UButton
+              color="neutral"
+              variant="soft"
+              :disabled="transferBusy"
+              @click="transferring = false"
+            >
+              Cancel
+            </UButton>
+          </template>
+          <template #actions>
+            <UButton
+              :loading="transferBusy"
+              :disabled="!transferTarget"
+              @click="transfer"
+            >
+              Transfer
+            </UButton>
+          </template>
+        </ModalFooter>
       </template>
     </UModal>
 
@@ -478,24 +482,28 @@ async function leave() {
         </UFormField>
       </template>
       <template #footer>
-        <div class="flex w-full justify-end gap-2">
-          <UButton
-            color="neutral"
-            variant="ghost"
-            :disabled="archiveBusy"
-            @click="archiving = false"
-          >
-            Cancel
-          </UButton>
-          <UButton
-            color="error"
-            :loading="archiveBusy"
-            :disabled="archiveConfirmation.trim() !== team?.organization.slug"
-            @click="archive"
-          >
-            Archive team
-          </UButton>
-        </div>
+        <ModalFooter>
+          <template #cancel>
+            <UButton
+              color="neutral"
+              variant="soft"
+              :disabled="archiveBusy"
+              @click="archiving = false"
+            >
+              Cancel
+            </UButton>
+          </template>
+          <template #actions>
+            <UButton
+              color="error"
+              :loading="archiveBusy"
+              :disabled="archiveConfirmation.trim() !== team?.organization.slug"
+              @click="archive"
+            >
+              Archive team
+            </UButton>
+          </template>
+        </ModalFooter>
       </template>
     </UModal>
   </div>

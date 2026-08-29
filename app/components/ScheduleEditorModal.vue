@@ -374,29 +374,28 @@ async function save() {
     </template>
 
     <template #footer>
-      <div class="flex w-full items-center justify-between gap-3">
-        <p class="hidden text-[12px] text-muted sm:block">
-          {{ dirty ? 'You have unsaved changes' : 'No unsaved changes' }}
-        </p>
-        <div class="ml-auto flex gap-2">
+      <ModalFooter :hint="dirty ? 'You have unsaved changes' : undefined">
+        <template #cancel>
           <UButton
             color="neutral"
-            variant="ghost"
+            variant="soft"
             :disabled="saving"
             @click="isOpen = false"
           >
             Cancel
-          </UButton><UButton
+          </UButton>
+        </template>
+        <template #actions>
+          <UButton
             type="submit"
             form="schedule-editor-form"
-            icon="i-lucide-check"
             :loading="saving"
             :disabled="invalid || !dirty"
           >
             Save schedule
           </UButton>
-        </div>
-      </div>
+        </template>
+      </ModalFooter>
     </template>
 
     <UModal
@@ -455,20 +454,24 @@ async function save() {
         </div>
       </template>
       <template #footer>
-        <div class="flex w-full justify-end gap-2">
-          <UButton
-            color="neutral"
-            variant="ghost"
-            @click="overrideOpen = false"
-          >
-            Cancel
-          </UButton><UButton
-            icon="i-lucide-check"
-            @click="addOverride"
-          >
-            Add override
-          </UButton>
-        </div>
+        <ModalFooter>
+          <template #cancel>
+            <UButton
+              color="neutral"
+              variant="soft"
+              @click="overrideOpen = false"
+            >
+              Cancel
+            </UButton>
+          </template>
+          <template #actions>
+            <UButton
+              @click="addOverride"
+            >
+              Add override
+            </UButton>
+          </template>
+        </ModalFooter>
       </template>
     </UModal>
   </UModal>

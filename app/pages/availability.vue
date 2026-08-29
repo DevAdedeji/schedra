@@ -390,6 +390,7 @@ function timeMinutes(value: string) {
           :page="data.pagination.page"
           :total-pages="data.pagination.totalPages"
           :total="data.pagination.total"
+          :page-size="data.pagination.pageSize"
           :disabled="refreshing"
           @change="page = $event"
         />
@@ -448,26 +449,28 @@ function timeMinutes(value: string) {
         </form>
       </template>
       <template #footer>
-        <div class="flex w-full justify-end gap-2">
-          <UButton
-            color="neutral"
-            variant="ghost"
-            :disabled="creating"
-            @click="createOpen = false"
-          >
-            Cancel
-          </UButton>
-          <UButton
-            type="submit"
-            form="create-schedule-form"
-            icon="i-lucide-arrow-right"
-            trailing
-            :loading="creating"
-            :disabled="!draft.name.trim()"
-          >
-            Create and edit
-          </UButton>
-        </div>
+        <ModalFooter>
+          <template #cancel>
+            <UButton
+              color="neutral"
+              variant="soft"
+              :disabled="creating"
+              @click="createOpen = false"
+            >
+              Cancel
+            </UButton>
+          </template>
+          <template #actions>
+            <UButton
+              type="submit"
+              form="create-schedule-form"
+              :loading="creating"
+              :disabled="!draft.name.trim()"
+            >
+              Create and edit
+            </UButton>
+          </template>
+        </ModalFooter>
       </template>
     </UModal>
 
@@ -489,24 +492,27 @@ function timeMinutes(value: string) {
         </p>
       </template>
       <template #footer>
-        <div class="flex w-full justify-end gap-2">
-          <UButton
-            color="neutral"
-            variant="ghost"
-            :disabled="deleting"
-            @click="deleteOpen = false"
-          >
-            Cancel
-          </UButton>
-          <UButton
-            color="error"
-            icon="i-lucide-trash-2"
-            :loading="deleting"
-            @click="confirmDelete"
-          >
-            Delete schedule
-          </UButton>
-        </div>
+        <ModalFooter>
+          <template #cancel>
+            <UButton
+              color="neutral"
+              variant="soft"
+              :disabled="deleting"
+              @click="deleteOpen = false"
+            >
+              Cancel
+            </UButton>
+          </template>
+          <template #actions>
+            <UButton
+              color="error"
+              :loading="deleting"
+              @click="confirmDelete"
+            >
+              Delete schedule
+            </UButton>
+          </template>
+        </ModalFooter>
       </template>
     </UModal>
   </div>

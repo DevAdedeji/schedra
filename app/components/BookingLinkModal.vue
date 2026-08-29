@@ -393,33 +393,36 @@ async function copyCreated() {
     </template>
 
     <template #footer>
-      <div class="flex w-full items-center justify-between gap-3">
-        <UButton
-          color="neutral"
-          variant="soft"
-          :disabled="submitting"
-          @click="open = false"
-        >
-          Close
-        </UButton>
-        <UButton
-          v-if="createdUrl"
-          :color="copied ? 'success' : 'primary'"
-          :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"
-          @click="copyCreated"
-        >
-          {{ copied ? 'Copied' : 'Copy private link' }}
-        </UButton>
-        <UButton
-          v-else
-          icon="i-lucide-link-2"
-          :loading="submitting"
-          :disabled="!canSubmit"
-          @click="create"
-        >
-          Create link
-        </UButton>
-      </div>
+      <ModalFooter>
+        <template #cancel>
+          <UButton
+            color="neutral"
+            variant="soft"
+            :disabled="submitting"
+            @click="open = false"
+          >
+            Close
+          </UButton>
+        </template>
+        <template #actions>
+          <UButton
+            v-if="createdUrl"
+            :color="copied ? 'success' : 'primary'"
+            :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"
+            @click="copyCreated"
+          >
+            {{ copied ? 'Copied' : 'Copy private link' }}
+          </UButton>
+          <UButton
+            v-else
+            :loading="submitting"
+            :disabled="!canSubmit"
+            @click="create"
+          >
+            Create link
+          </UButton>
+        </template>
+      </ModalFooter>
     </template>
   </UModal>
 </template>

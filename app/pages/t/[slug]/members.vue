@@ -301,6 +301,7 @@ async function retry() {
         :page="invitations?.pagination.page ?? 1"
         :total-pages="invitations?.pagination.totalPages ?? 1"
         :total="invitations?.pagination.total ?? 0"
+        :page-size="invitations?.pagination.pageSize"
         @change="invitationPage = $event"
       />
     </section>
@@ -422,6 +423,7 @@ async function retry() {
         :page="members?.pagination.page ?? 1"
         :total-pages="members?.pagination.totalPages ?? 1"
         :total="members?.pagination.total ?? 0"
+        :page-size="members?.pagination.pageSize"
         :disabled="refreshing"
         @change="page = $event"
       />
@@ -482,24 +484,28 @@ async function retry() {
       </template>
 
       <template #footer>
-        <div class="flex w-full justify-end gap-2">
-          <UButton
-            color="neutral"
-            variant="ghost"
-            :disabled="sending"
-            @click="inviting = false"
-          >
-            Cancel
-          </UButton>
-          <UButton
-            type="submit"
-            form="invite-form"
-            :loading="sending"
-            :disabled="!inviteEmail.trim()"
-          >
-            Send invitation
-          </UButton>
-        </div>
+        <ModalFooter>
+          <template #cancel>
+            <UButton
+              color="neutral"
+              variant="soft"
+              :disabled="sending"
+              @click="inviting = false"
+            >
+              Cancel
+            </UButton>
+          </template>
+          <template #actions>
+            <UButton
+              type="submit"
+              form="invite-form"
+              :loading="sending"
+              :disabled="!inviteEmail.trim()"
+            >
+              Send invitation
+            </UButton>
+          </template>
+        </ModalFooter>
       </template>
     </UModal>
   </div>
