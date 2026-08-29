@@ -10,6 +10,7 @@ import {
   type PublicBookingPage
 } from '~/services/schedra-api'
 import { formatMoney } from '#shared/payments'
+import { formatInstant } from '~/utils/date-time'
 
 /**
  * One booking flow for both the personal page and the team page. The two
@@ -129,7 +130,7 @@ const confirmed = ref<{
 } | null>(null)
 
 const confirmedWhen = computed(() => confirmed.value
-  ? new Intl.DateTimeFormat('en', {
+  ? formatInstant(confirmed.value.start, {
       weekday: 'long',
       day: 'numeric',
       month: 'long',
@@ -137,8 +138,16 @@ const confirmedWhen = computed(() => confirmed.value
       minute: '2-digit',
       timeZoneName: 'short',
       timeZone: viewerTimeZone.value
-    }).format(new Date(confirmed.value.start))
+    }, 'en')
   : '')
+
+function dayAriaLabel(day: Date) {
+  return formatInstant(day, { dateStyle: 'full' }, 'en')
+}
+
+function shortWeekday(day: Date) {
+  return formatInstant(day, { weekday: 'short' }, 'en').slice(0, 2)
+}
 
 async function confirm() {
   if (!selectedSlot.value) return
@@ -555,12 +564,12 @@ useHead({
                     ? 'text-highlighted hover:bg-muted'
                     : 'cursor-not-allowed text-dimmed opacity-40'"
                 :disabled="!viewerTimeZoneReady || !slotsByDate.has(isoDate(day))"
-                :aria-label="new Intl.DateTimeFormat('en', { dateStyle: 'full' }).format(day)"
+                :aria-label="dayAriaLabel(day)"
                 :aria-pressed="selectedDate === isoDate(day)"
                 @click="selectedDate = isoDate(day); selectedSlot = null"
               >
                 <span class="block text-[12px] font-semibold uppercase tracking-wide opacity-70">
-                  {{ new Intl.DateTimeFormat('en', { weekday: 'short' }).format(day).slice(0, 2) }}
+                  {{ shortWeekday(day) }}
                 </span>
                 <span class="tnum mt-0.5 block text-[16px] font-semibold">{{ day.getDate() }}</span>
               </button>

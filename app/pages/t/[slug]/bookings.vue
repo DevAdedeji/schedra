@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { teamBookingsApi, teamsApi, type TeamBookingsResponse, type TeamDetail } from '~/services/schedra-api'
 import { DEFAULT_LIST_PAGE_SIZE } from '~/constants/lists'
+import { formatInstant, localTimeZone } from '~/utils/date-time'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 
@@ -36,14 +37,14 @@ const filterOptions = computed(() => [
 
 const viewerTimeZone = ref('UTC')
 onMounted(() => {
-  viewerTimeZone.value = Intl.DateTimeFormat().resolvedOptions().timeZone
+  viewerTimeZone.value = localTimeZone()
 })
 
 function when(iso: string) {
-  return new Intl.DateTimeFormat('en-GB', {
+  return formatInstant(iso, {
     weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
     timeZone: viewerTimeZone.value
-  }).format(new Date(iso))
+  }, 'en-GB')
 }
 
 const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> = {

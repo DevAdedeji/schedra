@@ -17,6 +17,7 @@ import {
 } from '../database/schema'
 import { useDatabase } from '../database'
 import { calendarBusyTimes } from '../integrations/calendar/providers'
+import { subtractFromInstant, utcCalendarDateBoundary } from '../utils/date-time'
 import { organizationEntitlement } from './entitlement'
 import { findOrganizationBySlug } from './organization'
 import { assignedHostsForGroupSessions, groupSessionCapacity } from './group-events'
@@ -181,8 +182,8 @@ async function slotsForHost(
 ) {
   const db = useDatabase()
   const timeZone = host.scheduleTimeZone ?? host.timeZone
-  const busyFrom = new Date(Date.parse(`${from}T00:00:00Z`) - 86_400_000).toISOString()
-  const busyTo = new Date(Date.parse(`${to}T00:00:00Z`) + 2 * 86_400_000).toISOString()
+  const busyFrom = utcCalendarDateBoundary(from, -1).toISOString()
+  const busyTo = utcCalendarDateBoundary(to, 2).toISOString()
 
   const [rules, overrides, taken, externalBusy] = await Promise.all([
     db.select({
@@ -285,8 +286,8 @@ export async function teamSlotsFor(
 ): Promise<TeamSlot[]> {
   if (!hosts.length) return []
 
-  const busyFrom = new Date(Date.parse(`${from}T00:00:00Z`) - 86_400_000)
-  const busyTo = new Date(Date.parse(`${to}T00:00:00Z`) + 2 * 86_400_000)
+  const busyFrom = utcCalendarDateBoundary(from, -1)
+  const busyTo = utcCalendarDateBoundary(to, 2)
   const groupSessions = event.capacity > 1
     ? await groupSessionCapacity(event.id, busyFrom, busyTo)
     : []
@@ -327,7 +328,7 @@ export async function hostLoads(
 ): Promise<HostLoad[]> {
   if (!userIds.length) return []
 
-  const since = new Date(Date.now() - 30 * 86_400_000)
+  const since = subtractFromInstant(Date.now(), { hours: 30 * 24 })
 
   const rows = await executor
     .select({

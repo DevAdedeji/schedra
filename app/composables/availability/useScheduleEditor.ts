@@ -1,6 +1,7 @@
 import { computed, reactive, ref, toValue, watch, type MaybeRefOrGetter } from 'vue'
 import { apiErrorMessage, schedulesApi } from '~/services/schedra-api'
 import type { ScheduleOverrideRecord, ScheduleRecord } from '~/types/schedule'
+import { addCalendarDateDays, formatCalendarDate, todayCalendarDate } from '~/utils/date-time'
 
 export interface ScheduleTimeWindow { id: number, start: string, end: string }
 export interface ScheduleDayRow { weekday: number, label: string, enabled: boolean, windows: ScheduleTimeWindow[] }
@@ -99,7 +100,7 @@ export function useScheduleEditor(options: {
   }
 
   function createOverride() {
-    Object.assign(draftOverride, { date: new Date(Date.now() + 86_400_000).toISOString().slice(0, 10), available: false, start: '09:00', end: '17:00' })
+    Object.assign(draftOverride, { date: addCalendarDateDays(todayCalendarDate(), 1), available: false, start: '09:00', end: '17:00' })
     overrideError.value = ''
     overrideOpen.value = true
   }
@@ -124,7 +125,7 @@ export function useScheduleEditor(options: {
   }
 
   function formatDate(date: string) {
-    return new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(`${date}T12:00:00`))
+    return formatCalendarDate(date, { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' }, 'en-GB')
   }
 
   async function save() {

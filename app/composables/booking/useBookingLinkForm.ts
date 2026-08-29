@@ -1,5 +1,13 @@
 import { computed, ref, toValue, watch, type MaybeRefOrGetter } from 'vue'
 import { apiErrorMessage, bookingLinksApi, eventTypesApi, type AvailabilityResponse } from '~/services/schedra-api'
+import {
+  addCalendarDateDays,
+  addExactTime,
+  calendarDateKey,
+  formatCalendarDate,
+  formatTime,
+  todayCalendarDate
+} from '~/utils/date-time'
 
 interface BookingLinkOption {
   id: string
@@ -49,11 +57,11 @@ export async function useBookingLinkForm(options: {
     loadingSlots.value = true
     slotError.value = ''
     selectedStarts.value = []
-    const now = new Date()
+    const from = todayCalendarDate()
     try {
       availability.value = await eventTypesApi.slots(eventTypeId.value, {
-        from: now.toISOString().slice(0, 10),
-        to: new Date(now.getTime() + 30 * 86_400_000).toISOString().slice(0, 10)
+        from,
+        to: addCalendarDateDays(from, 30)
       })
     } catch (failure) {
       availability.value = null
@@ -68,23 +76,19 @@ export async function useBookingLinkForm(options: {
   const groupedSlots = computed(() => {
     const groups = new Map<string, AvailabilityResponse['slots']>()
     const timeZone = availability.value?.timeZone ?? 'UTC'
-    const day = new Intl.DateTimeFormat('en-CA', { timeZone })
     for (const slot of availability.value?.slots ?? []) {
-      const key = day.format(new Date(slot.start))
+      const key = calendarDateKey(slot.start, timeZone)
       groups.set(key, [...(groups.get(key) ?? []), slot])
     }
     return [...groups.entries()]
   })
 
   function dayLabel(date: string) {
-    return new Intl.DateTimeFormat('en', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })
-      .format(new Date(`${date}T12:00:00Z`))
+    return formatCalendarDate(date, { weekday: 'short', month: 'short', day: 'numeric' }, 'en')
   }
 
   function timeLabel(iso: string) {
-    return new Intl.DateTimeFormat('en', {
-      hour: 'numeric', minute: '2-digit', timeZone: availability.value?.timeZone ?? 'UTC'
-    }).format(new Date(iso))
+    return formatTime(iso, availability.value?.timeZone ?? 'UTC', 'en')
   }
 
   function toggleSlot(start: string) {
@@ -128,7 +132,7 @@ export async function useBookingLinkForm(options: {
       const selected = (availability.value?.slots ?? []).filter(slot => selectedStarts.value.includes(slot.start))
       const expiry = kind.value === 'one_off'
         ? new Date(Math.max(...selected.map(slot => Date.parse(slot.end)))).toISOString()
-        : new Date(Date.now() + Number(expiryDays.value) * 86_400_000).toISOString()
+        : addExactTime(Date.now(), { hours: Number(expiryDays.value) * 24 }).toISOString()
       const result = await bookingLinksApi.create({
         kind: kind.value, eventTypeId: eventTypeId.value, label: label.value.trim() || null,
         expiresAt: expiry, slots: selected

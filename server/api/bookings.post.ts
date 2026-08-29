@@ -22,6 +22,7 @@ import {
 } from '../services/paid-booking'
 import { bookingLinkTokenHash, filterInvitationSlots, requireUsableBookingLink } from '../services/booking-links'
 import { claimBookingLink } from '../repositories/booking-links'
+import { addUtcCalendarDays, utcCalendarDate } from '../utils/date-time'
 
 const SLOT_TAKEN = '23P01'
 
@@ -79,8 +80,8 @@ export default defineEventHandler(async (event) => {
 
   // A day either side, because the slot's date in the host's timezone can
   // differ from its UTC date.
-  const day = (offset: number) =>
-    new Date(wanted + offset * 86_400_000).toISOString().slice(0, 10)
+  const wantedDate = utcCalendarDate(wanted)
+  const day = (offset: number) => addUtcCalendarDays(wantedDate, offset)
 
   // Re-derive the slot rather than trusting the posted time: without this, a
   // crafted request could book outside the host's hours entirely. Compare

@@ -2,6 +2,7 @@
 import { formatMoney } from '#shared/payments'
 import { operationsApi, paymentsApi, type PaymentActivityRecord, type PaymentActivityResponse } from '~/services/schedra-api'
 import { DEFAULT_LIST_PAGE_SIZE } from '~/constants/lists'
+import { formatCalendarDate, formatDateTime } from '~/utils/date-time'
 
 const props = withDefaults(defineProps<{ teamSlug?: string, operations?: boolean }>(), { operations: false })
 const direction = ref<'all' | 'in' | 'out'>('all')
@@ -50,7 +51,7 @@ const hasFilters = computed(() => Boolean(
 ))
 
 function shortDate(value: string) {
-  return new Intl.DateTimeFormat('en', { dateStyle: 'medium' }).format(new Date(`${value}T00:00:00`))
+  return formatCalendarDate(value, { dateStyle: 'medium' }, 'en')
 }
 
 function clearDates() {
@@ -115,9 +116,7 @@ function amount(item: PaymentActivityRecord) {
 }
 
 function timestamp(value: string) {
-  return new Intl.DateTimeFormat('en', {
-    dateStyle: 'medium', timeStyle: 'short'
-  }).format(new Date(value))
+  return formatDateTime(value, 'en')
 }
 
 function traceRows(item: PaymentActivityRecord) {

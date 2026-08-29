@@ -12,6 +12,7 @@ import {
   type CollectionCurrency
 } from '#shared/billing'
 import { apiErrorMessage, billingApi, type TeamBillingResponse } from '~/services/schedra-api'
+import { formatInstant } from '~/utils/date-time'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 useSeoMeta({ title: 'Team billing', robots: 'noindex, nofollow' })
@@ -182,7 +183,7 @@ async function retrySeatSync() {
 }
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+  return formatInstant(iso, { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> = {

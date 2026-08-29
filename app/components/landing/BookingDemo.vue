@@ -1,4 +1,12 @@
 <script setup lang="ts">
+import {
+  addLocalCalendarDays,
+  calendarDaysBetween,
+  formatInstant,
+  localCalendarDate,
+  localTimeZone
+} from '~/utils/date-time'
+
 interface Slot {
   time: string
   taken: boolean
@@ -20,7 +28,7 @@ const DAYS_AHEAD = 60
 const MIN_NOTICE_MS = 2 * 60 * 60 * 1000
 
 function addDays(date: Date, count: number) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + count)
+  return addLocalCalendarDays(date, count)
 }
 
 function startOfWeek(date: Date) {
@@ -28,9 +36,7 @@ function startOfWeek(date: Date) {
 }
 
 function sameDay(a: Date, b: Date) {
-  return a.getFullYear() === b.getFullYear()
-    && a.getMonth() === b.getMonth()
-    && a.getDate() === b.getDate()
+  return localCalendarDate(a) === localCalendarDate(b)
 }
 
 function noise(seed: number, index: number) {
@@ -77,7 +83,7 @@ const initialDay = firstOpenDay()
 const thisWeek = startOfWeek(today)
 
 const weekOffset = ref(
-  Math.round((startOfWeek(initialDay).getTime() - thisWeek.getTime()) / 6048e5)
+  Math.round(calendarDaysBetween(localCalendarDate(thisWeek), localCalendarDate(startOfWeek(initialDay))) / 7)
 )
 const selected = ref<Date>(initialDay)
 const picked = ref<string | null>(null)
@@ -91,16 +97,22 @@ const conflicts = computed(() => slotsFor(selected.value).filter(slot => slot.ta
 const canGoBack = computed(() => weekOffset.value > 0)
 const canGoForward = computed(() => addDays(weekStart.value, 7) <= horizon)
 
-const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+const timezone = localTimeZone()
 const offset = new Intl.DateTimeFormat('en', { timeZoneName: 'shortOffset' })
   .formatToParts(now)
   .find(part => part.type === 'timeZoneName')?.value ?? ''
 
-const weekdayOf = new Intl.DateTimeFormat('en', { weekday: 'narrow' })
-const longDate = new Intl.DateTimeFormat('en', { weekday: 'long', day: 'numeric', month: 'long' })
 const monthLabel = computed(() =>
-  new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric' }).format(weekStart.value)
+  formatInstant(weekStart.value, { month: 'long', year: 'numeric' }, 'en')
 )
+
+function weekdayOf(date: Date) {
+  return formatInstant(date, { weekday: 'narrow' }, 'en')
+}
+
+function longDate(date: Date) {
+  return formatInstant(date, { weekday: 'long', day: 'numeric', month: 'long' }, 'en')
+}
 
 function select(date: Date) {
   if (!openSlotsFor(date).length) return
@@ -181,11 +193,11 @@ function reset() {
         ]"
         :disabled="!openSlotsFor(day).length"
         :aria-pressed="sameDay(day, selected)"
-        :aria-label="longDate.format(day)"
+        :aria-label="longDate(day)"
         @click="select(day)"
       >
         <span class="text-[12px] font-semibold uppercase tracking-widest opacity-60">
-          {{ weekdayOf.format(day) }}
+          {{ weekdayOf(day) }}
         </span>
         <span class="text-[14px] font-medium leading-none">{{ day.getDate() }}</span>
         <span
@@ -200,7 +212,7 @@ function reset() {
     <div v-if="!confirmed">
       <div class="flex items-baseline justify-between gap-3 px-4 pb-2 pt-3.5">
         <span class="truncate text-[13px] font-medium text-highlighted">
-          {{ longDate.format(selected) }}
+          {{ longDate(selected) }}
         </span>
         <span class="shrink-0 font-mono text-[12px] text-dimmed">{{ offset }}</span>
       </div>
@@ -266,7 +278,7 @@ function reset() {
             Booked — {{ picked }}
           </p>
           <p class="mt-1 text-[13px] leading-relaxed text-muted">
-            {{ longDate.format(selected) }} · {{ HOST.duration }} min with {{ HOST.name }}
+            {{ longDate(selected) }} · {{ HOST.duration }} min with {{ HOST.name }}
           </p>
           <p class="mt-3 text-[12px] leading-relaxed text-dimmed">
             Preview complete · no real booking was created

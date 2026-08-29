@@ -9,7 +9,7 @@ import {
   type OperationStatus
 } from '~/services/schedra-api'
 import { DEFAULT_LIST_PAGE_SIZE } from '~/constants/lists'
-import { formatDateTime } from '~/utils/date-time'
+import { compactRelativeTime, formatDateTime } from '~/utils/date-time'
 
 definePageMeta({ layout: 'app', middleware: ['auth', 'platform-admin'] })
 useSeoMeta({ title: 'Operations — Schedra', robots: 'noindex, nofollow' })
@@ -96,13 +96,7 @@ const systemState = computed(() => {
 // Operators scan for "how long ago", not for a calendar date. The absolute time
 // stays available on hover.
 function ago(value: string) {
-  const seconds = Math.round((Date.now() - new Date(value).getTime()) / 1000)
-  if (seconds < 60) return 'just now'
-  const minutes = Math.round(seconds / 60)
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.round(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  return `${Math.round(hours / 24)}d ago`
+  return compactRelativeTime(value)
 }
 
 // Headline counts. Failures and delays lead because they are the only two an

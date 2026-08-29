@@ -2,12 +2,13 @@ import { z } from 'zod'
 import { findOwnedEventType } from '../../../repositories/booking-links'
 import { slotsFor } from '../../../services/booking-page'
 import { requireAuthSession } from '../../../services/session'
+import { calendarDaysBetween } from '../../../utils/date-time'
 
 const querySchema = z.object({
   from: z.iso.date(),
   to: z.iso.date()
 }).superRefine(({ from, to }, context) => {
-  const days = (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000
+  const days = calendarDaysBetween(from, to)
   if (days < 0 || days > 30) context.addIssue({ code: 'custom', message: 'Choose a range of at most 31 days.' })
 })
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { formatMoney } from '#shared/payments'
 import { analyticsApi, type AnalyticsResponse } from '~/services/schedra-api'
+import { formatCalendarDate } from '~/utils/date-time'
 
 const props = defineProps<{ teamSlug?: string }>()
 const days = ref<7 | 30 | 90>(30)
@@ -31,7 +32,7 @@ function leadTime(hours: number) {
 }
 
 function shortDate(value: string) {
-  return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`))
+  return formatCalendarDate(value, { month: 'short', day: 'numeric' }, 'en')
 }
 
 function sourcePercentage(value: number) {

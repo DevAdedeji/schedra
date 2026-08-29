@@ -21,6 +21,7 @@ import { bookingNoticeFromManaged, queueBookingEmails } from './booking-emails'
 import { enqueueCalendarSync } from './calendar-sync'
 import { publishBookingEvent } from './workflows'
 import { logEvent } from '../observability/logger'
+import { addToInstant } from '../utils/date-time'
 import {
   findPaymentRecipient,
   syncPaymentRecipient,
@@ -176,7 +177,7 @@ export async function openPaidBookingCheckout(uid: string) {
       destinationAccountId: currentRecipient.bachsAccountId!,
       expiresInMinutes: 60
     })
-    const expiresAt = session.expires_at ? new Date(session.expires_at) : new Date(Date.now() + 60 * 60_000)
+    const expiresAt = session.expires_at ? new Date(session.expires_at) : addToInstant(Date.now(), { hours: 1 })
     await useDatabase().transaction(async (tx) => {
       await tx.update(bookingPayments).set({
         bachsCheckoutId: session.checkout_id,

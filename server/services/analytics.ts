@@ -2,6 +2,7 @@ import { and, asc, desc, eq, gte, lt, sql } from 'drizzle-orm'
 import { fillDailySeries, percentage, percentageChange, type AnalyticsQuery } from '#shared/analytics'
 import { bookingHosts, bookingPayments, bookings, eventTypes } from '../database/schema'
 import { useDatabase } from '../database'
+import { subtractFromInstant } from '../utils/date-time'
 
 export type AnalyticsOwner
   = | { userId: string, organizationId?: never, visibleUserId?: never }
@@ -34,8 +35,8 @@ const cancelledBooking = sql`${bookings.status} in ('cancelled', 'rejected')`
 export async function getBookingAnalytics(owner: AnalyticsOwner, query: AnalyticsQuery) {
   const db = useDatabase()
   const to = new Date()
-  const from = new Date(to.getTime() - query.days * 86_400_000)
-  const previousFrom = new Date(from.getTime() - query.days * 86_400_000)
+  const from = subtractFromInstant(to, { hours: query.days * 24 })
+  const previousFrom = subtractFromInstant(from, { hours: query.days * 24 })
   const current = periodWhere(owner, from, to, query.eventTypeId)
   const previous = periodWhere(owner, previousFrom, from, query.eventTypeId)
 

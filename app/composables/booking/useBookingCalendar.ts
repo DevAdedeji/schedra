@@ -1,12 +1,23 @@
 import { computed, onMounted, ref, toValue, watch, watchEffect, type MaybeRefOrGetter } from 'vue'
 import type { AvailabilityResponse, PublicBookingPage } from '~/services/schedra-api'
+import {
+  addLocalCalendarDays,
+  calendarDateKey,
+  calendarDaysBetween,
+  formatCalendarDate,
+  formatInstant,
+  formatTime,
+  localCalendarDate,
+  localTimeZone,
+  startOfIsoWeek
+} from '~/utils/date-time'
 
 export function isoCalendarDate(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  return localCalendarDate(date)
 }
 
 export function addCalendarDays(date: Date, count: number) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + count)
+  return addLocalCalendarDays(date, count)
 }
 
 export function useBookingCalendar(options: {
@@ -23,7 +34,7 @@ export function useBookingCalendar(options: {
   const jumped = ref(false)
 
   onMounted(() => {
-    viewerTimeZone.value = Intl.DateTimeFormat().resolvedOptions().timeZone
+    viewerTimeZone.value = localTimeZone()
     viewerTimeZoneReady.value = true
   })
   watch(viewerTimeZone, () => {
@@ -40,9 +51,8 @@ export function useBookingCalendar(options: {
     const grouped = new Map<string, AvailabilityResponse['slots']>()
     const availability = toValue(options.availability)
     if (!availability) return grouped
-    const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: viewerTimeZone.value })
     for (const slot of availability.slots) {
-      const key = formatter.format(new Date(slot.start))
+      const key = calendarDateKey(slot.start, viewerTimeZone.value)
       grouped.set(key, [...(grouped.get(key) ?? []), slot])
     }
     return grouped
@@ -51,10 +61,9 @@ export function useBookingCalendar(options: {
   watchEffect(() => {
     if (jumped.value || !slotsByDate.value.size) return
     const first = [...slotsByDate.value.keys()].sort()[0]!
-    const target = new Date(`${first}T12:00:00`)
-    const monday = addCalendarDays(target, -((target.getDay() + 6) % 7))
+    const monday = startOfIsoWeek(first)
     weekOffset.value = Math.min(maxWeekOffset, Math.max(0,
-      Math.round((monday.getTime() - firstMonday.getTime()) / 6048e5)))
+      Math.round(calendarDaysBetween(isoCalendarDate(firstMonday), monday) / 7)))
     selectedDate.value = first
     jumped.value = true
   })
@@ -73,16 +82,13 @@ export function useBookingCalendar(options: {
     const remainingSeats = selectedSlotDetails.value?.availableSeats ?? page.capacity
     return Math.max(0, Math.min(10, remainingSeats - 1))
   })
-  const monthLabel = computed(() =>
-    new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric' }).format(weekStart.value))
+  const monthLabel = computed(() => formatInstant(weekStart.value, { month: 'long', year: 'numeric' }, 'en'))
   const longSelected = computed(() => selectedDate.value
-    ? new Intl.DateTimeFormat('en', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(`${selectedDate.value}T12:00:00`))
+    ? formatCalendarDate(selectedDate.value, { weekday: 'long', day: 'numeric', month: 'long' }, 'en')
     : '')
 
   function timeLabel(iso: string) {
-    return new Intl.DateTimeFormat('en-GB', {
-      hour: '2-digit', minute: '2-digit', timeZone: viewerTimeZone.value
-    }).format(new Date(iso))
+    return formatTime(iso, viewerTimeZone.value)
   }
 
   function locationLabel(type?: string) {

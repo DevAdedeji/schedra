@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { apiErrorMessage, bookingsApi, type BookingDetail } from '~/services/schedra-api'
 import { formatMoney } from '#shared/payments'
+import { formatInstant, isPast, localTimeZone } from '~/utils/date-time'
 
 definePageMeta({ layout: 'bare' })
 
@@ -20,7 +21,7 @@ const feedback = useFeedback()
 
 const viewerTimeZone = ref('UTC')
 onMounted(() => {
-  viewerTimeZone.value = Intl.DateTimeFormat().resolvedOptions().timeZone
+  viewerTimeZone.value = localTimeZone()
 })
 
 const cancelling = ref(false)
@@ -39,7 +40,7 @@ const returningFromPayment = computed(() => route.query.payment === 'success' ||
 const paymentRecoveryAvailable = computed(() => Boolean(booking.value?.payment?.recoveryAvailable))
 const canReconcilePayment = computed(() => awaitingPayment.value || paymentRecoveryAvailable.value)
 const rejected = computed(() => booking.value?.status === 'rejected')
-const past = computed(() => booking.value ? new Date(booking.value.endsAt) < new Date() : false)
+const past = computed(() => booking.value ? isPast(booking.value.endsAt) : false)
 const joinUrl = computed(() => booking.value?.status === 'confirmed'
   ? booking.value.meetingUrl ?? (booking.value.locationType === 'video_link' ? booking.value.locationDetails : null)
   : null)
@@ -56,10 +57,10 @@ const locationPresentation = computed(() => ({
 
 const longWhen = computed(() => {
   if (!booking.value) return ''
-  return new Intl.DateTimeFormat('en-GB', {
+  return formatInstant(booking.value.startsAt, {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
     hour: '2-digit', minute: '2-digit', timeZone: viewerTimeZone.value
-  }).format(new Date(booking.value.startsAt))
+  }, 'en-GB')
 })
 
 async function cancel() {

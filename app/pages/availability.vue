@@ -3,6 +3,7 @@ import { apiErrorMessage, schedulesApi, type SchedulesResponse } from '~/service
 import type { ScheduleRecord } from '~/types/schedule'
 import { compactActionMenuUi } from '~/utils/action-menu'
 import { DEFAULT_LIST_PAGE_SIZE } from '~/constants/lists'
+import { localTimeZone } from '~/utils/date-time'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 useSeoMeta({ title: 'Availability schedules', robots: 'noindex, nofollow' })
@@ -36,7 +37,7 @@ const { initialLoading, refreshing, blockingFailure } = useListLoadingState(stat
 watch(filter, resetPage)
 
 onMounted(() => {
-  draft.timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  draft.timeZone = localTimeZone()
 })
 
 function openCreate() {

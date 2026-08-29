@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { bookingsApi, eventTypesApi, schedulesApi, type BookingsResponse, type EventTypesResponse, type SchedulesResponse } from '~/services/schedra-api'
 import { DEFAULT_LIST_PAGE_SIZE } from '~/constants/lists'
+import { formatInstant, localTimeZone } from '~/utils/date-time'
 import { getInitials } from '~/utils/text'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
@@ -51,13 +52,13 @@ const scheduleDays = computed(() => weekdays.map((label, index) => {
 }))
 const viewerTimeZone = ref('UTC')
 onMounted(() => {
-  viewerTimeZone.value = Intl.DateTimeFormat().resolvedOptions().timeZone
+  viewerTimeZone.value = localTimeZone()
 })
 
 function when(iso: string) {
-  return new Intl.DateTimeFormat('en-GB', {
+  return formatInstant(iso, {
     weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: viewerTimeZone.value
-  }).format(new Date(iso))
+  }, 'en-GB')
 }
 
 async function copyBookingPage() {

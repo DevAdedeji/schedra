@@ -2,6 +2,7 @@
 import type { FormSubmitEvent } from '@nuxt/ui'
 import { signUpFormSchema, type SignUpFormInput } from '#shared/validation'
 import { invitationsApi, usernameApi, type UsernameAvailability } from '~/services/schedra-api'
+import { localTimeZone } from '~/utils/date-time'
 
 definePageMeta({ layout: 'auth', middleware: 'guest' })
 useSeoMeta({ title: 'Create your Schedra link', robots: 'noindex, nofollow' })
@@ -129,7 +130,7 @@ async function onSubmit(event: FormSubmitEvent<SignUpFormInput>) {
   try {
     const { error: failure } = await signUp.email({
       ...event.data,
-      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      timeZone: localTimeZone(),
       callbackURL
     })
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { teamAuditApi, teamsApi, type TeamAuditResponse, type TeamDetail } from '~/services/schedra-api'
 import { DEFAULT_LIST_PAGE_SIZE } from '~/constants/lists'
+import { formatInstant } from '~/utils/date-time'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 
@@ -68,7 +69,7 @@ function icon(action: string) {
 }
 
 function when(iso: string) {
-  return new Date(iso).toLocaleString(undefined, {
+  return formatInstant(iso, {
     day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
   })
 }
