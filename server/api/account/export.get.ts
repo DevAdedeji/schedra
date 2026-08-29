@@ -12,6 +12,7 @@ import {
 } from '../../database/schema'
 import { useDatabase } from '../../database/index'
 import { requireAuthSession } from '../../services/session'
+import { recordSecurityAudit } from '../../services/security-audit'
 
 export default defineEventHandler(async (event) => {
   const session = await requireAuthSession(event)
@@ -66,6 +67,14 @@ export default defineEventHandler(async (event) => {
         updatedAt: profileRow.updatedAt
       }
     : null
+
+  await recordSecurityAudit({
+    action: 'account.data_exported',
+    actorUserId: session.user.id,
+    actorEmail: session.user.email,
+    targetType: 'user',
+    targetId: session.user.id
+  }, event)
 
   setResponseHeaders(event, {
     'content-type': 'application/json; charset=utf-8',

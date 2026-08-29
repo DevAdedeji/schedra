@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { analyticsAllowedForRoute } from '#shared/analytics'
+
 const route = useRoute()
 // SCHEDRA_URL is the authoritative public origin — the same value better-auth
 // builds callbacks from. The request host cannot be trusted behind a proxy and
@@ -9,9 +11,9 @@ const origin = siteUrl.value
 const title = 'Schedra — share a link, get booked'
 const description = 'Share one link and let people pick a time that suits you both. Meetings land in your calendar with reminders sent and timezones handled.'
 const ogImage = `${origin}/og.png`
+const analyticsAllowed = computed(() => !import.meta.dev && analyticsAllowedForRoute(route.name))
 
 const clarityScript = `(function(c,l,a,r,i,t,y){
-  if(c.location.pathname.indexOf("/embed/")===0)return;
   c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
   var v=null;try{v=c.localStorage.getItem("schedra:analytics-consent:v1")}catch(e){}
   c[a]("consentv2",{ad_Storage:"denied",analytics_Storage:v==="granted"?"granted":"denied"});
@@ -21,7 +23,7 @@ const clarityScript = `(function(c,l,a,r,i,t,y){
 
 const canonical = computed(() => `${origin}${route.path === '/' ? '' : route.path}`)
 
-useHead({
+useHead(() => ({
   htmlAttrs: { lang: 'en' },
   titleTemplate: chunk => (chunk && chunk !== title ? `${chunk} — Schedra` : title),
   meta: [
@@ -35,10 +37,10 @@ useHead({
   ],
   // Staging and production are built with NODE_ENV=production. Keeping the
   // tracker out of dev prevents local navigation from polluting Clarity.
-  script: import.meta.dev
-    ? []
-    : [{ key: 'microsoft-clarity', type: 'text/javascript', innerHTML: clarityScript }]
-})
+  script: analyticsAllowed.value
+    ? [{ key: 'microsoft-clarity', type: 'text/javascript', innerHTML: clarityScript }]
+    : []
+}))
 
 useSeoMeta({
   // Staging serves the same pages as production; letting search engines index

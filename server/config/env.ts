@@ -1,6 +1,13 @@
 export interface Env {
   databaseUrl: string
+  databasePoolMax: number
+  databaseConnectTimeoutSeconds: number
+  databaseIdleTimeoutSeconds: number
+  databaseStatementTimeoutMs: number
+  databaseLockTimeoutMs: number
+  databaseIdleTransactionTimeoutMs: number
   schedraUrl: string
+  environment: 'development' | 'staging' | 'production'
   authSecret: string
   integrationEncryptionKey?: string
 
@@ -62,6 +69,15 @@ function emailList(name: string) {
   return [...new Set(values)]
 }
 
+function integer(name: string, fallback: number, minimum: number, maximum: number) {
+  const raw = optional(name) ?? String(fallback)
+  const value = /^\d+$/.test(raw) ? Number(raw) : Number.NaN
+  if (!Number.isInteger(value) || value < minimum || value > maximum) {
+    throw new Error(`${name} must be an integer between ${minimum} and ${maximum}.`)
+  }
+  return value
+}
+
 export function useEnv(): Env {
   if (cached) return cached
 
@@ -88,7 +104,7 @@ export function useEnv(): Env {
   const integrationEncryptionKey = optional('INTEGRATION_ENCRYPTION_KEY')
   const bachsSecretKey = optional('BACHS_SECRET_KEY')
   const bachsWebhookSecret = optional('BACHS_WEBHOOK_SECRET')
-  const paidBookingPlatformFeeBps = Number.parseInt(optional('PAID_BOOKING_PLATFORM_FEE_BPS') ?? '500', 10)
+  const paidBookingPlatformFeeBps = integer('PAID_BOOKING_PLATFORM_FEE_BPS', 500, 1, 5000)
   const resendApiKey = optional('RESEND_API_KEY')
   const smtpUrl = optional('SMTP_URL')
   const emailFrom = optional('EMAIL_FROM')
@@ -125,7 +141,34 @@ export function useEnv(): Env {
   }
 
   const schedraUrl = parseUrl('SCHEDRA_URL', process.env.SCHEDRA_URL!, ['http:', 'https:'])
-  const local = ['localhost', '127.0.0.1', '::1'].includes(new URL(schedraUrl).hostname)
+  const publicUrl = new URL(schedraUrl)
+  const local = ['localhost', '127.0.0.1', '::1'].includes(publicUrl.hostname)
+  const configuredEnvironment = optional('SCHEDRA_ENVIRONMENT')
+  const environment = configuredEnvironment
+    ?? (local ? 'development' : /(^|\.)staging\./i.test(publicUrl.hostname) ? 'staging' : 'production')
+  if (!['development', 'staging', 'production'].includes(environment)) {
+    throw new Error('SCHEDRA_ENVIRONMENT must be development, staging or production.')
+  }
+  if (environment === 'production') {
+    if (publicUrl.protocol !== 'https:') {
+      throw new Error('Production SCHEDRA_URL must use HTTPS.')
+    }
+    if (!integrationEncryptionKey) {
+      throw new Error('INTEGRATION_ENCRYPTION_KEY is required in production and must be separate from AUTH_SECRET.')
+    }
+    if (integrationEncryptionKey === authSecret) {
+      throw new Error('INTEGRATION_ENCRYPTION_KEY must not reuse AUTH_SECRET in production.')
+    }
+    if (!bachsSecretKey?.startsWith('sk_live_')) {
+      throw new Error('Production requires a BACHS_SECRET_KEY beginning with sk_live_.')
+    }
+    if (!bachsWebhookSecret) {
+      throw new Error('BACHS_WEBHOOK_SECRET is required in production.')
+    }
+    if (!platformAdminEmails.length) {
+      throw new Error('PLATFORM_ADMIN_EMAILS must contain at least one administrator in production.')
+    }
+  }
   if (zoomClientId && !zoomWebhookSecret && !local) {
     throw new Error('ZOOM_WEBHOOK_SECRET is required whenever Zoom is configured outside local development.')
   }
@@ -137,7 +180,14 @@ export function useEnv(): Env {
 
   cached = {
     databaseUrl: parseUrl('DATABASE_URL', process.env.DATABASE_URL!, ['postgres:', 'postgresql:']),
+    databasePoolMax: integer('DATABASE_POOL_MAX', processRole === 'all' ? 10 : 5, 1, 50),
+    databaseConnectTimeoutSeconds: integer('DATABASE_CONNECT_TIMEOUT_SECONDS', 10, 1, 60),
+    databaseIdleTimeoutSeconds: integer('DATABASE_IDLE_TIMEOUT_SECONDS', 20, 1, 600),
+    databaseStatementTimeoutMs: integer('DATABASE_STATEMENT_TIMEOUT_MS', 15_000, 1000, 120_000),
+    databaseLockTimeoutMs: integer('DATABASE_LOCK_TIMEOUT_MS', 5_000, 100, 30_000),
+    databaseIdleTransactionTimeoutMs: integer('DATABASE_IDLE_TRANSACTION_TIMEOUT_MS', 15_000, 1000, 120_000),
     schedraUrl,
+    environment: environment as Env['environment'],
     authSecret,
     integrationEncryptionKey,
     bachsSecretKey,

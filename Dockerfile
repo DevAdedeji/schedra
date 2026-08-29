@@ -35,6 +35,10 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/server/database/migrations ./server/database/migrations
 
+# The runtime only needs to read the compiled app, dependencies and migration
+# files. Do not give a compromised Node process root privileges in the image.
+USER node
+
 # Documentation only — the real port comes from PORT at runtime.
 EXPOSE 3000
 

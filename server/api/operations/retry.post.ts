@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { requirePlatformAdminSession } from '../../services/session'
 import { retryOperation } from '../../services/operations'
 import { logEvent } from '../../observability/logger'
+import { recordSecurityAudit } from '../../services/security-audit'
 
 const bodySchema = z.object({
   kind: z.enum(['automation', 'calendar', 'billing', 'email', 'webhook']),
@@ -20,6 +21,13 @@ export default defineEventHandler(async (event) => {
       kind: parsed.data.kind,
       operationId: parsed.data.id,
       actorId: session.user.id
+    }, event)
+    await recordSecurityAudit({
+      action: 'operations.job_retried',
+      actorUserId: session.user.id,
+      actorEmail: session.user.email,
+      targetType: parsed.data.kind,
+      targetId: parsed.data.id
     }, event)
     return { retried: true }
   } catch (error) {
