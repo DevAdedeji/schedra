@@ -399,6 +399,106 @@ describe('bachs checkout payment methods', () => {
     expect(new Headers(options.headers).get('X-Account-Id')).toBe('acct_host')
   })
 
+  it('previews a same-currency payout fee in the connected account context', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      from_currency: 'NGN',
+      to_currency: 'NGN',
+      amount: '5000.00',
+      payout_method: 'BANK_TRANSFER',
+      withdrawal_fee: '100.00',
+      gross_from_amount: '5100.00',
+      to_amount: '5000.00'
+    }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { estimateConnectedAccountPayout } = await import('./bachs')
+    await estimateConnectedAccountPayout({
+      accountId: 'acct_host',
+      fromCurrency: 'NGN',
+      toCurrency: 'NGN',
+      amount: '5000.00',
+      payoutMethod: 'BANK_TRANSFER'
+    })
+
+    const [url, options] = fetchMock.mock.calls[0] as [URL, RequestInit]
+    expect(String(url)).toBe('https://sandbox-api.bachs.io/v1/payouts/estimate')
+    expect(new Headers(options.headers).get('X-Account-Id')).toBe('acct_host')
+    expect(JSON.parse(String(options.body))).toEqual({
+      from_currency: 'NGN',
+      to_currency: 'NGN',
+      amount: '5000.00',
+      payout_method: 'BANK_TRANSFER'
+    })
+  })
+
+  it('quotes a cross-currency connected-account payout', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      quote_id: 'pqt_123',
+      from_currency: 'USD',
+      to_currency: 'NGN',
+      from_amount: '5.00',
+      to_amount: '7800.00',
+      exchange_rate: '1600.00',
+      expires_at: '2026-08-30T12:00:00.000Z'
+    }), { status: 201 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { createConnectedAccountPayoutQuote } = await import('./bachs')
+    await createConnectedAccountPayoutQuote({
+      accountId: 'acct_host',
+      fromCurrency: 'USD',
+      toCurrency: 'NGN',
+      amount: '5.00',
+      payoutMethod: 'BANK_TRANSFER'
+    })
+
+    const [url, options] = fetchMock.mock.calls[0] as [URL, RequestInit]
+    expect(String(url)).toBe('https://sandbox-api.bachs.io/v1/payouts/quotes')
+    expect(new Headers(options.headers).get('X-Account-Id')).toBe('acct_host')
+    expect(JSON.parse(String(options.body))).toMatchObject({
+      from_currency: 'USD',
+      to_currency: 'NGN',
+      amount: '5.00',
+      payout_method: 'BANK_TRANSFER'
+    })
+  })
+
+  it('creates an idempotent connected-account withdrawal', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      id: 'pay_123',
+      status: 'pending',
+      amount: '5000.00',
+      currency: 'NGN',
+      source_currency: 'NGN',
+      fee: '100.00',
+      total_debited: '5100.00',
+      destination: 'pd_ready',
+      reference: 'schedra-wd-123'
+    }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { createConnectedAccountPayout } = await import('./bachs')
+    await createConnectedAccountPayout({
+      accountId: 'acct_host',
+      destinationId: 'pd_ready',
+      amount: '5000.00',
+      reference: 'schedra-wd-123',
+      metadata: { schedra_withdrawal_id: '123' }
+    })
+
+    const [url, options] = fetchMock.mock.calls[0] as [URL, RequestInit]
+    const headers = new Headers(options.headers)
+    expect(String(url)).toBe('https://sandbox-api.bachs.io/v1/payouts')
+    expect(headers.get('X-Account-Id')).toBe('acct_host')
+    expect(headers.get('Idempotency-Key')).toBe('schedra-wd-123')
+    expect(JSON.parse(String(options.body))).toEqual({
+      destination: 'pd_ready',
+      reference: 'schedra-wd-123',
+      amount: '5000.00',
+      metadata: { schedra_withdrawal_id: '123' }
+    })
+  })
+
   it('creates onboarding links through the account resource', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       id: 'alnk_test',

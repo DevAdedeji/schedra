@@ -129,7 +129,10 @@ export async function bachsFetch<T>(path: string, options: BachsRequest = {}): P
       statusMessage: unavailablePaymentMethod
         ? 'Checkout is temporarily unavailable because Bachs found no compatible payment method for this currency and plan. Check the live payment-method configuration, then try again.'
         : String(detail),
-      data: { errorCode: payload?.error_code }
+      data: {
+        errorCode: payload?.error_code,
+        details: payload?.details ?? null
+      }
     })
   }
 
@@ -347,7 +350,32 @@ export interface BachsPayout {
   source_currency?: string | null
   fee?: string | null
   total_debited?: string | null
+  destination?: string | null
+  reference?: string | null
+  failure_reason?: string | null
+  created_at?: string | null
   completed_at?: string | null
+}
+
+export interface BachsPayoutQuote {
+  quote_id: string
+  from_currency: string
+  to_currency: string
+  from_amount: string
+  to_amount: string
+  exchange_rate: string
+  expires_at: string
+}
+
+export interface BachsPayoutEstimate {
+  from_currency: string
+  to_currency: string
+  amount: string
+  payout_method: 'BANK_TRANSFER' | 'MOBILE_MONEY' | 'CRYPTO'
+  withdrawal_fee: string
+  gross_from_amount: string
+  exchange_rate?: string | null
+  to_amount: string
 }
 
 export interface BachsPayoutDestination {
@@ -413,6 +441,81 @@ export async function listConnectedAccountPayouts(accountId: string) {
   }
 
   return items
+}
+
+export function getConnectedAccountPayout(accountId: string, payoutId: string) {
+  return bachsFetch<BachsPayout>(`/payouts/${encodeURIComponent(payoutId)}`, {
+    headers: { 'X-Account-Id': accountId },
+    retryTransient: true
+  })
+}
+
+export function createConnectedAccountPayoutQuote(input: {
+  accountId: string
+  fromCurrency: string
+  toCurrency: string
+  amount: string
+  payoutMethod: BachsPayoutEstimate['payout_method']
+}) {
+  return bachsFetch<BachsPayoutQuote>('/payouts/quotes', {
+    method: 'POST',
+    headers: { 'X-Account-Id': input.accountId },
+    body: {
+      from_currency: input.fromCurrency,
+      to_currency: input.toCurrency,
+      amount: input.amount,
+      payout_method: input.payoutMethod
+    }
+  })
+}
+
+export function estimateConnectedAccountPayout(input: {
+  accountId: string
+  fromCurrency: string
+  toCurrency: string
+  amount: string
+  payoutMethod: BachsPayoutEstimate['payout_method']
+}) {
+  return bachsFetch<BachsPayoutEstimate>('/payouts/estimate', {
+    method: 'POST',
+    headers: { 'X-Account-Id': input.accountId },
+    body: {
+      from_currency: input.fromCurrency,
+      to_currency: input.toCurrency,
+      amount: input.amount,
+      payout_method: input.payoutMethod
+    }
+  })
+}
+
+/**
+ * A withdrawal is irreversible once Bachs accepts it. The stable Schedra
+ * reference is therefore both the provider reference and Idempotency-Key, and
+ * transient retries are only enabled because that key makes them safe.
+ */
+export function createConnectedAccountPayout(input: {
+  accountId: string
+  destinationId: string
+  reference: string
+  amount?: string
+  quoteId?: string
+  metadata?: Record<string, string>
+}) {
+  if (Boolean(input.amount) === Boolean(input.quoteId)) {
+    throw new Error('A payout requires exactly one of amount or quoteId.')
+  }
+  return bachsFetch<BachsPayout>('/payouts', {
+    method: 'POST',
+    headers: { 'X-Account-Id': input.accountId },
+    idempotencyKey: input.reference,
+    retryTransient: true,
+    body: {
+      destination: input.destinationId,
+      reference: input.reference,
+      ...(input.amount ? { amount: input.amount } : { quote_id: input.quoteId }),
+      ...(input.metadata ? { metadata: input.metadata } : {})
+    }
+  })
 }
 
 export interface BachsAccountLink {

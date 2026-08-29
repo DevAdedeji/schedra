@@ -18,6 +18,20 @@ export const paymentConfigurationSchema = z.object({
 
 export type PaymentConfiguration = z.infer<typeof paymentConfigurationSchema>
 
+export const withdrawalPreviewInputSchema = z.object({
+  destinationId: z.string().trim().min(3).max(128).regex(/^[A-Za-z0-9_-]+$/),
+  sourceCurrency: paymentCurrencySchema,
+  amountCents: z.number().int().min(1).max(100_000_000)
+})
+
+export const withdrawalCreateInputSchema = z.object({
+  requestId: z.uuid(),
+  confirmationToken: z.string().min(32).max(4096)
+})
+
+export type WithdrawalPreviewInput = z.infer<typeof withdrawalPreviewInputSchema>
+export type WithdrawalCreateInput = z.infer<typeof withdrawalCreateInputSchema>
+
 export function formatMoney(cents: number, currency: PaymentCurrency) {
   return new Intl.NumberFormat('en', {
     style: 'currency',

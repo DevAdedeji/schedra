@@ -822,6 +822,51 @@ export interface PaymentSummary {
   updatedAt: string
 }
 
+export interface PaymentWithdrawalDestination {
+  id: string
+  name: string
+  type: 'bank_account' | 'mobile_money' | 'crypto_wallet'
+  currency: 'USD' | 'NGN'
+  isDefault: boolean
+}
+
+export interface PaymentWithdrawalRecord {
+  id: string
+  status: 'creating' | 'pending' | 'processing' | 'completed' | 'failed' | 'unknown'
+  destinationName: string
+  sourceCurrency: 'USD' | 'NGN'
+  destinationCurrency: 'USD' | 'NGN'
+  requestedAmountCents: number
+  deliveredAmountCents: number | null
+  feeCents: number | null
+  totalDebitedCents: number | null
+  failureReason: string | null
+  providerPayoutId: string | null
+  createdAt: string
+  completedAt: string | null
+}
+
+export interface PaymentWithdrawalOptions {
+  ready: boolean
+  status: PaymentAccountSummary['status']
+  available: PaymentMoneyTotal[]
+  destinations: PaymentWithdrawalDestination[]
+  withdrawals: PaymentWithdrawalRecord[]
+}
+
+export interface PaymentWithdrawalPreview {
+  confirmationToken: string
+  sourceCurrency: 'USD' | 'NGN'
+  destinationCurrency: 'USD' | 'NGN'
+  requestedAmountCents: number
+  deliveredAmountCents: number
+  feeCents: number | null
+  totalDebitedCents: number
+  exchangeRate: string | null
+  destination: PaymentWithdrawalDestination
+  expiresAt: string
+}
+
 export const paymentsApi = {
   endpoint: '/api/payment-account',
   teamEndpoint: (slug: string) => resource('/api/teams', slug, '/payment-account'),
@@ -831,9 +876,29 @@ export const paymentsApi = {
   summaryEndpoint: (teamSlug?: string) => teamSlug
     ? resource('/api/teams', teamSlug, '/payment-summary')
     : '/api/payment-summary',
+  withdrawalsEndpoint: (teamSlug?: string) => teamSlug
+    ? resource('/api/teams', teamSlug, '/payment-withdrawals')
+    : '/api/payment-withdrawals',
+  withdrawalPreviewEndpoint: (teamSlug?: string) => teamSlug
+    ? resource('/api/teams', teamSlug, '/payment-withdrawals/preview')
+    : '/api/payment-withdrawals/preview',
   start: (teamSlug?: string) => $fetch<{ url: string, expiresAt: string }>(
     teamSlug ? resource('/api/teams', teamSlug, '/payment-account') : '/api/payment-account',
     { method: 'POST' }
+  ),
+  previewWithdrawal: (
+    body: { destinationId: string, sourceCurrency: 'USD' | 'NGN', amountCents: number },
+    teamSlug?: string
+  ) => $fetch<PaymentWithdrawalPreview>(
+    teamSlug ? resource('/api/teams', teamSlug, '/payment-withdrawals/preview') : '/api/payment-withdrawals/preview',
+    { method: 'POST', body }
+  ),
+  createWithdrawal: (
+    body: { requestId: string, confirmationToken: string },
+    teamSlug?: string
+  ) => $fetch<PaymentWithdrawalRecord>(
+    teamSlug ? resource('/api/teams', teamSlug, '/payment-withdrawals') : '/api/payment-withdrawals',
+    { method: 'POST', body }
   )
 }
 
