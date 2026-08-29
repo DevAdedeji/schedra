@@ -32,24 +32,32 @@ type PaymentExecutor = Pick<Database, 'insert' | 'select' | 'update'>
 export const PAYMENT_HOLD_EXPIRED_REASON = 'Payment was not completed before the hold expired.'
 const SLOT_TAKEN = '23P01'
 
+function paymentRecipientOwner(owner: { userId?: string | null, organizationId?: string | null }): PaymentRecipientOwner | null {
+  return owner.organizationId
+    ? { organizationId: owner.organizationId }
+    : owner.userId ? { userId: owner.userId } : null
+}
+
+async function currentPaymentRecipient(owner: { userId?: string | null, organizationId?: string | null }) {
+  const normalized = paymentRecipientOwner(owner)
+  if (!normalized) return null
+  const stored = await findPaymentRecipient(normalized)
+  if (!stored?.bachsAccountId) return stored
+
+  // Local status is only a cache. Re-check Bachs at every money-sensitive
+  // boundary so an incomplete, reviewed or restricted account cannot accept
+  // money based on yesterday's provider state.
+  return syncPaymentRecipient(stored)
+}
+
 export function platformFeeCents(amountCents: number) {
   const fee = Math.round(amountCents * useEnv().paidBookingPlatformFeeBps / 10_000)
   return Math.min(amountCents - 1, Math.max(1, fee))
 }
 
 export async function readyPaymentRecipient(owner: { userId?: string | null, organizationId?: string | null }) {
-  const normalized: PaymentRecipientOwner | null = owner.organizationId
-    ? { organizationId: owner.organizationId }
-    : owner.userId ? { userId: owner.userId } : null
-  if (!normalized) return null
-  const stored = await findPaymentRecipient(normalized)
-  if (!stored?.bachsAccountId) return null
-
-  // Local status is only a cache. Re-check Bachs at the moment a paid feature
-  // is enabled or used so a newly incomplete/restricted account cannot accept
-  // money based on yesterday's capability flags.
-  const current = await syncPaymentRecipient(stored)
-  return current.status === 'active' ? current : null
+  const current = await currentPaymentRecipient(owner)
+  return current?.status === 'active' ? current : null
 }
 
 export async function requirePaymentRecipient(
@@ -57,11 +65,18 @@ export async function requirePaymentRecipient(
   paymentEnabled: boolean
 ) {
   if (!paymentEnabled) return null
-  const recipient = await readyPaymentRecipient(owner)
-  if (!recipient?.bachsAccountId) {
+  const recipient = await currentPaymentRecipient(owner)
+  if (!recipient?.bachsAccountId || recipient.status !== 'active') {
+    const statusMessage = recipient?.status === 'pending_review'
+      ? 'Bachs is still reviewing this payout account. Paid bookings can be enabled after transfers and payouts are approved.'
+      : recipient?.status === 'restricted'
+        ? 'Bachs needs more information for this payout account. Resolve the restriction before enabling paid bookings.'
+        : recipient?.status === 'disabled'
+          ? 'This payout account is disabled. Contact support before enabling paid bookings.'
+          : 'Complete payout setup in Bachs before turning on paid bookings.'
     throw createError({
       statusCode: 409,
-      statusMessage: 'Finish payout setup before turning on paid bookings.'
+      statusMessage
     })
   }
   return recipient
@@ -836,7 +851,10 @@ export async function eventPaymentReadiness(eventTypeId: string) {
   if (!eventType?.paymentEnabled || !eventType.priceCents) return null
   const recipient = await readyPaymentRecipient(eventType)
   if (!recipient?.bachsAccountId) {
-    throw createError({ statusCode: 409, statusMessage: 'The host must finish payment setup before this paid event can accept bookings.' })
+    throw createError({
+      statusCode: 409,
+      statusMessage: 'This paid event is temporarily unavailable while the host’s payout account is verified. No payment has been taken.'
+    })
   }
   return {
     recipient,

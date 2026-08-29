@@ -531,7 +531,9 @@ function initials(name: string) {
               class="surface-secondary flex items-center justify-between gap-3 border-t border-default px-4 py-3"
             >
               <p class="text-[12px] text-muted">
-                A team owner must finish payout setup first.
+                {{ paymentAccount?.status === 'pending_review'
+                  ? 'Bachs is reviewing the team payout account. Paid bookings stay disabled until transfers and payouts are approved.'
+                  : 'A team owner must complete payout setup in Bachs first.' }}
               </p>
               <UButton
                 :to="`/t/${teamSlug}/payments`"
@@ -543,6 +545,16 @@ function initials(name: string) {
               >
                 Set up
               </UButton>
+            </div>
+            <div
+              v-else-if="form.paymentEnabled && !paymentAccount?.ready"
+              class="surface-secondary flex items-center gap-2 border-t border-default px-4 py-3 text-[12px] text-warning"
+            >
+              <UIcon
+                name="i-lucide-shield-alert"
+                class="size-4 shrink-0"
+              />
+              Paid bookings are paused until Bachs approves the team payout account.
             </div>
             <div
               v-if="form.paymentEnabled"
