@@ -3,11 +3,7 @@ import {
   createConnectedAccount,
   createConnectedAccountLink,
   getConnectedAccount,
-  listBachsBanks,
-  resolveBachsBankAccount,
-  updateConnectedAccountPayoutDestination,
   updateConnectedAccountRepresentative,
-  type BachsBank,
   type BachsConnectedAccount
 } from '../integrations/bachs'
 import { paymentRecipients } from '../database/schema'
@@ -28,18 +24,22 @@ function ownerWhere(owner: PaymentRecipientOwner) {
 export function recipientStatus(account: BachsConnectedAccount) {
   if (account.is_active === false) return 'disabled' as const
   const requirements = account.requirements
+  const setupStatus = requirements?.setup_status ?? account.setup_status
   // Requirements are the authoritative onboarding gate. A provider can report
   // a capability as active before the hosted flow has collected the account
   // holder and payout destination (the sandbox does this in particular). Never
   // let that contradictory capability flag unlock paid bookings.
   if (requirements?.errors?.length || requirements?.past_due?.length) return 'restricted' as const
   if (requirements?.currently_due?.length) return 'onboarding' as const
+  // Bachs can return active capability flags while the account-wide setup is
+  // still incomplete. The hosted checklist is the source of truth: funds must
+  // not be accepted until the payout destination and identity steps are done.
+  if (setupStatus === 'incomplete') return 'onboarding' as const
 
   const payout = account.capabilities?.payouts
   if (
     requirements?.pending_verification?.length
-    || requirements?.setup_status === 'awaiting_review'
-    || account.setup_status === 'awaiting_review'
+    || setupStatus === 'awaiting_review'
     || payout?.status === 'pending'
   ) {
     return 'pending_review' as const
@@ -68,70 +68,10 @@ export function publicRecipient(row: Awaited<ReturnType<typeof findPaymentRecipi
   }
 }
 
-function recipientRequirements(row: Awaited<ReturnType<typeof findPaymentRecipient>>) {
-  return (row?.requirements ?? {}) as NonNullable<BachsConnectedAccount['requirements']>
-}
-
 export function recipientNextAction(row: Awaited<ReturnType<typeof findPaymentRecipient>>) {
   if (!row?.bachsAccountId) return 'provider_onboarding' as const
-  const requirements = recipientRequirements(row)
-  if (requirements.currently_due?.includes('payout_destination')) return 'add_payout_destination' as const
   if (row.status === 'active' || row.status === 'pending_review') return 'none' as const
   return 'provider_onboarding' as const
-}
-
-let bankCache: { expiresAt: number, items: BachsBank[] } | null = null
-
-export async function payoutBanks() {
-  if (bankCache && bankCache.expiresAt > Date.now()) return bankCache.items
-  const response = await listBachsBanks('NG')
-  const items = [...(response.banks ?? [])]
-    .filter(bank => bank.code && bank.name)
-    .sort((left, right) => left.name.localeCompare(right.name))
-  bankCache = { expiresAt: Date.now() + 3_600_000, items }
-  return items
-}
-
-async function payoutRecipient(owner: PaymentRecipientOwner) {
-  const row = await findPaymentRecipient(owner)
-  if (!row?.bachsAccountId) {
-    throw createError({ statusCode: 409, statusMessage: 'Start payout setup before adding a bank account.' })
-  }
-  if (recipientNextAction(row) !== 'add_payout_destination') {
-    throw createError({ statusCode: 409, statusMessage: 'A payout destination is not currently required.' })
-  }
-  return row
-}
-
-export async function resolvePayoutBankAccount(
-  owner: PaymentRecipientOwner,
-  input: { bankCode: string, accountNumber: string }
-) {
-  await payoutRecipient(owner)
-  const account = await resolveBachsBankAccount(input)
-  if (!account.resolved || !account.account_name) {
-    throw createError({ statusCode: 400, statusMessage: 'We could not verify that bank account. Check the details and try again.' })
-  }
-  return { accountName: account.account_name }
-}
-
-export async function savePayoutBankAccount(
-  owner: PaymentRecipientOwner,
-  input: { bankCode: string, accountNumber: string }
-) {
-  const row = await payoutRecipient(owner)
-  const resolved = await resolveBachsBankAccount(input)
-  if (!resolved.resolved || !resolved.account_name) {
-    throw createError({ statusCode: 400, statusMessage: 'We could not verify that bank account. Check the details and try again.' })
-  }
-
-  await updateConnectedAccountPayoutDestination({
-    accountId: row.bachsAccountId!,
-    bankCode: input.bankCode,
-    accountNumber: input.accountNumber,
-    accountName: resolved.account_name
-  })
-  return publicRecipient(await syncPaymentRecipient(row))
 }
 
 export async function syncPaymentRecipient(row: NonNullable<Awaited<ReturnType<typeof findPaymentRecipient>>>) {
@@ -195,6 +135,9 @@ export async function createPaymentOnboarding(input: {
     row = saved
   }
 
+  // Refresh before choosing the link type. This prevents a stale local status
+  // from sending a completed account through onboarding again.
+  if (row?.bachsAccountId) row = await syncPaymentRecipient(row)
   const accountId = row?.bachsAccountId
   if (!accountId) throw new Error('Payment account setup did not return an account.')
   await prefillRepresentativeIfRequired(accountId, representative)
@@ -202,6 +145,7 @@ export async function createPaymentOnboarding(input: {
   const path = input.returnPath.startsWith('/') ? input.returnPath : `/${input.returnPath}`
   const link = await createConnectedAccountLink({
     accountId,
+    type: row.status === 'active' ? 'update' : 'onboarding',
     returnUrl: `${base}${path}?payments=returned`,
     refreshUrl: `${base}${path}?payments=refresh`
   })

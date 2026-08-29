@@ -341,71 +341,6 @@ describe('bachs checkout payment methods', () => {
     })
   })
 
-  it('loads Nigerian payout banks from the reference endpoint', async () => {
-    const payload = { country: 'NG', banks: [{ name: 'Example Bank', code: '999' }] }
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }))
-    vi.stubGlobal('fetch', fetchMock)
-
-    const { listBachsBanks } = await import('./bachs')
-    await expect(listBachsBanks()).resolves.toEqual(payload)
-    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
-      'https://sandbox-api.bachs.io/v1/reference/banks?country=NG'
-    )
-  })
-
-  it('resolves a bank account without exposing the platform key to the client', async () => {
-    const payload = {
-      resolved: true,
-      account_name: 'ADA OKAFOR',
-      account_number: '0123456789',
-      message: 'Account resolved successfully'
-    }
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }))
-    vi.stubGlobal('fetch', fetchMock)
-
-    const { resolveBachsBankAccount } = await import('./bachs')
-    await expect(resolveBachsBankAccount({ bankCode: '058', accountNumber: '0123456789' }))
-      .resolves.toEqual(payload)
-
-    const [url, options] = fetchMock.mock.calls[0] as [URL, RequestInit]
-    expect(String(url)).toBe('https://sandbox-api.bachs.io/v1/misc/bank-accounts/resolve')
-    expect(JSON.parse(String(options.body))).toEqual({
-      bank_code: '058',
-      account_number: '0123456789'
-    })
-  })
-
-  it('submits the verified bank account as the connected account payout destination', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      id: 'acct_host',
-      capabilities: { payouts: { requested: true, status: 'active' } },
-      requirements: { currently_due: [] }
-    }), { status: 200 }))
-    vi.stubGlobal('fetch', fetchMock)
-
-    const { updateConnectedAccountPayoutDestination } = await import('./bachs')
-    await updateConnectedAccountPayoutDestination({
-      accountId: 'acct_host',
-      bankCode: '058',
-      accountNumber: '0123456789',
-      accountName: 'ADA OKAFOR'
-    })
-
-    const [url, options] = fetchMock.mock.calls[0] as [URL, RequestInit]
-    expect(String(url)).toBe('https://sandbox-api.bachs.io/v1/accounts/acct_host')
-    expect(JSON.parse(String(options.body))).toEqual({
-      fields: {
-        payout_destination: {
-          currency: 'NGN',
-          type: 'bank_account',
-          account_number: '0123456789',
-          account_name: 'ADA OKAFOR',
-          bank_code: '058'
-        }
-      }
-    })
-  })
-
   it('uses the account resource to read a connected payout account', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       id: 'acct_host',
@@ -464,6 +399,27 @@ describe('bachs checkout payment methods', () => {
       refresh_url: 'https://staging.schedra.xyz/payments?payments=refresh',
       return_url: 'https://staging.schedra.xyz/payments?payments=returned'
     })
+  })
+
+  it('creates update links for completed payout accounts', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      id: 'alnk_update',
+      account: 'acct_host',
+      url: 'https://connect.bachs.io/update/test',
+      expires_at: '2026-09-06T11:04:22.518Z'
+    }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { createConnectedAccountLink } = await import('./bachs')
+    await createConnectedAccountLink({
+      accountId: 'acct_host',
+      type: 'update',
+      refreshUrl: 'https://staging.schedra.xyz/payments?payments=refresh',
+      returnUrl: 'https://staging.schedra.xyz/payments?payments=returned'
+    })
+
+    const options = fetchMock.mock.calls[0]?.[1] as RequestInit
+    expect(JSON.parse(String(options.body))).toMatchObject({ type: 'update' })
   })
 
   it('turns an unavailable live payment method into an actionable service error', async () => {

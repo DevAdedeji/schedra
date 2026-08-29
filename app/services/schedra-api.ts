@@ -767,15 +767,10 @@ export interface PaymentAccountSummary {
   configured: boolean
   status: 'not_started' | 'onboarding' | 'pending_review' | 'active' | 'restricted' | 'disabled'
   ready: boolean
-  nextAction: 'provider_onboarding' | 'add_payout_destination' | 'none'
+  nextAction: 'provider_onboarding' | 'none'
   lastError: string | null
   lastCheckedAt: string | null
   platformFeeBps: number
-}
-
-export interface PayoutBank {
-  name: string
-  code: string
 }
 
 export interface PaymentActivityRecord {
@@ -826,7 +821,6 @@ export interface PaymentSummary {
 export const paymentsApi = {
   endpoint: '/api/payment-account',
   teamEndpoint: (slug: string) => resource('/api/teams', slug, '/payment-account'),
-  banksEndpoint: '/api/payment-account/banks',
   activityEndpoint: (teamSlug?: string) => teamSlug
     ? resource('/api/teams', teamSlug, '/payment-activity')
     : '/api/payment-activity',
@@ -836,21 +830,7 @@ export const paymentsApi = {
   start: (teamSlug?: string) => $fetch<{ url: string, expiresAt: string }>(
     teamSlug ? resource('/api/teams', teamSlug, '/payment-account') : '/api/payment-account',
     { method: 'POST' }
-  ),
-  resolvePayoutAccount: (body: { bankCode: string, accountNumber: string }, teamSlug?: string) =>
-    $fetch<{ accountName: string }>(
-      teamSlug
-        ? resource('/api/teams', teamSlug, '/payment-account/resolve')
-        : '/api/payment-account/resolve',
-      { method: 'POST', body }
-    ),
-  savePayoutAccount: (body: { bankCode: string, accountNumber: string }, teamSlug?: string) =>
-    $fetch<PaymentAccountSummary>(
-      teamSlug
-        ? resource('/api/teams', teamSlug, '/payment-account/destination')
-        : '/api/payment-account/destination',
-      { method: 'POST', body }
-    )
+  )
 }
 
 export interface PublicTeamProfile {
