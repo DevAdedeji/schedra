@@ -10,6 +10,7 @@ import {
 } from '~/services/schedra-api'
 import { formatMoney } from '#shared/payments'
 import { compactActionMenuUi } from '~/utils/action-menu'
+import { DEFAULT_LIST_PAGE_SIZE } from '~/constants/lists'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 
@@ -28,28 +29,20 @@ useSeoMeta({
 
 const filter = ref<'all' | 'active' | 'hidden'>('all')
 const page = ref(1)
-const listQuery = computed(() => ({ filter: filter.value, page: page.value, pageSize: 10 }))
+const listQuery = computed(() => ({ filter: filter.value, page: page.value, pageSize: DEFAULT_LIST_PAGE_SIZE }))
 
 const { data, refresh, status, error: loadFailure }
   = await useLazyFetch<TeamEventTypesResponse>(() => teamEventTypesApi.listEndpoint(slug.value), { query: listQuery })
 
-const memberPage = ref(1)
-const memberSearchInput = ref('')
-const memberSearch = ref('')
-let memberSearchTimer: ReturnType<typeof setTimeout> | undefined
-
-watch(memberSearchInput, (value) => {
-  clearTimeout(memberSearchTimer)
-  memberSearchTimer = setTimeout(() => {
-    memberSearch.value = value.trim()
-    memberPage.value = 1
-  }, 250)
-})
-onBeforeUnmount(() => clearTimeout(memberSearchTimer))
+const {
+  page: memberPage,
+  query: memberSearchInput,
+  search: memberSearch
+} = useListQueryState()
 
 const membersQuery = computed(() => ({
   page: memberPage.value,
-  pageSize: 10,
+  pageSize: DEFAULT_LIST_PAGE_SIZE,
   search: memberSearch.value
 }))
 const {
@@ -65,8 +58,7 @@ const {
 const list = computed(() => data.value?.items ?? [])
 const memberList = computed(() => members.value?.items ?? [])
 const permissions = computed(() => team.value?.permissions)
-const initialLoading = computed(() => status.value === 'pending' && !data.value)
-const refreshing = computed(() => status.value === 'pending' && Boolean(data.value))
+const { initialLoading, refreshing } = useListLoadingState(status, data)
 
 watch(filter, () => {
   page.value = 1
@@ -229,7 +221,7 @@ function activeHosts(eventType: TeamEventTypeRecord) {
         >
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">
-              <p class="truncate text-[14px] font-medium text-highlighted">
+              <p class="truncate text-[15px] font-medium text-highlighted">
                 {{ eventType.title }}
               </p>
               <UBadge
@@ -272,19 +264,19 @@ function activeHosts(eventType: TeamEventTypeRecord) {
               </UBadge>
             </div>
 
-            <p class="mt-1 truncate text-[12px] text-muted">
+            <p class="mt-1 truncate text-[13px] text-muted">
               {{ host }}/team/{{ slug }}/{{ eventType.slug }}
             </p>
 
             <p
               v-if="!activeHosts(eventType).length"
-              class="mt-1.5 text-[12px] text-error"
+              class="mt-1.5 text-[13px] text-error"
             >
               No active hosts — this link cannot be booked until someone is added.
             </p>
             <p
               v-else
-              class="mt-1.5 text-[12px] text-muted"
+              class="mt-1.5 text-[13px] text-muted"
             >
               {{ activeHosts(eventType).map(entry => entry.name).join(', ') }}
             </p>
@@ -296,7 +288,7 @@ function activeHosts(eventType: TeamEventTypeRecord) {
               variant="outline"
               size="xs"
               :icon="isCopied(eventType.id) ? 'i-lucide-check' : 'i-lucide-copy'"
-              class="h-8 rounded-lg px-3 text-[12px] font-medium"
+              class="h-8 rounded-lg px-3 text-[13px] font-medium"
               :disabled="eventType.hidden"
               :title="eventType.hidden ? 'Publish this event type before sharing it' : 'Copy booking link'"
               :aria-label="eventType.hidden ? `Publish ${eventType.title} before copying its booking link` : `Copy booking link for ${eventType.title}`"

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { Temporal } from '@js-temporal/polyfill'
 
 export const analyticsQuerySchema = z.object({
   days: z.coerce.number().int().pipe(z.union([z.literal(7), z.literal(30), z.literal(90)])).default(30),
@@ -22,10 +23,9 @@ export function fillDailySeries(
   rows: Array<{ date: string, value: number }>
 ) {
   const values = new Map(rows.map(row => [row.date, Number(row.value)]))
+  const first = Temporal.Instant.from(from.toISOString()).toZonedDateTimeISO('UTC').toPlainDate()
   return Array.from({ length: days }, (_, index) => {
-    const date = new Date(from)
-    date.setUTCDate(date.getUTCDate() + index)
-    const key = date.toISOString().slice(0, 10)
+    const key = first.add({ days: index }).toString()
     return { date: key, value: values.get(key) ?? 0 }
   })
 }

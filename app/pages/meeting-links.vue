@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { apiErrorMessage, bookingLinksApi, type BookingLinkRecord, type BookingLinksResponse } from '~/services/schedra-api'
 import { compactActionMenuUi } from '~/utils/action-menu'
+import { DEFAULT_LIST_PAGE_SIZE } from '~/constants/lists'
+import { formatDateTime } from '~/utils/date-time'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 useSeoMeta({ title: 'Meeting links', robots: 'noindex, nofollow' })
 
 const filter = ref<'all' | 'available' | 'booked' | 'closed'>('all')
 const page = ref(1)
-const query = computed(() => ({ filter: filter.value, page: page.value, pageSize: 10 }))
+const query = computed(() => ({ filter: filter.value, page: page.value, pageSize: DEFAULT_LIST_PAGE_SIZE }))
 const { data, status, error, refresh } = await useLazyFetch<BookingLinksResponse>(bookingLinksApi.listEndpoint, { query })
 const feedback = useFeedback()
 const modalOpen = ref(false)
@@ -22,8 +24,7 @@ const filters = computed(() => [
   { value: 'booked', label: 'Booked', count: data.value?.counts.booked ?? 0 },
   { value: 'closed', label: 'Closed', count: data.value?.counts.closed ?? 0 }
 ])
-const initialLoading = computed(() => status.value === 'pending' && !data.value)
-const refreshing = computed(() => status.value === 'pending' && Boolean(data.value))
+const { initialLoading, refreshing } = useListLoadingState(status, data)
 
 watch(filter, () => {
   page.value = 1
@@ -73,10 +74,6 @@ function statusColor(item: BookingLinkRecord) {
   if (item.status === 'available') return 'success'
   if (item.status === 'booked') return 'primary'
   return 'neutral'
-}
-
-function dateLabel(value: string) {
-  return new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 }
 </script>
 
@@ -135,7 +132,7 @@ function dateLabel(value: string) {
       <template v-else>
         <div
           v-if="refreshing"
-          class="surface-secondary flex items-center gap-2 border-b border-default px-4 py-2 text-[11px] text-muted sm:px-5"
+          class="surface-secondary flex items-center gap-2 border-b border-default px-4 py-2 text-[12px] text-muted sm:px-5"
           role="status"
         >
           <UIcon
@@ -162,7 +159,7 @@ function dateLabel(value: string) {
             </span>
             <div class="min-w-0 flex-1">
               <div class="flex flex-wrap items-center gap-2">
-                <h2 class="text-[15px] font-semibold text-highlighted">
+                <h2 class="text-[16px] font-semibold text-highlighted">
                   {{ item.label || item.eventTitle }}
                 </h2>
                 <UBadge
@@ -172,28 +169,28 @@ function dateLabel(value: string) {
                   {{ item.status }}
                 </UBadge>
               </div>
-              <p class="mt-1 text-[13px] text-muted">
+              <p class="mt-1 text-[14px] text-muted">
                 {{ kindLabel(item) }} · {{ item.eventTitle }}
               </p>
-              <div class="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[11px] text-dimmed">
+              <div class="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[12px] text-dimmed">
                 <span class="flex items-center gap-1.5"><UIcon
                   name="i-lucide-calendar-clock"
                   class="size-3.5"
-                />Created {{ dateLabel(item.createdAt) }}</span>
+                />Created {{ formatDateTime(item.createdAt) }}</span>
                 <span
                   v-if="item.usedAt"
                   class="flex items-center gap-1.5"
                 ><UIcon
                   name="i-lucide-check"
                   class="size-3.5"
-                />Booked {{ dateLabel(item.usedAt) }}</span>
+                />Booked {{ formatDateTime(item.usedAt) }}</span>
                 <span
                   v-else
                   class="flex items-center gap-1.5"
                 ><UIcon
                   name="i-lucide-timer"
                   class="size-3.5"
-                />Expires {{ dateLabel(item.expiresAt) }}</span>
+                />Expires {{ formatDateTime(item.expiresAt) }}</span>
               </div>
             </div>
             <UDropdownMenu
@@ -241,7 +238,7 @@ function dateLabel(value: string) {
       </template>
     </section>
 
-    <div class="flex items-start gap-3 rounded-xl border border-default bg-muted px-4 py-3.5 text-[12px] leading-relaxed text-muted">
+    <div class="flex items-start gap-3 rounded-xl border border-default bg-muted px-4 py-3.5 text-[13px] leading-relaxed text-muted">
       <UIcon
         name="i-lucide-shield-check"
         class="mt-0.5 size-4 shrink-0 text-primary"

@@ -4,6 +4,7 @@ import type { AvailabilityRule, DateOverride, Slot, Weekday } from '../domain/ty
 import { availabilityRules, bookings, dateOverrides, eventTypes, schedules, users } from '../database/schema'
 import { useDatabase } from '../database'
 import { calendarBusyTimes } from '../integrations/calendar/providers'
+import { utcCalendarDateBoundary } from '../utils/date-time'
 import type { BookingQuestion } from '#shared/validation'
 import { groupSessionCapacity } from './group-events'
 
@@ -88,8 +89,8 @@ export async function slotsFor(event: EventTypeRow, from: string, to: string, no
   const timeZone = event.scheduleTimeZone ?? event.hostTimeZone
   // Expand beyond the requested local dates because the schedule's timezone
   // can put its boundary on a different UTC day.
-  const busyFrom = new Date(Date.parse(`${from}T00:00:00Z`) - 86_400_000).toISOString()
-  const busyTo = new Date(Date.parse(`${to}T00:00:00Z`) + 2 * 86_400_000).toISOString()
+  const busyFrom = utcCalendarDateBoundary(from, -1).toISOString()
+  const busyTo = utcCalendarDateBoundary(to, 2).toISOString()
 
   const [rules, overrides, taken, externalBusy, groupSessions] = await Promise.all([
     event.scheduleId

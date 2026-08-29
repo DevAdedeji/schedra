@@ -1,0 +1,2 @@
+export const DEFAULT_LIST_PAGE_SIZE = 10
+export const LIST_SEARCH_DEBOUNCE_MS = 250

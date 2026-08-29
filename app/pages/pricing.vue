@@ -210,7 +210,7 @@ useHead({
               v-for="option in (['yearly', 'monthly'] as const)"
               :key="option"
               type="button"
-              class="rounded-full px-4 py-2 text-[13px] font-medium transition-colors"
+              class="rounded-full px-4 py-2 text-[14px] font-medium transition-colors"
               :class="interval === option
                 ? 'bg-primary text-inverted'
                 : 'text-muted hover:text-highlighted'"
@@ -223,7 +223,7 @@ useHead({
 
           <p
             v-if="interval === 'yearly'"
-            class="text-[13px] text-muted"
+            class="text-[14px] text-muted"
           >
             {{ yearlySavingMonths }} months free, and one payment a year instead of twelve.
           </p>
@@ -237,10 +237,10 @@ useHead({
             <p class="mt-6 font-editorial text-[3rem] leading-none tracking-[-0.02em] text-highlighted">
               Free
             </p>
-            <p class="mt-3 text-[14px] text-muted">
+            <p class="mt-3 text-[15px] text-muted">
               Forever, for one person. No card, no expiry.
             </p>
-            <p class="mt-6 max-w-[40ch] text-[15px] leading-relaxed text-muted">
+            <p class="mt-6 max-w-[40ch] text-[16px] leading-relaxed text-muted">
               Everything you need to share a link or add booking to your website:
               flexible hours, timezone-correct slots, calendar sync and video links.
             </p>
@@ -258,7 +258,7 @@ useHead({
           </article>
 
           <article class="relative flex flex-col rounded-2xl border-2 border-primary bg-default p-7 lg:p-9">
-            <span class="absolute -top-3 left-7 rounded-full bg-primary px-3 py-1 text-[11px] font-semibold tracking-wide text-inverted">
+            <span class="absolute -top-3 left-7 rounded-full bg-primary px-3 py-1 text-[12px] font-semibold tracking-wide text-inverted">
               For teams
             </span>
             <p class="eyebrow text-dimmed">
@@ -266,11 +266,11 @@ useHead({
             </p>
             <p class="mt-6 font-editorial text-[3rem] leading-none tracking-[-0.02em] text-highlighted">
               {{ formatUsd(headlineCents) }}
-              <span class="font-sans text-[15px] tracking-normal text-muted">
+              <span class="font-sans text-[16px] tracking-normal text-muted">
                 per member / {{ interval === 'yearly' ? 'year' : 'month' }}
               </span>
             </p>
-            <p class="mt-3 text-[14px] text-muted">
+            <p class="mt-3 text-[15px] text-muted">
               <template v-if="interval === 'yearly'">
                 Charged once a year — the same as {{ formatUsd(monthlyEquivalentCents) }} a month.
               </template>
@@ -279,12 +279,12 @@ useHead({
               </template>
               You only pay for people who have joined, starting with the team owner.
             </p>
-            <p class="mt-6 max-w-[40ch] text-[15px] leading-relaxed text-muted">
+            <p class="mt-6 max-w-[40ch] text-[16px] leading-relaxed text-muted">
               One shared link the whole team hosts. Round-robin, collective
               meetings, roles and an audit trail — on top of everything above,
               which each member still keeps for themselves.
             </p>
-            <p class="my-4 rounded-xl bg-muted px-4 py-3 text-[13px] leading-relaxed text-muted">
+            <p class="my-4 rounded-xl bg-muted px-4 py-3 text-[14px] leading-relaxed text-muted">
               {{ TEAM_PLAN.trialDays }} days free, no card needed. Pending invitations are never billed.
             </p>
             <UButton
@@ -307,7 +307,7 @@ useHead({
           What is in each plan
         </h2>
 
-        <p class="mt-3 max-w-[58ch] text-[14px] leading-relaxed text-muted">
+        <p class="mt-3 max-w-[58ch] text-[15px] leading-relaxed text-muted">
           Scan every category at once, then open only the details you want to compare.
         </p>
 
@@ -320,10 +320,10 @@ useHead({
           >
             <summary class="surface-secondary flex cursor-pointer list-none items-center gap-4 px-5 py-4 marker:hidden sm:px-6 [&::-webkit-details-marker]:hidden">
               <div class="min-w-0 flex-1">
-                <h3 class="text-[15px] font-semibold text-highlighted">
+                <h3 class="text-[16px] font-semibold text-highlighted">
                   {{ section.group }}
                 </h3>
-                <p class="mt-0.5 text-[12px] text-muted">
+                <p class="mt-0.5 text-[13px] text-muted">
                   {{ section.rows.length }} features
                 </p>
               </div>
@@ -337,13 +337,13 @@ useHead({
               <table class="w-full min-w-136 border-collapse text-left">
                 <thead>
                   <tr class="border-b border-default">
-                    <th class="py-3 pr-4 text-[13px] font-medium text-muted">
+                    <th class="py-3 pr-4 text-[14px] font-medium text-muted">
                       Feature
                     </th>
-                    <th class="w-32 py-3 text-[13px] font-medium text-muted">
+                    <th class="w-32 py-3 text-[14px] font-medium text-muted">
                       Personal
                     </th>
-                    <th class="w-40 py-3 text-[13px] font-medium text-muted">
+                    <th class="w-40 py-3 text-[14px] font-medium text-muted">
                       Team
                     </th>
                   </tr>
@@ -355,12 +355,12 @@ useHead({
                     class="border-b border-default"
                   >
                     <td class="py-4 pr-4 align-top">
-                      <p class="text-[15px] text-highlighted">
+                      <p class="text-[16px] text-highlighted">
                         {{ row.label }}
                       </p>
                       <p
                         v-if="row.detail"
-                        class="mt-0.5 text-[13px] leading-relaxed text-muted"
+                        class="mt-0.5 text-[14px] leading-relaxed text-muted"
                       >
                         {{ row.detail }}
                       </p>
@@ -380,7 +380,7 @@ useHead({
                         </UBadge>
                       </template>
                       <template v-else-if="typeof row[plan] === 'string'">
-                        <span class="text-[14px] text-toned">{{ row[plan] }}</span>
+                        <span class="text-[15px] text-toned">{{ row[plan] }}</span>
                       </template>
                       <template v-else-if="row[plan]">
                         <UIcon
@@ -421,10 +421,10 @@ useHead({
               :key="faq.q"
               class="py-7"
             >
-              <dt class="text-[16px] font-semibold tracking-tight text-highlighted">
+              <dt class="text-[17px] font-semibold tracking-tight text-highlighted">
                 {{ faq.q }}
               </dt>
-              <dd class="mt-2 max-w-[60ch] text-[15px] leading-relaxed text-muted">
+              <dd class="mt-2 max-w-[60ch] text-[16px] leading-relaxed text-muted">
                 {{ faq.a }}
               </dd>
             </div>

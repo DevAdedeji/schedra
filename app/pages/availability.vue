@@ -2,15 +2,15 @@
 import { apiErrorMessage, schedulesApi, type SchedulesResponse } from '~/services/schedra-api'
 import type { ScheduleRecord } from '~/types/schedule'
 import { compactActionMenuUi } from '~/utils/action-menu'
+import { DEFAULT_LIST_PAGE_SIZE } from '~/constants/lists'
+import { localTimeZone } from '~/utils/date-time'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 useSeoMeta({ title: 'Availability schedules', robots: 'noindex, nofollow' })
 
-const query = ref('')
-const search = ref('')
 const filter = ref<'all' | 'default'>('all')
-const page = ref(1)
-const apiQuery = computed(() => ({ filter: filter.value, search: search.value, page: page.value, pageSize: 10 }))
+const { query, search, page, resetPage } = useListQueryState()
+const apiQuery = computed(() => ({ filter: filter.value, search: search.value, page: page.value, pageSize: DEFAULT_LIST_PAGE_SIZE }))
 const { data, refresh, status, error: loadFailure } = await useLazyFetch<SchedulesResponse>(schedulesApi.listEndpoint, { query: apiQuery })
 const feedback = useFeedback()
 const zones = Intl.supportedValuesOf('timeZone')
@@ -32,25 +32,12 @@ const filterOptions = computed(() => [
 ])
 const filtered = computed(() => [...(data.value?.items ?? [])]
   .sort((a, b) => Number(b.isDefault) - Number(a.isDefault) || a.name.localeCompare(b.name)))
-const initialLoading = computed(() => status.value === 'pending' && !data.value)
-const refreshing = computed(() => status.value === 'pending' && Boolean(data.value))
-const blockingFailure = computed(() => Boolean(loadFailure.value && !data.value))
+const { initialLoading, refreshing, blockingFailure } = useListLoadingState(status, data, loadFailure)
 
-let searchTimer: ReturnType<typeof setTimeout> | undefined
-watch(query, (value) => {
-  clearTimeout(searchTimer)
-  searchTimer = setTimeout(() => {
-    search.value = value.trim()
-    page.value = 1
-  }, 250)
-})
-watch(filter, () => {
-  page.value = 1
-})
-onBeforeUnmount(() => clearTimeout(searchTimer))
+watch(filter, resetPage)
 
 onMounted(() => {
-  draft.timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  draft.timeZone = localTimeZone()
 })
 
 function openCreate() {
@@ -198,7 +185,7 @@ function timeMinutes(value: string) {
 
     <p
       v-if="pageError"
-      class="rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-[13px] text-error"
+      class="rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-[14px] text-error"
       role="alert"
     >
       {{ pageError }}
@@ -262,7 +249,7 @@ function timeMinutes(value: string) {
 
         <div
           v-else-if="refreshing"
-          class="surface-secondary flex items-center gap-2 border-b border-default px-4 py-2 text-[11px] text-muted sm:px-5"
+          class="surface-secondary flex items-center gap-2 border-b border-default px-4 py-2 text-[12px] text-muted sm:px-5"
           role="status"
           aria-live="polite"
         >
@@ -296,20 +283,20 @@ function timeMinutes(value: string) {
                 </span>
                 <div class="min-w-0 flex-1 pr-16 sm:pr-28">
                   <div class="flex flex-wrap items-center gap-2">
-                    <h2 class="text-[15px] font-semibold text-highlighted sm:text-[16px]">
+                    <h2 class="text-[16px] font-semibold text-highlighted sm:text-[17px]">
                       {{ schedule.name }}
                     </h2>
                     <span
                       v-if="schedule.isDefault"
-                      class="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-medium text-success"
+                      class="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-[12px] font-medium text-success"
                     >
                       <span class="size-1.5 rounded-full bg-success" />Default
                     </span>
                   </div>
-                  <p class="mt-1.5 text-[13px] text-muted">
+                  <p class="mt-1.5 text-[14px] text-muted">
                     {{ schedule.timeZone.replace(/_/g, ' ') }}
                   </p>
-                  <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] text-toned">
+                  <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-toned">
                     <span class="flex items-center gap-1.5"><UIcon
                       name="i-lucide-calendar-days"
                       class="size-3.5 text-dimmed"
@@ -441,7 +428,7 @@ function timeMinutes(value: string) {
           </UFormField>
           <p
             v-if="createError"
-            class="rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-[13px] text-error"
+            class="rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-[14px] text-error"
             role="alert"
           >
             {{ createError }}
@@ -480,12 +467,12 @@ function timeMinutes(value: string) {
       :description="`Delete ${deletingItem?.name ?? 'this schedule'}? This cannot be undone.`"
     >
       <template #body>
-        <p class="text-[13px] leading-relaxed text-muted">
+        <p class="text-[14px] leading-relaxed text-muted">
           Default schedules and schedules assigned to event types cannot be deleted. Choose a new default or reassign those event types first.
         </p>
         <p
           v-if="deleteError"
-          class="mt-4 rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-[13px] text-error"
+          class="mt-4 rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-[14px] text-error"
           role="alert"
         >
           {{ deleteError }}

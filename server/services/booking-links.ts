@@ -10,8 +10,9 @@ import {
 } from '../repositories/booking-links'
 import { slotsFor } from './booking-page'
 import { requireLocationIntegration } from './event-location'
+import { addUtcCalendarDays, DAY_MS, utcCalendarDate } from '../utils/date-time'
 
-const MAX_LIFETIME_MS = 90 * 86_400_000
+const MAX_LIFETIME_MS = 90 * DAY_MS
 
 export function bookingLinkTokenHash(token: string) {
   return createHash('sha256').update(token).digest('hex')
@@ -37,8 +38,8 @@ export async function createBookingLink(userId: string, input: CreateBookingLink
   if (input.kind === 'one_off') {
     const first = selectedSlots[0]!
     const last = selectedSlots.at(-1)!
-    const from = new Date(first.start.getTime() - 86_400_000).toISOString().slice(0, 10)
-    const to = new Date(last.start.getTime() + 86_400_000).toISOString().slice(0, 10)
+    const from = addUtcCalendarDays(utcCalendarDate(first.start), -1)
+    const to = addUtcCalendarDays(utcCalendarDate(last.start), 1)
     const available = await slotsFor(eventType, from, to, now.toISOString())
     const availableByStart = new Map(available.map(slot => [Date.parse(slot.start), Date.parse(slot.end)]))
     const invalid = selectedSlots.some(slot => availableByStart.get(slot.start.getTime()) !== slot.end.getTime())

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { getInitials } from '~/utils/text'
+
 const { data } = await useCurrentUser()
 const { signOut } = useAuthClient()
 const { host } = useSiteUrl()
@@ -11,8 +13,7 @@ onMounted(() => {
 })
 
 const user = computed(() => data.value?.user)
-const initials = computed(() => (user.value?.name ?? '')
-  .split(' ').map(part => part[0]).filter(Boolean).slice(0, 2).join('').toUpperCase())
+const initials = computed(() => getInitials(user.value?.name ?? ''))
 
 const leaving = ref(false)
 const route = useRoute()
@@ -143,11 +144,11 @@ async function onTeamCreated(slug: string) {
 
 const menuUi = {
   content: 'w-56',
-  label: 'px-2.5 py-2 text-[13px]',
-  item: 'items-center gap-2 px-2.5 py-2 text-[13px]',
+  label: 'px-2.5 py-2 text-[14px]',
+  item: 'items-center gap-2 px-2.5 py-2 text-[14px]',
   itemLeadingIcon: 'size-3.5',
   itemTrailingIcon: 'size-3.5',
-  itemDescription: 'text-[11px]'
+  itemDescription: 'text-[12px]'
 }
 
 const mobileMenuUi = {
@@ -177,7 +178,7 @@ const mobileMenuUi = {
           v-for="link in links"
           :key="link.to"
           :to="link.to"
-          class="flex items-center gap-3 rounded-lg px-3 py-2 text-[14px] font-medium transition-colors"
+          class="flex items-center gap-3 rounded-lg px-3 py-2 text-[15px] font-medium transition-colors"
           :class="$route.path === link.to
             ? 'bg-elevated text-primary'
             : 'text-muted hover:bg-muted hover:text-highlighted'"
@@ -204,8 +205,8 @@ const mobileMenuUi = {
             />
           </span>
           <span class="min-w-0 flex-1">
-            <span class="block text-[12px] font-semibold text-highlighted">{{ trialNotice.label }}</span>
-            <span class="mt-0.5 block text-[10px] text-muted">View billing</span>
+            <span class="block text-[13px] font-semibold text-highlighted">{{ trialNotice.label }}</span>
+            <span class="mt-0.5 block text-[12px] text-muted">View billing</span>
           </span>
           <UIcon
             name="i-lucide-arrow-right"
@@ -226,7 +227,7 @@ const mobileMenuUi = {
             class="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-muted"
             :disabled="leaving"
           >
-            <span class="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary/15 text-[11px] font-semibold text-primary">
+            <span class="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary/15 text-[12px] font-semibold text-primary">
               <img
                 v-if="user?.avatarUrl"
                 :src="user.avatarUrl"
@@ -238,8 +239,8 @@ const mobileMenuUi = {
               </template>
             </span>
             <span class="min-w-0 flex-1">
-              <span class="block truncate text-[13px] font-medium text-highlighted">{{ user?.name }}</span>
-              <span class="block truncate text-[11px] text-dimmed">{{ host }}/{{ user?.username }}</span>
+              <span class="block truncate text-[14px] font-medium text-highlighted">{{ user?.name }}</span>
+              <span class="block truncate text-[12px] text-dimmed">{{ host }}/{{ user?.username }}</span>
             </span>
             <UIcon
               name="i-lucide-chevrons-up-down"
@@ -278,7 +279,7 @@ const mobileMenuUi = {
             aria-label="Open navigation and account menu"
             :disabled="leaving"
           >
-            <span class="flex size-8 items-center justify-center overflow-hidden rounded-lg bg-primary/15 text-[11px] font-semibold text-primary">
+            <span class="flex size-8 items-center justify-center overflow-hidden rounded-lg bg-primary/15 text-[12px] font-semibold text-primary">
               <img
                 v-if="user?.avatarUrl"
                 :src="user.avatarUrl"

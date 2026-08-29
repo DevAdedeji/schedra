@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { apiErrorMessage, bookingsApi, type BookingDetail } from '~/services/schedra-api'
 import { formatMoney } from '#shared/payments'
+import { formatInstant, isPast, localTimeZone } from '~/utils/date-time'
 
 definePageMeta({ layout: 'bare' })
 
@@ -20,7 +21,7 @@ const feedback = useFeedback()
 
 const viewerTimeZone = ref('UTC')
 onMounted(() => {
-  viewerTimeZone.value = Intl.DateTimeFormat().resolvedOptions().timeZone
+  viewerTimeZone.value = localTimeZone()
 })
 
 const cancelling = ref(false)
@@ -39,7 +40,7 @@ const returningFromPayment = computed(() => route.query.payment === 'success' ||
 const paymentRecoveryAvailable = computed(() => Boolean(booking.value?.payment?.recoveryAvailable))
 const canReconcilePayment = computed(() => awaitingPayment.value || paymentRecoveryAvailable.value)
 const rejected = computed(() => booking.value?.status === 'rejected')
-const past = computed(() => booking.value ? new Date(booking.value.endsAt) < new Date() : false)
+const past = computed(() => booking.value ? isPast(booking.value.endsAt) : false)
 const joinUrl = computed(() => booking.value?.status === 'confirmed'
   ? booking.value.meetingUrl ?? (booking.value.locationType === 'video_link' ? booking.value.locationDetails : null)
   : null)
@@ -56,10 +57,10 @@ const locationPresentation = computed(() => ({
 
 const longWhen = computed(() => {
   if (!booking.value) return ''
-  return new Intl.DateTimeFormat('en-GB', {
+  return formatInstant(booking.value.startsAt, {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
     hour: '2-digit', minute: '2-digit', timeZone: viewerTimeZone.value
-  }).format(new Date(booking.value.startsAt))
+  }, 'en-GB')
 })
 
 async function cancel() {
@@ -200,7 +201,7 @@ useSeoMeta({
           <NuxtLink
             v-else
             to="/bookings"
-            class="inline-flex items-center gap-1.5 text-[13px] font-medium text-muted transition-colors hover:text-highlighted"
+            class="inline-flex items-center gap-1.5 text-[14px] font-medium text-muted transition-colors hover:text-highlighted"
           >
             <UIcon
               name="i-lucide-arrow-left"
@@ -283,11 +284,11 @@ useSeoMeta({
             <h1 class="mt-4 font-editorial text-3xl leading-tight text-highlighted">
               {{ booking?.eventTitle }}
             </h1>
-            <p class="mt-1.5 text-[15px] text-muted">
+            <p class="mt-1.5 text-[16px] text-muted">
               with {{ booking?.hostName }}
             </p>
 
-            <dl class="mt-6 space-y-3 text-[15px]">
+            <dl class="mt-6 space-y-3 text-[16px]">
               <div
                 v-if="booking?.payment"
                 class="flex items-start gap-3"
@@ -298,7 +299,7 @@ useSeoMeta({
                 />
                 <dd class="text-toned">
                   {{ formatMoney(booking.payment.amountCents, booking.payment.currency) }}
-                  <span class="ml-1 text-[13px] text-muted">· {{ booking.payment.status.replace('_', ' ') }}</span>
+                  <span class="ml-1 text-[14px] text-muted">· {{ booking.payment.status.replace('_', ' ') }}</span>
                 </dd>
               </div>
               <div class="flex items-start gap-3">
@@ -325,11 +326,11 @@ useSeoMeta({
                     :href="joinUrl"
                     target="_blank"
                     rel="noopener noreferrer"
-                    class="mt-0.5 block truncate text-[13px] font-medium text-primary hover:underline"
+                    class="mt-0.5 block truncate text-[14px] font-medium text-primary hover:underline"
                   >Join meeting</a>
                   <span
                     v-else
-                    class="mt-0.5 block text-[13px] leading-relaxed text-muted"
+                    class="mt-0.5 block text-[14px] leading-relaxed text-muted"
                   >{{ ['google_meet', 'microsoft_teams', 'zoom'].includes(booking?.locationType ?? '') ? 'The private join link is being prepared. Refresh this page shortly.' : booking?.locationDetails }}</span>
                 </dd>
               </div>
@@ -349,10 +350,10 @@ useSeoMeta({
                 />
                 <dd class="min-w-0 text-toned">
                   <span class="block">{{ booking?.attendeeName }}</span>
-                  <span class="block truncate text-[13px] text-muted">{{ booking?.attendeeEmail }}</span>
+                  <span class="block truncate text-[14px] text-muted">{{ booking?.attendeeEmail }}</span>
                   <span
                     v-if="booking?.additionalGuestEmails.length"
-                    class="mt-1 block text-[12px] text-muted"
+                    class="mt-1 block text-[13px] text-muted"
                   >+ {{ booking.additionalGuestEmails.length }} additional guest{{ booking.additionalGuestEmails.length === 1 ? '' : 's' }}</span>
                 </dd>
               </div>
@@ -362,10 +363,10 @@ useSeoMeta({
               v-if="booking?.additionalGuestEmails.length"
               class="mt-5 rounded-lg border border-default bg-muted px-4 py-3"
             >
-              <p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-dimmed">
+              <p class="text-[12px] font-semibold uppercase tracking-[0.08em] text-dimmed">
                 Additional guests
               </p>
-              <ul class="mt-2 space-y-1 text-[13px] text-toned">
+              <ul class="mt-2 space-y-1 text-[14px] text-toned">
                 <li
                   v-for="guestEmail in booking.additionalGuestEmails"
                   :key="guestEmail"
@@ -380,7 +381,7 @@ useSeoMeta({
               v-if="booking?.answers.length || booking?.notes"
               class="mt-6 border-t border-default pt-6"
             >
-              <h2 class="text-[13px] font-semibold text-highlighted">
+              <h2 class="text-[14px] font-semibold text-highlighted">
                 Guest responses
               </h2>
               <dl class="mt-3 space-y-3">
@@ -389,10 +390,10 @@ useSeoMeta({
                   :key="answer.questionId"
                   class="rounded-lg border border-default bg-muted px-4 py-3"
                 >
-                  <dt class="text-[11px] font-semibold uppercase tracking-[0.08em] text-dimmed">
+                  <dt class="text-[12px] font-semibold uppercase tracking-[0.08em] text-dimmed">
                     {{ answer.label }}
                   </dt>
-                  <dd class="mt-1 whitespace-pre-wrap text-[13px] leading-relaxed text-toned">
+                  <dd class="mt-1 whitespace-pre-wrap text-[14px] leading-relaxed text-toned">
                     {{ answer.value }}
                   </dd>
                 </div>
@@ -400,10 +401,10 @@ useSeoMeta({
                   v-if="booking?.notes"
                   class="rounded-lg border border-default bg-muted px-4 py-3"
                 >
-                  <dt class="text-[11px] font-semibold uppercase tracking-[0.08em] text-dimmed">
+                  <dt class="text-[12px] font-semibold uppercase tracking-[0.08em] text-dimmed">
                     Notes
                   </dt>
-                  <dd class="mt-1 whitespace-pre-wrap text-[13px] leading-relaxed text-toned">
+                  <dd class="mt-1 whitespace-pre-wrap text-[14px] leading-relaxed text-toned">
                     {{ booking.notes }}
                   </dd>
                 </div>
@@ -412,7 +413,7 @@ useSeoMeta({
 
             <p
               v-if="cancelled && booking?.cancellationReason"
-              class="mt-5 rounded-lg border border-default bg-muted px-4 py-3 text-[13px] leading-relaxed text-muted"
+              class="mt-5 rounded-lg border border-default bg-muted px-4 py-3 text-[14px] leading-relaxed text-muted"
             >
               Reason given: {{ booking.cancellationReason }}
             </p>
@@ -420,10 +421,10 @@ useSeoMeta({
               v-if="paymentRecoveryAvailable"
               class="mt-5 rounded-xl border border-primary/30 bg-primary/5 p-4"
             >
-              <p class="text-[14px] font-semibold text-highlighted">
+              <p class="text-[15px] font-semibold text-highlighted">
                 Completed the payment?
               </p>
-              <p class="mt-1 text-[13px] leading-relaxed text-muted">
+              <p class="mt-1 text-[14px] leading-relaxed text-muted">
                 Check the payment with the provider and restore this booking if the original time is still available.
               </p>
               <UButton
@@ -436,7 +437,7 @@ useSeoMeta({
               </UButton>
               <p
                 v-if="paymentCheckError"
-                class="mt-2 text-[12px] text-error"
+                class="mt-2 text-[13px] text-error"
               >
                 {{ paymentCheckError }}
               </p>
@@ -452,10 +453,10 @@ useSeoMeta({
                 v-if="awaitingPayment"
                 class="mb-4 rounded-xl border border-warning/30 bg-warning/5 p-4"
               >
-                <p class="text-[14px] font-semibold text-highlighted">
+                <p class="text-[15px] font-semibold text-highlighted">
                   {{ returningFromPayment ? 'Confirming your payment' : 'Finish payment to confirm this time' }}
                 </p>
-                <p class="mt-1 text-[13px] text-muted">
+                <p class="mt-1 text-[14px] text-muted">
                   {{ returningFromPayment
                     ? paymentCheckState === 'pending'
                       ? 'Bachs is still confirming the payment. The slot remains held and you can check again safely.'
@@ -489,10 +490,10 @@ useSeoMeta({
                 v-else-if="pendingApproval && booking?.canHostManage"
                 class="mb-4 rounded-xl border border-warning/30 bg-warning/5 p-4"
               >
-                <p class="text-[14px] font-semibold text-highlighted">
+                <p class="text-[15px] font-semibold text-highlighted">
                   This booking needs your approval
                 </p>
-                <p class="mt-1 text-[13px] text-muted">
+                <p class="mt-1 text-[14px] text-muted">
                   Approve it to notify the guests and add it to your connected calendar.
                 </p>
                 <div class="mt-4 flex gap-2">
@@ -514,7 +515,7 @@ useSeoMeta({
               </div>
               <p
                 v-else-if="pendingApproval"
-                class="mb-4 rounded-xl border border-warning/30 bg-warning/5 px-4 py-3 text-[13px] text-toned"
+                class="mb-4 rounded-xl border border-warning/30 bg-warning/5 px-4 py-3 text-[14px] text-toned"
               >
                 The host is reviewing this request. You will receive an email when it is approved or declined.
               </p>
@@ -565,10 +566,10 @@ useSeoMeta({
             </template>
 
             <template v-else>
-              <p class="text-[15px] font-medium text-highlighted">
+              <p class="text-[16px] font-medium text-highlighted">
                 Cancel this booking?
               </p>
-              <p class="mt-1 text-[13px] text-muted">
+              <p class="mt-1 text-[14px] text-muted">
                 {{ booking?.hostName }} will be told, and the time is freed up.
               </p>
 
@@ -582,7 +583,7 @@ useSeoMeta({
 
               <p
                 v-if="cancelError"
-                class="mt-3 rounded-lg border border-error/30 bg-error/10 px-3.5 py-2.5 text-[13px] text-error"
+                class="mt-3 rounded-lg border border-error/30 bg-error/10 px-3.5 py-2.5 text-[14px] text-error"
                 role="alert"
               >
                 {{ cancelError }}

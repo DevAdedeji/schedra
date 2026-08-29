@@ -22,14 +22,12 @@ import { organizationEntitlement } from './entitlement'
 import { recordAudit } from './organization'
 import { enqueueSubscriptionSeatSync } from './subscription-seat-sync'
 import { useEnv } from '../config/env'
+import { addUtcCalendarPeriod } from '../utils/date-time'
 
 // Bachs rejects NGN checkouts below ₦1,000. Even the smallest one-seat team
 // invoice is far above that after USD-to-NGN conversion.
 function periodEnd(from: Date, interval: BillingInterval) {
-  const end = new Date(from)
-  if (interval === 'yearly') end.setUTCFullYear(end.getUTCFullYear() + 1)
-  else end.setUTCMonth(end.getUTCMonth() + 1)
-  return end
+  return addUtcCalendarPeriod(from, interval === 'yearly' ? { years: 1 } : { months: 1 })
 }
 
 /**

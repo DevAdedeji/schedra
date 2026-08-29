@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { teamBookingsApi, teamsApi, type TeamBookingsResponse, type TeamDetail } from '~/services/schedra-api'
+import { DEFAULT_LIST_PAGE_SIZE } from '~/constants/lists'
+import { formatInstant, localTimeZone } from '~/utils/date-time'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 
@@ -13,32 +15,18 @@ useSeoMeta({
 })
 
 const filter = ref<'upcoming' | 'pending' | 'past' | 'cancelled'>('upcoming')
-const query = ref('')
-const search = ref('')
-const page = ref(1)
+const { query, search, page, resetPage } = useListQueryState()
 const listQuery = computed(() => ({
-  filter: filter.value, search: search.value, page: page.value, pageSize: 10
+  filter: filter.value, search: search.value, page: page.value, pageSize: DEFAULT_LIST_PAGE_SIZE
 }))
 
 const { data, refresh, status, error: loadFailure }
   = await useLazyFetch<TeamBookingsResponse>(() => teamBookingsApi.listEndpoint(slug.value), { query: listQuery })
 
 const list = computed(() => data.value?.items ?? [])
-const initialLoading = computed(() => status.value === 'pending' && !data.value)
-const refreshing = computed(() => status.value === 'pending' && Boolean(data.value))
+const { initialLoading, refreshing } = useListLoadingState(status, data)
 
-let searchTimer: ReturnType<typeof setTimeout> | undefined
-watch(query, (value) => {
-  clearTimeout(searchTimer)
-  searchTimer = setTimeout(() => {
-    search.value = value.trim()
-    page.value = 1
-  }, 250)
-})
-watch(filter, () => {
-  page.value = 1
-})
-onBeforeUnmount(() => clearTimeout(searchTimer))
+watch(filter, resetPage)
 
 const filterOptions = computed(() => [
   { value: 'upcoming', label: 'Upcoming', count: data.value?.counts.upcoming ?? 0 },
@@ -49,14 +37,14 @@ const filterOptions = computed(() => [
 
 const viewerTimeZone = ref('UTC')
 onMounted(() => {
-  viewerTimeZone.value = Intl.DateTimeFormat().resolvedOptions().timeZone
+  viewerTimeZone.value = localTimeZone()
 })
 
 function when(iso: string) {
-  return new Intl.DateTimeFormat('en-GB', {
+  return formatInstant(iso, {
     weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
     timeZone: viewerTimeZone.value
-  }).format(new Date(iso))
+  }, 'en-GB')
 }
 
 const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> = {
@@ -122,7 +110,7 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
         >
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">
-              <p class="truncate text-[14px] font-medium text-highlighted">
+              <p class="truncate text-[15px] font-medium text-highlighted">
                 {{ booking.eventTitle }}
               </p>
               <UBadge
@@ -133,19 +121,19 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
                 {{ booking.status }}
               </UBadge>
             </div>
-            <p class="mt-1 text-[13px] text-muted">
+            <p class="mt-1 text-[14px] text-muted">
               {{ when(booking.startsAt) }} · {{ booking.attendeeName }}
               <span class="text-dimmed">({{ booking.attendeeEmail }})</span>
             </p>
             <p
               v-if="booking.hosts.length"
-              class="mt-1 text-[12px] text-muted"
+              class="mt-1 text-[13px] text-muted"
             >
               Hosted by {{ booking.hosts.map(host => host.name).join(', ') }}
             </p>
             <p
               v-if="booking.cancellationReason"
-              class="mt-1 text-[12px] text-muted"
+              class="mt-1 text-[13px] text-muted"
             >
               {{ booking.cancellationReason }}
             </p>

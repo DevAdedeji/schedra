@@ -3,14 +3,14 @@ import { filterInvitationSlots, requireUsableBookingLink } from '../../../../ser
 import { slotsFor } from '../../../../services/booking-page'
 import { enforceRateLimit } from '../../../../services/rate-limit'
 import { requireLocationIntegration } from '../../../../services/event-location'
+import { calendarDaysBetween } from '../../../../utils/date-time'
 
 const querySchema = z.object({ from: z.iso.date(), to: z.iso.date() })
   .superRefine(({ from, to }, context) => {
-    const start = Date.parse(`${from}T00:00:00Z`)
-    const end = Date.parse(`${to}T00:00:00Z`)
-    if (end < start) {
+    const days = calendarDaysBetween(from, to)
+    if (days < 0) {
       context.addIssue({ code: 'custom', path: ['to'], message: 'End date must not be before start date.' })
-    } else if ((end - start) / 86_400_000 > 62) {
+    } else if (days > 62) {
       context.addIssue({ code: 'custom', path: ['to'], message: 'Availability range cannot exceed 63 days.' })
     }
   })

@@ -30,6 +30,7 @@ import {
   openPaidBookingCheckout,
   paymentForBooking
 } from '../services/paid-booking'
+import { addUtcCalendarDays, utcCalendarDate } from '../utils/date-time'
 
 const SLOT_TAKEN = '23P01'
 
@@ -110,7 +111,8 @@ export default defineEventHandler(async (event) => {
 
   const now = new Date().toISOString()
   const wanted = new Date(start).getTime()
-  const day = (offset: number) => new Date(wanted + offset * 86_400_000).toISOString().slice(0, 10)
+  const wantedDate = utcCalendarDate(wanted)
+  const day = (offset: number) => addUtcCalendarDays(wantedDate, offset)
 
   // Re-derive the slot rather than trusting the posted time, and re-derive it
   // now rather than reusing what the page was shown: a host can have become

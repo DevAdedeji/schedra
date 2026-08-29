@@ -50,7 +50,7 @@ body {
   /* Small-caps section labels. Deliberately sans: monospace anywhere other
      than an actual time or a code block reads as "developer tool". */
   .eyebrow {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
     line-height: 1.2;
     text-transform: uppercase;

@@ -50,13 +50,13 @@ async function onSubmit(event: FormSubmitEvent<RequestResetInput>) {
     <h1 class="mt-7 font-editorial text-[2.75rem] leading-[1.02] tracking-[-0.02em] text-highlighted">
       Check your email.
     </h1>
-    <p class="mt-4 text-[15px] leading-relaxed text-muted">
+    <p class="mt-4 text-[16px] leading-relaxed text-muted">
       If <span class="font-medium text-highlighted">{{ state.email }}</span> has
       an account, a reset link is on its way. It works once and expires in an
       hour.
     </p>
 
-    <p class="mt-8 border-t border-default pt-6 text-[14px] text-muted">
+    <p class="mt-8 border-t border-default pt-6 text-[15px] text-muted">
       <NuxtLink
         to="/login"
         class="font-medium text-highlighted underline underline-offset-4"
@@ -68,7 +68,7 @@ async function onSubmit(event: FormSubmitEvent<RequestResetInput>) {
     <h1 class="font-editorial text-[2.75rem] leading-[1.02] tracking-[-0.02em] text-highlighted">
       Forgot it?
     </h1>
-    <p class="mt-3 text-[15px] leading-relaxed text-muted">
+    <p class="mt-3 text-[16px] leading-relaxed text-muted">
       Happens to everyone. Tell us your email and we'll send a link to set a new
       password.
     </p>
@@ -95,7 +95,7 @@ async function onSubmit(event: FormSubmitEvent<RequestResetInput>) {
 
       <p
         v-if="error"
-        class="rounded-lg border border-error/30 bg-error/10 px-3.5 py-2.5 text-[13px] text-error"
+        class="rounded-lg border border-error/30 bg-error/10 px-3.5 py-2.5 text-[14px] text-error"
         role="alert"
       >
         {{ error }}
@@ -112,7 +112,7 @@ async function onSubmit(event: FormSubmitEvent<RequestResetInput>) {
       </UButton>
     </UForm>
 
-    <p class="mt-8 border-t border-default pt-6 text-[14px] text-muted">
+    <p class="mt-8 border-t border-default pt-6 text-[15px] text-muted">
       Remembered it?
       <NuxtLink
         to="/login"

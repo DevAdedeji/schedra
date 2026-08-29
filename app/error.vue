@@ -38,13 +38,13 @@ function retry() {
             class="size-5"
           />
         </span>
-        <p class="mt-6 text-[12px] font-semibold uppercase tracking-[0.14em] text-dimmed">
+        <p class="mt-6 text-[13px] font-semibold uppercase tracking-[0.14em] text-dimmed">
           Error {{ error.statusCode || 500 }}
         </p>
         <h1 class="mt-2 font-editorial text-4xl text-highlighted">
           {{ title }}
         </h1>
-        <p class="mx-auto mt-4 max-w-sm text-[15px] leading-relaxed text-muted">
+        <p class="mx-auto mt-4 max-w-sm text-[16px] leading-relaxed text-muted">
           {{ description }}
         </p>
 
