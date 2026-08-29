@@ -1,4 +1,4 @@
-import { and, eq, inArray, lte } from 'drizzle-orm'
+import { and, eq, inArray, lte, sql } from 'drizzle-orm'
 import type { Database } from '../database/client'
 import {
   bookingPayments,
@@ -122,7 +122,7 @@ export async function paymentForBooking(bookingId: string, executor: PaymentExec
 export async function movePaidBookingPayment(previousBookingId: string, nextBookingId: string, executor: PaymentExecutor) {
   const [moved] = await executor.update(bookingPayments).set({
     bookingId: nextBookingId,
-    updatedAt: new Date()
+    updatedAt: sql`now()`
   }).where(and(
     eq(bookingPayments.bookingId, previousBookingId),
     eq(bookingPayments.status, 'paid')
@@ -184,7 +184,7 @@ export async function openPaidBookingCheckout(uid: string) {
         checkoutUrl: session.checkout_url,
         checkoutExpiresAt: expiresAt,
         lastError: null,
-        updatedAt: new Date()
+        updatedAt: sql`now()`
       }).where(eq(bookingPayments.id, payment.id))
       await appendPaymentLedgerEntry({
         bookingPaymentId: payment.id,
@@ -206,7 +206,7 @@ export async function openPaidBookingCheckout(uid: string) {
       await tx.update(bookingPayments).set({
         status: 'failed',
         lastError: message,
-        updatedAt: new Date()
+        updatedAt: sql`now()`
       }).where(eq(bookingPayments.id, payment.id))
       await appendPaymentLedgerEntry({
         bookingPaymentId: payment.id,
@@ -346,7 +346,7 @@ async function cancelUnpaidBooking(bookingId: string, reason: string) {
   await useDatabase().update(bookings).set({
     status: 'cancelled',
     cancellationReason: reason,
-    updatedAt: new Date()
+    updatedAt: sql`now()`
   }).where(and(eq(bookings.id, bookingId), eq(bookings.status, 'awaiting_payment')))
 }
 
@@ -411,7 +411,7 @@ export async function completePaidBooking(input: {
         const [confirmed] = await tx.update(bookings).set({
           status: 'confirmed',
           cancellationReason: null,
-          updatedAt: new Date()
+          updatedAt: sql`now()`
         }).where(and(
           eq(bookings.id, payment.bookingId),
           eq(bookings.status, 'cancelled'),
@@ -427,9 +427,9 @@ export async function completePaidBooking(input: {
         const [updated] = await tx.update(bookingPayments).set({
           status: 'paid',
           bachsChargeId: input.chargeId ?? payment.bachsChargeId,
-          paidAt: payment.paidAt ?? new Date(),
+          paidAt: payment.paidAt ?? sql`now()`,
           lastError: null,
-          updatedAt: new Date()
+          updatedAt: sql`now()`
         }).where(and(
           eq(bookingPayments.id, payment.id),
           inArray(bookingPayments.status, ['failed', 'expired', 'refund_failed'])
@@ -468,9 +468,9 @@ export async function completePaidBooking(input: {
       const [updated] = await tx.update(bookingPayments).set({
         status: 'paid',
         bachsChargeId: input.chargeId,
-        paidAt: payment.paidAt ?? new Date(),
+        paidAt: payment.paidAt ?? sql`now()`,
         lastError: null,
-        updatedAt: new Date()
+        updatedAt: sql`now()`
       }).where(and(
         eq(bookingPayments.id, payment.id),
         inArray(bookingPayments.status, ['pending', 'failed', 'expired', 'refund_failed'])
@@ -491,9 +491,9 @@ export async function completePaidBooking(input: {
     const [updated] = await tx.update(bookingPayments).set({
       status: 'paid',
       bachsChargeId: input.chargeId ?? payment.bachsChargeId,
-      paidAt: new Date(),
+      paidAt: sql`now()`,
       lastError: null,
-      updatedAt: new Date()
+      updatedAt: sql`now()`
     }).where(and(
       eq(bookingPayments.id, payment.id),
       eq(bookingPayments.status, 'pending')
@@ -504,7 +504,7 @@ export async function completePaidBooking(input: {
 
     const [confirmed] = await tx.update(bookings).set({
       status: 'confirmed',
-      updatedAt: new Date()
+      updatedAt: sql`now()`
     }).where(and(
       eq(bookings.id, updated.bookingId),
       eq(bookings.status, 'awaiting_payment')
@@ -532,7 +532,7 @@ export async function failPaidBooking(checkoutId: string, reason: string, provid
     const [updated] = await tx.update(bookingPayments).set({
       status: reason.includes('expired') ? 'expired' : 'failed',
       lastError: reason,
-      updatedAt: new Date()
+      updatedAt: sql`now()`
     }).where(and(
       eq(bookingPayments.bachsCheckoutId, checkoutId),
       eq(bookingPayments.status, 'pending')
@@ -658,7 +658,7 @@ export async function requestPaidBookingRefund(bookingId: string, reason: string
     const [updated] = await tx.update(bookingPayments).set({
       status: 'refund_pending',
       lastError: null,
-      updatedAt: new Date()
+      updatedAt: sql`now()`
     }).where(and(
       eq(bookingPayments.id, payment.id),
       inArray(bookingPayments.status, ['paid', 'refund_failed'])
@@ -690,7 +690,7 @@ export async function requestPaidBookingRefund(bookingId: string, reason: string
       await tx.update(bookingPayments).set({
         status: 'refund_failed',
         lastError: message,
-        updatedAt: new Date()
+        updatedAt: sql`now()`
       }).where(eq(bookingPayments.id, payment.id))
       await appendPaymentLedgerEntry({
         bookingPaymentId: payment.id,
@@ -720,9 +720,9 @@ export async function applyRefundEvent(input: {
   const updated = await useDatabase().transaction(async (tx) => {
     const [payment] = await tx.update(bookingPayments).set({
       status: input.status === 'paid' ? 'refunded' : 'refund_failed',
-      refundedAt: input.status === 'paid' ? new Date() : null,
+      refundedAt: input.status === 'paid' ? sql`now()` : null,
       lastError: input.status === 'failed' ? 'Bachs could not complete the refund.' : null,
-      updatedAt: new Date()
+      updatedAt: sql`now()`
     }).where(eq(bookingPayments.id, id)).returning({
       id: bookingPayments.id,
       amountCents: bookingPayments.amountCents,

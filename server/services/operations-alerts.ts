@@ -57,14 +57,15 @@ export async function evaluateOperationsAlerts() {
     }).where(inArray(operationsAlerts.status, ['active', 'acknowledged']))
   }
 
-  const now = new Date()
   for (const item of candidates) {
     const [existing] = await db.select().from(operationsAlerts)
       .where(eq(operationsAlerts.key, item.key)).limit(1)
     const shouldNotify = shouldNotifyOperationsAlert(existing)
-    const incidentStartedAt = !existing || existing.status === 'resolved' ? now : existing.firstSeenAt
+    const incidentStartedAt = !existing || existing.status === 'resolved'
+      ? sql<Date>`now()`
+      : existing.firstSeenAt
 
-    await db.insert(operationsAlerts).values({
+    const [stored] = await db.insert(operationsAlerts).values({
       key: item.key,
       type: item.type,
       severity: item.severity,
@@ -85,13 +86,16 @@ export async function evaluateOperationsAlerts() {
         resolvedAt: null,
         updatedAt: sql`now()`
       }
+    }).returning({
+      firstSeenAt: operationsAlerts.firstSeenAt,
+      lastSeenAt: operationsAlerts.lastSeenAt
     })
 
-    if (shouldNotify && await notify(item, now, incidentStartedAt)) {
+    if (shouldNotify && stored && await notify(item, stored.lastSeenAt, stored.firstSeenAt)) {
       // Only start the cooldown once the notification has been durably
       // enqueued. A temporary outbox failure must not suppress the alert.
       await db.update(operationsAlerts).set({
-        lastNotifiedAt: now,
+        lastNotifiedAt: sql`now()`,
         updatedAt: sql`now()`
       }).where(eq(operationsAlerts.key, item.key))
     }

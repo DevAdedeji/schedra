@@ -97,7 +97,7 @@ export async function acknowledgeOperationsAlert(id: string) {
   const db = useDatabase()
   const [alert] = await db.update(operationsAlerts).set({
     status: 'acknowledged',
-    updatedAt: new Date()
+    updatedAt: sql`now()`
   }).where(and(
     eq(operationsAlerts.id, id),
     eq(operationsAlerts.status, 'active')

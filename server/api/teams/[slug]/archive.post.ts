@@ -19,7 +19,6 @@ export default defineEventHandler(async (event) => {
   }
 
   const db = useDatabase()
-  const now = new Date()
 
   const cancelled = await db.transaction(async (tx) => {
     // Guests holding a team booking must not simply find a dead link, so
@@ -33,7 +32,7 @@ export default defineEventHandler(async (event) => {
       .where(and(
         eq(bookings.organizationId, context.organization.id),
         inArray(bookings.status, ['pending', 'confirmed']),
-        gte(bookings.endsAt, now)
+        gte(bookings.endsAt, sql`now()`)
       ))
       .returning({ uid: bookings.uid })
 
@@ -44,7 +43,7 @@ export default defineEventHandler(async (event) => {
     // The slug stays on the archived row so nobody can claim it and inherit
     // traffic from links the old team shared.
     await tx.update(organizations)
-      .set({ archivedAt: now, updatedAt: sql`now()` })
+      .set({ archivedAt: sql`now()`, updatedAt: sql`now()` })
       .where(eq(organizations.id, context.organization.id))
 
     return affected
