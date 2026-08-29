@@ -405,6 +405,12 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', checkSetu
       </div>
     </section>
 
+    <PaymentWithdrawalManager
+      v-if="data?.configured"
+      :team-slug="teamSlug"
+      @updated="refreshSummary"
+    />
+
     <PaymentActivityList :team-slug="teamSlug" />
   </div>
 </template>

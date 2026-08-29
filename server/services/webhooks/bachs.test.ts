@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getCheckoutSession } from '../../integrations/bachs'
 import { completePaidBookingFromCheckout } from '../paid-booking'
+import { applyWithdrawalPayoutEvent } from '../payment-withdrawal'
 import { processBachsWebhook } from './bachs'
 
 vi.mock('../../integrations/bachs', () => ({
@@ -20,6 +21,7 @@ vi.mock('../billing', () => ({
 }))
 vi.mock('../organization', () => ({ recordAudit: vi.fn() }))
 vi.mock('../payment-recipient', () => ({ updateRecipientFromWebhook: vi.fn() }))
+vi.mock('../payment-withdrawal', () => ({ applyWithdrawalPayoutEvent: vi.fn() }))
 
 describe('Bachs paid-booking webhooks', () => {
   beforeEach(() => vi.clearAllMocks())
@@ -63,5 +65,26 @@ describe('Bachs paid-booking webhooks', () => {
       providerEventId: 'evt_123'
     })
     expect(result).toEqual({ received: true, applied: true })
+  })
+
+  it.each(['payout.created', 'payout.paid', 'payout.failed'])('reconciles %s against the connected account payout', async (type) => {
+    vi.mocked(applyWithdrawalPayoutEvent).mockResolvedValue(true)
+
+    await expect(processBachsWebhook({
+      id: 'evt_payout',
+      type,
+      organization_id: 'acct_host',
+      data: {
+        withdrawal_id: 'pay_123',
+        reference: 'schedra-wd-request'
+      }
+    })).resolves.toEqual({ received: true, applied: true })
+
+    expect(applyWithdrawalPayoutEvent).toHaveBeenCalledWith({
+      accountId: 'acct_host',
+      payoutId: 'pay_123',
+      reference: 'schedra-wd-request',
+      providerEventId: 'evt_payout'
+    })
   })
 })

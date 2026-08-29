@@ -683,6 +683,54 @@ export const paymentRecipients = pgTable('payment_recipients', {
 ])
 
 /**
+ * A user-confirmed request to move connected-account funds to an approved
+ * external destination. The client supplies the UUID once and retries it,
+ * while the derived provider reference is Bachs' idempotency key. This row is
+ * deliberately durable before the provider call: a lost HTTP response must
+ * remain reconcilable instead of inviting a second withdrawal.
+ */
+export const paymentWithdrawals = pgTable('payment_withdrawals', {
+  id: uuid('id').primaryKey(),
+  recipientId: uuid('recipient_id').notNull().references(() => paymentRecipients.id, { onDelete: 'cascade' }),
+  requestedByUserId: uuid('requested_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  reference: text('reference').notNull(),
+  bachsPayoutId: text('bachs_payout_id'),
+  destinationId: text('destination_id').notNull(),
+  destinationName: text('destination_name').notNull(),
+  sourceCurrency: text('source_currency').notNull(),
+  destinationCurrency: text('destination_currency').notNull(),
+  // For same-currency payouts this is what the destination receives. For a
+  // quoted cross-currency payout it is the source balance amount the user
+  // confirmed. Provider-returned delivery and debit values remain separate.
+  requestedAmountCents: integer('requested_amount_cents').notNull(),
+  deliveredAmountCents: integer('delivered_amount_cents'),
+  feeCents: integer('fee_cents'),
+  totalDebitedCents: integer('total_debited_cents'),
+  status: text('status').notNull().default('creating'),
+  failureReason: text('failure_reason'),
+  providerEventId: text('provider_event_id'),
+  lastCheckedAt: timestamp('last_checked_at', { withTimezone: true }),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  ...timestamps
+}, table => [
+  uniqueIndex('payment_withdrawals_reference_key').on(table.reference),
+  uniqueIndex('payment_withdrawals_bachs_payout_key').on(table.bachsPayoutId)
+    .where(sql`${table.bachsPayoutId} is not null`),
+  index('payment_withdrawals_recipient_created_idx').on(table.recipientId, table.createdAt),
+  index('payment_withdrawals_status_checked_idx').on(table.status, table.lastCheckedAt),
+  check(
+    'payment_withdrawals_status_allowed',
+    sql`${table.status} in ('creating', 'pending', 'processing', 'completed', 'failed', 'unknown')`
+  ),
+  check('payment_withdrawals_requested_amount_positive', sql`${table.requestedAmountCents} > 0`),
+  check('payment_withdrawals_delivered_amount_positive', sql`${table.deliveredAmountCents} is null or ${table.deliveredAmountCents} > 0`),
+  check('payment_withdrawals_fee_non_negative', sql`${table.feeCents} is null or ${table.feeCents} >= 0`),
+  check('payment_withdrawals_total_debited_positive', sql`${table.totalDebitedCents} is null or ${table.totalDebitedCents} > 0`),
+  check('payment_withdrawals_source_currency_allowed', sql`${table.sourceCurrency} in ('USD', 'NGN')`),
+  check('payment_withdrawals_destination_currency_allowed', sql`${table.destinationCurrency} in ('USD', 'NGN')`)
+])
+
+/**
  * One occurrence of a seated event. Locking this row serializes seat claims,
  * while the immutable capacity snapshot prevents an event-type edit from
  * unexpectedly evicting guests who already booked.

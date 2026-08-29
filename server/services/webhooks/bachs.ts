@@ -8,6 +8,7 @@ import {
   recordPaidBookingProviderObservation
 } from '../paid-booking'
 import { updateRecipientFromWebhook } from '../payment-recipient'
+import { applyWithdrawalPayoutEvent } from '../payment-withdrawal'
 
 export interface BachsEvent {
   id?: string
@@ -34,6 +35,7 @@ export interface BachsEvent {
     currency?: string | null
     account?: string | null
     refund_id?: string | null
+    withdrawal_id?: string | null
     charge?: { id?: string | null, amount?: string | null, currency?: string | null, status?: string | null } | null
   }
 }
@@ -45,6 +47,7 @@ const SUBSCRIPTION_EVENTS = new Set([
   'customer.subscription.updated',
   'customer.subscription.deleted'
 ])
+const PAYOUT_EVENTS = new Set(['payout.created', 'payout.paid', 'payout.failed'])
 
 export async function processBachsWebhook(payload: BachsEvent) {
   const type = payload.type ?? 'unknown'
@@ -63,6 +66,21 @@ export async function processBachsWebhook(payload: BachsEvent) {
       refundId: payload.data?.refund_id
     })
     if (applied) return { received: true, applied: true }
+  }
+
+  if (PAYOUT_EVENTS.has(type)) {
+    const accountId = payload.account ?? payload.organization_id ?? payload.data?.account
+    const payoutId = payload.data?.withdrawal_id
+    if (!accountId || !payoutId) return { received: true, ignored: 'incomplete-payout' }
+    const applied = await applyWithdrawalPayoutEvent({
+      accountId,
+      payoutId,
+      reference: payload.data?.reference,
+      providerEventId: payload.id
+    })
+    return applied
+      ? { received: true, applied: true }
+      : { received: true, ignored: 'unknown-payout' }
   }
 
   const checkoutId = payload.data?.checkout_id

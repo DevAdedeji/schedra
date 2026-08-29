@@ -3,6 +3,7 @@ import {
   bookingPayments,
   operationsAlerts,
   paymentRecipients,
+  paymentWithdrawals,
   webhookDeliveries
 } from '../database/schema'
 import { useDatabase } from '../database'
@@ -23,6 +24,8 @@ export interface FinancialAlertCounts {
   expiredPendingPayments: number
   staleRefunds: number
   failedRefunds: number
+  failedWithdrawals: number
+  unresolvedWithdrawals: number
   restrictedRecipients: number
   ignoredFinancialWebhooks: number
 }
@@ -151,6 +154,20 @@ export function financialAlertCandidates(financial: FinancialAlertCounts): Alert
     `${financial.failedRefunds} refund${financial.failedRefunds === 1 ? '' : 's'} need manual review`,
     { count: financial.failedRefunds }
   ))
+  if (financial.failedWithdrawals) items.push(candidate(
+    'payments-withdrawal-failed',
+    'withdrawal',
+    'critical',
+    `${financial.failedWithdrawals} withdrawal${financial.failedWithdrawals === 1 ? '' : 's'} need manual review`,
+    { count: financial.failedWithdrawals }
+  ))
+  if (financial.unresolvedWithdrawals) items.push(candidate(
+    'payments-withdrawal-unresolved',
+    'withdrawal',
+    'critical',
+    `${financial.unresolvedWithdrawals} withdrawal request${financial.unresolvedWithdrawals === 1 ? ' has' : 's have'} had an unknown state for more than 15 minutes`,
+    { count: financial.unresolvedWithdrawals, thresholdMinutes: 15 }
+  ))
   if (financial.restrictedRecipients) items.push(candidate(
     'payments-recipient-restricted',
     'payout_account',
@@ -170,7 +187,15 @@ export function financialAlertCandidates(financial: FinancialAlertCounts): Alert
 
 async function financialAlertCounts(): Promise<FinancialAlertCounts> {
   const db = useDatabase()
-  const [[expiredPending], [staleRefunds], [failedRefunds], [restrictedRecipients], [ignoredFinancialWebhooks]] = await Promise.all([
+  const [
+    [expiredPending],
+    [staleRefunds],
+    [failedRefunds],
+    [failedWithdrawals],
+    [unresolvedWithdrawals],
+    [restrictedRecipients],
+    [ignoredFinancialWebhooks]
+  ] = await Promise.all([
     db.select({ value: count() }).from(bookingPayments).where(and(
       eq(bookingPayments.status, 'pending'),
       isNotNull(bookingPayments.checkoutExpiresAt),
@@ -182,6 +207,12 @@ async function financialAlertCounts(): Promise<FinancialAlertCounts> {
     )),
     db.select({ value: count() }).from(bookingPayments)
       .where(eq(bookingPayments.status, 'refund_failed')),
+    db.select({ value: count() }).from(paymentWithdrawals)
+      .where(eq(paymentWithdrawals.status, 'failed')),
+    db.select({ value: count() }).from(paymentWithdrawals).where(and(
+      inArray(paymentWithdrawals.status, ['creating', 'unknown']),
+      lt(paymentWithdrawals.updatedAt, sql`now() - interval '15 minutes'`)
+    )),
     db.select({ value: count() }).from(paymentRecipients).where(and(
       isNotNull(paymentRecipients.bachsAccountId),
       inArray(paymentRecipients.status, ['restricted', 'disabled'])
@@ -203,6 +234,8 @@ async function financialAlertCounts(): Promise<FinancialAlertCounts> {
     expiredPendingPayments: expiredPending?.value ?? 0,
     staleRefunds: staleRefunds?.value ?? 0,
     failedRefunds: failedRefunds?.value ?? 0,
+    failedWithdrawals: failedWithdrawals?.value ?? 0,
+    unresolvedWithdrawals: unresolvedWithdrawals?.value ?? 0,
     restrictedRecipients: restrictedRecipients?.value ?? 0,
     ignoredFinancialWebhooks: ignoredFinancialWebhooks?.value ?? 0
   }

@@ -37,11 +37,14 @@ describe('operations alert notifications', () => {
       expiredPendingPayments: 2,
       staleRefunds: 1,
       failedRefunds: 1,
+      failedWithdrawals: 1,
+      unresolvedWithdrawals: 1,
       restrictedRecipients: 3,
       ignoredFinancialWebhooks: 1
     })
-    expect(candidates).toHaveLength(5)
+    expect(candidates).toHaveLength(7)
     expect(candidates.map(item => item.key)).toContain('payments-refund-failed')
+    expect(candidates.map(item => item.key)).toContain('payments-withdrawal-unresolved')
     expect(candidates.every(item => ['warning', 'critical'].includes(item.severity))).toBe(true)
   })
 })
