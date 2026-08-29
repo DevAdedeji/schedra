@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { publicBookingApi, type PublicProfile } from '~/services/schedra-api'
+import { getInitials } from '~/utils/text'
 
 definePageMeta({ layout: 'bare' })
 
@@ -12,13 +13,7 @@ const { url: siteUrl, host, indexable } = useSiteUrl()
 if (error.value) setResponseStatus(error.value.statusCode === 404 ? 404 : 503)
 const missingProfile = computed(() => error.value?.statusCode === 404)
 
-const initials = computed(() => (profile.value?.name ?? '')
-  .split(' ')
-  .map(part => part[0])
-  .filter(Boolean)
-  .slice(0, 2)
-  .join('')
-  .toUpperCase())
+const initials = computed(() => getInitials(profile.value?.name ?? ''))
 
 useSeoMeta({
   title: () => profile.value ? `Book time with ${profile.value.name}` : 'Not found',
@@ -129,7 +124,7 @@ useSeoMeta({
               </p>
               <p
                 v-if="profile?.bio"
-                class="mt-3 text-[15px] leading-relaxed text-muted"
+                class="mt-3 text-[16px] leading-relaxed text-muted"
               >
                 {{ profile.bio }}
               </p>
@@ -145,16 +140,16 @@ useSeoMeta({
                 class="flex items-center justify-between gap-5 rounded-xl border border-default px-5 py-4 transition-colors hover:border-primary hover:bg-muted"
               >
                 <span class="min-w-0">
-                  <span class="block truncate text-[15px] font-semibold text-highlighted">
+                  <span class="block truncate text-[16px] font-semibold text-highlighted">
                     {{ type.title }}
                   </span>
-                  <span class="mt-0.5 block truncate text-[13px] text-muted">
+                  <span class="mt-0.5 block truncate text-[14px] text-muted">
                     {{ type.durationMinutes }} minutes
                     <template v-if="type.description">· {{ type.description }}</template>
                   </span>
                 </span>
 
-                <span class="shrink-0 rounded-full bg-primary px-4 py-1.5 text-[13px] font-medium text-white">
+                <span class="shrink-0 rounded-full bg-primary px-4 py-1.5 text-[14px] font-medium text-white">
                   Book
                 </span>
               </NuxtLink>

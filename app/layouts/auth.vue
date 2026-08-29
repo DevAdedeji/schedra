@@ -41,10 +41,10 @@ const promises = [
               />
             </span>
             <div class="min-w-0">
-              <p class="text-[14px] font-semibold leading-tight">
+              <p class="text-[15px] font-semibold leading-tight">
                 Tuesday, 10:30
               </p>
-              <p class="mt-1 text-[12px] leading-tight text-white/70">
+              <p class="mt-1 text-[13px] leading-tight text-white/70">
                 Booking confirmed · email queued
               </p>
             </div>
@@ -56,7 +56,7 @@ const promises = [
         <li
           v-for="promise in promises"
           :key="promise"
-          class="flex items-center gap-2.5 text-[13px] text-white/85"
+          class="flex items-center gap-2.5 text-[14px] text-white/85"
         >
           <UIcon
             name="i-lucide-check"

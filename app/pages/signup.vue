@@ -2,6 +2,7 @@
 import type { FormSubmitEvent } from '@nuxt/ui'
 import { signUpFormSchema, type SignUpFormInput } from '#shared/validation'
 import { invitationsApi, usernameApi, type UsernameAvailability } from '~/services/schedra-api'
+import { localTimeZone } from '~/utils/date-time'
 
 definePageMeta({ layout: 'auth', middleware: 'guest' })
 useSeoMeta({ title: 'Create your Schedra link', robots: 'noindex, nofollow' })
@@ -129,7 +130,7 @@ async function onSubmit(event: FormSubmitEvent<SignUpFormInput>) {
   try {
     const { error: failure } = await signUp.email({
       ...event.data,
-      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      timeZone: localTimeZone(),
       callbackURL
     })
 
@@ -157,7 +158,7 @@ async function onSubmit(event: FormSubmitEvent<SignUpFormInput>) {
     <h1 class="font-editorial text-[2.75rem] leading-[1.02] tracking-[-0.02em] text-highlighted">
       {{ invitation ? `Join ${invitation.organization.name}.` : 'Create your link.' }}
     </h1>
-    <p class="mt-3 text-[15px] leading-relaxed text-muted">
+    <p class="mt-3 text-[16px] leading-relaxed text-muted">
       <template v-if="invitation">
         Create your Schedra account to accept the invitation. You get your own booking page too.
       </template>
@@ -173,7 +174,7 @@ async function onSubmit(event: FormSubmitEvent<SignUpFormInput>) {
 
       <div class="my-7 flex items-center gap-4">
         <span class="h-px flex-1 bg-border" />
-        <span class="text-[12px] text-dimmed">or with email</span>
+        <span class="text-[13px] text-dimmed">or with email</span>
         <span class="h-px flex-1 bg-border" />
       </div>
     </template>
@@ -235,7 +236,7 @@ async function onSubmit(event: FormSubmitEvent<SignUpFormInput>) {
         />
         <p
           v-if="invitation"
-          class="mt-1.5 text-[12px] text-muted"
+          class="mt-1.5 text-[13px] text-muted"
         >
           {{ invitation.organization.name }} invited this address, so it cannot be changed here.
         </p>
@@ -254,7 +255,7 @@ async function onSubmit(event: FormSubmitEvent<SignUpFormInput>) {
 
       <p
         v-if="error"
-        class="rounded-lg border border-error/30 bg-error/10 px-3.5 py-2.5 text-[13px] text-error"
+        class="rounded-lg border border-error/30 bg-error/10 px-3.5 py-2.5 text-[14px] text-error"
         role="alert"
       >
         {{ error }}
@@ -271,12 +272,12 @@ async function onSubmit(event: FormSubmitEvent<SignUpFormInput>) {
         Create my link
       </UButton>
 
-      <p class="text-center text-[12px] leading-relaxed text-dimmed">
+      <p class="text-center text-[13px] leading-relaxed text-dimmed">
         We'll email you a link to confirm your address.
       </p>
     </UForm>
 
-    <p class="mt-8 border-t border-default pt-6 text-[14px] text-muted">
+    <p class="mt-8 border-t border-default pt-6 text-[15px] text-muted">
       Already have one?
       <NuxtLink
         to="/login"

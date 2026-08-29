@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { accountApi, apiErrorMessage, profileApi } from '~/services/schedra-api'
+import { getInitials } from '~/utils/text'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 useSeoMeta({ title: 'Settings', robots: 'noindex, nofollow' })
@@ -89,8 +90,7 @@ async function deleteAccount() {
   }
 }
 
-const initials = computed(() => (profile.name || '')
-  .split(' ').map(part => part[0]).filter(Boolean).slice(0, 2).join('').toUpperCase())
+const initials = computed(() => getInitials(profile.name))
 </script>
 
 <template>
@@ -117,10 +117,10 @@ const initials = computed(() => (profile.name || '')
       <div class="space-y-6">
         <section class="overflow-hidden rounded-xl border border-default bg-default">
           <div class="border-b border-default px-6 py-5 sm:px-7">
-            <h2 class="text-[15px] font-semibold text-highlighted">
+            <h2 class="text-[16px] font-semibold text-highlighted">
               Profile
             </h2>
-            <p class="mt-1 text-[13px] text-muted">
+            <p class="mt-1 text-[14px] text-muted">
               Shown to anyone who opens your booking page.
             </p>
           </div>
@@ -130,7 +130,7 @@ const initials = computed(() => (profile.name || '')
             @submit.prevent="save"
           >
             <div class="flex flex-wrap items-center gap-4">
-              <span class="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-[16px] font-semibold text-white">
+              <span class="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-[17px] font-semibold text-white">
                 <img
                   v-if="user?.avatarUrl"
                   :src="user.avatarUrl"
@@ -165,7 +165,7 @@ const initials = computed(() => (profile.name || '')
                 >
                   Remove
                 </UButton>
-                <p class="w-full text-[12px] text-muted">
+                <p class="w-full text-[13px] text-muted">
                   JPG, PNG or WebP. Up to 2 MB.
                 </p>
               </div>
@@ -202,7 +202,7 @@ const initials = computed(() => (profile.name || '')
 
             <p
               v-if="error"
-              class="rounded-lg border border-error/30 bg-error/10 px-3.5 py-2.5 text-[13px] text-error"
+              class="rounded-lg border border-error/30 bg-error/10 px-3.5 py-2.5 text-[14px] text-error"
               role="alert"
             >
               {{ error }}
@@ -225,14 +225,14 @@ const initials = computed(() => (profile.name || '')
       <aside class="space-y-6">
         <section class="overflow-hidden rounded-xl border border-default bg-default">
           <div class="border-b border-default px-6 py-5 sm:px-7">
-            <h2 class="text-[15px] font-semibold text-highlighted">
+            <h2 class="text-[16px] font-semibold text-highlighted">
               Account
             </h2>
           </div>
 
-          <dl class="divide-y divide-default text-[13px]">
+          <dl class="divide-y divide-default text-[14px]">
             <div class="px-6 py-4 sm:px-7">
-              <dt class="text-[11px] font-medium uppercase tracking-wide text-dimmed">
+              <dt class="text-[12px] font-medium uppercase tracking-wide text-dimmed">
                 Email
               </dt>
               <dd class="mt-1 truncate text-highlighted">
@@ -240,7 +240,7 @@ const initials = computed(() => (profile.name || '')
               </dd>
             </div>
             <div class="px-6 py-4 sm:px-7">
-              <dt class="text-[11px] font-medium uppercase tracking-wide text-dimmed">
+              <dt class="text-[12px] font-medium uppercase tracking-wide text-dimmed">
                 Booking link
               </dt>
               <dd class="mt-1 truncate text-highlighted">
@@ -248,14 +248,14 @@ const initials = computed(() => (profile.name || '')
               </dd>
             </div>
             <div class="px-6 py-4 sm:px-7">
-              <dt class="text-[11px] font-medium uppercase tracking-wide text-dimmed">
+              <dt class="text-[12px] font-medium uppercase tracking-wide text-dimmed">
                 Timezone
               </dt>
               <dd class="mt-1 text-highlighted">
                 {{ user?.timeZone }}
                 <NuxtLink
                   to="/availability"
-                  class="ml-2 text-[13px] text-primary underline-offset-4 hover:underline"
+                  class="ml-2 text-[14px] text-primary underline-offset-4 hover:underline"
                 >Change</NuxtLink>
               </dd>
             </div>
@@ -264,10 +264,10 @@ const initials = computed(() => (profile.name || '')
 
         <section class="overflow-hidden rounded-xl border border-default bg-default">
           <div class="border-b border-default px-6 py-5 sm:px-7">
-            <h2 class="text-[15px] font-semibold text-highlighted">
+            <h2 class="text-[16px] font-semibold text-highlighted">
               Your data
             </h2>
-            <p class="mt-1 text-[13px] text-muted">
+            <p class="mt-1 text-[14px] text-muted">
               Download a portable copy of your profile, schedules, event types and bookings.
             </p>
           </div>
@@ -289,10 +289,10 @@ const initials = computed(() => (profile.name || '')
     <section class="overflow-hidden rounded-xl border border-error/30 bg-default">
       <div class="px-6 py-5 sm:px-7 sm:flex sm:items-center sm:justify-between sm:gap-6">
         <div>
-          <h2 class="text-[15px] font-semibold text-highlighted">
+          <h2 class="text-[16px] font-semibold text-highlighted">
             Delete account
           </h2>
-          <p class="mt-1 max-w-xl text-[13px] leading-relaxed text-muted">
+          <p class="mt-1 max-w-xl text-[14px] leading-relaxed text-muted">
             Permanently removes your booking links, schedules, bookings and connected calendar credentials.
           </p>
         </div>
@@ -314,7 +314,7 @@ const initials = computed(() => (profile.name || '')
     >
       <template #body>
         <div class="space-y-4">
-          <p class="text-[13px] leading-relaxed text-muted">
+          <p class="text-[14px] leading-relaxed text-muted">
             Download your data first if you want to keep a copy. To confirm, enter your email and type DELETE.
           </p>
           <UFormField label="Account email">
@@ -334,7 +334,7 @@ const initials = computed(() => (profile.name || '')
           <p
             v-if="deleteError"
             role="alert"
-            class="rounded-lg border border-error/30 bg-error/10 px-3.5 py-3 text-[13px] text-error"
+            class="rounded-lg border border-error/30 bg-error/10 px-3.5 py-3 text-[14px] text-error"
           >
             {{ deleteError }}
           </p>

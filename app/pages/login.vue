@@ -66,13 +66,13 @@ async function onSubmit(event: FormSubmitEvent<SignInInput>) {
     <h1 class="font-editorial text-[2.75rem] leading-[1.02] tracking-[-0.02em] text-highlighted">
       Welcome back.
     </h1>
-    <p class="mt-3 text-[15px] leading-relaxed text-muted">
+    <p class="mt-3 text-[16px] leading-relaxed text-muted">
       Manage your hours, your links and everything booked.
     </p>
 
     <p
       v-if="resetComplete"
-      class="mt-6 rounded-lg border border-success/30 bg-success/10 px-3.5 py-2.5 text-[13px] text-success"
+      class="mt-6 rounded-lg border border-success/30 bg-success/10 px-3.5 py-2.5 text-[14px] text-success"
       role="status"
     >
       Your password has been updated. Sign in with the new one.
@@ -85,7 +85,7 @@ async function onSubmit(event: FormSubmitEvent<SignInInput>) {
 
       <div class="my-7 flex items-center gap-4">
         <span class="h-px flex-1 bg-border" />
-        <span class="text-[12px] text-dimmed">or with email</span>
+        <span class="text-[13px] text-dimmed">or with email</span>
         <span class="h-px flex-1 bg-border" />
       </div>
     </template>
@@ -128,7 +128,7 @@ async function onSubmit(event: FormSubmitEvent<SignInInput>) {
         />
         <NuxtLink
           to="/forgot-password"
-          class="text-[13px] text-muted underline underline-offset-4 transition-colors hover:text-highlighted"
+          class="text-[14px] text-muted underline underline-offset-4 transition-colors hover:text-highlighted"
         >
           Forgot password?
         </NuxtLink>
@@ -136,7 +136,7 @@ async function onSubmit(event: FormSubmitEvent<SignInInput>) {
 
       <div
         v-if="unverified"
-        class="rounded-lg border border-default bg-muted px-3.5 py-3 text-[13px] leading-relaxed text-toned"
+        class="rounded-lg border border-default bg-muted px-3.5 py-3 text-[14px] leading-relaxed text-toned"
         role="alert"
       >
         This email is not confirmed yet. Check your inbox for the link, or
@@ -148,7 +148,7 @@ async function onSubmit(event: FormSubmitEvent<SignInInput>) {
 
       <p
         v-else-if="error"
-        class="rounded-lg border border-error/30 bg-error/10 px-3.5 py-2.5 text-[13px] text-error"
+        class="rounded-lg border border-error/30 bg-error/10 px-3.5 py-2.5 text-[14px] text-error"
         role="alert"
       >
         {{ error }}
@@ -165,7 +165,7 @@ async function onSubmit(event: FormSubmitEvent<SignInInput>) {
       </UButton>
     </UForm>
 
-    <p class="mt-8 border-t border-default pt-6 text-[14px] text-muted">
+    <p class="mt-8 border-t border-default pt-6 text-[15px] text-muted">
       No link yet?
       <NuxtLink
         to="/signup"

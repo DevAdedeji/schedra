@@ -3,11 +3,10 @@ import type { BillingInterval, OrganizationEntitlement, OrganizationPlanStatus }
 import { TEAM_PLAN, invoiceTotalCents } from '#shared/billing'
 import { members, organizationSubscriptions } from '../database/schema'
 import { useDatabase } from '../database'
-
-const DAY_MS = 24 * 60 * 60 * 1000
+import { addToInstant, DAY_MS } from '../utils/date-time'
 
 function addDays(from: Date, days: number) {
-  return new Date(from.getTime() + days * DAY_MS)
+  return addToInstant(from, { hours: days * 24 })
 }
 
 function daysUntil(target: Date | null, now: Date) {

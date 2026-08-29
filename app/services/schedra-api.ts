@@ -19,6 +19,7 @@ import type { RoutingFormInput, RoutingQuestion, RoutingRule } from '#shared/rou
 import type { EventTypeRecord } from '~/types/event-type'
 import type { CreateBookingLinkInput } from '#shared/booking-links'
 import type { ScheduleOverrideRecord, ScheduleRecord, ScheduleRuleRecord } from '~/types/schedule'
+import { DEFAULT_LIST_PAGE_SIZE } from '~/constants/lists'
 
 export interface BookingRecord {
   uid: string
@@ -534,7 +535,7 @@ export const operationsApi = {
   paymentsEndpoint: '/api/operations/payments' as const,
   overview: () => $fetch<OperationsOverview>('/api/operations/overview'),
   jobs: (query: { kind: OperationKind, status: OperationStatus, page: number, pageSize?: number }) =>
-    $fetch<OperationsJobsResponse>('/api/operations/jobs', { query: { pageSize: 10, ...query } }),
+    $fetch<OperationsJobsResponse>('/api/operations/jobs', { query: { pageSize: DEFAULT_LIST_PAGE_SIZE, ...query } }),
   diagnostics: () => $fetch<OperationsDiagnostics>('/api/operations/diagnostics'),
   retry: (kind: OperationKind, id: string) => $fetch<{ retried: true }>('/api/operations/retry', {
     method: 'POST', body: { kind, id }

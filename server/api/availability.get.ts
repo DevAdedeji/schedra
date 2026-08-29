@@ -3,6 +3,7 @@ import { findPublicEventType, slotsFor } from '../services/booking-page'
 import { enforceRateLimit } from '../services/rate-limit'
 import { CalendarUnavailableError } from '../integrations/calendar/google'
 import { requireLocationIntegration } from '../services/event-location'
+import { calendarDaysBetween } from '../utils/date-time'
 
 const query = z.object({
   username: z.string().min(1),
@@ -10,12 +11,11 @@ const query = z.object({
   from: z.iso.date(),
   to: z.iso.date()
 }).superRefine(({ from, to }, context) => {
-  const start = Date.parse(`${from}T00:00:00Z`)
-  const end = Date.parse(`${to}T00:00:00Z`)
+  const days = calendarDaysBetween(from, to)
 
-  if (end < start) {
+  if (days < 0) {
     context.addIssue({ code: 'custom', path: ['to'], message: 'End date must not be before start date' })
-  } else if ((end - start) / 86_400_000 > 62) {
+  } else if (days > 62) {
     context.addIssue({ code: 'custom', path: ['to'], message: 'Availability range cannot exceed 63 days' })
   }
 })

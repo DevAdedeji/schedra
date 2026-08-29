@@ -23,6 +23,7 @@ import {
 } from '../integrations/video/zoom'
 import { logEvent } from '../observability/logger'
 import { canonicalBookingId, confirmedGroupSeats } from './group-events'
+import { addToInstant } from '../utils/date-time'
 
 export type CalendarSyncExecutor = Pick<Database, 'insert' | 'select'>
 export type CalendarSyncAction = 'upsert' | 'delete'
@@ -405,7 +406,7 @@ export async function processCalendarSyncJobs(batchSize = 10) {
       const delayMs = Math.min(3_600_000, Math.max(exponentialDelayMs, integrationError?.retryAfterMs ?? 0))
       const failedUpdate = await db.update(calendarSyncJobs).set({
         status: failed ? 'failed' : 'pending',
-        availableAt: new Date(Date.now() + delayMs + Math.floor(Math.random() * 1000)),
+        availableAt: addToInstant(Date.now(), { milliseconds: delayMs + Math.floor(Math.random() * 1000) }),
         lockedAt: null,
         lastError: String(error instanceof Error ? error.message : error).slice(0, 1000),
         failureProvider: integrationError?.provider ?? null,

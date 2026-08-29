@@ -67,7 +67,7 @@ useHead({ link: [{ rel: 'canonical', href: canonical }] })
           <h2 class="mt-5 max-w-xl font-editorial text-[clamp(2.25rem,4vw,3.5rem)] leading-[1.04] tracking-[-0.02em] text-highlighted">
             {{ group.title }}
           </h2>
-          <p class="mt-5 max-w-[42ch] text-[15px] leading-relaxed text-muted">
+          <p class="mt-5 max-w-[42ch] text-[16px] leading-relaxed text-muted">
             {{ group.description }}
           </p>
         </div>
@@ -86,7 +86,7 @@ useHead({ link: [{ rel: 'canonical', href: canonical }] })
             <h3 class="mt-8 text-[17px] font-semibold tracking-tight text-highlighted">
               {{ feature.title }}
             </h3>
-            <p class="mt-3 text-[14px] leading-relaxed text-muted">
+            <p class="mt-3 text-[15px] leading-relaxed text-muted">
               {{ feature.summary }}
             </p>
           </article>
@@ -99,7 +99,7 @@ useHead({ link: [{ rel: 'canonical', href: canonical }] })
         <h2 class="font-editorial text-[clamp(2.5rem,5vw,4rem)] leading-none text-highlighted">
           Your next meeting can be easier.
         </h2>
-        <p class="mx-auto mt-5 max-w-xl text-[15px] leading-relaxed text-muted">
+        <p class="mx-auto mt-5 max-w-xl text-[16px] leading-relaxed text-muted">
           Create a free personal booking page, then bring in the advanced tools when they earn their place.
         </p>
         <UButton

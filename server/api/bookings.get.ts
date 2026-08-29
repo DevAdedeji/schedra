@@ -5,6 +5,7 @@ import { bookings, eventTypes } from '../database/schema'
 import { useDatabase } from '../database/index'
 import { requireAuthSession } from '../services/session'
 import { readBookingAnswers } from '../domain/booking-answers'
+import { addToInstant } from '../utils/date-time'
 
 const querySchema = paginationQuerySchema.extend({
   filter: z.enum(['all', 'upcoming', 'pending', 'past', 'cancelled']).default('upcoming')
@@ -17,7 +18,7 @@ export default defineEventHandler(async (event) => {
 
   const { page, pageSize, search, filter } = parsed.data
   const now = new Date()
-  const nextWeek = new Date(now.getTime() + 7 * 86_400_000)
+  const nextWeek = addToInstant(now, { hours: 7 * 24 })
   const db = useDatabase()
   const mine = eq(bookings.hostId, session.user.id)
   const active = inArray(bookings.status, ['pending', 'confirmed'])

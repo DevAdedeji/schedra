@@ -5,6 +5,7 @@ import { bookings, emailOutbox } from '../database/schema'
 import { useDatabase } from '../database'
 import { type Email, isPermanentEmailDeliveryError, sendEmail } from '../integrations/email'
 import { logEvent } from '../observability/logger'
+import { addToInstant } from '../utils/date-time'
 
 interface OutboxEmail {
   dedupeKey: string
@@ -129,7 +130,7 @@ export async function processEmailOutbox(batchSize = 10) {
         .update(emailOutbox)
         .set({
           status: permanent ? 'cancelled' : failed ? 'failed' : 'pending',
-          availableAt: new Date(Date.now() + delaySeconds * 1000),
+          availableAt: addToInstant(Date.now(), { seconds: delaySeconds }),
           lockedAt: null,
           lastError: String(error instanceof Error ? error.message : error).slice(0, 1000),
           updatedAt: sql`now()`

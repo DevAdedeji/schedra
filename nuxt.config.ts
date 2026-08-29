@@ -3,19 +3,18 @@ export default defineNuxtConfig({
     '@nuxt/eslint',
     '@nuxt/ui'
   ],
-
+  components: [
+    { path: '~/components', pathPrefix: false }
+  ],
   devtools: {
     enabled: process.env.NODE_ENV !== 'production' && process.env.NUXT_DISABLE_DEVTOOLS !== '1'
   },
-
   css: ['~/assets/css/main.css'],
-
   runtimeConfig: {
     public: {
       siteUrl: ''
     }
   },
-
   routeRules: {
     '/': { prerender: true },
     '/features': { prerender: true },
@@ -50,15 +49,12 @@ export default defineNuxtConfig({
     '/t/**': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
     '/invite/**': { prerender: false, headers: { 'cache-control': 'private, no-store' } }
   },
-
   compatibilityDate: '2026-06-30',
-
   nitro: {
     prerender: {
       crawlLinks: false
     }
   },
-
   eslint: {
     config: {
       stylistic: {
@@ -67,7 +63,6 @@ export default defineNuxtConfig({
       }
     }
   },
-
   fonts: {
     families: [
       { name: 'Instrument Serif', provider: 'google' },

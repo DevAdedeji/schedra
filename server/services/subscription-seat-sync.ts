@@ -15,6 +15,7 @@ import {
 import { billableSeats, type BillingInterval } from '#shared/billing'
 import { recordAudit } from './organization'
 import { logEvent } from '../observability/logger'
+import { addToInstant } from '../utils/date-time'
 
 type SeatSyncExecutor = Pick<Database, 'insert'>
 
@@ -197,7 +198,7 @@ export async function processSubscriptionSeatSyncJobs(batchSize = 10) {
       const delaySeconds = Math.min(3600, 15 * 2 ** Math.max(0, job.attempts - 1))
       await db.update(subscriptionSeatSyncJobs).set({
         status: failed ? 'failed' : 'pending',
-        availableAt: new Date(Date.now() + delaySeconds * 1000),
+        availableAt: addToInstant(Date.now(), { seconds: delaySeconds }),
         lockedAt: null,
         lastError: String(error instanceof Error ? error.message : error).slice(0, 1000),
         updatedAt: sql`now()`

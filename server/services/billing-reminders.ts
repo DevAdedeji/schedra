@@ -4,8 +4,7 @@ import { members, organizationSubscriptions, organizations, users } from '../dat
 import { useDatabase } from '../database'
 import { emailDedupeKey, enqueueEmails } from './email-outbox'
 import { useEnv } from '../config/env'
-
-const DAY_MS = 24 * 60 * 60 * 1000
+import { addToInstant, DAY_MS, subtractFromInstant } from '../utils/date-time'
 
 /**
  * Bachs retries a saved card on its own, so a subscription needs no chasing.
@@ -89,7 +88,7 @@ const COPY: Record<Stage, (input: { name: string, amount: string, days: number }
 
 async function findDue(now: Date): Promise<Due[]> {
   const db = useDatabase()
-  const horizon = new Date(now.getTime() + 8 * DAY_MS)
+  const horizon = addToInstant(now, { hours: 8 * 24 })
 
   const rows = await db
     .select({
@@ -190,7 +189,7 @@ export async function processBillingReminders(now = new Date()) {
 
 /** Moves lapsed invoice teams to canceled so entitlement stops deriving grace. */
 export async function expireLapsedTeams(now = new Date()) {
-  const cutoff = new Date(now.getTime() - TEAM_PLAN.graceDays * DAY_MS)
+  const cutoff = subtractFromInstant(now, { hours: TEAM_PLAN.graceDays * 24 })
 
   const updated = await useDatabase()
     .update(organizationSubscriptions)

@@ -21,6 +21,26 @@ describe.skipIf(!url)('profile persistence', () => {
     await sql.end()
   })
 
+  it('owns audit timestamps in PostgreSQL', async () => {
+    const [created] = await sql<{ id: string, createdAt: Date, updatedAt: Date }[]>`
+      insert into users (email, name, username, time_zone)
+      values ('database-clock@example.com', 'Database Clock', 'database-clock', 'UTC')
+      returning id, created_at as "createdAt", updated_at as "updatedAt"
+    `
+    expect(created!.createdAt.getTime()).toBe(created!.updatedAt.getTime())
+
+    await sql`select pg_sleep(0.01)`
+    await sql`update users set name = 'Database Clock Updated' where id = ${created!.id}`
+
+    const [updated] = await sql<{ createdAt: Date, updatedAt: Date }[]>`
+      select created_at as "createdAt", updated_at as "updatedAt"
+      from users
+      where id = ${created!.id}
+    `
+    expect(updated!.createdAt.getTime()).toBe(created!.createdAt.getTime())
+    expect(updated!.updatedAt.getTime()).toBeGreaterThan(created!.updatedAt.getTime())
+  })
+
   it('reads editable fields from the database instead of a cached session snapshot', async () => {
     const [user] = await sql<{ id: string }[]>`
       insert into users (email, name, username, bio, time_zone)

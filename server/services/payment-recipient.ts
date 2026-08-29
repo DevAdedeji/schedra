@@ -1,4 +1,4 @@
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import {
   createConnectedAccount,
   createConnectedAccountLink,
@@ -128,15 +128,15 @@ export async function syncPaymentRecipient(row: NonNullable<Awaited<ReturnType<t
       capabilities: account.capabilities ?? {},
       requirements: account.requirements ?? {},
       lastError: null,
-      lastCheckedAt: new Date(),
-      updatedAt: new Date()
+      lastCheckedAt: sql`now()`,
+      updatedAt: sql`now()`
     }).where(eq(paymentRecipients.id, row.id)).returning()
     return updated ?? row
   } catch (error) {
     await useDatabase().update(paymentRecipients).set({
       lastError: error instanceof Error ? error.message.slice(0, 1000) : 'Could not check the payment account.',
-      lastCheckedAt: new Date(),
-      updatedAt: new Date()
+      lastCheckedAt: sql`now()`,
+      updatedAt: sql`now()`
     }).where(eq(paymentRecipients.id, row.id))
     throw error
   }
@@ -169,8 +169,9 @@ export async function createPaymentOnboarding(input: {
       status: recipientStatus(account),
       capabilities: account.capabilities ?? {},
       requirements: account.requirements ?? {},
-      lastCheckedAt: new Date(),
-      lastError: null
+      lastCheckedAt: sql`now()`,
+      lastError: null,
+      updatedAt: sql`now()`
     }
     const [saved] = row
       ? await useDatabase().update(paymentRecipients).set(values)
@@ -241,8 +242,8 @@ export async function updateRecipientFromWebhook(account: BachsConnectedAccount)
     capabilities: account.capabilities ?? row.capabilities,
     requirements: account.requirements ?? row.requirements,
     lastError: null,
-    lastCheckedAt: new Date(),
-    updatedAt: new Date()
+    lastCheckedAt: sql`now()`,
+    updatedAt: sql`now()`
   }).where(eq(paymentRecipients.id, row.id))
   return true
 }

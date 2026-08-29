@@ -3,6 +3,7 @@ import { emailDedupeKey, enqueueEmails, type EmailInsertExecutor } from './email
 import { useEnv } from '../config/env'
 import type { BookingAnswer, MeetingLocationType } from '#shared/validation'
 import { readBookingAnswers } from '../domain/booking-answers'
+import { subtractFromInstant } from '../utils/date-time'
 
 export interface BookingNotice {
   uid: string
@@ -178,7 +179,7 @@ export async function queueBookingEmails(booking: BookingNotice, executor?: Emai
       }
     })),
     ...booking.reminderMinutes.flatMap((minutes) => {
-      const availableAt = new Date(new Date(booking.startsAt).getTime() - minutes * 60_000)
+      const availableAt = subtractFromInstant(booking.startsAt, { minutes })
       if (availableAt.getTime() <= Date.now()) return []
       const timing = minutes === 60
         ? 'in 1 hour'

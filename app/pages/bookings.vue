@@ -1,33 +1,21 @@
 <script setup lang="ts">
 import { apiErrorMessage, bookingsApi, type BookingRecord, type BookingsResponse } from '~/services/schedra-api'
+import { DEFAULT_LIST_PAGE_SIZE } from '~/constants/lists'
+import { calendarDateKey, formatInstant, formatTime, isPast, localTimeZone } from '~/utils/date-time'
+import { getInitials } from '~/utils/text'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
 useSeoMeta({ title: 'Your bookings', robots: 'noindex, nofollow' })
 
 const filter = ref<'all' | 'upcoming' | 'pending' | 'past' | 'cancelled'>('upcoming')
-const query = ref('')
-const search = ref('')
-const page = ref(1)
-const apiQuery = computed(() => ({ filter: filter.value, search: search.value, page: page.value, pageSize: 10 }))
+const { query, search, page, resetPage } = useListQueryState()
+const apiQuery = computed(() => ({ filter: filter.value, search: search.value, page: page.value, pageSize: DEFAULT_LIST_PAGE_SIZE }))
 const { data, refresh, status, error: loadFailure } = await useLazyFetch<BookingsResponse>(bookingsApi.listEndpoint, { query: apiQuery })
 const feedback = useFeedback()
 const list = computed(() => data.value?.items ?? [])
-const initialLoading = computed(() => status.value === 'pending' && !data.value)
-const refreshing = computed(() => status.value === 'pending' && Boolean(data.value))
-const blockingFailure = computed(() => Boolean(loadFailure.value && !data.value))
+const { initialLoading, refreshing, blockingFailure } = useListLoadingState(status, data, loadFailure)
 
-let searchTimer: ReturnType<typeof setTimeout> | undefined
-watch(query, (value) => {
-  clearTimeout(searchTimer)
-  searchTimer = setTimeout(() => {
-    search.value = value.trim()
-    page.value = 1
-  }, 250)
-})
-watch(filter, () => {
-  page.value = 1
-})
-onBeforeUnmount(() => clearTimeout(searchTimer))
+watch(filter, resetPage)
 
 const filterOptions = computed(() => [
   { value: 'all', label: 'All', count: data.value?.counts.all ?? 0 },
@@ -54,17 +42,17 @@ const emptyDescription = computed(() => query.value
 
 const viewerTimeZone = ref('UTC')
 onMounted(() => {
-  viewerTimeZone.value = Intl.DateTimeFormat().resolvedOptions().timeZone
+  viewerTimeZone.value = localTimeZone()
 })
 
 function dayKey(iso: string) {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: viewerTimeZone.value }).format(new Date(iso))
+  return calendarDateKey(iso, viewerTimeZone.value)
 }
 
 function dayHeading(iso: string) {
-  return new Intl.DateTimeFormat('en-GB', {
+  return formatInstant(iso, {
     weekday: 'long', day: 'numeric', month: 'long', timeZone: viewerTimeZone.value
-  }).format(new Date(iso))
+  }, 'en-GB')
 }
 
 const grouped = computed(() => {
@@ -78,18 +66,12 @@ const grouped = computed(() => {
   return [...map.values()]
 })
 
-function initials(name: string) {
-  return name.split(' ').map(part => part[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
-}
-
 function time(iso: string) {
-  return new Intl.DateTimeFormat('en-GB', {
-    hour: '2-digit', minute: '2-digit', timeZone: viewerTimeZone.value
-  }).format(new Date(iso))
+  return formatTime(iso, viewerTimeZone.value)
 }
 
 function isUpcoming(item: BookingRecord) {
-  return item.status !== 'cancelled' && new Date(item.endsAt) >= new Date()
+  return item.status !== 'cancelled' && !isPast(item.endsAt)
 }
 
 function locationLabel(item: BookingRecord) {
@@ -166,7 +148,7 @@ async function reject(uid: string) {
 
     <p
       v-if="actionError"
-      class="mt-7 rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-[13px] text-error"
+      class="mt-7 rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-[14px] text-error"
       role="alert"
     >
       {{ actionError }}
@@ -234,7 +216,7 @@ async function reject(uid: string) {
 
         <div
           v-else-if="refreshing"
-          class="surface-secondary flex items-center gap-2 border-b border-default px-4 py-2 text-[11px] text-muted sm:px-5"
+          class="surface-secondary flex items-center gap-2 border-b border-default px-4 py-2 text-[12px] text-muted sm:px-5"
           role="status"
           aria-live="polite"
         >
@@ -253,7 +235,7 @@ async function reject(uid: string) {
             v-for="group in grouped"
             :key="group.heading"
           >
-            <h2 class="text-[12px] font-semibold uppercase tracking-[0.1em] text-dimmed">
+            <h2 class="text-[13px] font-semibold uppercase tracking-[0.1em] text-dimmed">
               {{ group.heading }}
             </h2>
 
@@ -265,48 +247,48 @@ async function reject(uid: string) {
                 :class="item.status === 'cancelled' && 'opacity-60'"
               >
                 <div class="flex flex-wrap items-start gap-4">
-                  <span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[13px] font-semibold text-primary">
-                    {{ initials(item.attendeeName) }}
+                  <span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[14px] font-semibold text-primary">
+                    {{ getInitials(item.attendeeName) }}
                   </span>
 
                   <div class="min-w-0 flex-1">
                     <div class="flex flex-wrap items-center gap-2">
-                      <span class="tnum text-[15px] font-semibold text-highlighted">
+                      <span class="tnum text-[16px] font-semibold text-highlighted">
                         {{ time(item.startsAt) }}–{{ time(item.endsAt) }}
                       </span>
                       <span
                         v-if="item.status === 'cancelled'"
-                        class="rounded-full bg-elevated px-2.5 py-0.5 text-[11px] font-medium text-muted"
+                        class="rounded-full bg-elevated px-2.5 py-0.5 text-[12px] font-medium text-muted"
                       >
                         Cancelled
                       </span>
                       <span
                         v-else-if="item.status === 'pending'"
-                        class="rounded-full bg-warning/10 px-2.5 py-0.5 text-[11px] font-medium text-warning"
+                        class="rounded-full bg-warning/10 px-2.5 py-0.5 text-[12px] font-medium text-warning"
                       >
                         Needs approval
                       </span>
                       <span
                         v-else-if="item.status === 'rejected'"
-                        class="rounded-full bg-elevated px-2.5 py-0.5 text-[11px] font-medium text-muted"
+                        class="rounded-full bg-elevated px-2.5 py-0.5 text-[12px] font-medium text-muted"
                       >
                         Declined
                       </span>
                     </div>
 
-                    <p class="mt-1 text-[14px] text-toned">
+                    <p class="mt-1 text-[15px] text-toned">
                       {{ item.eventTitle }}
                     </p>
-                    <p class="mt-0.5 truncate text-[13px] text-muted">
+                    <p class="mt-0.5 truncate text-[14px] text-muted">
                       {{ item.attendeeName }} · {{ item.attendeeEmail }}
                     </p>
                     <p
                       v-if="item.additionalGuestEmails.length"
-                      class="mt-0.5 text-[12px] text-dimmed"
+                      class="mt-0.5 text-[13px] text-dimmed"
                     >
                       + {{ item.additionalGuestEmails.length }} additional guest{{ item.additionalGuestEmails.length === 1 ? '' : 's' }}
                     </p>
-                    <p class="mt-1.5 flex items-center gap-1.5 text-[12px] text-muted">
+                    <p class="mt-1.5 flex items-center gap-1.5 text-[13px] text-muted">
                       <UIcon
                         :name="locationIcon(item)"
                         class="size-3.5 shrink-0 text-dimmed"
@@ -316,7 +298,7 @@ async function reject(uid: string) {
 
                     <p
                       v-if="item.notes"
-                      class="mt-3 rounded-lg border border-default bg-muted px-3.5 py-2.5 text-[13px] leading-relaxed text-muted"
+                      class="mt-3 rounded-lg border border-default bg-muted px-3.5 py-2.5 text-[14px] leading-relaxed text-muted"
                     >
                       {{ item.notes }}
                     </p>

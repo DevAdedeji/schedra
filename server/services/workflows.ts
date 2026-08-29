@@ -20,6 +20,7 @@ import { validateWebhookDestination } from './outbound-webhook'
 import { useEnv } from '../config/env'
 import { logEvent } from '../observability/logger'
 import { paginationMeta } from '#shared/pagination'
+import { addToInstant, subtractFromInstant, unixSeconds } from '../utils/date-time'
 
 export type WorkflowScope = { userId: string, organizationId?: never } | { organizationId: string, userId?: never }
 export type WorkflowExecutor = Pick<Database, 'insert' | 'update'>
@@ -225,8 +226,8 @@ async function rebuildScheduledRuns(workflowId: string) {
     workflowId,
     bookingId: booking.id,
     availableAt: workflow.trigger === 'before_start'
-      ? new Date(booking.startsAt.getTime() - workflow.offsetMinutes * 60_000)
-      : new Date(booking.endsAt.getTime() + workflow.offsetMinutes * 60_000)
+      ? subtractFromInstant(booking.startsAt, { minutes: workflow.offsetMinutes })
+      : addToInstant(booking.endsAt, { minutes: workflow.offsetMinutes })
   }))).onConflictDoNothing()
 }
 
@@ -279,9 +280,9 @@ export async function dispatchDomainEvents(batchSize = 50) {
           domainEventId: event.id,
           bookingId: booking.id,
           availableAt: workflow.trigger === 'before_start'
-            ? new Date(booking.startsAt.getTime() - workflow.offsetMinutes * 60_000)
+            ? subtractFromInstant(booking.startsAt, { minutes: workflow.offsetMinutes })
             : workflow.trigger === 'after_end'
-              ? new Date(booking.endsAt.getTime() + workflow.offsetMinutes * 60_000)
+              ? addToInstant(booking.endsAt, { minutes: workflow.offsetMinutes })
               : event.occurredAt
         }))).onConflictDoNothing()
       }
@@ -388,7 +389,7 @@ async function deliverWebhook(
   booking: DeliveryContext
 ) {
   const url = await validateWebhookDestination(action.url)
-  const timestamp = Math.floor(Date.now() / 1000).toString()
+  const timestamp = unixSeconds().toString()
   const body = JSON.stringify({
     id: runId,
     type: trigger,
@@ -471,7 +472,7 @@ export async function processAutomationRuns(batchSize = 20) {
       const delaySeconds = Math.min(3600, 15 * 2 ** Math.max(0, run.attempts - 1))
       await db.update(automationRuns).set({
         status: failed ? 'failed' : 'pending',
-        availableAt: new Date(Date.now() + delaySeconds * 1000),
+        availableAt: addToInstant(Date.now(), { seconds: delaySeconds }),
         lockedAt: null,
         lastError: String(error instanceof Error ? error.message : error).slice(0, 1000),
         updatedAt: sql`now()`

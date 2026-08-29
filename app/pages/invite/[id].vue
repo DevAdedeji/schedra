@@ -121,7 +121,7 @@ async function resendVerification() {
       <h1 class="mt-5 text-[18px] font-semibold text-highlighted">
         This invitation link is not valid
       </h1>
-      <p class="mx-auto mt-2 max-w-sm text-[13px] leading-relaxed text-muted">
+      <p class="mx-auto mt-2 max-w-sm text-[14px] leading-relaxed text-muted">
         It may have been revoked, or the link may be incomplete. Ask whoever invited you to send a new one.
       </p>
       <UButton
@@ -148,14 +148,14 @@ async function resendVerification() {
       <h1 class="mt-5 text-[20px] font-semibold tracking-tight text-highlighted">
         Join {{ invitation.organization.name }}
       </h1>
-      <p class="mt-2 text-[13px] leading-relaxed text-muted">
+      <p class="mt-2 text-[14px] leading-relaxed text-muted">
         <span class="font-medium text-toned">{{ invitation.inviterName }}</span>
         invited <span class="font-medium text-toned">{{ invitation.email }}</span>
         to join as {{ invitation.role === 'admin' ? 'an admin' : 'a member' }}.
       </p>
 
       <div class="mt-5 rounded-xl border border-default bg-muted/50 px-4 py-3">
-        <p class="text-[12px] leading-relaxed text-muted">
+        <p class="text-[13px] leading-relaxed text-muted">
           Joining never moves or shares your personal schedules, event types, bookings or calendar.
           The team only ever sees whether you are free or busy.
         </p>
@@ -207,7 +207,7 @@ async function resendVerification() {
         >
           I already have an account
         </UButton>
-        <p class="text-center text-[12px] text-muted">
+        <p class="text-center text-[13px] text-muted">
           Either way you will come back here to finish joining.
         </p>
       </div>
@@ -218,7 +218,7 @@ async function resendVerification() {
         class="mt-6 space-y-3"
       >
         <div class="rounded-xl border border-warning/30 bg-warning/5 px-4 py-3">
-          <p class="text-[12px] leading-relaxed text-muted">
+          <p class="text-[13px] leading-relaxed text-muted">
             You are signed in as <span class="font-medium text-highlighted">{{ viewer?.email }}</span>,
             but this invitation is for <span class="font-medium text-highlighted">{{ invitation.email }}</span>.
           </p>
@@ -239,7 +239,7 @@ async function resendVerification() {
         class="mt-6 space-y-3"
       >
         <div class="rounded-xl border border-warning/30 bg-warning/5 px-4 py-3">
-          <p class="text-[12px] leading-relaxed text-muted">
+          <p class="text-[13px] leading-relaxed text-muted">
             Confirm your email address before joining — it is what proves this invitation is yours.
           </p>
         </div>
@@ -259,7 +259,7 @@ async function resendVerification() {
         class="mt-6"
       >
         <div class="rounded-xl border border-default bg-muted/50 px-4 py-3">
-          <p class="text-[13px] leading-relaxed text-muted">
+          <p class="text-[14px] leading-relaxed text-muted">
             <template v-if="stage === 'accepted'">
               This invitation has already been accepted. You are in.
             </template>
@@ -292,7 +292,7 @@ async function resendVerification() {
 
       <p
         v-if="actionError"
-        class="mt-4 text-[13px] text-error"
+        class="mt-4 text-[14px] text-error"
         role="alert"
       >
         {{ actionError }}

@@ -21,6 +21,9 @@ import type { BookingAnswersSnapshot, BookingAttribution, BookingQuestion, Booki
 import type { WorkflowAction } from '#shared/workflows'
 import type { RoutingCondition } from '#shared/routing'
 
+// PostgreSQL supplies creation time and migration 0041 maintains updated_at
+// with a trigger. Application writes may still use sql`now()` when several
+// lifecycle fields must visibly share the transaction timestamp.
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
