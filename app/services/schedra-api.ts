@@ -769,7 +769,7 @@ export const teamEventTypesApi = {
 
 export interface PaymentAccountSummary {
   configured: boolean
-  status: 'not_started' | 'onboarding' | 'pending_review' | 'active' | 'restricted' | 'disabled'
+  status: 'not_started' | 'onboarding' | 'pending_review' | 'active' | 'restricted' | 'disabled' | 'unavailable'
   ready: boolean
   nextAction: 'provider_onboarding' | 'none'
   lastError: string | null

@@ -3,8 +3,10 @@ import {
   createConnectedAccount,
   createConnectedAccountLink,
   getConnectedAccount,
+  listConnectedAccountPayoutDestinations,
   updateConnectedAccountRepresentative,
-  type BachsConnectedAccount
+  type BachsConnectedAccount,
+  type BachsPayoutDestination
 } from '../integrations/bachs'
 import { paymentRecipients } from '../database/schema'
 import { useDatabase } from '../database'
@@ -40,7 +42,10 @@ function ownerWhere(owner: PaymentRecipientOwner) {
     : and(eq(paymentRecipients.organizationId, owner.organizationId!), isNull(paymentRecipients.userId))
 }
 
-export function recipientStatus(account: BachsConnectedAccount) {
+export function recipientStatus(
+  account: BachsConnectedAccount,
+  destinations: readonly BachsPayoutDestination[] = []
+) {
   const accountStatus = providerStatus(account.status)
   const setupStatus = providerStatus(
     account.requirements?.setup_status
@@ -60,10 +65,6 @@ export function recipientStatus(account: BachsConnectedAccount) {
   // let that contradictory capability flag unlock paid bookings.
   if (requirements?.errors?.length || requirements?.past_due?.length) return 'restricted' as const
   if (requirements?.currently_due?.length) return 'onboarding' as const
-  if (RESTRICTED_STATUSES.has(accountStatus)
-    || RESTRICTED_STATUSES.has(setupStatus)
-    || RESTRICTED_STATUSES.has(payoutStatus)
-    || RESTRICTED_STATUSES.has(transferStatus)) return 'restricted' as const
 
   // Bachs can return active capability flags while the account-wide setup is
   // still incomplete. The hosted checklist is the source of truth: funds must
@@ -71,6 +72,16 @@ export function recipientStatus(account: BachsConnectedAccount) {
   if (account.details_submitted === false || accountStatus === 'incomplete' || setupStatus === 'incomplete') {
     return 'onboarding' as const
   }
+
+  // Bachs reviews payout destinations independently from the payouts
+  // capability. An active capability with no approved, usable bank/wallet is
+  // permission without somewhere money can actually be sent.
+  const usableDestination = destinations.some(destination =>
+    destination.status === 'approved' && destination.is_usable === true
+  )
+  const pendingDestination = destinations.some(destination => destination.status === 'pending_review')
+  const rejectedDestination = destinations.length > 0
+    && destinations.every(destination => destination.status === 'rejected' || destination.is_usable === false)
 
   if (
     requirements?.pending_verification?.length
@@ -81,6 +92,17 @@ export function recipientStatus(account: BachsConnectedAccount) {
   ) {
     return 'pending_review' as const
   }
+
+  if (!usableDestination) {
+    if (pendingDestination) return 'pending_review' as const
+    if (rejectedDestination) return 'restricted' as const
+    return 'onboarding' as const
+  }
+
+  if (RESTRICTED_STATUSES.has(accountStatus)
+    || RESTRICTED_STATUSES.has(setupStatus)
+    || RESTRICTED_STATUSES.has(payoutStatus)
+    || RESTRICTED_STATUSES.has(transferStatus)) return 'restricted' as const
 
   // A destination charge needs transfers, and the recipient needs payouts to
   // receive the proceeds. Both must be explicitly active. Account-level flags,
@@ -114,6 +136,17 @@ export function publicRecipient(row: Awaited<ReturnType<typeof findPaymentRecipi
   }
 }
 
+export function unavailableRecipient(row: Awaited<ReturnType<typeof findPaymentRecipient>>) {
+  const account = publicRecipient(row)
+  return {
+    ...account,
+    status: 'unavailable' as const,
+    ready: false,
+    nextAction: 'none' as const,
+    lastError: 'Schedra could not verify the payout account directly with Bachs.'
+  }
+}
+
 export function recipientNextAction(row: Awaited<ReturnType<typeof findPaymentRecipient>>) {
   if (!row?.bachsAccountId) return 'provider_onboarding' as const
   if (row.status === 'active' || row.status === 'pending_review') return 'none' as const
@@ -123,8 +156,11 @@ export function recipientNextAction(row: Awaited<ReturnType<typeof findPaymentRe
 export async function syncPaymentRecipient(row: NonNullable<Awaited<ReturnType<typeof findPaymentRecipient>>>) {
   if (!row.bachsAccountId) return row
   try {
-    const account = await getConnectedAccount(row.bachsAccountId)
-    const nextStatus = recipientStatus(account)
+    const [account, destinations] = await Promise.all([
+      getConnectedAccount(row.bachsAccountId),
+      listConnectedAccountPayoutDestinations(row.bachsAccountId)
+    ])
+    const nextStatus = recipientStatus(account, destinations)
     const [updated] = await useDatabase().update(paymentRecipients).set({
       status: nextStatus,
       capabilities: account.capabilities ?? {},
@@ -242,16 +278,9 @@ export async function updateRecipientFromWebhook(account: BachsConnectedAccount)
   const [row] = await useDatabase().select().from(paymentRecipients)
     .where(eq(paymentRecipients.bachsAccountId, account.id)).limit(1)
   if (!row) return false
-  const nextStatus = recipientStatus(account)
-  await useDatabase().update(paymentRecipients).set({
-    status: nextStatus,
-    capabilities: account.capabilities ?? row.capabilities,
-    requirements: account.requirements ?? row.requirements,
-    lastError: null,
-    lastCheckedAt: sql`now()`,
-    updatedAt: sql`now()`
-  }).where(eq(paymentRecipients.id, row.id))
-  if (nextStatus !== row.status) await auditRecipientStatus(row, row.status, nextStatus)
+  // The webhook payload is deliberately small. Re-read the account and its
+  // independently reviewed payout destinations before changing readiness.
+  await syncPaymentRecipient(row)
   return true
 }
 

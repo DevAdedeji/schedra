@@ -1,4 +1,4 @@
-import { findPaymentRecipient, publicRecipient, syncPaymentRecipient } from '../../../services/payment-recipient'
+import { findPaymentRecipient, publicRecipient, syncPaymentRecipient, unavailableRecipient } from '../../../services/payment-recipient'
 import { requireOrganizationPermission } from '../../../services/organization'
 import { useEnv } from '../../../config/env'
 
@@ -8,6 +8,6 @@ export default defineEventHandler(async (event) => {
   const row = await findPaymentRecipient({ organizationId: context.organization.id })
   const account = !row?.bachsAccountId
     ? publicRecipient(row)
-    : await syncPaymentRecipient(row).then(publicRecipient).catch(() => publicRecipient(row))
+    : await syncPaymentRecipient(row).then(publicRecipient).catch(() => unavailableRecipient(row))
   return { ...account, platformFeeBps: useEnv().paidBookingPlatformFeeBps }
 })

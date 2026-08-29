@@ -350,6 +350,47 @@ export interface BachsPayout {
   completed_at?: string | null
 }
 
+export interface BachsPayoutDestination {
+  id: string
+  name: string
+  type: 'bank_account' | 'mobile_money' | 'crypto_wallet'
+  currency: string
+  status: 'pending_review' | 'approved' | 'rejected'
+  status_reason?: string | null
+  is_usable: boolean
+  is_default: boolean
+}
+
+interface BachsPayoutDestinationPage {
+  destinations: BachsPayoutDestination[]
+  total: number
+  limit: number
+  offset: number
+}
+
+/**
+ * A capability only says that withdrawals are permitted. The destination is a
+ * separate reviewed resource, so payout readiness must verify both.
+ */
+export async function listConnectedAccountPayoutDestinations(accountId: string) {
+  const destinations: BachsPayoutDestination[] = []
+  const limit = 100
+  let offset = 0
+  let hasMore = true
+
+  while (hasMore) {
+    const page = await bachsFetch<BachsPayoutDestinationPage>('/payouts/destinations', {
+      headers: { 'X-Account-Id': accountId },
+      query: { limit, offset }
+    })
+    destinations.push(...(page.destinations ?? []))
+    offset += limit
+    hasMore = destinations.length < (page.total ?? 0) && Boolean(page.destinations?.length)
+  }
+
+  return destinations
+}
+
 interface BachsPayoutPage {
   total: number
   items: BachsPayout[]

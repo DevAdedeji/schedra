@@ -40,10 +40,11 @@ function providerMoney(totals: PaymentMoneyTotal[]) {
 const statusCopy = computed(() => ({
   not_started: ['Set up payouts', 'Complete Bachs’ secure setup once, including the bank account for your payouts.'],
   onboarding: ['Setup incomplete', 'Bachs reports that setup is incomplete. Finish its identity and bank-account steps before accepting paid bookings.'],
-  pending_review: ['Under Bachs review', 'Your details were submitted, but Bachs has not approved transfers and payouts yet. Paid bookings remain disabled.'],
-  active: ['Approved for paid bookings', 'Bachs has approved both transfers and payouts. Guests can now pay securely for bookings.'],
+  pending_review: ['Under Bachs review', 'Your account or bank destination is still being reviewed. Paid bookings remain disabled.'],
+  active: ['Paid bookings enabled', 'Bachs has enabled transfers and approved a usable payout destination. Funds still remain in Bachs until a separate withdrawal is created.'],
   restricted: ['Action required', 'Bachs needs updated information. Paid bookings remain disabled until the restriction is resolved.'],
-  disabled: ['Payments unavailable', 'This payout account is disabled. Contact support if this was unexpected.']
+  disabled: ['Payments unavailable', 'This payout account is disabled. Contact support if this was unexpected.'],
+  unavailable: ['Status unavailable', 'Schedra could not verify this account with Bachs, so paid bookings are disabled for safety. Try checking again.']
 } as const)[data.value?.status ?? 'not_started'])
 
 const actionLabel = computed(() => data.value?.ready
@@ -53,7 +54,7 @@ const actionLabel = computed(() => data.value?.ready
 const statusTone = computed(() => {
   if (data.value?.ready) return 'success' as const
   if (data.value?.status === 'pending_review' || data.value?.status === 'onboarding') return 'warning' as const
-  if (data.value?.status === 'restricted' || data.value?.status === 'disabled') return 'error' as const
+  if (data.value?.status === 'restricted' || data.value?.status === 'disabled' || data.value?.status === 'unavailable') return 'error' as const
   return 'neutral' as const
 })
 
@@ -93,10 +94,11 @@ async function checkStatus(notify = true) {
     const copy = ({
       onboarding: ['Setup is still incomplete', 'Finish the remaining steps in Bachs before enabling paid bookings.'],
       pending_review: ['Still under Bachs review', 'No action is needed unless Bachs asks for more information. Paid bookings remain disabled.'],
-      active: ['Payments are approved', 'Bachs has approved transfers and payouts. You can now accept paid bookings.'],
+      active: ['Paid bookings are enabled', 'A separate withdrawal is still required to send settled funds from Bachs to the bank.'],
       restricted: ['Bachs needs more information', 'Open Bachs to review and resolve the account restriction.'],
       disabled: ['Payments are unavailable', 'Contact support if Bachs disabled this account unexpectedly.'],
-      not_started: ['Payout setup has not started', 'Open Bachs to submit your payout details.']
+      not_started: ['Payout setup has not started', 'Open Bachs to submit your payout details.'],
+      unavailable: ['Could not verify payout status', 'Paid bookings remain disabled until Schedra can check Bachs again.']
     } as const)[data.value?.status ?? 'not_started']
     toast.add({ title: copy[0], description: copy[1], color: data.value?.ready ? 'success' : 'neutral' })
   } finally {
@@ -125,7 +127,7 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', checkSetu
   <div class="space-y-6">
     <PageHeader
       title="Payments"
-      description="Accept payment when a guest books. Schedra handles checkout while Bachs settles and pays out your share."
+      description="Accept payment when a guest books. Bachs settles your share into a connected balance; sending it to a bank is a separate withdrawal."
     />
 
     <section class="overflow-hidden rounded-2xl border border-default bg-default">
@@ -218,7 +220,7 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', checkSetu
             Withdrawals
           </p>
           <p class="mt-2 text-sm text-toned">
-            After approval, Bachs handles delivery to the bank account saved during its secure setup.
+            Booking proceeds stay in Bachs until a withdrawal is created for the approved bank destination.
           </p>
         </div>
       </div>
@@ -367,7 +369,7 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', checkSetu
             </p>
           </div>
           <p class="mt-2 text-xs text-muted">
-            {{ data?.ready ? 'Settled funds waiting for Bachs to complete the bank payout.' : 'Funds remain with Bachs until the payout account is approved.' }}
+            {{ data?.ready ? 'Settled funds held in Bachs. A withdrawal must be created before they reach your bank.' : 'Funds remain with Bachs until the payout account and bank destination are approved.' }}
           </p>
         </div>
         <div class="bg-default p-5 sm:p-6">
