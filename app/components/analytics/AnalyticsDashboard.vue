@@ -3,7 +3,7 @@ import { formatMoney } from '#shared/payments'
 import { analyticsApi, type AnalyticsResponse } from '~/services/schedra-api'
 import { formatCalendarDate } from '~/utils/date-time'
 
-const props = defineProps<{ teamSlug?: string }>()
+const props = withDefaults(defineProps<{ teamSlug?: string, personalPro?: boolean }>(), { personalPro: false })
 const days = ref<7 | 30 | 90>(30)
 const eventTypeId = ref('')
 const { data, status, error, refresh } = await useLazyFetch<AnalyticsResponse>(
@@ -18,6 +18,8 @@ const options = computed(() => [
   { label: 'All event types', value: '' },
   ...((data.value?.options ?? []).map(item => ({ label: item.title, value: item.id })))
 ])
+const exportUrl = computed(() => `/api/analytics/export?days=${days.value}${eventTypeId.value ? `&eventTypeId=${encodeURIComponent(eventTypeId.value)}` : ''}`)
+const canUseAdvancedAnalytics = computed(() => Boolean(props.teamSlug || props.personalPro))
 
 function changeLabel(value: number | null) {
   if (value === null) return 'New activity'
@@ -48,6 +50,16 @@ function sourcePercentage(value: number) {
     >
       <template #actions>
         <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+          <UButton
+            v-if="!teamSlug && personalPro"
+            :to="exportUrl"
+            external
+            color="neutral"
+            variant="outline"
+            icon="i-lucide-download"
+          >
+            Export CSV
+          </UButton>
           <div
             class="flex rounded-lg border border-default bg-default p-1"
             aria-label="Analytics period"
@@ -275,7 +287,10 @@ function sourcePercentage(value: number) {
               </div>
             </div>
           </div>
-          <div class="mt-7 border-t border-default pt-5">
+          <div
+            v-if="canUseAdvancedAnalytics"
+            class="mt-7 border-t border-default pt-5"
+          >
             <p class="text-[13px] font-medium text-muted">
               Gross revenue
             </p>
@@ -300,6 +315,33 @@ function sourcePercentage(value: number) {
             <p class="mt-1 text-[12px] text-dimmed">
               Paid bookings before Schedra, Bachs processing and withdrawal fees. Refunds are excluded.
             </p>
+          </div>
+          <div
+            v-else
+            class="mt-7 border-t border-default pt-5"
+          >
+            <div class="flex items-start gap-3 rounded-xl bg-muted p-4">
+              <span class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <UIcon
+                  name="i-lucide-sparkles"
+                  class="size-4"
+                />
+              </span>
+              <div>
+                <p class="text-[13px] font-semibold text-highlighted">
+                  Revenue reporting and CSV exports
+                </p>
+                <p class="mt-1 text-[12px] leading-relaxed text-muted">
+                  Personal Pro adds paid-booking revenue totals and downloadable reports.
+                </p>
+                <NuxtLink
+                  to="/billing"
+                  class="mt-2 inline-block text-[12px] font-medium text-primary hover:underline"
+                >
+                  See Personal Pro
+                </NuxtLink>
+              </div>
+            </div>
           </div>
         </section>
 
