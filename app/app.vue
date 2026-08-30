@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { analyticsAllowedForRoute } from '#shared/analytics'
-
 const route = useRoute()
 // SCHEDRA_URL is the authoritative public origin — the same value better-auth
 // builds callbacks from. The request host cannot be trusted behind a proxy and
@@ -11,15 +9,6 @@ const origin = siteUrl.value
 const title = 'Schedra — share a link, get booked'
 const description = 'Share one link and let people pick a time that suits you both. Meetings land in your calendar with reminders sent and timezones handled.'
 const ogImage = `${origin}/og.png`
-const analyticsAllowed = computed(() => !import.meta.dev && analyticsAllowedForRoute(route.name))
-
-const clarityScript = `(function(c,l,a,r,i,t,y){
-  c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
-  var v=null;try{v=c.localStorage.getItem("schedra:analytics-consent:v1")}catch(e){}
-  c[a]("consentv2",{ad_Storage:"denied",analytics_Storage:v==="granted"?"granted":"denied"});
-  t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
-  y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
-})(window,document,"clarity","script","y9n1tiv1yp");`
 
 const canonical = computed(() => `${origin}${route.path === '/' ? '' : route.path}`)
 
@@ -35,10 +24,18 @@ useHead(() => ({
     { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
     { key: 'canonical', rel: 'canonical', href: canonical }
   ],
-  // Staging and production are built with NODE_ENV=production. Keeping the
-  // tracker out of dev prevents local navigation from polluting Clarity.
-  script: analyticsAllowed.value
-    ? [{ key: 'microsoft-clarity', type: 'text/javascript', innerHTML: clarityScript }]
+  // Automatic tracking is disabled so the client plugin can send normalized
+  // route categories without usernames, team slugs, tokens or query values.
+  // Keeping the tracker out of dev prevents local navigation from polluting it.
+  script: !import.meta.dev
+    ? [{
+        'key': 'umami',
+        'id': 'umami-tracker',
+        'src': 'https://cloud.umami.is/script.js',
+        'defer': true,
+        'data-website-id': '9fef54d5-fa9e-4d0b-9f33-7494ee9da3d6',
+        'data-auto-track': 'false'
+      }]
     : []
 }))
 
@@ -74,6 +71,5 @@ useSeoMeta({
     <NuxtLayout>
       <NuxtPage />
     </NuxtLayout>
-    <AnalyticsConsentBanner />
   </UApp>
 </template>

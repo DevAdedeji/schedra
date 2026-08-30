@@ -12,7 +12,7 @@ useSeoMeta({
     eyebrow="Legal"
     title="Privacy, without the fog."
     summary="This policy explains what Schedra collects, why we need it, who receives it and the controls available to you."
-    updated="28 August 2026"
+    updated="30 August 2026"
   >
     <section>
       <h2>1. Who this policy covers</h2>
@@ -69,10 +69,12 @@ useSeoMeta({
         events, delivery attempts and integration error records to operate and protect the service.
       </p>
       <p>
-        We use Microsoft Clarity to understand how visitors use Schedra. Clarity can process page
-        visits, clicks, scrolling, navigation, browser and device information, approximate location
-        and session recordings. Sensitive form content, including input values and email addresses,
-        is masked by default and is not included in recordings.
+        We use Umami for cookieless, aggregate usage analytics. It can process page views, visits,
+        referring-site domains, browser and device information and approximate country. Before a
+        page view is sent, Schedra replaces dynamic URL values with general route categories and
+        removes paths and query values from referrers. Usernames, team slugs, booking and invitation
+        identifiers, private-link tokens, query strings, form values and email addresses are not sent
+        to Umami.
       </p>
     </section>
 
@@ -104,7 +106,7 @@ useSeoMeta({
         <li>Google and Zoom when a user connects and uses those integrations.</li>
         <li>
           Infrastructure, database, analytics, email-delivery and payment providers acting for
-          Schedra, including Microsoft Clarity for usage analytics.
+          Schedra, including Umami for aggregate usage analytics.
         </li>
         <li>Authorities or professional advisers where disclosure is legally required or necessary to protect rights and safety.</li>
       </ul>
@@ -146,10 +148,9 @@ useSeoMeta({
         email address associated with your account. We may need to verify your identity before acting.
       </p>
       <p>
-        You can allow, decline or withdraw Microsoft Clarity analytics permission at any time using
-        the <strong>Privacy choices</strong> control shown on Schedra. Your choice is saved in your
-        browser. Declining analytics prevents Clarity cookies and limits collection to cookieless,
-        page-level measurements.
+        Umami does not use analytics cookies on Schedra, and Schedra respects your browser’s Do Not
+        Track setting. You can enable Do Not Track in your browser to prevent these page-view
+        measurements.
       </p>
     </section>
 
