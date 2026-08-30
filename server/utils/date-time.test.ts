@@ -11,6 +11,7 @@ import {
   addToInstant,
   addUtcCalendarDays,
   addUtcCalendarPeriod,
+  bookingLimitRange,
   calendarDaysBetween,
   subtractFromInstant,
   unixSeconds,
@@ -41,6 +42,12 @@ describe('calendar date utilities', () => {
 
   it('creates explicit UTC date boundaries', () => {
     expect(utcCalendarDateBoundary('2026-01-01', -1).toISOString()).toBe('2025-12-31T00:00:00.000Z')
+  })
+
+  it('covers complete local weeks and months when loading booking-limit counts', () => {
+    const range = bookingLimitRange('2026-08-30', '2026-09-01', 'Africa/Lagos')
+    expect(range.start.toISOString()).toBe('2026-07-31T23:00:00.000Z')
+    expect(range.end.toISOString()).toBe('2026-09-30T23:00:00.000Z')
   })
 })
 

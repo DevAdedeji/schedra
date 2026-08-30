@@ -33,6 +33,7 @@ import {
 } from '../services/paid-booking'
 import { addUtcCalendarDays, utcCalendarDate } from '../utils/date-time'
 import { createTeamRecurringBooking } from '../services/recurring-booking-creation'
+import { assertBookingLimits } from '../services/booking-limits'
 
 const SLOT_TAKEN = '23P01'
 
@@ -263,6 +264,21 @@ export default defineEventHandler(async (event) => {
         throw createError({ statusCode: 409, statusMessage: 'That host is no longer available.' })
       }
       attending = hosts.filter(host => assigned.includes(host.userId))
+
+      await assertBookingLimits({
+        executor: tx,
+        eventTypeId: eventType.id,
+        hosts: attending.map(host => ({
+          userId: host.userId,
+          timeZone: host.scheduleTimeZone ?? host.timeZone
+        })),
+        occurrences: [{ startsAt: slot.start, groupSessionId: groupSession?.id }],
+        limits: {
+          maxPerDay: eventType.maxPerDay,
+          maxPerWeek: eventType.maxPerWeek,
+          maxPerMonth: eventType.maxPerMonth
+        }
+      })
 
       const [created] = await tx.insert(bookings).values({
         organizationId: eventType.organizationId,

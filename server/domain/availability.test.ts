@@ -261,8 +261,84 @@ describe('daily cap', () => {
       // One open group occurrence can be omitted from collision spans while it
       // still counts as exactly one host commitment for the daily limit.
       bookings: [],
-      dailyBookings: [
+      limitBookings: [
         { start: '2026-08-17T08:00:00Z', end: '2026-08-17T09:00:00Z' }
+      ]
+    }))
+
+    expect(slots).toEqual([])
+  })
+
+  it('keeps an existing open group occurrence bookable when the cap is full', () => {
+    const shared = { start: '2026-08-17T08:00:00Z', end: '2026-08-17T09:00:00Z' }
+    const slots = getAvailableSlots(query({
+      ...busyDay,
+      eventType: { durationMinutes: 60, maxPerDay: 1 },
+      bookings: [],
+      limitBookings: [shared],
+      limitExemptSlots: [shared]
+    }))
+
+    expect(starts(slots)).toEqual([shared.start])
+  })
+})
+
+describe('weekly and monthly caps', () => {
+  const weekdays = [1, 2, 3, 4, 5].map(weekday => ({
+    weekday: weekday as Weekday,
+    start: '09:00',
+    end: '11:00'
+  }))
+
+  it('uses Monday-to-Sunday calendar weeks in the schedule timezone', () => {
+    const slots = getAvailableSlots(query({
+      schedule: { timeZone: LAGOS, rules: weekdays },
+      eventType: { durationMinutes: 60, maxPerWeek: 2 },
+      from: '2026-08-17',
+      to: '2026-08-24',
+      limitBookings: [
+        { start: '2026-08-17T08:00:00Z', end: '2026-08-17T09:00:00Z' },
+        { start: '2026-08-18T08:00:00Z', end: '2026-08-18T09:00:00Z' }
+      ]
+    }))
+
+    expect(slots.every(slot => slot.start.startsWith('2026-08-24'))).toBe(true)
+    expect(slots).toHaveLength(2)
+  })
+
+  it('resets the monthly cap at the local calendar-month boundary', () => {
+    const slots = getAvailableSlots(query({
+      schedule: {
+        timeZone: LAGOS,
+        rules: [
+          { weekday: 1, start: '09:00', end: '11:00' },
+          { weekday: 2, start: '09:00', end: '11:00' }
+        ]
+      },
+      eventType: { durationMinutes: 60, maxPerMonth: 1 },
+      from: '2026-08-31',
+      to: '2026-09-01',
+      limitBookings: [
+        { start: '2026-08-17T08:00:00Z', end: '2026-08-17T09:00:00Z' }
+      ]
+    }))
+
+    expect(slots.every(slot => slot.start.startsWith('2026-09-01'))).toBe(true)
+    expect(slots).toHaveLength(2)
+  })
+
+  it('assigns a UTC booking to the host timezone before applying a monthly cap', () => {
+    const slots = getAvailableSlots(query({
+      schedule: {
+        timeZone: CHATHAM,
+        rules: [{ weekday: 2, start: '09:00', end: '11:00' }]
+      },
+      eventType: { durationMinutes: 60, maxPerMonth: 1 },
+      from: '2026-09-01',
+      to: '2026-09-01',
+      // This is August in UTC but September 1 in the host's timezone.
+      limitBookings: [
+        { start: '2026-08-31T11:30:00Z', end: '2026-08-31T12:30:00Z' }
       ]
     }))
 

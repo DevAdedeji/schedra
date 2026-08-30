@@ -193,6 +193,69 @@ describe.skipIf(!url)('public booking page', () => {
     expect(freed.map(s => s.start)).toContain(before[0]!.start)
   })
 
+  it('applies weekly limits to this event type and resets them on Monday', async () => {
+    await signUp()
+    const { findPublicEventType, slotsFor } = await import('../services/booking-page')
+    const event = (await findPublicEventType('ada', '30min'))!
+    await sql`update event_types set max_per_week = 1 where id = ${event.id}`
+
+    const [other] = await sql<{ id: string }[]>`
+      insert into event_types (user_id, slug, title, duration_minutes)
+      values (${event.hostId}, 'other', 'Other event', 30) returning id
+    `
+    await sql`
+      insert into bookings (event_type_id, host_id, uid, starts_at, ends_at,
+                            attendee_name, attendee_email, attendee_time_zone)
+      values (${other!.id}, ${event.hostId}, 'other-event-booking',
+              '2026-09-07T08:00:00Z', '2026-09-07T08:30:00Z',
+              'Guest', 'guest@example.com', 'Africa/Lagos')
+    `
+
+    const refreshed = (await findPublicEventType('ada', '30min'))!
+    expect(await slotsFor(refreshed, '2026-09-11', '2026-09-11', '2026-09-01T00:00:00Z'))
+      .not.toHaveLength(0)
+
+    await sql`
+      insert into bookings (event_type_id, host_id, uid, starts_at, ends_at,
+                            attendee_name, attendee_email, attendee_time_zone)
+      values (${event.id}, ${event.hostId}, 'limited-event-booking',
+              '2026-09-08T08:00:00Z', '2026-09-08T08:30:00Z',
+              'Guest', 'guest@example.com', 'Africa/Lagos')
+    `
+
+    expect(await slotsFor(refreshed, '2026-09-11', '2026-09-11', '2026-09-01T00:00:00Z'))
+      .toEqual([])
+    expect(await slotsFor(refreshed, '2026-09-14', '2026-09-14', '2026-09-01T00:00:00Z'))
+      .not.toHaveLength(0)
+  })
+
+  it('keeps an open group occurrence available while blocking new sessions at the daily cap', async () => {
+    await signUp()
+    const { findPublicEventType, slotsFor } = await import('../services/booking-page')
+    const event = (await findPublicEventType('ada', '30min'))!
+    await sql`update event_types set capacity = 3, max_per_day = 1 where id = ${event.id}`
+    const [session] = await sql<{ id: string }[]>`
+      insert into group_event_sessions (event_type_id, starts_at, ends_at, capacity)
+      values (${event.id}, '2026-09-07T08:00:00Z', '2026-09-07T08:30:00Z', 3)
+      returning id
+    `
+    await sql`
+      insert into bookings (event_type_id, group_session_id, host_id, uid, starts_at, ends_at,
+                            attendee_name, attendee_email, attendee_time_zone)
+      values (${event.id}, ${session!.id}, ${event.hostId}, 'first-group-seat',
+              '2026-09-07T08:00:00Z', '2026-09-07T08:30:00Z',
+              'Guest', 'guest@example.com', 'Africa/Lagos')
+    `
+
+    const refreshed = (await findPublicEventType('ada', '30min'))!
+    const slots = await slotsFor(refreshed, '2026-09-07', '2026-09-07', '2026-09-01T00:00:00Z')
+    expect(slots).toEqual([{
+      start: '2026-09-07T08:00:00Z',
+      end: '2026-09-07T08:30:00Z',
+      availableSeats: 2
+    }])
+  })
+
   it('finds a booking by its opaque uid, and nothing by a wrong one', async () => {
     await signUp()
     const { findPublicEventType } = await import('../services/booking-page')

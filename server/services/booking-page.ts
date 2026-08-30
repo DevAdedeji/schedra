@@ -1,10 +1,10 @@
-import { and, eq, gte, lte, sql } from 'drizzle-orm'
+import { and, eq, gte, lt, lte, sql } from 'drizzle-orm'
 import { getAvailableSlots } from '../domain/availability'
 import type { AvailabilityRule, DateOverride, Slot, Weekday } from '../domain/types'
 import { availabilityRules, bookings, dateOverrides, eventTypes, schedules, users } from '../database/schema'
 import { useDatabase } from '../database'
 import { calendarBusyTimes } from '../integrations/calendar/providers'
-import { utcCalendarDateBoundary } from '../utils/date-time'
+import { bookingLimitRange, utcCalendarDateBoundary } from '../utils/date-time'
 import { eventTypeDurationOptions, type BookingQuestion } from '#shared/validation'
 import { groupSessionCapacity } from './group-events'
 import { awayIntervalsForUser } from './away-periods'
@@ -64,6 +64,8 @@ export async function findPublicEventType(username: string, slug: string) {
       minimumNoticeMinutes: eventTypes.minimumNoticeMinutes,
       bookingWindowDays: eventTypes.bookingWindowDays,
       maxPerDay: eventTypes.maxPerDay,
+      maxPerWeek: eventTypes.maxPerWeek,
+      maxPerMonth: eventTypes.maxPerMonth,
       locationType: eventTypes.locationType,
       locationDetails: eventTypes.locationDetails,
       reminderMinutes: eventTypes.reminderMinutes,
@@ -98,7 +100,8 @@ export async function slotsFor(
   from: string,
   to: string,
   now: string,
-  requestedDurationMinutes = event.durationMinutes
+  requestedDurationMinutes = event.durationMinutes,
+  provisionalLimitBookings: Array<{ start: string, end: string }> = []
 ): Promise<Slot[]> {
   const durationOptions = eventTypeDurationOptions(event)
   if (!durationOptions.includes(requestedDurationMinutes)) {
@@ -110,6 +113,7 @@ export async function slotsFor(
   // can put its boundary on a different UTC day.
   const busyFrom = utcCalendarDateBoundary(from, -1).toISOString()
   const busyTo = utcCalendarDateBoundary(to, 2).toISOString()
+  const limitRange = bookingLimitRange(from, to, timeZone)
 
   const [rules, overrides, taken, externalBusy, groupSessions, awayIntervals] = await Promise.all([
     event.scheduleId
@@ -143,8 +147,8 @@ export async function slotsFor(
       .where(and(
         eq(bookings.hostId, event.hostId),
         sql`${bookings.status} in ('awaiting_payment', 'pending', 'confirmed')`,
-        gte(bookings.endsAt, new Date(now)),
-        lte(bookings.startsAt, new Date(busyTo))
+        gte(bookings.endsAt, limitRange.start),
+        lt(bookings.startsAt, limitRange.end)
       )),
 
     calendarBusyTimes(event.hostId, busyFrom, busyTo),
@@ -168,7 +172,7 @@ export async function slotsFor(
   // A shared session consumes one item from the host's daily limit, not one
   // item per guest. This also deduplicates group sessions from other event
   // types, which are present in `taken` but not in this event's session query.
-  const dailyBookings = [...new Map(taken.map(row => [
+  const limitBookings = [...new Map(taken.filter(row => row.eventTypeId === event.id).map(row => [
     row.groupSessionId ? `group:${row.groupSessionId}` : `booking:${row.id}`,
     { start: row.start, end: row.end }
   ])).values()]
@@ -206,15 +210,21 @@ export async function slotsFor(
       bufferAfterMinutes: event.bufferAfterMinutes,
       minimumNoticeMinutes: event.minimumNoticeMinutes,
       bookingWindowDays: event.bookingWindowDays ?? undefined,
-      maxPerDay: event.maxPerDay ?? undefined
+      maxPerDay: event.maxPerDay ?? undefined,
+      maxPerWeek: event.maxPerWeek ?? undefined,
+      maxPerMonth: event.maxPerMonth ?? undefined
     },
     bookings: busyBookings.map(row => ({
       start: row.start.toISOString(),
       end: row.end.toISOString()
     })),
-    dailyBookings: dailyBookings.map(row => ({
+    limitBookings: [...limitBookings.map(row => ({
       start: row.start.toISOString(),
       end: row.end.toISOString()
+    })), ...provisionalLimitBookings],
+    limitExemptSlots: openSessions.map(session => ({
+      start: session.startsAt.toISOString(),
+      end: session.endsAt.toISOString()
     })),
     externalBusy: effectiveExternalBusy,
     unavailable: awayIntervals,

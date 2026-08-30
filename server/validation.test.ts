@@ -61,6 +61,8 @@ describe('authentication validation', () => {
       minimumNoticeMinutes: 120,
       bookingWindowDays: 60,
       maxPerDay: 8,
+      maxPerWeek: 30,
+      maxPerMonth: 100,
       locationType: 'video_link',
       locationDetails: 'https://meet.example.com/intro',
       reminderMinutes: [1440, 60],
@@ -72,6 +74,8 @@ describe('authentication validation', () => {
     expect(eventTypeSchema.safeParse({ ...valid, slug: '../admin' }).success).toBe(false)
     expect(eventTypeSchema.safeParse({ ...valid, durationMinutes: 0 }).success).toBe(false)
     expect(eventTypeSchema.safeParse({ ...valid, maxPerDay: 0 }).success).toBe(false)
+    expect(eventTypeSchema.safeParse({ ...valid, maxPerWeek: 0 }).success).toBe(false)
+    expect(eventTypeSchema.safeParse({ ...valid, maxPerMonth: 0 }).success).toBe(false)
     expect(eventTypeSchema.safeParse({ ...valid, locationDetails: 'not a link' }).success).toBe(false)
     expect(eventTypeSchema.parse({ ...valid, reminderMinutes: [60, 1440, 60] }).reminderMinutes).toEqual([1440, 60])
     expect(eventTypeSchema.parse(valid).additionalDurationMinutes).toEqual([])

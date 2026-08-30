@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, sql } from 'drizzle-orm'
 import { eventTypeDurationOptions, type AssignmentMode, type BookingQuestion } from '#shared/validation'
 import { getAvailableSlots } from '../domain/availability'
 import { combineHostSlots, pickRoundRobinHost, type HostLoad, type TeamSlot } from '../domain/team-availability'
@@ -18,7 +18,7 @@ import {
 import { useDatabase } from '../database'
 import { calendarBusyTimes } from '../integrations/calendar/providers'
 import { awayIntervalsForUser } from './away-periods'
-import { subtractFromInstant, utcCalendarDateBoundary } from '../utils/date-time'
+import { bookingLimitRange, subtractFromInstant, utcCalendarDateBoundary } from '../utils/date-time'
 import { organizationEntitlement } from './entitlement'
 import { findOrganizationBySlug } from './organization'
 import { assignedHostsForGroupSessions, groupSessionCapacity } from './group-events'
@@ -46,6 +46,8 @@ export interface PublicTeamEventType {
   minimumNoticeMinutes: number
   bookingWindowDays: number | null
   maxPerDay: number | null
+  maxPerWeek: number | null
+  maxPerMonth: number | null
   assignmentMode: AssignmentMode
   locationType: 'google_meet' | 'microsoft_teams' | 'zoom' | 'video_link' | 'phone' | 'in_person' | 'custom'
   locationDetails: string
@@ -83,6 +85,8 @@ export async function findPublicTeamEventType(teamSlug: string, eventSlug: strin
       minimumNoticeMinutes: eventTypes.minimumNoticeMinutes,
       bookingWindowDays: eventTypes.bookingWindowDays,
       maxPerDay: eventTypes.maxPerDay,
+      maxPerWeek: eventTypes.maxPerWeek,
+      maxPerMonth: eventTypes.maxPerMonth,
       assignmentMode: eventTypes.assignmentMode,
       locationType: eventTypes.locationType,
       locationDetails: eventTypes.locationDetails,
@@ -186,12 +190,14 @@ async function slotsForHost(
   to: string,
   now: string,
   groupSessions: Awaited<ReturnType<typeof groupSessionCapacity>>,
-  requestedDurationMinutes: number
+  requestedDurationMinutes: number,
+  provisionalLimitBookings: Array<{ start: string, end: string }>
 ) {
   const db = useDatabase()
   const timeZone = host.scheduleTimeZone ?? host.timeZone
   const busyFrom = utcCalendarDateBoundary(from, -1).toISOString()
   const busyTo = utcCalendarDateBoundary(to, 2).toISOString()
+  const limitRange = bookingLimitRange(from, to, timeZone)
 
   const [rules, overrides, taken, externalBusy, awayIntervals] = await Promise.all([
     db.select({
@@ -215,15 +221,17 @@ async function slotsForHost(
     db.select({
       bookingId: bookingHosts.bookingId,
       groupSessionId: bookingHosts.groupSessionId,
+      eventTypeId: bookings.eventTypeId,
       start: bookingHosts.startsAt,
       end: bookingHosts.endsAt
     })
       .from(bookingHosts)
+      .innerJoin(bookings, eq(bookings.id, bookingHosts.bookingId))
       .where(and(
         eq(bookingHosts.userId, host.userId),
         isNull(bookingHosts.releasedAt),
-        gte(bookingHosts.endsAt, new Date(now)),
-        lte(bookingHosts.startsAt, new Date(busyTo))
+        gte(bookingHosts.endsAt, limitRange.start),
+        lt(bookingHosts.startsAt, limitRange.end)
       )),
 
     calendarBusyTimes(host.userId, busyFrom, busyTo),
@@ -243,7 +251,7 @@ async function slotsForHost(
   // A group occurrence is one host commitment regardless of its guest count.
   // Deduplicate every group session here, including sessions belonging to a
   // different event type.
-  const dailyReservations = [...new Map(taken.map(row => [
+  const limitReservations = [...new Map(taken.filter(row => row.eventTypeId === event.id).map(row => [
     row.groupSessionId ? `group:${row.groupSessionId}` : `booking:${row.bookingId}`,
     { start: row.start, end: row.end }
   ])).values()]
@@ -278,10 +286,19 @@ async function slotsForHost(
       bufferAfterMinutes: event.bufferAfterMinutes,
       minimumNoticeMinutes: event.minimumNoticeMinutes,
       bookingWindowDays: event.bookingWindowDays ?? undefined,
-      maxPerDay: event.maxPerDay ?? undefined
+      maxPerDay: event.maxPerDay ?? undefined,
+      maxPerWeek: event.maxPerWeek ?? undefined,
+      maxPerMonth: event.maxPerMonth ?? undefined
     },
     bookings: busyReservations.map(row => ({ start: row.start.toISOString(), end: row.end.toISOString() })),
-    dailyBookings: dailyReservations.map(row => ({ start: row.start.toISOString(), end: row.end.toISOString() })),
+    limitBookings: [
+      ...limitReservations.map(row => ({ start: row.start.toISOString(), end: row.end.toISOString() })),
+      ...provisionalLimitBookings
+    ],
+    limitExemptSlots: [...openAssignedSessions.values()].map(session => ({
+      start: session.startsAt.toISOString(),
+      end: session.endsAt.toISOString()
+    })),
     externalBusy: effectiveExternalBusy,
     unavailable: awayIntervals,
     from,
@@ -296,7 +313,8 @@ export async function teamSlotsFor(
   from: string,
   to: string,
   now: string,
-  requestedDurationMinutes = event.durationMinutes
+  requestedDurationMinutes = event.durationMinutes,
+  provisionalLimitBookings: Array<{ start: string, end: string }> = []
 ): Promise<TeamSlot[]> {
   if (!hosts.length) return []
   if (!eventTypeDurationOptions(event).includes(requestedDurationMinutes)) {
@@ -311,7 +329,16 @@ export async function teamSlotsFor(
 
   const perHost = await Promise.all(hosts.map(async host => ({
     userId: host.userId,
-    slots: await slotsForHost(event, host, from, to, now, groupSessions, requestedDurationMinutes)
+    slots: await slotsForHost(
+      event,
+      host,
+      from,
+      to,
+      now,
+      groupSessions,
+      requestedDurationMinutes,
+      provisionalLimitBookings
+    )
   })))
 
   const combined = combineHostSlots(event.assignmentMode, perHost)

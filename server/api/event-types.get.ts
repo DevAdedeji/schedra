@@ -56,6 +56,8 @@ export default defineEventHandler(async (event) => {
       minimumNoticeMinutes: eventTypes.minimumNoticeMinutes,
       bookingWindowDays: eventTypes.bookingWindowDays,
       maxPerDay: eventTypes.maxPerDay,
+      maxPerWeek: eventTypes.maxPerWeek,
+      maxPerMonth: eventTypes.maxPerMonth,
       locationType: eventTypes.locationType,
       locationDetails: eventTypes.locationDetails,
       reminderMinutes: eventTypes.reminderMinutes,

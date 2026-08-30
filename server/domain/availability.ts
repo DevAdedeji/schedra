@@ -131,7 +131,8 @@ export function getAvailableSlots(query: AvailabilityQuery): Slot[] {
     schedule,
     eventType,
     bookings = [],
-    dailyBookings = bookings,
+    limitBookings = bookings,
+    limitExemptSlots = [],
     externalBusy = [],
     unavailable = [],
     from,
@@ -151,7 +152,9 @@ export function getAvailableSlots(query: AvailabilityQuery): Slot[] {
     bufferAfterMinutes = 0,
     minimumNoticeMinutes = 0,
     bookingWindowDays,
-    maxPerDay
+    maxPerDay,
+    maxPerWeek,
+    maxPerMonth
   } = eventType
 
   if (durationMinutes <= 0 || incrementMinutes <= 0) return []
@@ -169,13 +172,24 @@ export function getAvailableSlots(query: AvailabilityQuery): Slot[] {
     : reference.toZonedDateTimeISO('UTC').add({ days: bookingWindowDays }).toInstant()
 
   const bookingsPerDay = new Map<string, number>()
-  for (const booking of dailyBookings) {
-    const day = Temporal.Instant.from(booking.start)
+  const bookingsPerWeek = new Map<string, number>()
+  const bookingsPerMonth = new Map<string, number>()
+  for (const booking of limitBookings) {
+    const date = Temporal.Instant.from(booking.start)
       .toZonedDateTimeISO(schedule.timeZone)
       .toPlainDate()
-      .toString()
+    const day = date.toString()
+    const week = date.subtract({ days: date.dayOfWeek - 1 }).toString()
+    const month = `${date.year}-${String(date.month).padStart(2, '0')}`
     bookingsPerDay.set(day, (bookingsPerDay.get(day) ?? 0) + 1)
+    bookingsPerWeek.set(week, (bookingsPerWeek.get(week) ?? 0) + 1)
+    bookingsPerMonth.set(month, (bookingsPerMonth.get(month) ?? 0) + 1)
   }
+
+  const exemptSpans = new Set(limitExemptSlots.map(slot => [
+    Temporal.Instant.from(slot.start).epochNanoseconds,
+    Temporal.Instant.from(slot.end).epochNanoseconds
+  ].join(':')))
 
   const slots: Slot[] = []
 
@@ -195,12 +209,18 @@ export function getAvailableSlots(query: AvailabilityQuery): Slot[] {
       const slot: Span = { start: cursor, end: addMinutes(cursor, durationMinutes) }
       if (compare(slot.end, closes) > 0) break
 
-      const local = slot.start.toZonedDateTimeISO(schedule.timeZone).toPlainDate()
-      if (Temporal.PlainDate.compare(local, rangeStart) < 0) continue
-      if (Temporal.PlainDate.compare(local, rangeEnd) > 0) continue
+      const localDate = slot.start.toZonedDateTimeISO(schedule.timeZone).toPlainDate()
+      if (Temporal.PlainDate.compare(localDate, rangeStart) < 0) continue
+      if (Temporal.PlainDate.compare(localDate, rangeEnd) > 0) continue
 
-      if (maxPerDay !== undefined && (bookingsPerDay.get(local.toString()) ?? 0) >= maxPerDay) {
-        continue
+      const limitExempt = exemptSpans.has(`${slot.start.epochNanoseconds}:${slot.end.epochNanoseconds}`)
+      if (!limitExempt) {
+        const day = localDate.toString()
+        const week = localDate.subtract({ days: localDate.dayOfWeek - 1 }).toString()
+        const month = `${localDate.year}-${String(localDate.month).padStart(2, '0')}`
+        if (maxPerDay !== undefined && (bookingsPerDay.get(day) ?? 0) >= maxPerDay) continue
+        if (maxPerWeek !== undefined && (bookingsPerWeek.get(week) ?? 0) >= maxPerWeek) continue
+        if (maxPerMonth !== undefined && (bookingsPerMonth.get(month) ?? 0) >= maxPerMonth) continue
       }
 
       // Buffers protect time around the meeting without being bookable, so the

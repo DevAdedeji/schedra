@@ -29,6 +29,23 @@ export function utcCalendarDateBoundary(date: string, dayOffset = 0) {
   return new Date(Temporal.Instant.from(`${calendarDate}T00:00:00Z`).epochMilliseconds)
 }
 
+export function bookingLimitRange(from: string, to: string, timeZone: string) {
+  const first = Temporal.PlainDate.from(from)
+  const last = Temporal.PlainDate.from(to)
+  const weekStart = first.subtract({ days: first.dayOfWeek - 1 })
+  const monthStart = first.with({ day: 1 })
+  const start = Temporal.PlainDate.compare(weekStart, monthStart) < 0 ? weekStart : monthStart
+  const weekEnd = last.add({ days: 8 - last.dayOfWeek })
+  const monthEnd = last.with({ day: 1 }).add({ months: 1 })
+  const end = Temporal.PlainDate.compare(weekEnd, monthEnd) > 0 ? weekEnd : monthEnd
+  const midnight = Temporal.PlainTime.from('00:00')
+
+  return {
+    start: new Date(start.toZonedDateTime({ timeZone, plainTime: midnight }).toInstant().epochMilliseconds),
+    end: new Date(end.toZonedDateTime({ timeZone, plainTime: midnight }).toInstant().epochMilliseconds)
+  }
+}
+
 export function addUtcCalendarPeriod(
   value: InstantInput,
   duration: Pick<Temporal.DurationLike, 'years' | 'months' | 'weeks' | 'days'>

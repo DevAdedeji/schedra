@@ -43,6 +43,8 @@ export interface EventTypeConfig {
   minimumNoticeMinutes?: number
   bookingWindowDays?: number
   maxPerDay?: number
+  maxPerWeek?: number
+  maxPerMonth?: number
 }
 
 export interface DstPolicy {
@@ -55,8 +57,10 @@ export interface AvailabilityQuery {
   eventType: EventTypeConfig
 
   bookings?: Interval[]
-  /** Occurrences counted by daily limits when they differ from busy spans. */
-  dailyBookings?: Interval[]
+  /** Deduplicated event occurrences counted by booking limits. */
+  limitBookings?: Interval[]
+  /** Existing group occurrences that remain bookable when a limit is full. */
+  limitExemptSlots?: Interval[]
   externalBusy?: Interval[]
   /** Schedra-owned blocks such as vacation or away periods. */
   unavailable?: Interval[]

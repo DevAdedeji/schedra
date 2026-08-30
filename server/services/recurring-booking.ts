@@ -3,6 +3,7 @@ import type { RecurringBookingRequest, RecurringOccurrencePreview } from '#share
 import { recurringOccurrences } from '#shared/recurrence'
 import { eventTypeDurationOptions } from '#shared/validation'
 import { commonRecurringHostIds } from '../domain/recurrence'
+import type { TeamSlot } from '../domain/team-availability'
 import { addUtcCalendarDays, utcCalendarDate } from '../utils/date-time'
 import { slotsFor } from './booking-page'
 import type { EventTypeRow } from './booking-page'
@@ -65,9 +66,16 @@ export async function personalRecurringAvailability(input: {
     ...input.recurrence
   })
   const now = input.now ?? new Date().toISOString()
-  return Promise.all(occurrences.map(async (occurrence) => {
+  return Promise.all(occurrences.map(async (occurrence, index): Promise<RecurringOccurrencePreview> => {
     const range = occurrenceDates(occurrence.startsAt)
-    const slots = await slotsFor(input.eventType, range.from, range.to, now, input.durationMinutes)
+    const slots = await slotsFor(
+      input.eventType,
+      range.from,
+      range.to,
+      now,
+      input.durationMinutes,
+      occurrences.slice(0, index).map(item => ({ start: item.startsAt, end: item.endsAt }))
+    )
     return { ...occurrence, available: Boolean(exactSlot(slots, occurrence)) }
   }))
 }
@@ -89,9 +97,17 @@ export async function teamRecurringAvailability(input: {
     ...input.recurrence
   })
   const now = input.now ?? new Date().toISOString()
-  const matched = await Promise.all(occurrences.map(async (occurrence) => {
+  const matched: Array<TeamSlot | null> = await Promise.all(occurrences.map(async (occurrence, index) => {
     const range = occurrenceDates(occurrence.startsAt)
-    const slots = await teamSlotsFor(input.eventType, input.hosts, range.from, range.to, now, input.durationMinutes)
+    const slots = await teamSlotsFor(
+      input.eventType,
+      input.hosts,
+      range.from,
+      range.to,
+      now,
+      input.durationMinutes,
+      occurrences.slice(0, index).map(item => ({ start: item.startsAt, end: item.endsAt }))
+    )
     return exactSlot(slots, occurrence) ?? null
   }))
   const offered = matched.filter((slot): slot is NonNullable<typeof slot> => Boolean(slot))

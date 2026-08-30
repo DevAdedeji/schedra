@@ -39,6 +39,8 @@ export default defineEventHandler(async (event) => {
         incrementMinutes: parsed.data.incrementMinutes ?? null,
         bookingWindowDays: parsed.data.bookingWindowDays ?? null,
         maxPerDay: parsed.data.maxPerDay ?? null,
+        maxPerWeek: parsed.data.maxPerWeek ?? null,
+        maxPerMonth: parsed.data.maxPerMonth ?? null,
         updatedAt: sql`now()`
       })
       .where(and(eq(eventTypes.id, id.data), eq(eventTypes.userId, session.user.id)))

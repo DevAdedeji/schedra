@@ -621,6 +621,8 @@ export const eventTypes = pgTable('event_types', {
   minimumNoticeMinutes: integer('minimum_notice_minutes').notNull().default(0),
   bookingWindowDays: integer('booking_window_days'),
   maxPerDay: integer('max_per_day'),
+  maxPerWeek: integer('max_per_week'),
+  maxPerMonth: integer('max_per_month'),
   locationType: meetingLocationType('location_type').notNull().default('custom'),
   locationDetails: text('location_details').notNull().default('The host will share meeting details before the meeting.'),
   reminderMinutes: jsonb('reminder_minutes').$type<number[]>().notNull().default(sql`'[1440, 60]'::jsonb`),
@@ -683,6 +685,14 @@ export const eventTypes = pgTable('event_types', {
   check(
     'event_types_max_per_day_positive',
     sql`${table.maxPerDay} is null or ${table.maxPerDay} > 0`
+  ),
+  check(
+    'event_types_max_per_week_positive',
+    sql`${table.maxPerWeek} is null or ${table.maxPerWeek} > 0`
+  ),
+  check(
+    'event_types_max_per_month_positive',
+    sql`${table.maxPerMonth} is null or ${table.maxPerMonth} > 0`
   ),
   check('event_types_capacity_range', sql`${table.capacity} between 1 and 500`),
   check(

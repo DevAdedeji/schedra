@@ -11,6 +11,7 @@ import { enqueueCalendarSync } from './calendar-sync'
 import { publishBookingEvent } from './workflows'
 import { queueBookingEmails } from './booking-emails'
 import { requireTeamLocationIntegrations } from './event-location'
+import { assertBookingLimits } from './booking-limits'
 
 const SLOT_TAKEN = '23P01'
 
@@ -110,6 +111,23 @@ export async function createPersonalRecurringBooking(input: {
 
   try {
     const result = await useDatabase().transaction(async (tx) => {
+      if (input.eventType.maxPerDay || input.eventType.maxPerWeek || input.eventType.maxPerMonth) {
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${input.eventType.id}, 0))`)
+      }
+      await assertBookingLimits({
+        executor: tx,
+        eventTypeId: input.eventType.id,
+        hosts: [{
+          userId: input.eventType.hostId,
+          timeZone: input.eventType.scheduleTimeZone ?? input.eventType.hostTimeZone
+        }],
+        occurrences: preview.map(occurrence => ({ startsAt: occurrence.startsAt })),
+        limits: {
+          maxPerDay: input.eventType.maxPerDay,
+          maxPerWeek: input.eventType.maxPerWeek,
+          maxPerMonth: input.eventType.maxPerMonth
+        }
+      })
       const [series] = await tx.insert(bookingSeries).values({
         requestId: input.requestId,
         requestFingerprint: fingerprint,
@@ -245,6 +263,21 @@ export async function createTeamRecurringBooking(input: {
       const organizer = input.hosts.find(host => host.userId === assigned[0])
       if (!organizer) throw createError({ statusCode: 409, statusMessage: 'That host is no longer available.' })
       const attending = input.hosts.filter(host => assigned.includes(host.userId))
+
+      await assertBookingLimits({
+        executor: tx,
+        eventTypeId: input.eventType.id,
+        hosts: attending.map(host => ({
+          userId: host.userId,
+          timeZone: host.scheduleTimeZone ?? host.timeZone
+        })),
+        occurrences: preview.occurrences.map(occurrence => ({ startsAt: occurrence.startsAt })),
+        limits: {
+          maxPerDay: input.eventType.maxPerDay,
+          maxPerWeek: input.eventType.maxPerWeek,
+          maxPerMonth: input.eventType.maxPerMonth
+        }
+      })
 
       const [series] = await tx.insert(bookingSeries).values({
         requestId: input.requestId,

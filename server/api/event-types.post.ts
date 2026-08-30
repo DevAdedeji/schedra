@@ -49,7 +49,9 @@ export default defineEventHandler(async (event) => {
       description: input.description || null,
       incrementMinutes: input.incrementMinutes ?? null,
       bookingWindowDays: input.bookingWindowDays ?? null,
-      maxPerDay: input.maxPerDay ?? null
+      maxPerDay: input.maxPerDay ?? null,
+      maxPerWeek: input.maxPerWeek ?? null,
+      maxPerMonth: input.maxPerMonth ?? null
     }).returning({ id: eventTypes.id })
 
     setResponseStatus(event, 201)

@@ -286,6 +286,8 @@ const eventTypeBaseSchema = z.object({
   minimumNoticeMinutes: z.number().int().min(0).max(525_600),
   bookingWindowDays: z.number().int().min(1).max(3660).nullable().optional(),
   maxPerDay: z.number().int().min(1).max(100).nullable().optional(),
+  maxPerWeek: z.number().int().min(1).max(700).nullable().optional(),
+  maxPerMonth: z.number().int().min(1).max(3100).nullable().optional(),
   locationType: meetingLocationTypeSchema,
   locationDetails: z.string().trim().max(500, 'Keep meeting details under 500 characters.'),
   reminderMinutes: z.array(z.number().int().min(15).max(20_160)).max(5)

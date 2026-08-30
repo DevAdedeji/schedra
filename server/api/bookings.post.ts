@@ -26,6 +26,7 @@ import { claimBookingLink } from '../repositories/booking-links'
 import { addUtcCalendarDays, utcCalendarDate } from '../utils/date-time'
 import { personalPaidBookingFeeBps } from '../services/personal-entitlement'
 import { createPersonalRecurringBooking } from '../services/recurring-booking-creation'
+import { assertBookingLimits } from '../services/booking-limits'
 
 const SLOT_TAKEN = '23P01'
 
@@ -196,6 +197,9 @@ export default defineEventHandler(async (event) => {
     // either both happen or neither, or a guest can lose their time and get
     // nothing back.
     await useDatabase().transaction(async (tx) => {
+      if (eventType.maxPerDay || eventType.maxPerWeek || eventType.maxPerMonth) {
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${eventType.id}, 0))`)
+      }
       if (inviteToken) {
         const claimed = await claimBookingLink(bookingLinkTokenHash(inviteToken), eventType.id, tx)
         if (!claimed) {
@@ -231,6 +235,21 @@ export default defineEventHandler(async (event) => {
             partySize: 1 + additionalGuestEmails.length
           }, tx)
         : null
+
+      await assertBookingLimits({
+        executor: tx,
+        eventTypeId: eventType.id,
+        hosts: [{
+          userId: eventType.hostId,
+          timeZone: eventType.scheduleTimeZone ?? eventType.hostTimeZone
+        }],
+        occurrences: [{ startsAt: slot.start, groupSessionId: groupSession?.id }],
+        limits: {
+          maxPerDay: eventType.maxPerDay,
+          maxPerWeek: eventType.maxPerWeek,
+          maxPerMonth: eventType.maxPerMonth
+        }
+      })
 
       const [created] = await tx.insert(bookings).values({
         eventTypeId: eventType.id,
