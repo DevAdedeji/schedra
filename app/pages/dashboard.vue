@@ -140,7 +140,7 @@ async function copyBookingPage() {
           </p>
           <button
             type="button"
-            class="mt-5 flex w-full max-w-2xl items-center gap-3 rounded-xl border px-4 py-3.5 text-left transition-colors"
+            class="mt-5 grid w-full max-w-2xl grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 overflow-hidden rounded-xl border px-3 py-3.5 text-left transition-colors sm:px-4"
             :class="copied ? 'border-success/30 bg-success/10' : 'border-default bg-muted hover:border-primary'"
             :aria-label="`Copy ${link}`"
             @click="copyBookingPage"
@@ -154,12 +154,12 @@ async function copyBookingPage() {
             /></span>
             <span class="min-w-0 flex-1 truncate text-[15px] font-medium text-highlighted">{{ link }}</span>
             <span
-              class="flex items-center gap-1.5 text-[13px]"
+              class="flex shrink-0 items-center gap-1.5 text-[13px]"
               :class="copied ? 'text-success' : 'text-muted'"
             ><UIcon
               :name="copied ? 'i-lucide-check' : 'i-lucide-copy'"
               class="size-4"
-            />{{ copied ? 'Copied' : 'Copy' }}</span>
+            /><span class="hidden sm:inline">{{ copied ? 'Copied' : 'Copy' }}</span></span>
           </button>
         </div>
         <div class="surface-secondary border-t border-default px-5 py-5 lg:border-l lg:border-t-0">
@@ -217,7 +217,7 @@ async function copyBookingPage() {
       <div class="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <section class="overflow-hidden rounded-xl border border-default bg-default">
           <div class="flex items-center justify-between gap-4 border-b border-default px-5 py-4">
-            <div>
+            <div class="min-w-0">
               <h2 class="text-[16px] font-semibold text-highlighted">
                 Next up
               </h2><p class="mt-0.5 text-[13px] text-muted">
@@ -230,8 +230,11 @@ async function copyBookingPage() {
               variant="ghost"
               size="sm"
               trailing-icon="i-lucide-arrow-right"
+              class="shrink-0 whitespace-nowrap"
+              aria-label="View all bookings"
             >
-              All bookings
+              <span class="hidden sm:inline">All bookings</span>
+              <span class="sm:hidden">View all</span>
             </UButton>
           </div>
           <ul
