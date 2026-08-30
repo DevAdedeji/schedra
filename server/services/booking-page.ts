@@ -7,6 +7,7 @@ import { calendarBusyTimes } from '../integrations/calendar/providers'
 import { utcCalendarDateBoundary } from '../utils/date-time'
 import { eventTypeDurationOptions, type BookingQuestion } from '#shared/validation'
 import { groupSessionCapacity } from './group-events'
+import { awayIntervalsForUser } from './away-periods'
 
 export interface PublicEventType {
   id: string
@@ -110,7 +111,7 @@ export async function slotsFor(
   const busyFrom = utcCalendarDateBoundary(from, -1).toISOString()
   const busyTo = utcCalendarDateBoundary(to, 2).toISOString()
 
-  const [rules, overrides, taken, externalBusy, groupSessions] = await Promise.all([
+  const [rules, overrides, taken, externalBusy, groupSessions, awayIntervals] = await Promise.all([
     event.scheduleId
       ? db.select({
           weekday: availabilityRules.weekday,
@@ -150,7 +151,9 @@ export async function slotsFor(
 
     event.capacity > 1
       ? groupSessionCapacity(event.id, new Date(busyFrom), new Date(busyTo))
-      : Promise.resolve([])
+      : Promise.resolve([]),
+
+    awayIntervalsForUser(event.hostId, from, to)
   ])
 
   const openSessions = groupSessions.filter(session => session.availableSeats > 0
@@ -214,6 +217,7 @@ export async function slotsFor(
       end: row.end.toISOString()
     })),
     externalBusy: effectiveExternalBusy,
+    unavailable: awayIntervals,
     from,
     to,
     now

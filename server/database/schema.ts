@@ -94,6 +94,21 @@ export const userBrandLogos = pgTable('user_brand_logos', {
   check('user_brand_logos_size_range', sql`${table.size} > 0 and ${table.size} <= 2097152`)
 ])
 
+export const awayPeriods = pgTable('away_periods', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  startDate: date('start_date').notNull(),
+  endDate: date('end_date').notNull(),
+  // The timezone is captured when time off is created so changing account
+  // settings later cannot silently move the protected boundary.
+  timeZone: text('time_zone').notNull(),
+  ...timestamps
+}, table => [
+  index('away_periods_user_dates_idx').on(table.userId, table.startDate, table.endDate),
+  check('away_periods_dates_ordered', sql`${table.endDate} >= ${table.startDate}`)
+])
+
 export const sessions = pgTable('sessions', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),

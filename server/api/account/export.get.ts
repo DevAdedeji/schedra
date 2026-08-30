@@ -1,6 +1,7 @@
 import { eq, inArray } from 'drizzle-orm'
 import {
   automationWorkflows,
+  awayPeriods,
   availabilityRules,
   bookings,
   calendarConnections,
@@ -17,9 +18,10 @@ import { recordSecurityAudit } from '../../services/security-audit'
 export default defineEventHandler(async (event) => {
   const session = await requireAuthSession(event)
   const db = useDatabase()
-  const [profile, scheduleRows, eventTypeRows, bookingRows, workflowRows, calendarIntegrationRows, videoIntegrationRows] = await Promise.all([
+  const [profile, scheduleRows, awayPeriodRows, eventTypeRows, bookingRows, workflowRows, calendarIntegrationRows, videoIntegrationRows] = await Promise.all([
     db.select().from(users).where(eq(users.id, session.user.id)).limit(1),
     db.select().from(schedules).where(eq(schedules.userId, session.user.id)),
+    db.select().from(awayPeriods).where(eq(awayPeriods.userId, session.user.id)),
     db.select().from(eventTypes).where(eq(eventTypes.userId, session.user.id)),
     db.select().from(bookings).where(eq(bookings.hostId, session.user.id)),
     db.select({
@@ -95,6 +97,7 @@ export default defineEventHandler(async (event) => {
       rules: rules.filter(rule => rule.scheduleId === schedule.id),
       overrides: overrides.filter(override => override.scheduleId === schedule.id)
     })),
+    awayPeriods: awayPeriodRows,
     eventTypes: eventTypeRows,
     bookings: bookingRows,
     workflows: workflowRows,

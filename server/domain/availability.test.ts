@@ -113,6 +113,37 @@ describe('date overrides', () => {
   })
 })
 
+describe('away periods', () => {
+  it('blocks every slot inside an all-day unavailable interval', () => {
+    const slots = getAvailableSlots(query({
+      schedule: {
+        timeZone: LAGOS,
+        rules: [
+          { weekday: MONDAY, start: '09:00', end: '12:00' },
+          { weekday: 2, start: '09:00', end: '12:00' }
+        ]
+      },
+      from: A_MONDAY,
+      to: '2026-08-18',
+      unavailable: [{ start: '2026-08-17T23:00:00Z', end: '2026-08-18T23:00:00Z' }]
+    }))
+
+    expect(slots).toHaveLength(3)
+    expect(starts(slots).every(start => start.startsWith('2026-08-17'))).toBe(true)
+  })
+
+  it('blocks only the away-date side of an overnight availability window', () => {
+    const slots = getAvailableSlots(query({
+      schedule: { timeZone: LAGOS, rules: [{ weekday: MONDAY, start: '22:00', end: '02:00' }] },
+      from: A_MONDAY,
+      to: '2026-08-18',
+      unavailable: [{ start: '2026-08-17T23:00:00Z', end: '2026-08-18T23:00:00Z' }]
+    }))
+
+    expect(localStarts(slots, LAGOS)).toEqual(['22:00', '23:00'])
+  })
+})
+
 describe('notice and horizon', () => {
   it('hides slots inside the minimum notice window', () => {
     const slots = getAvailableSlots(query({

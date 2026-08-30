@@ -17,6 +17,7 @@ import {
 } from '../database/schema'
 import { useDatabase } from '../database'
 import { calendarBusyTimes } from '../integrations/calendar/providers'
+import { awayIntervalsForUser } from './away-periods'
 import { subtractFromInstant, utcCalendarDateBoundary } from '../utils/date-time'
 import { organizationEntitlement } from './entitlement'
 import { findOrganizationBySlug } from './organization'
@@ -192,7 +193,7 @@ async function slotsForHost(
   const busyFrom = utcCalendarDateBoundary(from, -1).toISOString()
   const busyTo = utcCalendarDateBoundary(to, 2).toISOString()
 
-  const [rules, overrides, taken, externalBusy] = await Promise.all([
+  const [rules, overrides, taken, externalBusy, awayIntervals] = await Promise.all([
     db.select({
       weekday: availabilityRules.weekday,
       startTime: availabilityRules.startTime,
@@ -225,7 +226,9 @@ async function slotsForHost(
         lte(bookingHosts.startsAt, new Date(busyTo))
       )),
 
-    calendarBusyTimes(host.userId, busyFrom, busyTo)
+    calendarBusyTimes(host.userId, busyFrom, busyTo),
+
+    awayIntervalsForUser(host.userId, from, to)
   ])
 
   const assignedSessionIds = new Set(taken.flatMap(row => row.groupSessionId ? [row.groupSessionId] : []))
@@ -280,6 +283,7 @@ async function slotsForHost(
     bookings: busyReservations.map(row => ({ start: row.start.toISOString(), end: row.end.toISOString() })),
     dailyBookings: dailyReservations.map(row => ({ start: row.start.toISOString(), end: row.end.toISOString() })),
     externalBusy: effectiveExternalBusy,
+    unavailable: awayIntervals,
     from,
     to,
     now

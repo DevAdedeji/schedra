@@ -127,7 +127,17 @@ function overlaps(a: Span, b: Span) {
 }
 
 export function getAvailableSlots(query: AvailabilityQuery): Slot[] {
-  const { schedule, eventType, bookings = [], dailyBookings = bookings, externalBusy = [], from, to, now } = query
+  const {
+    schedule,
+    eventType,
+    bookings = [],
+    dailyBookings = bookings,
+    externalBusy = [],
+    unavailable = [],
+    from,
+    to,
+    now
+  } = query
 
   const dst: Required<DstPolicy> = {
     gap: query.dst?.gap ?? 'skip',
@@ -151,7 +161,7 @@ export function getAvailableSlots(query: AvailabilityQuery): Slot[] {
   const rangeEnd = Temporal.PlainDate.from(to)
 
   const windows = resolveWindows(schedule, rangeStart, rangeEnd, dst)
-  const commitments = [...bookings, ...externalBusy].map(toSpan)
+  const commitments = [...bookings, ...externalBusy, ...unavailable].map(toSpan)
 
   const opensAt = addMinutes(reference, minimumNoticeMinutes)
   const closesAt = bookingWindowDays === undefined

@@ -58,6 +58,8 @@ export interface AvailabilityQuery {
   /** Occurrences counted by daily limits when they differ from busy spans. */
   dailyBookings?: Interval[]
   externalBusy?: Interval[]
+  /** Schedra-owned blocks such as vacation or away periods. */
+  unavailable?: Interval[]
 
   from: IsoDate
   to: IsoDate

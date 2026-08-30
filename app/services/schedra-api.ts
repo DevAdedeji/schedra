@@ -21,6 +21,7 @@ import type { WorkflowAction, WorkflowInput, WorkflowTrigger } from '#shared/wor
 import type { RoutingFormInput, RoutingQuestion, RoutingRule } from '#shared/routing'
 import type { EventTypeRecord } from '~/types/event-type'
 import type { CreateBookingLinkInput } from '#shared/booking-links'
+import type { AwayPeriodInput } from '#shared/away-periods'
 import type { ScheduleOverrideRecord, ScheduleRecord, ScheduleRuleRecord } from '~/types/schedule'
 import { DEFAULT_LIST_PAGE_SIZE } from '~/constants/lists'
 
@@ -108,6 +109,22 @@ export interface SchedulesResponse {
   items: ScheduleRecord[]
   pagination: PaginationMeta
   counts: { all: number, default: number }
+}
+
+export interface AwayPeriodRecord {
+  id: string
+  name: string
+  startDate: string
+  endDate: string
+  timeZone: string
+  conflictingBookingCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AwayPeriodsResponse {
+  items: AwayPeriodRecord[]
+  timeZone: string
 }
 
 export interface CalendarConnection {
@@ -430,6 +447,13 @@ export const schedulesApi = {
   duplicate: (id: string) => $fetch<{ id: string }>(resource('/api/schedules', id, '/duplicate'), { method: 'POST' }),
   update: (id: string, body: ScheduleUpdateInput) => $fetch(resource('/api/schedules', id), { method: 'PATCH', body }),
   remove: (id: string) => $fetch(resource('/api/schedules', id), { method: 'DELETE' })
+}
+
+export const awayPeriodsApi = {
+  endpoint: '/api/away-periods' as const,
+  create: (body: AwayPeriodInput) => $fetch<AwayPeriodRecord>('/api/away-periods', { method: 'POST', body }),
+  update: (id: string, body: AwayPeriodInput) => $fetch<AwayPeriodRecord>(resource('/api/away-periods', id), { method: 'PATCH', body }),
+  remove: (id: string) => $fetch(resource('/api/away-periods', id), { method: 'DELETE' })
 }
 
 export const profileApi = {

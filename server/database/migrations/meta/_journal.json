@@ -323,6 +323,13 @@
       "when": 1788084775264,
       "tag": "0045_flexible_recurring_bookings",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1788101558335,
+      "tag": "0046_away_periods",
+      "breakpoints": true
     }
   ]
 }
