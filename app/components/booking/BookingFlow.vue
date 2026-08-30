@@ -637,117 +637,147 @@ useHead({
                 </button>
               </div>
             </div>
-            <div class="flex items-center justify-between">
-              <h2 class="text-sm font-semibold text-highlighted">
-                {{ monthLabel }}
-              </h2>
-              <div class="flex items-center gap-1">
-                <UButton
-                  icon="i-lucide-chevron-left"
-                  color="neutral"
-                  variant="ghost"
-                  size="sm"
-                  class="size-11 justify-center"
-                  :disabled="weekOffset <= 0"
-                  aria-label="Previous week"
-                  @click="weekOffset--"
-                />
-                <UButton
-                  icon="i-lucide-chevron-right"
-                  color="neutral"
-                  variant="ghost"
-                  size="sm"
-                  class="size-11 justify-center"
-                  :disabled="weekOffset >= maxWeekOffset"
-                  aria-label="Next week"
-                  @click="weekOffset++"
-                />
-              </div>
-            </div>
-
-            <div class="mt-4 grid grid-cols-7 gap-1">
-              <button
-                v-for="day in days"
-                :key="isoDate(day)"
-                data-testid="booking-day"
-                type="button"
-                class="rounded-lg py-2 text-center transition-colors"
-                :class="selectedDate === isoDate(day)
-                  ? 'bg-primary text-inverted'
-                  : slotsByDate.has(isoDate(day))
-                    ? 'text-highlighted hover:bg-muted'
-                    : 'cursor-not-allowed text-dimmed opacity-40'"
-                :disabled="!viewerTimeZoneReady || !slotsByDate.has(isoDate(day))"
-                :aria-label="dayAriaLabel(day)"
-                :aria-pressed="selectedDate === isoDate(day)"
-                @click="selectedDate = isoDate(day); selectedSlot = null"
-              >
-                <span class="block text-[12px] font-semibold uppercase tracking-wide opacity-70">
-                  {{ shortWeekday(day) }}
-                </span>
-                <span class="tnum mt-0.5 block text-[16px] font-semibold">{{ day.getDate() }}</span>
-              </button>
-            </div>
-
-            <div class="mt-6">
-              <div
-                v-if="status === 'pending'"
-                class="space-y-3"
-                aria-label="Loading available times"
-                aria-busy="true"
-                role="status"
-              >
-                <USkeleton class="h-3 w-36" />
-                <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  <USkeleton
-                    v-for="slot in 6"
-                    :key="slot"
-                    class="h-11 w-full rounded-lg"
+            <ClientOnly>
+              <div class="flex items-center justify-between">
+                <h2 class="text-sm font-semibold text-highlighted">
+                  {{ monthLabel }}
+                </h2>
+                <div class="flex items-center gap-1">
+                  <UButton
+                    icon="i-lucide-chevron-left"
+                    color="neutral"
+                    variant="ghost"
+                    size="sm"
+                    class="size-11 justify-center"
+                    :disabled="weekOffset <= 0"
+                    aria-label="Previous week"
+                    @click="weekOffset--"
+                  />
+                  <UButton
+                    icon="i-lucide-chevron-right"
+                    color="neutral"
+                    variant="ghost"
+                    size="sm"
+                    class="size-11 justify-center"
+                    :disabled="weekOffset >= maxWeekOffset"
+                    aria-label="Next week"
+                    @click="weekOffset++"
                   />
                 </div>
               </div>
 
-              <p
-                v-else-if="!hasAnything"
-                class="py-16 text-center text-sm text-dimmed"
-              >
-                No free times in the next nine weeks.
-              </p>
+              <div class="mt-4 grid grid-cols-7 gap-1">
+                <button
+                  v-for="day in days"
+                  :key="isoDate(day)"
+                  data-testid="booking-day"
+                  type="button"
+                  class="rounded-lg py-2 text-center transition-colors"
+                  :class="selectedDate === isoDate(day)
+                    ? 'bg-primary text-inverted'
+                    : slotsByDate.has(isoDate(day))
+                      ? 'text-highlighted hover:bg-muted'
+                      : 'cursor-not-allowed text-dimmed opacity-40'"
+                  :disabled="!viewerTimeZoneReady || !slotsByDate.has(isoDate(day))"
+                  :aria-label="dayAriaLabel(day)"
+                  :aria-pressed="selectedDate === isoDate(day)"
+                  @click="selectedDate = isoDate(day); selectedSlot = null"
+                >
+                  <span class="block text-[12px] font-semibold uppercase tracking-wide opacity-70">
+                    {{ shortWeekday(day) }}
+                  </span>
+                  <span class="tnum mt-0.5 block text-[16px] font-semibold">{{ day.getDate() }}</span>
+                </button>
+              </div>
 
-              <template v-else-if="daySlots.length">
-                <p class="text-[14px] font-medium text-muted">
-                  {{ longSelected }}
+              <div class="mt-6">
+                <div
+                  v-if="status === 'pending'"
+                  class="space-y-3"
+                  aria-label="Loading available times"
+                  aria-busy="true"
+                  role="status"
+                >
+                  <USkeleton class="h-3 w-36" />
+                  <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    <USkeleton
+                      v-for="slot in 6"
+                      :key="slot"
+                      class="h-11 w-full rounded-lg"
+                    />
+                  </div>
+                </div>
+
+                <p
+                  v-else-if="!hasAnything"
+                  class="py-16 text-center text-sm text-dimmed"
+                >
+                  No free times in the next nine weeks.
                 </p>
-                <div class="tnum mt-3 grid max-h-64 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3">
-                  <button
-                    v-for="slot in daySlots"
-                    :key="slot.start"
-                    data-testid="booking-slot"
-                    type="button"
-                    class="min-h-11 rounded-lg border py-2 text-[14px] font-medium transition-colors"
-                    :class="selectedSlot === slot.start
-                      ? 'border-primary bg-primary text-inverted'
-                      : 'border-default text-toned hover:border-primary'"
-                    :aria-pressed="selectedSlot === slot.start"
-                    :disabled="!viewerTimeZoneReady"
-                    @click="selectedSlot = slot.start"
-                  >
-                    <span class="block">{{ timeLabel(slot.start) }}</span>
-                    <span
-                      v-if="slot.availableSeats !== undefined"
-                      class="mt-0.5 block text-[12px] font-normal opacity-75"
-                    >{{ slot.availableSeats }} {{ slot.availableSeats === 1 ? 'seat' : 'seats' }} left</span>
-                  </button>
+
+                <template v-else-if="daySlots.length">
+                  <p class="text-[14px] font-medium text-muted">
+                    {{ longSelected }}
+                  </p>
+                  <div class="tnum mt-3 grid max-h-64 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3">
+                    <button
+                      v-for="slot in daySlots"
+                      :key="slot.start"
+                      data-testid="booking-slot"
+                      type="button"
+                      class="min-h-11 rounded-lg border py-2 text-[14px] font-medium transition-colors"
+                      :class="selectedSlot === slot.start
+                        ? 'border-primary bg-primary text-inverted'
+                        : 'border-default text-toned hover:border-primary'"
+                      :aria-pressed="selectedSlot === slot.start"
+                      :disabled="!viewerTimeZoneReady"
+                      @click="selectedSlot = slot.start"
+                    >
+                      <span class="block">{{ timeLabel(slot.start) }}</span>
+                      <span
+                        v-if="slot.availableSeats !== undefined"
+                        class="mt-0.5 block text-[12px] font-normal opacity-75"
+                      >{{ slot.availableSeats }} {{ slot.availableSeats === 1 ? 'seat' : 'seats' }} left</span>
+                    </button>
+                  </div>
+                </template>
+
+                <p
+                  v-else
+                  class="py-16 text-center text-sm text-dimmed"
+                >
+                  Nothing free this week.
+                </p>
+              </div>
+
+              <template #fallback>
+                <div
+                  class="space-y-4"
+                  aria-label="Loading booking calendar"
+                  aria-busy="true"
+                  role="status"
+                >
+                  <div class="flex items-center justify-between">
+                    <USkeleton class="h-4 w-28" />
+                    <USkeleton class="h-11 w-24 rounded-lg" />
+                  </div>
+                  <div class="grid grid-cols-7 gap-1">
+                    <USkeleton
+                      v-for="day in 7"
+                      :key="day"
+                      class="h-14 w-full rounded-lg"
+                    />
+                  </div>
+                  <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    <USkeleton
+                      v-for="slot in 6"
+                      :key="slot"
+                      class="h-11 w-full rounded-lg"
+                    />
+                  </div>
                 </div>
               </template>
-
-              <p
-                v-else
-                class="py-16 text-center text-sm text-dimmed"
-              >
-                Nothing free this week.
-              </p>
-            </div>
+            </ClientOnly>
 
             <form
               v-if="selectedSlot"

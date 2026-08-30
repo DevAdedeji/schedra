@@ -59,7 +59,7 @@ export function useBookingCalendar(options: {
   })
 
   watchEffect(() => {
-    if (jumped.value || !slotsByDate.value.size) return
+    if (!viewerTimeZoneReady.value || jumped.value || !slotsByDate.value.size) return
     const first = [...slotsByDate.value.keys()].sort()[0]!
     const monday = startOfIsoWeek(first)
     weekOffset.value = Math.min(maxWeekOffset, Math.max(0,
@@ -68,9 +68,16 @@ export function useBookingCalendar(options: {
     jumped.value = true
   })
   watchEffect(() => {
-    if (selectedDate.value && slotsByDate.value.has(selectedDate.value)) return
-    const inWeek = days.value.map(isoCalendarDate).find(key => slotsByDate.value.has(key))
-    if (inWeek) selectedDate.value = inWeek
+    const visibleDates = days.value.map(isoCalendarDate)
+    if (
+      selectedDate.value
+      && visibleDates.includes(selectedDate.value)
+      && slotsByDate.value.has(selectedDate.value)
+    ) return
+
+    const inWeek = visibleDates.find(key => slotsByDate.value.has(key)) ?? null
+    if (selectedDate.value !== inWeek) selectedSlot.value = null
+    selectedDate.value = inWeek
   })
 
   const daySlots = computed(() => selectedDate.value ? slotsByDate.value.get(selectedDate.value) ?? [] : [])
