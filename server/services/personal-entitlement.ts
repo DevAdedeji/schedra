@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
 import {
   PERSONAL_PRO_PLAN,
   personalProPriceCents,
@@ -22,9 +22,12 @@ export async function paidTeamCoverageForUser(
   now = new Date()
 ): Promise<PersonalTeamCoverage | null> {
   const candidates = await useDatabase().select({
+    membershipId: members.id,
     organizationId: organizations.id,
     name: organizations.name,
-    slug: organizations.slug
+    slug: organizations.slug,
+    collectionMethod: organizationSubscriptions.collectionMethod,
+    seatsAtLastInvoice: organizationSubscriptions.seatsAtLastInvoice
   }).from(members)
     .innerJoin(organizations, eq(organizations.id, members.organizationId))
     .innerJoin(organizationSubscriptions, eq(organizationSubscriptions.organizationId, organizations.id))
@@ -37,8 +40,23 @@ export async function paidTeamCoverageForUser(
   for (const candidate of candidates) {
     const entitlement = await organizationEntitlement(candidate.organizationId, now)
     if (entitlement.readOnly || entitlement.status === 'trialing' || !entitlement.currentPeriodEnd) continue
+
+    if (candidate.collectionMethod === 'invoice') {
+      const paidSeats = candidate.seatsAtLastInvoice ?? 0
+      if (paidSeats < 1) continue
+      // A transfer pays for a seat count, not named people. Stable join order
+      // assigns that paid capacity until the next invoice raises the count.
+      const paidMemberships = await useDatabase().select({ id: members.id }).from(members)
+        .where(eq(members.organizationId, candidate.organizationId))
+        .orderBy(asc(members.createdAt), asc(members.id))
+        .limit(paidSeats)
+      if (!paidMemberships.some(member => member.id === candidate.membershipId)) continue
+    }
+
     return {
-      ...candidate,
+      organizationId: candidate.organizationId,
+      name: candidate.name,
+      slug: candidate.slug,
       status: entitlement.status,
       interval: entitlement.interval,
       currentPeriodEnd: entitlement.currentPeriodEnd

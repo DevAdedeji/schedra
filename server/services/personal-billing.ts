@@ -309,6 +309,7 @@ export async function schedulePersonalRenewalCancellationsForTeam(organizationId
   let scheduled = 0
 
   for (const member of teamMembers) {
+    if (!await paidTeamCoverageForUser(member.userId)) continue
     const result = await schedulePersonalRenewalCancellation(member.userId, organizationId)
     if (result.scheduled) scheduled += 1
   }

@@ -210,8 +210,9 @@ describe.skipIf(!url)('teams', () => {
     expect(entitlement.canAddMembers).toBe(false)
   })
 
-  it('includes Personal Pro with a paid Team seat but not with a trial', async () => {
+  it('includes Personal Pro only for Team seats covered by payment', async () => {
     const ada = await signUp('Ada Lovelace', 'ada', 'ada@example.com')
+    const grace = await signUp('Grace Hopper', 'grace', 'grace@example.com')
     const team = await createTeam(ada.headers)
     const { personalPlanEntitlement } = await import('../services/personal-entitlement')
 
@@ -221,7 +222,8 @@ describe.skipIf(!url)('teams', () => {
       update organization_subscriptions set
         status = 'active',
         trial_ends_at = null,
-        current_period_end = now() + interval '1 year'
+        current_period_end = now() + interval '1 year',
+        seats_at_last_invoice = 1
       where organization_id = ${team!.id}
     `
 
@@ -229,6 +231,23 @@ describe.skipIf(!url)('teams', () => {
     expect(included.isPro).toBe(true)
     expect(included.source).toBe('team')
     expect(included.teamCoverage?.organizationId).toBe(team!.id)
+
+    const instance = await auth()
+    const invitation = await instance.api.createInvitation({
+      body: { email: grace.email, role: 'member', organizationId: team!.id },
+      headers: ada.headers
+    })
+    await instance.api.acceptInvitation({
+      body: { invitationId: invitation!.id },
+      headers: grace.headers
+    })
+
+    expect((await personalPlanEntitlement(grace.id)).source).toBe('free')
+    await sql`
+      update organization_subscriptions set seats_at_last_invoice = 2
+      where organization_id = ${team!.id}
+    `
+    expect((await personalPlanEntitlement(grace.id)).source).toBe('team')
 
     await sql`
       update organization_subscriptions set status = 'canceled'
