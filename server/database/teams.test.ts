@@ -601,6 +601,26 @@ describe.skipIf(!url)('teams', () => {
     expect(released!.released_at).not.toBeNull()
   })
 
+  it('calculates round-robin load after a host has an assignment', async () => {
+    const ada = await signUp('Ada Lovelace', 'ada', 'ada@example.com')
+    const [eventType] = await sql<{ id: string }[]>`
+      select id from event_types where user_id = ${ada.id} limit 1
+    `
+    await sql`
+      insert into bookings (event_type_id, host_id, uid, starts_at, ends_at,
+                            attendee_name, attendee_email, attendee_time_zone)
+      values (${eventType!.id}, ${ada.id}, 'round-robin-load', now() + interval '2 days',
+              now() + interval '2 days 30 minutes', 'Guest', 'guest@example.com', 'UTC')
+    `
+
+    const { hostLoads } = await import('../services/team-booking')
+    await expect(hostLoads(eventType!.id, [ada.id])).resolves.toMatchObject([{
+      userId: ada.id,
+      recentCount: 1,
+      lastAssignedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/)
+    }])
+  })
+
   it('refuses to double-book a host, across personal and team meetings alike', async () => {
     const ada = await signUp('Ada Lovelace', 'ada', 'ada@example.com')
     const team = await createTeam(ada.headers)

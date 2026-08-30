@@ -350,7 +350,7 @@ export async function hostLoads(
     .select({
       userId: bookingHosts.userId,
       recentCount: sql<number>`count(distinct coalesce(${bookingHosts.groupSessionId}, ${bookingHosts.bookingId}))`.mapWith(Number),
-      lastAssignedAt: sql<Date | null>`max(${bookingHosts.createdAt})`
+      lastAssignedAt: sql<Date | null>`max(${bookingHosts.createdAt})`.mapWith(bookingHosts.createdAt)
     })
     .from(bookingHosts)
     .innerJoin(bookings, eq(bookings.id, bookingHosts.bookingId))
