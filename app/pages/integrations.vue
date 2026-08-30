@@ -185,7 +185,7 @@ async function disconnectZoom() {
       @retry="refreshHealth"
     />
 
-    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
       <CalendarIntegrationCard
         provider="google-calendar"
         name="Google Calendar"
