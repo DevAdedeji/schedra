@@ -10,6 +10,7 @@ export function useBookingGuestForm(options: {
   page: MaybeRefOrGetter<PublicBookingPage | null | undefined>
   additionalGuestLimit: MaybeRefOrGetter<number>
 }) {
+  const route = useRoute()
   const booking = reactive({ name: '', email: '', notes: '' })
   const bookingAnswers = reactive<Record<string, string>>({})
   const guestEmails = ref<string[]>([])
@@ -29,7 +30,7 @@ export function useBookingGuestForm(options: {
     booking.name = toValue(options.prefillName)?.trim() ?? ''
     booking.email = toValue(options.prefillEmail)?.trim().toLowerCase() ?? ''
     if (import.meta.client && !booking.name && !booking.email) {
-      const key = `schedra:routing-prefill:${window.location.pathname}`
+      const key = `schedra:routing-prefill:${route.path}`
       const stored = sessionStorage.getItem(key)
       sessionStorage.removeItem(key)
       if (stored) {

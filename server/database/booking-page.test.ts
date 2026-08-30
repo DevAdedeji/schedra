@@ -1,5 +1,5 @@
 import postgres from 'postgres'
-import { afterAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { configureAppTestEnvironment, getTestDatabaseUrl } from '../../test/helpers/database'
 
 const url = getTestDatabaseUrl()
@@ -29,11 +29,16 @@ describe.skipIf(!url)('public booking page', () => {
   }
 
   afterAll(async () => {
+    vi.unstubAllGlobals()
     await sql`truncate table email_outbox, api_rate_limits, rate_limits, sessions, accounts, verifications, bookings, event_types, date_overrides, availability_rules, schedules, users, organizations restart identity cascade`
     await sql.end()
   })
 
   beforeEach(async () => {
+    vi.stubGlobal('createError', (input: { statusCode: number, statusMessage: string }) => Object.assign(
+      new Error(input.statusMessage),
+      input
+    ))
     await sql`truncate table email_outbox, api_rate_limits, rate_limits, sessions, accounts, verifications, bookings, event_types, date_overrides, availability_rules, schedules, users, organizations restart identity cascade`
   })
 
@@ -89,8 +94,9 @@ describe.skipIf(!url)('public booking page', () => {
     const event = (await findPublicEventType('ada', '30min'))!
     const slots = await slotsFor(event, '2026-09-07', '2026-09-07', '2026-09-01T00:00:00Z', 60)
 
-    expect(slots).toHaveLength(8)
+    expect(slots).toHaveLength(15)
     expect(Date.parse(slots[0]!.end) - Date.parse(slots[0]!.start)).toBe(60 * 60_000)
+    expect(slots.at(-1)!.start).toBe('2026-09-07T15:00:00Z')
     await expect(
       slotsFor(event, '2026-09-07', '2026-09-07', '2026-09-01T00:00:00Z', 45)
     ).rejects.toMatchObject({ statusCode: 400 })

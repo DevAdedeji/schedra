@@ -104,6 +104,12 @@ const rescheduleBooking = ref<BookingDetail | null>(null)
 if (rescheduleOf.value) {
   rescheduleBooking.value = await bookingsApi.get(rescheduleOf.value)
     .catch(() => null)
+  if (
+    rescheduleBooking.value
+    && page.value?.durationOptionsMinutes.includes(rescheduleBooking.value.durationMinutes)
+  ) {
+    selectedDurationMinutes.value = rescheduleBooking.value.durationMinutes
+  }
 }
 const {
   viewerTimeZone, viewerTimeZoneReady, zones, weekOffset, maxWeekOffset,
