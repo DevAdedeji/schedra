@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { TEAM_PLAN, formatUsd, type BillingInterval } from '#shared/billing'
+import { PERSONAL_PRO_PLAN, TEAM_PLAN, formatUsd, type BillingInterval } from '#shared/billing'
 
 definePageMeta({ layout: 'default' })
 
@@ -10,6 +10,8 @@ const { isSignedIn, accountDestination } = await useLandingNavigation()
 // dashboard is what makes a marketing CTA feel broken.
 const teamDestination = computed(() => isSignedIn.value ? '/t/new' : '/signup')
 const personalCta = computed(() => isSignedIn.value ? 'Go to your dashboard' : 'Create your link')
+const proDestination = computed(() => isSignedIn.value ? '/billing' : '/signup')
+const proCta = computed(() => isSignedIn.value ? 'Upgrade to Personal Pro' : 'Start with a free account')
 const teamCta = computed(() => isSignedIn.value ? 'Create a team' : 'Start a team free')
 
 const interval = ref<BillingInterval>('yearly')
@@ -21,11 +23,15 @@ onMounted(() => {
 
 // The headline is always the amount that actually gets charged. Leading with a
 // monthly-equivalent for a yearly plan reads as a $6.67 debit that never happens.
-const headlineCents = computed(() => interval.value === 'yearly'
+const teamHeadlineCents = computed(() => interval.value === 'yearly'
   ? TEAM_PLAN.yearlyCentsPerSeat
   : TEAM_PLAN.monthlyCentsPerSeat)
+const proHeadlineCents = computed(() => interval.value === 'yearly'
+  ? PERSONAL_PRO_PLAN.yearlyCents
+  : PERSONAL_PRO_PLAN.monthlyCents)
 
-const monthlyEquivalentCents = Math.round(TEAM_PLAN.yearlyCentsPerSeat / 12)
+const teamMonthlyEquivalentCents = Math.round(TEAM_PLAN.yearlyCentsPerSeat / 12)
+const proMonthlyEquivalentCents = Math.round(PERSONAL_PRO_PLAN.yearlyCents / 12)
 
 const yearlySavingMonths = Math.round(
   12 - TEAM_PLAN.yearlyCentsPerSeat / TEAM_PLAN.monthlyCentsPerSeat
@@ -42,6 +48,7 @@ interface ComparisonRow {
   label: string
   detail?: string
   free: Availability
+  pro: Availability
   team: Availability
 }
 
@@ -49,78 +56,85 @@ const comparison: { group: string, rows: ComparisonRow[] }[] = [
   {
     group: 'Your own scheduling',
     rows: [
-      { label: 'Personal booking page', free: true, team: true },
-      { label: 'Event types', free: 'Unlimited', team: 'Unlimited' },
-      { label: 'Weekly hours and date overrides', free: true, team: true },
-      { label: 'Multiple schedules', free: '10', team: '10' },
-      { label: 'Timezone-correct slots', free: true, team: true },
-      { label: 'Buffers, notice and daily limits', free: true, team: true },
-      { label: 'Custom booking questions', free: true, team: true },
-      { label: 'Booking approvals', free: true, team: true },
-      { label: 'Group events with capacity', free: true, team: true },
-      { label: 'Additional guests on a booking', free: true, team: true },
-      { label: 'Reminder emails', free: true, team: true },
-      { label: 'Cancel and reschedule links', free: true, team: true },
-      { label: 'Export your data', free: true, team: true }
+      { label: 'Personal booking page', free: true, pro: true, team: true },
+      { label: 'Event types', free: 'Unlimited', pro: 'Unlimited', team: 'Unlimited' },
+      { label: 'Weekly hours and date overrides', free: true, pro: true, team: true },
+      { label: 'Multiple schedules', free: '10', pro: '10', team: '10' },
+      { label: 'Timezone-correct slots', free: true, pro: true, team: true },
+      { label: 'Buffers, notice and daily limits', free: true, pro: true, team: true },
+      { label: 'Custom booking questions', free: true, pro: true, team: true },
+      { label: 'Booking approvals', free: true, pro: true, team: true },
+      { label: 'Group events with capacity', free: true, pro: true, team: true },
+      { label: 'Additional guests on a booking', free: true, pro: true, team: true },
+      { label: 'Reminder emails', free: true, pro: true, team: true },
+      { label: 'Cancel and reschedule links', free: true, pro: true, team: true },
+      { label: 'Export your account data', free: true, pro: true, team: true }
     ]
   },
   {
     group: 'Automation and insights',
     rows: [
-      { label: 'Email and webhook workflows', free: true, team: true },
-      { label: 'Routing forms', free: true, team: true },
-      { label: 'Booking analytics', free: true, team: true },
-      { label: 'Paid bookings', free: true, team: true },
-      { label: 'Payment and settlement activity', free: true, team: true }
+      { label: 'Email and webhook workflows', free: 'Unlimited', pro: 'Unlimited', team: true },
+      { label: 'Routing forms', free: 'Unlimited', pro: 'Unlimited', team: true },
+      { label: 'Booking analytics', free: 'Core insights', pro: 'Revenue + CSV', team: true },
+      { label: 'Custom booking-page branding', free: false, pro: true, team: false },
+      { label: 'Remove Schedra branding', free: false, pro: true, team: false },
+      { label: 'Paid bookings', free: true, pro: true, team: true },
+      { label: 'Paid-booking platform fee', free: '5%', pro: '2.5%', team: '5%' },
+      { label: 'Payment and settlement activity', free: true, pro: true, team: true }
     ]
   },
   {
     group: 'Scheduling together',
     rows: [
-      { label: 'Shared team booking page', free: false, team: true },
-      { label: 'Shared team event types', free: false, team: true },
-      { label: 'Members', free: false, team: `Up to ${TEAM_PLAN.maxSeats}` },
-      { label: 'Roles and permissions', free: false, team: 'Owner, admin, member' },
+      { label: 'Shared team booking page', free: false, pro: false, team: true },
+      { label: 'Shared team event types', free: false, pro: false, team: true },
+      { label: 'Members', free: false, pro: false, team: `Up to ${TEAM_PLAN.maxSeats}` },
+      { label: 'Roles and permissions', free: false, pro: false, team: 'Owner, admin, member' },
       {
         label: 'Round-robin assignment',
         detail: 'The free, fairest host takes the booking.',
-        free: false,
+        free: false, pro: false,
         team: true
       },
       {
         label: 'Collective meetings',
         detail: 'Offered only when every required host is free.',
-        free: false,
+        free: false, pro: false,
         team: true
       },
-      { label: 'Per-host availability and calendars', free: false, team: true },
-      { label: 'Guest rescheduling for team bookings', free: false, team: true },
-      { label: 'Team bookings and activity log', free: false, team: true },
-      { label: 'Ownership transfer and team archiving', free: false, team: true }
+      { label: 'Per-host availability and calendars', free: false, pro: false, team: true },
+      { label: 'Guest rescheduling for team bookings', free: false, pro: false, team: true },
+      { label: 'Team bookings and activity log', free: false, pro: false, team: true },
+      { label: 'Ownership transfer and team archiving', free: false, pro: false, team: true }
     ]
   },
   {
     group: 'Integrations and distribution',
     rows: [
-      { label: 'Booking overlay for your website', free: true, team: true },
-      { label: 'Google Calendar conflict checks and sync', free: true, team: true },
-      { label: 'Microsoft Calendar conflict checks and sync', free: true, team: true },
-      { label: 'Google Meet links', free: true, team: true },
-      { label: 'Microsoft Teams links', free: true, team: true },
-      { label: 'Zoom meeting links', free: true, team: true },
-      { label: 'Automatic calendar-sync retries', free: true, team: true }
+      { label: 'Booking overlay for your website', free: true, pro: true, team: true },
+      { label: 'Google Calendar conflict checks and sync', free: true, pro: true, team: true },
+      { label: 'Microsoft Calendar conflict checks and sync', free: true, pro: true, team: true },
+      { label: 'Google Meet links', free: true, pro: true, team: true },
+      { label: 'Microsoft Teams links', free: true, pro: true, team: true },
+      { label: 'Zoom meeting links', free: true, pro: true, team: true },
+      { label: 'Automatic calendar-sync retries', free: true, pro: true, team: true }
     ]
   },
   {
     group: 'Everywhere',
     rows: [
-      { label: 'No ads and no reselling personal data', free: true, team: true },
-      { label: 'Email support', free: true, team: true }
+      { label: 'No ads and no reselling personal data', free: true, pro: true, team: true },
+      { label: 'Email support', free: true, pro: true, team: true }
     ]
   }
 ]
 
 const faqs = [
+  {
+    q: 'What is included in Personal Pro?',
+    a: 'Personal Pro adds custom booking-page branding, revenue reports, CSV exports and a lower 2.5% paid-booking platform fee. Workflows, routing forms and core booking analytics remain free.'
+  },
   {
     q: 'Who exactly am I paying for?',
     a: 'Only people who have actually joined a team. A pending invitation costs nothing until it is accepted, and someone you remove stops counting from that moment. There are no prepaid or empty seats.'
@@ -145,9 +159,9 @@ const faqs = [
 
 useSeoMeta({
   title: 'Pricing',
-  description: `Schedra is free for your own booking page, forever. Team scheduling is ${formatUsd(TEAM_PLAN.monthlyCentsPerSeat)} per member each month, billed only for members who have joined.`,
+  description: `Start scheduling free, upgrade to Personal Pro for ${formatUsd(PERSONAL_PRO_PLAN.monthlyCents)} a month, or run a team for ${formatUsd(TEAM_PLAN.monthlyCentsPerSeat)} per member.`,
   ogTitle: 'Schedra pricing',
-  ogDescription: `Free for personal scheduling. ${formatUsd(TEAM_PLAN.monthlyCentsPerSeat)} per member each month for teams.`
+  ogDescription: `Free personal scheduling, ${formatUsd(PERSONAL_PRO_PLAN.monthlyCents)} Personal Pro and fair per-member team pricing.`
 })
 
 useHead({
@@ -162,9 +176,16 @@ useHead({
       'offers': [
         {
           '@type': 'Offer',
-          'name': 'Personal',
+          'name': 'Personal Free',
           'price': '0',
           'priceCurrency': 'USD'
+        },
+        {
+          '@type': 'Offer',
+          'name': 'Personal Pro',
+          'price': (PERSONAL_PRO_PLAN.monthlyCents / 100).toFixed(2),
+          'priceCurrency': PERSONAL_PRO_PLAN.currency,
+          'description': 'Per user, per month. Annual billing is available at a discount.'
         },
         {
           '@type': 'Offer',
@@ -187,11 +208,11 @@ useHead({
           Pricing
         </p>
         <h1 class="mt-6 max-w-[18ch] font-editorial text-[clamp(2.5rem,6vw,4rem)] leading-[1.02] tracking-[-0.02em] text-highlighted">
-          Free on your own. Fair together.
+          Start free. Upgrade when your scheduling works harder.
         </h1>
         <p class="mt-6 max-w-[52ch] text-[17px] leading-relaxed text-muted">
-          Your own booking page costs nothing and always will. You only pay when
-          a team shares one — and only for the people who actually joined.
+          Essential personal scheduling, workflows, routing and core analytics stay free.
+          Personal Pro adds your brand and business reporting, while teams pay only for people who join.
         </p>
       </div>
     </section>
@@ -229,10 +250,10 @@ useHead({
           </p>
         </div>
 
-        <div class="grid gap-6 lg:grid-cols-2">
+        <div class="grid gap-6 lg:grid-cols-3">
           <article class="flex flex-col rounded-2xl border border-default bg-default p-7 lg:p-9">
             <p class="eyebrow text-dimmed">
-              Personal
+              Personal Free
             </p>
             <p class="mt-6 font-editorial text-[3rem] leading-none tracking-[-0.02em] text-highlighted">
               Free
@@ -259,20 +280,54 @@ useHead({
 
           <article class="relative flex flex-col rounded-2xl border-2 border-primary bg-default p-7 lg:p-9">
             <span class="absolute -top-3 left-7 rounded-full bg-primary px-3 py-1 text-[12px] font-semibold tracking-wide text-inverted">
-              For teams
+              Best for professionals
             </span>
+            <p class="eyebrow text-primary">
+              Personal Pro
+            </p>
+            <p class="mt-6 font-editorial text-[3rem] leading-none tracking-[-0.02em] text-highlighted">
+              {{ formatUsd(proHeadlineCents) }}
+              <span class="font-sans text-[16px] tracking-normal text-muted">/ {{ interval === 'yearly' ? 'year' : 'month' }}</span>
+            </p>
+            <p class="mt-3 text-[15px] text-muted">
+              <template v-if="interval === 'yearly'">
+                Charged once a year — {{ formatUsd(proMonthlyEquivalentCents) }} a month.
+              </template>
+              <template v-else>
+                Charged every month.
+              </template>
+            </p>
+            <p class="mt-6 max-w-[40ch] text-[16px] leading-relaxed text-muted">
+              Build a professional booking experience with your logo and colours,
+              remove Schedra branding, track revenue and export your reports.
+            </p>
+            <p class="my-4 rounded-xl bg-muted px-4 py-3 text-[14px] leading-relaxed text-muted">
+              Includes a lower 2.5% platform fee on paid bookings.
+            </p>
+            <UButton
+              :to="proDestination"
+              prefetch
+              size="xl"
+              block
+              class="mobile-compact-action mt-auto rounded-full text-center font-medium"
+            >
+              {{ proCta }}
+            </UButton>
+          </article>
+
+          <article class="flex flex-col rounded-2xl border border-default bg-default p-7 lg:p-9">
             <p class="eyebrow text-dimmed">
               Team
             </p>
             <p class="mt-6 font-editorial text-[3rem] leading-none tracking-[-0.02em] text-highlighted">
-              {{ formatUsd(headlineCents) }}
+              {{ formatUsd(teamHeadlineCents) }}
               <span class="font-sans text-[16px] tracking-normal text-muted">
                 per member / {{ interval === 'yearly' ? 'year' : 'month' }}
               </span>
             </p>
             <p class="mt-3 text-[15px] text-muted">
               <template v-if="interval === 'yearly'">
-                Charged once a year — the same as {{ formatUsd(monthlyEquivalentCents) }} a month.
+                Charged once a year — the same as {{ formatUsd(teamMonthlyEquivalentCents) }} a month.
               </template>
               <template v-else>
                 Charged every month.
@@ -334,14 +389,17 @@ useHead({
             </summary>
 
             <div class="overflow-x-auto px-5 pb-3 sm:px-6">
-              <table class="w-full min-w-136 border-collapse text-left">
+              <table class="w-full min-w-176 border-collapse text-left">
                 <thead>
                   <tr class="border-b border-default">
                     <th class="py-3 pr-4 text-[14px] font-medium text-muted">
                       Feature
                     </th>
                     <th class="w-32 py-3 text-[14px] font-medium text-muted">
-                      Personal
+                      Free
+                    </th>
+                    <th class="w-32 py-3 text-[14px] font-medium text-muted">
+                      Personal Pro
                     </th>
                     <th class="w-40 py-3 text-[14px] font-medium text-muted">
                       Team
@@ -366,7 +424,7 @@ useHead({
                       </p>
                     </td>
                     <td
-                      v-for="plan in (['free', 'team'] as const)"
+                      v-for="plan in (['free', 'pro', 'team'] as const)"
                       :key="plan"
                       class="py-4 align-top"
                     >
@@ -386,14 +444,14 @@ useHead({
                         <UIcon
                           name="i-lucide-check"
                           class="size-4.5 text-primary"
-                          :aria-label="`Included in ${plan === 'free' ? 'Personal' : 'Team'}`"
+                          :aria-label="`Included in ${plan === 'free' ? 'Personal Free' : plan === 'pro' ? 'Personal Pro' : 'Team'}`"
                         />
                       </template>
                       <template v-else>
                         <UIcon
                           name="i-lucide-minus"
                           class="size-4.5 text-dimmed"
-                          :aria-label="`Not in ${plan === 'free' ? 'Personal' : 'Team'}`"
+                          :aria-label="`Not in ${plan === 'free' ? 'Personal Free' : plan === 'pro' ? 'Personal Pro' : 'Team'}`"
                         />
                       </template>
                     </td>
