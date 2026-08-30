@@ -7,7 +7,7 @@ const url = getTestDatabaseUrl()
 
 describe.skipIf(!url)('team templates and branding persistence', () => {
   const sql = postgres(url!, { max: 2, onnotice: () => {} })
-  const appDatabase = url ? createDatabase(url, { max: 1 }) : null
+  const appDatabase = url ? createDatabase(url, { max: 2 }) : null
 
   beforeEach(async () => {
     configureAppTestEnvironment(url!)
@@ -101,6 +101,65 @@ describe.skipIf(!url)('team templates and branding persistence', () => {
     await sql`delete from organizations where id = ${team.id}`
     const [count] = await sql<{ value: number }[]>`select count(*)::int as value from organization_event_templates`
     expect(count?.value).toBe(0)
+  })
+
+  it('serializes concurrent creates at the active template limit', async () => {
+    const { team, user, eventType } = await fixture()
+    const {
+      createTeamEventTemplate,
+      MAX_ACTIVE_TEAM_EVENT_TEMPLATES,
+      snapshotTeamEventDefaults
+    } = await import('../services/team-event-template')
+    const defaults = await snapshotTeamEventDefaults(team.id, eventType.id, appDatabase!.db)
+    await sql`
+      insert into organization_event_templates (
+        organization_id, name, defaults, source_event_type_id, created_by_user_id
+      )
+      select
+        ${team.id},
+        'Template ' || value,
+        ${sql.json(defaults)},
+        ${eventType.id},
+        ${user.id}
+      from generate_series(1, ${MAX_ACTIVE_TEAM_EVENT_TEMPLATES - 1}) as value
+    `
+
+    const blocker = await sql.reserve()
+    let transactionOpen = false
+    try {
+      await blocker`begin`
+      transactionOpen = true
+      await blocker`select pg_advisory_xact_lock(hashtextextended(${team.id}, 0))`
+
+      let settled = 0
+      const outcomesPromise = Promise.allSettled(['Final A', 'Final B'].map(name => createTeamEventTemplate({
+        organizationId: team.id,
+        name,
+        defaults,
+        sourceEventTypeId: eventType.id,
+        createdByUserId: user.id
+      }, appDatabase!.db).finally(() => { settled += 1 })))
+
+      await new Promise(resolve => setTimeout(resolve, 30))
+      expect(settled).toBe(0)
+      await blocker`commit`
+      transactionOpen = false
+
+      const outcomes = await outcomesPromise
+      expect(outcomes.filter(result => result.status === 'fulfilled')).toHaveLength(1)
+      const rejected = outcomes.find(result => result.status === 'rejected')
+      expect(rejected).toMatchObject({ status: 'rejected', reason: { statusCode: 409 } })
+    } finally {
+      if (transactionOpen) await blocker`rollback`
+      blocker.release()
+    }
+
+    const [active] = await sql<{ value: number }[]>`
+      select count(*)::int as value
+      from organization_event_templates
+      where organization_id = ${team.id} and archived_at is null
+    `
+    expect(active?.value).toBe(MAX_ACTIVE_TEAM_EVENT_TEMPLATES)
   })
 
   it('uses safe branding defaults and validates stored colours', async () => {

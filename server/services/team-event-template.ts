@@ -1,6 +1,6 @@
-import { and, eq } from 'drizzle-orm'
+import { and, count, eq, isNull, sql } from 'drizzle-orm'
 import { teamEventTemplateDefaultsSchema, type TeamEventTemplateDefaults } from '#shared/validation'
-import { eventTypes } from '../database/schema'
+import { eventTypes, organizationEventTemplates } from '../database/schema'
 import { useDatabase } from '../database'
 import type { Database } from '../database/client'
 
@@ -27,6 +27,16 @@ const templateSelection = {
   assignmentMode: eventTypes.assignmentMode
 }
 
+export const MAX_ACTIVE_TEAM_EVENT_TEMPLATES = 50
+
+interface CreateTeamEventTemplateInput {
+  organizationId: string
+  name: string
+  defaults: TeamEventTemplateDefaults
+  sourceEventTypeId: string
+  createdByUserId: string
+}
+
 export async function snapshotTeamEventDefaults(
   organizationId: string,
   eventTypeId: string,
@@ -51,4 +61,35 @@ export async function snapshotTeamEventDefaults(
 export function validStoredTemplateDefaults(defaults: unknown): TeamEventTemplateDefaults | null {
   const parsed = teamEventTemplateDefaultsSchema.safeParse(defaults)
   return parsed.success ? parsed.data : null
+}
+
+export async function createTeamEventTemplate(
+  input: CreateTeamEventTemplateInput,
+  executor: Database = useDatabase()
+) {
+  return executor.transaction(async (tx) => {
+    // Count and insert must share an organization-scoped lock or two requests
+    // can both observe slot 50 as free and exceed the product limit.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${input.organizationId}, 0))`)
+    const [total] = await tx.select({ value: count() }).from(organizationEventTemplates).where(and(
+      eq(organizationEventTemplates.organizationId, input.organizationId),
+      isNull(organizationEventTemplates.archivedAt)
+    ))
+    if ((total?.value ?? 0) >= MAX_ACTIVE_TEAM_EVENT_TEMPLATES) {
+      throw createError({ statusCode: 409, statusMessage: 'Archive an old template before creating another.' })
+    }
+
+    const [created] = await tx.insert(organizationEventTemplates).values(input)
+      .returning({ id: organizationEventTemplates.id })
+      .catch(rethrowTemplateNameConflict)
+    if (!created) throw createError({ statusCode: 500, statusMessage: 'Could not create that template.' })
+    return created
+  })
+}
+
+function rethrowTemplateNameConflict(failure: unknown): never {
+  if (String((failure as { message?: string })?.message ?? '').includes('organization_event_templates_active_name_key')) {
+    throw createError({ statusCode: 409, statusMessage: 'An active template already uses that name.' })
+  }
+  throw failure
 }
