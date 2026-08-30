@@ -30,7 +30,7 @@ export async function integrationSyncHealth(userId: string): Promise<Integration
   for (const job of jobs) {
     if (job.status !== 'failed') continue
     const provider = job.failureProvider as IntegrationProviderId | null
-    if (provider && ['google', 'microsoft', 'zoom'].includes(provider)) {
+    if (provider && ['google', 'microsoft', 'caldav', 'zoom'].includes(provider)) {
       providerCounts[provider] = (providerCounts[provider] ?? 0) + 1
     }
   }

@@ -3,7 +3,7 @@ import { retryFailedIntegrationSyncs } from '../../services/integration-health'
 import { requireAuthSession } from '../../services/session'
 
 const retrySchema = z.object({
-  provider: z.enum(['google', 'microsoft', 'zoom']).optional()
+  provider: z.enum(['google', 'microsoft', 'caldav', 'zoom']).optional()
 }).default({})
 
 export default defineEventHandler(async (event) => {

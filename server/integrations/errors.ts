@@ -1,4 +1,4 @@
-export type IntegrationProviderId = 'google' | 'microsoft' | 'zoom'
+export type IntegrationProviderId = 'google' | 'microsoft' | 'caldav' | 'zoom'
 
 export interface IntegrationErrorOptions {
   provider: IntegrationProviderId

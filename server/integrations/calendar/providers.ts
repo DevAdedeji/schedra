@@ -13,6 +13,13 @@ import {
   microsoftEventId,
   upsertMicrosoftCalendarEvent
 } from './microsoft'
+import {
+  appleBusyTimes,
+  appleConnectionFor,
+  appleEventId,
+  deleteAppleCalendarEvent,
+  upsertAppleCalendarEvent
+} from './caldav'
 
 const googleProvider: CalendarProvider = {
   id: 'google',
@@ -32,9 +39,19 @@ const microsoftProvider: CalendarProvider = {
   deleteEvent: deleteMicrosoftCalendarEvent
 }
 
+const appleProvider: CalendarProvider = {
+  id: 'caldav',
+  busyTimes: appleBusyTimes,
+  connectionFor: appleConnectionFor,
+  eventId: appleEventId,
+  upsertEvent: upsertAppleCalendarEvent,
+  deleteEvent: deleteAppleCalendarEvent
+}
+
 const providers = new Map<string, CalendarProvider>([
   [googleProvider.id, googleProvider],
-  [microsoftProvider.id, microsoftProvider]
+  [microsoftProvider.id, microsoftProvider],
+  [appleProvider.id, appleProvider]
 ])
 
 export function calendarProvider(id: string) {
