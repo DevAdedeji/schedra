@@ -40,7 +40,7 @@ const {
   <div
     class="flex w-full items-stretch overflow-hidden rounded-lg border transition-colors"
     :class="[
-      size === 'lg' ? 'h-9' : 'h-10',
+      'h-10',
       color === 'error'
         ? 'border-error ring-2 ring-error/20'
         : focused

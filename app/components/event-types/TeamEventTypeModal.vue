@@ -101,7 +101,6 @@ async function save() {
     :dismissible="false"
     :title="eventType ? 'Edit team event type' : 'New team event type'"
     description="A shared booking link your team hosts together."
-    scrollable
     :ui="{
       content: 'h-[calc(100dvh-2rem)] w-full max-w-none sm:h-[min(92dvh,50rem)] sm:max-w-3xl',
       body: 'min-h-0 flex-1 overflow-y-auto',

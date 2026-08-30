@@ -23,7 +23,6 @@ const {
     v-model:open="isOpen"
     title="Edit schedule"
     description="Set the weekly pattern and exceptions event types can use."
-    scrollable
     :ui="{
       content: 'h-[calc(100dvh-2rem)] w-full max-w-none sm:h-[min(92dvh,56rem)] sm:max-w-5xl',
       header: 'border-b border-default px-5 py-4 sm:px-6 sm:py-5',

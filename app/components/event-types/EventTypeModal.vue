@@ -99,9 +99,8 @@ async function save() {
     :dismissible="false"
     :title="eventType ? 'Edit event type' : 'New event type'"
     :description="eventType ? 'Update how this meeting works for future bookings.' : 'Create a polished booking experience for your guests.'"
-    scrollable
     :ui="{
-      content: 'h-auto max-h-[calc(100dvh-2rem)] w-full max-w-none sm:max-h-[min(92dvh,56rem)] sm:max-w-3xl',
+      content: 'h-[calc(100dvh-2rem)] w-full max-w-none sm:h-auto sm:max-h-[min(92dvh,56rem)] sm:max-w-3xl',
       header: 'border-b border-default px-5 py-4 sm:px-6 sm:py-5',
       body: 'min-h-0 flex-1 overflow-y-auto p-0 sm:p-0',
       footer: 'border-t border-default px-5 py-4 sm:px-6'
