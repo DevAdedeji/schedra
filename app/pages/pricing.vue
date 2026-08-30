@@ -89,6 +89,7 @@ const comparison: { group: string, rows: ComparisonRow[] }[] = [
     rows: [
       { label: 'Shared team booking page', free: false, pro: false, team: true },
       { label: 'Shared team event types', free: false, pro: false, team: true },
+      { label: 'Managed event templates', free: false, pro: false, team: true },
       { label: 'Members', free: false, pro: false, team: `Up to ${TEAM_PLAN.maxSeats}` },
       { label: 'Roles and permissions', free: false, pro: false, team: 'Owner, admin, member' },
       {

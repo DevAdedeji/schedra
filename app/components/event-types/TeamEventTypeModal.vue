@@ -2,8 +2,10 @@
 import {
   apiErrorMessage,
   paymentsApi,
+  teamEventTemplatesApi,
   teamEventTypesApi,
   type PaymentAccountSummary,
+  type TeamEventTemplatesResponse,
   type TeamEventTypeRecord,
   type TeamMemberRecord
 } from '~/services/schedra-api'
@@ -33,12 +35,16 @@ const { host } = useSiteUrl()
 const feedback = useFeedback()
 const paymentEndpoint = computed(() => paymentsApi.teamEndpoint(props.teamSlug))
 const { data: paymentAccount, refresh: refreshPaymentAccount } = await useFetch<PaymentAccountSummary>(paymentEndpoint, { immediate: false })
+const templatesEndpoint = computed(() => teamEventTemplatesApi.listEndpoint(props.teamSlug))
+const { data: templates, status: templatesStatus, error: templatesError, refresh: refreshTemplates }
+  = await useFetch<TeamEventTemplatesResponse>(templatesEndpoint, { immediate: false })
 
 const isOpen = computed({ get: () => props.open, set: value => emit('update:open', value) })
 const memberPageModel = computed({ get: () => props.memberPage, set: value => emit('update:memberPage', value) })
 const memberSearchModel = computed({ get: () => props.memberSearch, set: value => emit('update:memberSearch', value) })
 const saving = ref(false)
 const error = ref('')
+const selectedTemplateId = ref<string | undefined>()
 const {
   form, slugTouched, groupEventEnabled, paidBookingEnabled, priceAmount,
   assignmentOptions, selectedMembers, googleMeetReady, microsoftTeamsReady,
@@ -53,11 +59,13 @@ const {
 watch(() => props.open, async (open) => {
   if (!open) return
   error.value = ''
+  selectedTemplateId.value = undefined
   slugTouched.value = Boolean(props.eventType)
   await refreshPaymentAccount().catch(() => undefined)
 
   if (!props.eventType) {
     resetForm()
+    await refreshTemplates().catch(() => undefined)
     return
   }
 
@@ -86,6 +94,20 @@ const monthlyBookingLimit = computed<number | undefined>({
   get: () => form.maxPerMonth ?? undefined,
   set: (value) => { form.maxPerMonth = typeof value === 'number' ? value : null }
 })
+const templateOptions = computed(() => (templates.value?.items ?? []).map(template => ({
+  label: template.name,
+  description: `${template.defaults.title} · ${template.defaults.durationMinutes} min`,
+  value: template.id
+})))
+
+function applyTemplate(templateId: string | undefined) {
+  selectedTemplateId.value = templateId
+  const template = templates.value?.items.find(item => item.id === templateId)
+  if (!template) return
+  const hosts = [...form.hosts]
+  slugTouched.value = false
+  resetForm({ ...template.defaults, hosts })
+}
 
 async function save() {
   if (!valid.value || saving.value) return
@@ -129,6 +151,42 @@ async function save() {
         class="space-y-6"
         @submit.prevent="save"
       >
+        <section
+          v-if="!eventType"
+          class="rounded-xl border border-default bg-muted/40 px-4 py-4"
+        >
+          <UFormField
+            label="Start from a managed template"
+            help="Optional. Templates copy approved defaults; you can still adjust this event before creating it."
+          >
+            <USelectMenu
+              :model-value="selectedTemplateId"
+              :items="templateOptions"
+              value-key="value"
+              :loading="templatesStatus === 'pending'"
+              placeholder="No template"
+              class="w-full"
+              @update:model-value="applyTemplate"
+            />
+          </UFormField>
+          <div
+            v-if="templatesError"
+            class="mt-3 flex items-center justify-between gap-3 text-[12px] text-error"
+            role="alert"
+          >
+            <span>Could not load managed templates.</span>
+            <UButton
+              type="button"
+              color="neutral"
+              variant="outline"
+              size="xs"
+              @click="() => refreshTemplates()"
+            >
+              Try again
+            </UButton>
+          </div>
+        </section>
+
         <section class="space-y-4">
           <UFormField
             label="Title"

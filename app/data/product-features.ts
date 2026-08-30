@@ -43,7 +43,7 @@ export const productFeatureGroups: ProductFeatureGroup[] = [
       { title: 'Booking analytics', summary: 'See booking trends, conversion, lead time, traffic source and popular event types.', icon: 'i-lucide-chart-no-axes-combined' },
       { title: 'Paid bookings', summary: 'Collect payment before confirmation and trace checkouts, fees, settlements and refunds.', icon: 'i-lucide-wallet-cards' },
       { title: 'Website overlays', summary: 'Open the real booking flow over your own site instead of redirecting visitors away.', icon: 'i-lucide-panels-top-left' },
-      { title: 'Teams and workspaces', summary: 'Run round-robin or collective events with roles, private pages and shared operations.', icon: 'i-lucide-building-2' }
+      { title: 'Teams and workspaces', summary: 'Run branded round-robin or collective events with managed templates, roles and shared operations.', icon: 'i-lucide-building-2' }
     ]
   }
 ]

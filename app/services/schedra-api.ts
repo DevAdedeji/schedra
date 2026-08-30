@@ -18,6 +18,7 @@ import type {
   BookingQuestion,
   EventTypeInput,
   MeetingLocationType,
+  TeamEventTemplateDefaults,
   TeamEventTypeInput
 } from '#shared/validation'
 import type { RecurringBookingRequest, RecurringOccurrencePreview } from '#shared/recurrence'
@@ -856,6 +857,31 @@ export const teamEventTypesApi = {
     $fetch(`${resource('/api/teams', slug, '/event-types')}/${encodeURIComponent(id)}`, { method: 'PATCH', body }),
   remove: (slug: string, id: string) =>
     $fetch(`${resource('/api/teams', slug, '/event-types')}/${encodeURIComponent(id)}`, { method: 'DELETE' })
+}
+
+export interface TeamEventTemplateRecord {
+  id: string
+  name: string
+  defaults: TeamEventTemplateDefaults
+  sourceEventTypeId: string | null
+  archivedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface TeamEventTemplatesResponse {
+  items: TeamEventTemplateRecord[]
+  sourceEventTypes: Array<{ id: string, title: string, durationMinutes: number }>
+}
+
+export const teamEventTemplatesApi = {
+  listEndpoint: (slug: string) => resource('/api/teams', slug, '/event-templates'),
+  create: (slug: string, body: { name: string, sourceEventTypeId: string }) =>
+    $fetch<{ id: string }>(resource('/api/teams', slug, '/event-templates'), { method: 'POST', body }),
+  update: (slug: string, id: string, body: { name: string, sourceEventTypeId: string }) =>
+    $fetch<{ id: string }>(`${resource('/api/teams', slug, '/event-templates')}/${encodeURIComponent(id)}`, { method: 'PATCH', body }),
+  archive: (slug: string, id: string) =>
+    $fetch(`${resource('/api/teams', slug, '/event-templates')}/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
 export interface PaymentAccountSummary {

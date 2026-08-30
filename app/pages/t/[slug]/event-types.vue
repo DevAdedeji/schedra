@@ -178,6 +178,12 @@ function bookingLimitLabel(eventType: TeamEventTypeRecord) {
       </template>
     </PageHeader>
 
+    <TeamEventTemplatesManager
+      v-if="permissions?.manageEventTypes"
+      :team-slug="slug"
+      :refresh-key="data?.counts.all"
+    />
+
     <section class="overflow-hidden rounded-xl border border-default bg-default">
       <div class="surface-secondary border-b border-default px-4 py-3 sm:px-5">
         <ListFilter
