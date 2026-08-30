@@ -12,7 +12,7 @@ import { DEFAULT_LIST_PAGE_SIZE } from '~/constants/lists'
 import { compactRelativeTime, formatDateTime } from '~/utils/date-time'
 
 definePageMeta({ layout: 'app', middleware: ['auth', 'platform-admin'] })
-useSeoMeta({ title: 'Operations — Schedra', robots: 'noindex, nofollow' })
+useSeoMeta({ title: 'Operations', robots: 'noindex, nofollow' })
 
 const feedback = useFeedback()
 const kind = ref<OperationKind>('calendar')
