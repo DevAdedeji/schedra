@@ -1,6 +1,12 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { BillingInterval } from '#shared/billing'
-import { TEAM_PLAN, seatPriceCents, toDecimalString } from '#shared/billing'
+import {
+  PERSONAL_PRO_PLAN,
+  TEAM_PLAN,
+  personalProPriceCents,
+  seatPriceCents,
+  toDecimalString
+} from '#shared/billing'
 import { fetchWithTimeout } from './fetch'
 import { logEvent } from '../observability/logger'
 import { useEnv } from '../config/env'
@@ -693,6 +699,37 @@ export async function ensureTeamProduct(interval: BillingInterval, seats: number
       },
       billing_cycle: { interval: interval === 'yearly' ? 'year' : 'month', frequency: 1 },
       metadata: { schedra_plan: key, schedra_seats: String(billable) }
+    }
+  })
+
+  productCache.set(key, created.id)
+  return created.id
+}
+
+export async function ensurePersonalProProduct(interval: BillingInterval): Promise<string> {
+  const key = `personal_pro_${interval}`
+  const cached = productCache.get(key)
+  if (cached) return cached
+
+  const match = await findProductByPlan(key)
+  if (match) {
+    productCache.set(key, match.id)
+    return match.id
+  }
+
+  const created = await bachsFetch<BachsProduct>('/products', {
+    method: 'POST',
+    idempotencyKey: `schedra-${key}`,
+    body: {
+      name: `Schedra Personal Pro (${interval})`,
+      description: 'Advanced solo scheduling, custom branding and lower paid-booking fees.',
+      price: {
+        currency: PERSONAL_PRO_PLAN.currency,
+        price_type: 'fixed',
+        amount: toDecimalString(personalProPriceCents(interval))
+      },
+      billing_cycle: { interval: interval === 'yearly' ? 'year' : 'month', frequency: 1 },
+      metadata: { schedra_plan: key }
     }
   })
 

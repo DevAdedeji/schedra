@@ -18,6 +18,14 @@ export const TEAM_PLAN = {
   maxSeats: 100
 } as const
 
+export const PERSONAL_PRO_PLAN = {
+  currency: 'USD',
+  monthlyCents: 600,
+  yearlyCents: 6000,
+  paidBookingFeeBps: 250,
+  graceDays: 7
+} as const
+
 /**
  * Bachs cannot silently re-charge a bank transfer, and NGN collection is
  * primarily bank transfer, so every renewal is invoice → pay → extend rather
@@ -42,6 +50,21 @@ export const organizationPlanStatuses = [
   'canceled'
 ] as const
 export type OrganizationPlanStatus = typeof organizationPlanStatuses[number]
+
+export type PersonalPlan = 'free' | 'pro'
+export type PersonalPlanStatus = 'free' | OrganizationPlanStatus
+
+export interface PersonalPlanEntitlement {
+  plan: PersonalPlan
+  status: PersonalPlanStatus
+  interval: BillingInterval
+  isPro: boolean
+  currentPeriodEnd: string | null
+  graceEndsAt: string | null
+  cancelAtPeriodEnd: boolean
+  nextInvoiceCents: number
+  autoRenews: boolean
+}
 
 /** Currencies a customer may pay in. Prices are always quoted in USD. */
 export const collectionCurrencies = ['USD', 'NGN'] as const
@@ -96,6 +119,10 @@ export interface OrganizationEntitlement {
 
 export function seatPriceCents(interval: BillingInterval) {
   return interval === 'yearly' ? TEAM_PLAN.yearlyCentsPerSeat : TEAM_PLAN.monthlyCentsPerSeat
+}
+
+export function personalProPriceCents(interval: BillingInterval) {
+  return interval === 'yearly' ? PERSONAL_PRO_PLAN.yearlyCents : PERSONAL_PRO_PLAN.monthlyCents
 }
 
 /** Every team has an owner, so occupied-seat billing starts at one seat. */
