@@ -81,6 +81,21 @@ describe.skipIf(!url)('public booking page', () => {
     expect(slots.at(-1)!.start).toBe('2026-09-07T15:30:00Z')
   })
 
+  it('offers and validates each configured duration independently', async () => {
+    await signUp()
+    await sql`update event_types set additional_duration_minutes = array[60] where slug = '30min'`
+
+    const { findPublicEventType, slotsFor } = await import('../services/booking-page')
+    const event = (await findPublicEventType('ada', '30min'))!
+    const slots = await slotsFor(event, '2026-09-07', '2026-09-07', '2026-09-01T00:00:00Z', 60)
+
+    expect(slots).toHaveLength(8)
+    expect(Date.parse(slots[0]!.end) - Date.parse(slots[0]!.start)).toBe(60 * 60_000)
+    await expect(
+      slotsFor(event, '2026-09-07', '2026-09-07', '2026-09-01T00:00:00Z', 45)
+    ).rejects.toMatchObject({ statusCode: 400 })
+  })
+
   it('is case-insensitive on the username and slug', async () => {
     await signUp()
     const { findPublicEventType } = await import('../services/booking-page')
@@ -190,6 +205,10 @@ describe.skipIf(!url)('public booking page', () => {
     expect(found?.attendeeName).toBe('Grace')
     expect(found?.hostUsername).toBe('ada')
     expect(found?.eventTitle).toBe('30 Minute Meeting')
+    expect(found?.durationMinutes).toBe(30)
+
+    await sql`update event_types set duration_minutes = 60 where id = ${event.id}`
+    expect((await findBookingByUid('known-uid'))?.durationMinutes).toBe(30)
 
     expect(await findBookingByUid('not-a-real-uid')).toBeNull()
   })

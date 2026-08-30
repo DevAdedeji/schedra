@@ -74,6 +74,48 @@ describe('authentication validation', () => {
     expect(eventTypeSchema.safeParse({ ...valid, maxPerDay: 0 }).success).toBe(false)
     expect(eventTypeSchema.safeParse({ ...valid, locationDetails: 'not a link' }).success).toBe(false)
     expect(eventTypeSchema.parse({ ...valid, reminderMinutes: [60, 1440, 60] }).reminderMinutes).toEqual([1440, 60])
+    expect(eventTypeSchema.parse(valid).additionalDurationMinutes).toEqual([])
+    expect(eventTypeSchema.safeParse({ ...valid, additionalDurationMinutes: [15, 45, 60] }).success).toBe(true)
+    expect(eventTypeSchema.safeParse({ ...valid, additionalDurationMinutes: [30] }).success).toBe(false)
+    expect(eventTypeSchema.safeParse({ ...valid, additionalDurationMinutes: [45, 45] }).success).toBe(false)
+    expect(eventTypeSchema.safeParse({ ...valid, additionalDurationMinutes: [10, 15, 20, 45, 60] }).success).toBe(false)
+  })
+
+  it('keeps recurring bookings explicit and compatible with the event type', () => {
+    const booking = {
+      username: 'ada',
+      slug: 'intro-call',
+      start: '2026-09-07T08:00:00Z',
+      durationMinutes: 30,
+      name: 'Grace',
+      email: 'grace@example.com',
+      timeZone: 'Africa/Lagos',
+      recurrence: { frequency: 'monthly' as const, occurrences: 4 }
+    }
+    expect(createBookingSchema.safeParse(booking).success).toBe(false)
+    expect(createBookingSchema.safeParse({
+      ...booking,
+      requestId: 'f5d799e8-5773-4fcf-9dc7-cb82e4efbd73'
+    }).success).toBe(true)
+
+    const event = {
+      title: 'Intro call',
+      slug: 'intro-call',
+      durationMinutes: 30,
+      bufferBeforeMinutes: 0,
+      bufferAfterMinutes: 0,
+      minimumNoticeMinutes: 120,
+      locationType: 'custom' as const,
+      locationDetails: 'Details will be shared.',
+      reminderMinutes: [],
+      bookingQuestions: [],
+      hidden: false,
+      recurringBookingEnabled: true
+    }
+    expect(eventTypeSchema.safeParse(event).success).toBe(true)
+    expect(eventTypeSchema.safeParse({ ...event, paymentEnabled: true, priceCents: 2500 }).success).toBe(false)
+    expect(eventTypeSchema.safeParse({ ...event, capacity: 2 }).success).toBe(false)
+    expect(eventTypeSchema.safeParse({ ...event, requiresConfirmation: true }).success).toBe(false)
   })
 
   it('validates guest questions and their choice options', () => {

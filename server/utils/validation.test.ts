@@ -40,5 +40,6 @@ describe('new booking and account validation', () => {
       hidden: false
     })
     expect(parsed.requiresConfirmation).toBe(false)
+    expect(parsed.additionalDurationMinutes).toEqual([])
   })
 })
