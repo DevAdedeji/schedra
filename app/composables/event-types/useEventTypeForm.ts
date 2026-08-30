@@ -10,9 +10,11 @@ import type { CalendarConnection, VideoConferenceConnection } from '~/services/s
 import type { EventTypeRecord } from '~/types/event-type'
 import type { ScheduleRecord } from '~/types/schedule'
 
-export type EventTypeForm = Omit<EventTypeInput, 'bookingWindowDays' | 'maxPerDay'> & {
+export type EventTypeForm = Omit<EventTypeInput, 'bookingWindowDays' | 'maxPerDay' | 'maxPerWeek' | 'maxPerMonth'> & {
   bookingWindowDays?: number
   maxPerDay?: number
+  maxPerWeek?: number
+  maxPerMonth?: number
 }
 
 export const EVENT_TYPE_ADVANCED_SECTIONS = ['questions', 'availability', 'notifications', 'payments', 'rules'] as const
@@ -58,7 +60,7 @@ export function useEventTypeForm(options: {
       title: '', slug: '', description: '', durationMinutes: 30, additionalDurationMinutes: [],
       recurringBookingEnabled: false, recurringBookingMaxOccurrences: 8, incrementMinutes: null,
       bufferBeforeMinutes: 0, bufferAfterMinutes: 0, minimumNoticeMinutes: 120,
-      bookingWindowDays: 60, maxPerDay: undefined,
+      bookingWindowDays: 60, maxPerDay: undefined, maxPerWeek: undefined, maxPerMonth: undefined,
       locationType: 'custom', locationDetails: 'The host will share meeting details before the meeting.',
       reminderMinutes: [1440, 60], bookingQuestions: [], requiresConfirmation: false,
       capacity: 1, paymentEnabled: false, priceCents: null, paymentCurrency: 'USD',
@@ -124,9 +126,17 @@ export function useEventTypeForm(options: {
       }
     }
   })
-  const dailyLimitEnabled = computed({
-    get: () => typeof form.maxPerDay === 'number',
-    set: (enabled: boolean) => { form.maxPerDay = enabled ? (form.maxPerDay ?? 1) : undefined }
+  const dailyBookingLimit = computed<number | undefined>({
+    get: () => form.maxPerDay,
+    set: (value) => { form.maxPerDay = typeof value === 'number' ? value : undefined }
+  })
+  const weeklyBookingLimit = computed<number | undefined>({
+    get: () => form.maxPerWeek,
+    set: (value) => { form.maxPerWeek = typeof value === 'number' ? value : undefined }
+  })
+  const monthlyBookingLimit = computed<number | undefined>({
+    get: () => form.maxPerMonth,
+    set: (value) => { form.maxPerMonth = typeof value === 'number' ? value : undefined }
   })
   const groupEventEnabled = computed({
     get: () => form.capacity > 1,
@@ -169,11 +179,16 @@ export function useEventTypeForm(options: {
   const sectionSummaries = computed(() => {
     const reminders = [...form.reminderMinutes].sort((a, b) => b - a).map(shortDuration)
     const attendance = form.capacity > 1 ? `${form.capacity} seats` : 'one guest'
+    const limits = [
+      form.maxPerDay ? `${form.maxPerDay}/day` : '',
+      form.maxPerWeek ? `${form.maxPerWeek}/week` : '',
+      form.maxPerMonth ? `${form.maxPerMonth}/month` : ''
+    ].filter(Boolean)
     return {
       questions: form.bookingQuestions.length
         ? `${form.bookingQuestions.length} extra ${form.bookingQuestions.length === 1 ? 'question' : 'questions'}`
         : 'Name and email only',
-      availability: `${selectedSchedule.value?.name ?? 'No schedule chosen'} · ${shortDuration(form.minimumNoticeMinutes)} notice · ${attendance}`,
+      availability: `${selectedSchedule.value?.name ?? 'No schedule chosen'} · ${shortDuration(form.minimumNoticeMinutes)} notice · ${attendance}${limits.length ? ` · ${limits.join(', ')}` : ''}`,
       notifications: reminders.length ? `Reminders ${reminders.join(' and ')} before` : 'No reminders',
       payments: form.paymentEnabled && form.priceCents
         ? `${formatMoney(form.priceCents, form.paymentCurrency)} per booking`
@@ -193,7 +208,10 @@ export function useEventTypeForm(options: {
           incrementMinutes: item.incrementMinutes,
           bufferBeforeMinutes: item.bufferBeforeMinutes, bufferAfterMinutes: item.bufferAfterMinutes,
           minimumNoticeMinutes: item.minimumNoticeMinutes,
-          bookingWindowDays: item.bookingWindowDays ?? undefined, maxPerDay: item.maxPerDay ?? undefined,
+          bookingWindowDays: item.bookingWindowDays ?? undefined,
+          maxPerDay: item.maxPerDay ?? undefined,
+          maxPerWeek: item.maxPerWeek ?? undefined,
+          maxPerMonth: item.maxPerMonth ?? undefined,
           locationType: item.locationType, locationDetails: item.locationDetails,
           reminderMinutes: [...item.reminderMinutes],
           bookingQuestions: item.bookingQuestions.map(question => ({ ...question, options: [...question.options] })),
@@ -261,7 +279,8 @@ export function useEventTypeForm(options: {
   return {
     form, slugTouched, openSections, scheduleOptions, selectedSchedule, valid, dirty,
     locationOptions, questionTypeOptions: QUESTION_TYPE_OPTIONS, locationField,
-    selectedGeneratedProvider, breaksEnabled, dailyLimitEnabled, groupEventEnabled,
+    selectedGeneratedProvider, breaksEnabled, dailyBookingLimit, weeklyBookingLimit,
+    monthlyBookingLimit, groupEventEnabled,
     paidBookingEnabled, priceAmount, allSectionsOpen, sectionSummaries, sectionOpen,
     toggleSection, toggleAllSections, loadForm, reminderEnabled, toggleReminder,
     addQuestion, removeQuestion, moveQuestion, changeQuestionType,

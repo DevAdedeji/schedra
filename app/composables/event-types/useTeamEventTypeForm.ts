@@ -12,7 +12,7 @@ function emptyTeamEventTypeForm(): TeamEventTypeInput {
     title: '', slug: '', description: undefined, durationMinutes: 30, additionalDurationMinutes: [],
     recurringBookingEnabled: false, recurringBookingMaxOccurrences: 8, incrementMinutes: null,
     bufferBeforeMinutes: 0, bufferAfterMinutes: 0, minimumNoticeMinutes: 120,
-    bookingWindowDays: 60, maxPerDay: null, locationType: 'custom',
+    bookingWindowDays: 60, maxPerDay: null, maxPerWeek: null, maxPerMonth: null, locationType: 'custom',
     locationDetails: 'The host will share meeting details before the meeting.',
     reminderMinutes: [1440, 60], bookingQuestions: [], requiresConfirmation: false,
     capacity: 1, paymentEnabled: false, priceCents: null, paymentCurrency: 'USD',

@@ -40,7 +40,8 @@ const username = computed(() => currentUser.value?.user?.username ?? '')
 const {
   form, slugTouched, scheduleOptions, selectedSchedule, valid, dirty, locationOptions,
   questionTypeOptions, locationField, selectedGeneratedProvider, breaksEnabled,
-  dailyLimitEnabled, groupEventEnabled, paidBookingEnabled, priceAmount,
+  dailyBookingLimit, weeklyBookingLimit, monthlyBookingLimit,
+  groupEventEnabled, paidBookingEnabled, priceAmount,
   allSectionsOpen, sectionSummaries, sectionOpen, toggleSection, toggleAllSections,
   loadForm, reminderEnabled, toggleReminder, addQuestion, removeQuestion,
   moveQuestion, changeQuestionType, addQuestionOption, removeQuestionOption, slugify
@@ -439,32 +440,56 @@ async function save() {
                     </UFormField>
                   </div>
                 </div>
-                <div class="rounded-xl border border-default bg-muted/40 sm:col-span-2">
-                  <label class="flex cursor-pointer items-start justify-between gap-4 px-4 py-4">
-                    <span>
-                      <span class="block text-[14px] font-medium text-highlighted">Limit bookings per day</span>
-                      <span class="mt-0.5 block text-[13px] text-muted">Stop offering times after this event reaches its daily limit.</span>
-                    </span>
-                    <USwitch
-                      v-model="dailyLimitEnabled"
-                      aria-label="Limit bookings per day"
-                    />
-                  </label>
-                  <div
-                    v-if="dailyLimitEnabled"
-                    class="border-t border-default px-4 py-4"
-                  >
+                <div class="rounded-xl border border-default bg-muted/40 px-4 py-4 sm:col-span-2">
+                  <div>
+                    <p class="text-[14px] font-medium text-highlighted">
+                      Booking limits
+                    </p>
+                    <p class="mt-0.5 text-[13px] leading-relaxed text-muted">
+                      Leave a field empty for no limit. Weeks run Monday to Sunday in the schedule timezone; a group session counts once, not once per guest.
+                    </p>
+                  </div>
+                  <div class="mt-4 grid gap-4 sm:grid-cols-3">
                     <UFormField
-                      label="Maximum bookings each day"
+                      label="Per day"
                       name="maxPerDay"
                     >
                       <UInput
-                        v-model.number="form.maxPerDay"
+                        v-model.number="dailyBookingLimit"
                         type="number"
                         min="1"
                         max="100"
+                        placeholder="No limit"
                         size="lg"
-                        class="w-full sm:max-w-48"
+                        class="w-full"
+                      />
+                    </UFormField>
+                    <UFormField
+                      label="Per week"
+                      name="maxPerWeek"
+                    >
+                      <UInput
+                        v-model.number="weeklyBookingLimit"
+                        type="number"
+                        min="1"
+                        max="700"
+                        placeholder="No limit"
+                        size="lg"
+                        class="w-full"
+                      />
+                    </UFormField>
+                    <UFormField
+                      label="Per month"
+                      name="maxPerMonth"
+                    >
+                      <UInput
+                        v-model.number="monthlyBookingLimit"
+                        type="number"
+                        min="1"
+                        max="3100"
+                        placeholder="No limit"
+                        size="lg"
+                        class="w-full"
                       />
                     </UFormField>
                   </div>

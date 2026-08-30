@@ -796,6 +796,9 @@ export interface TeamEventTypeRecord {
   additionalDurationMinutes: number[]
   recurringBookingEnabled: boolean
   recurringBookingMaxOccurrences: number
+  maxPerDay: number | null
+  maxPerWeek: number | null
+  maxPerMonth: number | null
   assignmentMode: AssignmentMode
   locationType: MeetingLocationType
   requiresConfirmation: boolean

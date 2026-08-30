@@ -15,6 +15,8 @@ export interface EventTypeRecord {
   minimumNoticeMinutes: number
   bookingWindowDays: number | null
   maxPerDay: number | null
+  maxPerWeek: number | null
+  maxPerMonth: number | null
   locationType: MeetingLocationType
   locationDetails: string
   reminderMinutes: number[]

@@ -17,7 +17,7 @@ export const productFeatureGroups: ProductFeatureGroup[] = [
     title: 'A booking flow that fits the way you work',
     description: 'Start with a simple link, then add control only where a meeting needs it.',
     features: [
-      { title: 'Flexible event types', summary: 'Set durations, buffers, notice, booking windows, questions, approvals and capacity.', icon: 'i-lucide-calendar-range' },
+      { title: 'Flexible event types', summary: 'Set durations, buffers, notice, booking windows, booking limits, questions, approvals and capacity.', icon: 'i-lucide-calendar-range' },
       { title: 'Private meeting links', summary: 'Send a secure single-use link with your normal availability, or offer only the exact times you choose.', icon: 'i-lucide-send' },
       { title: 'Availability schedules', summary: 'Reuse working hours, date overrides and timezones across different event types.', icon: 'i-lucide-clock-3' },
       { title: 'Group events', summary: 'Let several guests reserve the same session while capacity stays accurate.', icon: 'i-lucide-users-round' },

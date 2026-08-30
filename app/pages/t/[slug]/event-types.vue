@@ -151,6 +151,14 @@ function actions(eventType: TeamEventTypeRecord) {
 function activeHosts(eventType: TeamEventTypeRecord) {
   return eventType.hosts.filter(host => host.enabled)
 }
+
+function bookingLimitLabel(eventType: TeamEventTypeRecord) {
+  return [
+    eventType.maxPerDay ? `${eventType.maxPerDay}/day` : '',
+    eventType.maxPerWeek ? `${eventType.maxPerWeek}/week` : '',
+    eventType.maxPerMonth ? `${eventType.maxPerMonth}/month` : ''
+  ].filter(Boolean).join(' · ')
+}
 </script>
 
 <template>
@@ -253,6 +261,14 @@ function activeHosts(eventType: TeamEventTypeRecord) {
                 size="sm"
               >
                 {{ formatMoney(eventType.priceCents, eventType.paymentCurrency) }}
+              </UBadge>
+              <UBadge
+                v-if="bookingLimitLabel(eventType)"
+                color="neutral"
+                variant="subtle"
+                size="sm"
+              >
+                {{ bookingLimitLabel(eventType) }}
               </UBadge>
               <UBadge
                 v-if="eventType.hidden"

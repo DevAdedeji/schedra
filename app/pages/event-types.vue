@@ -341,6 +341,20 @@ function locationIcon(item: EventTypeRecord) {
                       name="i-lucide-gauge"
                       class="size-3.5 text-dimmed"
                     />Up to {{ item.maxPerDay }} per day</span>
+                    <span
+                      v-if="item.maxPerWeek"
+                      class="flex items-center gap-1.5"
+                    ><UIcon
+                      name="i-lucide-gauge"
+                      class="size-3.5 text-dimmed"
+                    />Up to {{ item.maxPerWeek }} per week</span>
+                    <span
+                      v-if="item.maxPerMonth"
+                      class="flex items-center gap-1.5"
+                    ><UIcon
+                      name="i-lucide-gauge"
+                      class="size-3.5 text-dimmed"
+                    />Up to {{ item.maxPerMonth }} per month</span>
                     <span class="flex items-center gap-1.5"><UIcon
                       name="i-lucide-calendar-range"
                       class="size-3.5 text-dimmed"
