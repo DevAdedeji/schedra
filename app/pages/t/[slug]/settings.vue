@@ -336,6 +336,12 @@ async function leave() {
         </footer>
       </section>
 
+      <TeamBrandingSettings
+        v-if="permissions?.updateTeam"
+        :team-slug="slug"
+        :team-name="team.organization.name"
+      />
+
       <section class="overflow-hidden rounded-xl border border-default bg-default">
         <header class="border-b border-default px-5 py-4">
           <h2 class="text-[15px] font-semibold text-highlighted">

@@ -94,7 +94,7 @@ const missingPage = computed(() => pageError.value?.statusCode === 404 || availa
 const loadingFailure = computed(() => pageError.value && !missingPage.value ? pageError.value : availabilityError.value)
 const initialLoading = computed(() => !page.value && !loadingFailure.value && (pageStatus.value === 'pending' || status.value === 'pending'))
 const retrying = computed(() => pageStatus.value === 'pending' || status.value === 'pending')
-const branding = computed(() => isTeam.value || isInvite.value ? undefined : page.value?.branding)
+const branding = computed(() => isInvite.value ? undefined : page.value?.branding)
 const { brandStyle, brandThemeClass } = usePersonalBookingBranding(branding)
 
 async function retryBookingPage() {
@@ -374,7 +374,7 @@ useHead({
           v-if="!embedded"
           class="pt-6 pb-12"
         >
-          <NuxtLink :to="branding?.logoUrl || branding?.brandName ? `/${owner}` : '/'">
+          <NuxtLink :to="branding?.logoUrl || branding?.brandName ? (isTeam ? `/team/${owner}` : `/${owner}`) : '/'">
             <PersonalBookingBrand :branding="branding" />
           </NuxtLink>
         </div>

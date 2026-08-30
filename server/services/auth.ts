@@ -181,6 +181,12 @@ function createAuth() {
                 message: 'Change the team address from team settings so old links keep working.'
               })
             }
+            if (changes.logo !== undefined) {
+              throw new APIError('BAD_REQUEST', {
+                code: 'LOGO_CHANGE_NOT_ALLOWED',
+                message: 'Upload the team logo from team branding settings.'
+              })
+            }
           },
 
           // Seats are billed as occupied, so acceptance is where the bill grows

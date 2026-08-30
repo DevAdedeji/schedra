@@ -22,6 +22,7 @@ import { bookingLimitRange, subtractFromInstant, utcCalendarDateBoundary } from 
 import { organizationEntitlement } from './entitlement'
 import { findOrganizationBySlug } from './organization'
 import { assignedHostsForGroupSessions, groupSessionCapacity } from './group-events'
+import { storedTeamBranding } from './team-branding'
 
 /** `HH:MM:SS` from Postgres `time`, trimmed to what the engine expects. */
 function wall(value: string) {
@@ -113,6 +114,7 @@ export async function findPublicTeamEventType(teamSlug: string, eventSlug: strin
     organizationId: found.organization.id,
     organizationName: found.organization.name,
     organizationSlug: found.organization.slug,
+    branding: await storedTeamBranding(found.organization.id),
     renamed: found.renamed
   }
 }
@@ -445,6 +447,7 @@ export async function publicTeamProfile(teamSlug: string) {
     name: found.organization.name,
     slug: found.organization.slug,
     logo: found.organization.logo,
+    branding: await storedTeamBranding(found.organization.id),
     renamed: found.renamed,
     eventTypes: items.map(item => ({
       ...item,

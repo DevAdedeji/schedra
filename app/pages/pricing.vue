@@ -77,8 +77,8 @@ const comparison: { group: string, rows: ComparisonRow[] }[] = [
       { label: 'Email and webhook workflows', free: 'Unlimited', pro: 'Unlimited', team: true },
       { label: 'Routing forms', free: 'Unlimited', pro: 'Unlimited', team: true },
       { label: 'Booking analytics', free: 'Core insights', pro: 'Revenue + CSV', team: true },
-      { label: 'Custom booking-page branding', free: false, pro: true, team: false },
-      { label: 'Remove Schedra branding', free: false, pro: true, team: false },
+      { label: 'Custom booking-page branding', free: false, pro: true, team: true },
+      { label: 'Remove Schedra branding', free: false, pro: true, team: true },
       { label: 'Paid bookings', free: true, pro: true, team: true },
       { label: 'Paid-booking platform fee', free: '5%', pro: '2.5%', team: '5%' },
       { label: 'Payment and settlement activity', free: true, pro: true, team: true }

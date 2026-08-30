@@ -41,6 +41,7 @@ export default defineEventHandler(async (request) => {
     paymentEnabled: eventType.paymentEnabled,
     priceCents: eventType.priceCents,
     paymentCurrency: eventType.paymentCurrency,
+    branding: eventType.branding,
     hosts: hosts.map(host => ({ name: host.name, avatarUrl: host.avatarUrl }))
   }
 })

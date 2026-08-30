@@ -18,6 +18,8 @@ const missing = computed(() => error.value?.statusCode === 404)
 const canonical = computed(() => `${siteUrl.value}/team/${encodeURIComponent(team.value?.slug ?? slug)}`)
 
 const initials = computed(() => getInitials(team.value?.name ?? ''))
+const branding = computed(() => team.value?.branding)
+const { brandStyle, brandThemeClass } = usePersonalBookingBranding(branding)
 
 const modeLabel: Record<string, string> = {
   single: 'One host',
@@ -37,12 +39,16 @@ useHead({ link: [{ key: 'canonical', rel: 'canonical', href: canonical }] })
 </script>
 
 <template>
-  <div class="flex min-h-screen flex-col bg-muted">
+  <div
+    class="personal-booking-brand flex min-h-screen flex-col bg-muted"
+    :class="brandThemeClass"
+    :style="brandStyle"
+  >
     <main class="flex-1 px-5">
       <div class="mx-auto max-w-2xl">
         <div class="pt-6 pb-12">
-          <NuxtLink to="/">
-            <SchedraMark />
+          <NuxtLink :to="team?.branding?.logoUrl || team?.branding?.brandName ? `/team/${team.slug}` : '/'">
+            <PersonalBookingBrand :branding="team?.branding" />
           </NuxtLink>
         </div>
 
@@ -164,5 +170,14 @@ useHead({ link: [{ key: 'canonical', rel: 'canonical', href: canonical }] })
         </template>
       </div>
     </main>
+    <footer
+      v-if="team && !team.branding.hideSchedraBranding"
+      class="px-5 pb-10 pt-6 text-center text-xs text-muted"
+    >
+      Scheduling by <NuxtLink
+        to="/"
+        class="underline underline-offset-4 transition-colors hover:text-highlighted"
+      >Schedra</NuxtLink>
+    </footer>
   </div>
 </template>

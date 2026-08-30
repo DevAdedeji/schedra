@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { RoutingQuestion } from '#shared/routing'
+import type { PublicPersonalBranding } from '#shared/branding'
 import { apiErrorMessage } from '~/services/schedra-api'
 
 const props = defineProps<{ mode: 'personal' | 'team', owner: string, slug: string }>()
@@ -12,6 +13,7 @@ interface PublicRoutingForm {
   description: string | null
   ownerName: string
   questions: RoutingQuestion[]
+  branding?: PublicPersonalBranding
 }
 
 const routingFormRequest = useFetch<PublicRoutingForm>(endpoint)
@@ -25,6 +27,8 @@ const email = ref(currentUser.value?.user?.email ?? '')
 const answers = reactive<Record<string, string>>({})
 const submitting = ref(false)
 const submitError = ref('')
+const branding = computed(() => data.value?.branding)
+const { brandStyle, brandThemeClass } = usePersonalBookingBranding(branding)
 
 useSeoMeta({
   title: () => data.value ? `${data.value.title} · ${data.value.ownerName}` : 'Find the right meeting',
@@ -55,13 +59,17 @@ async function continueToBooking() {
 </script>
 
 <template>
-  <main class="min-h-screen bg-muted px-4 py-8 sm:px-6 sm:py-14">
+  <main
+    class="personal-booking-brand min-h-screen bg-muted px-4 py-8 sm:px-6 sm:py-14"
+    :class="brandThemeClass"
+    :style="brandStyle"
+  >
     <div class="mx-auto max-w-2xl">
       <NuxtLink
-        to="/"
-        aria-label="Schedra home"
+        :to="props.mode === 'team' && branding ? `/team/${props.owner}` : '/'"
+        :aria-label="branding?.brandName ? `${branding.brandName} booking page` : 'Schedra home'"
         class="mb-7 inline-flex"
-      ><SchedraMark /></NuxtLink>
+      ><PersonalBookingBrand :branding="branding" /></NuxtLink>
       <section class="overflow-hidden rounded-2xl border border-default bg-default shadow-sm">
         <AsyncErrorState
           v-if="error"
@@ -157,7 +165,10 @@ async function continueToBooking() {
           </form>
         </template>
       </section>
-      <p class="mt-5 text-center text-[12px] text-dimmed">
+      <p
+        v-if="!branding?.hideSchedraBranding"
+        class="mt-5 text-center text-[12px] text-dimmed"
+      >
         Scheduling powered by Schedra
       </p>
     </div>

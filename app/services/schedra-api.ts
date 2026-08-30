@@ -7,7 +7,11 @@ import type {
   OrganizationRole,
   PersonalPlanEntitlement
 } from '#shared/billing'
-import type { PersonalBrandingInput, PublicPersonalBranding } from '#shared/branding'
+import type {
+  OrganizationBrandingInput,
+  PersonalBrandingInput,
+  PublicPersonalBranding
+} from '#shared/branding'
 import type {
   AssignmentMode,
   BookingAnswer,
@@ -751,6 +755,19 @@ export const teamsApi = {
   )
 }
 
+export const teamBrandingApi = {
+  endpoint: (slug: string) => resource('/api/teams', slug, '/branding'),
+  update: (slug: string, body: OrganizationBrandingInput) =>
+    $fetch<{ branding: PublicPersonalBranding }>(resource('/api/teams', slug, '/branding'), { method: 'PATCH', body }),
+  uploadLogo: (slug: string, file: File) => {
+    const body = new FormData()
+    body.append('logo', file)
+    return $fetch<{ logoUrl: string }>(resource('/api/teams', slug, '/brand-logo'), { method: 'PUT', body })
+  },
+  removeLogo: (slug: string) =>
+    $fetch(resource('/api/teams', slug, '/brand-logo'), { method: 'DELETE' })
+}
+
 export interface TeamInvoiceRecord {
   id: string
   reference: string
@@ -980,6 +997,7 @@ export interface PublicTeamProfile {
   name: string
   slug: string
   logo: string | null
+  branding: PublicPersonalBranding
   renamed: boolean
   eventTypes: Array<{
     slug: string
@@ -1015,6 +1033,7 @@ export interface PublicTeamBookingPage {
   priceCents: number | null
   paymentCurrency: 'USD' | 'NGN'
   hosts: Array<{ name: string, avatarUrl: string | null }>
+  branding: PublicPersonalBranding
 }
 
 export interface CreateTeamBookingInput {
