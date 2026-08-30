@@ -16,6 +16,8 @@ import { billableSeats, type BillingInterval } from '#shared/billing'
 import { recordAudit } from './organization'
 import { logEvent } from '../observability/logger'
 import { addToInstant } from '../utils/date-time'
+import { organizationEntitlement } from './entitlement'
+import { schedulePersonalRenewalCancellationsForTeam } from './personal-billing'
 
 type SeatSyncExecutor = Pick<Database, 'insert'>
 
@@ -68,6 +70,11 @@ export async function syncSubscriptionSeats(organizationId: string) {
   const desiredSeats = billableSeats(seatRow?.value ?? 0)
   if (subscription.status === 'trialing') {
     return { action: 'trial' as const, desiredSeats }
+  }
+
+  const entitlement = await organizationEntitlement(organizationId)
+  if (!entitlement.readOnly && entitlement.status !== 'trialing') {
+    await schedulePersonalRenewalCancellationsForTeam(organizationId)
   }
 
   // Bank transfers cannot be charged without the owner acting. Those teams

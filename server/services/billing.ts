@@ -217,7 +217,7 @@ export async function markInvoicePaid(input: {
 }) {
   const db = useDatabase()
 
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const [invoice] = await tx.select()
       .from(organizationInvoices)
       .where(eq(organizationInvoices.reference, input.reference))
@@ -247,9 +247,11 @@ export async function markInvoicePaid(input: {
       lastInvoiceReference: invoice.reference,
       updatedAt: sql`now()`
     }).where(eq(organizationSubscriptions.organizationId, invoice.organizationId))
+    await enqueueSubscriptionSeatSync(invoice.organizationId, tx)
 
     return { applied: true, organizationId: invoice.organizationId, reason: 'paid' as const }
   })
+  return result
 }
 
 export async function markInvoiceFailed(reference: string, reason: string) {

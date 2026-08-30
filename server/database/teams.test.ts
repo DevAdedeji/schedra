@@ -4,7 +4,7 @@ import { configureAppTestEnvironment, getTestDatabaseUrl } from '../../test/help
 
 const url = getTestDatabaseUrl()
 
-const TABLES = 'subscription_seat_sync_jobs, organization_audit_logs, organization_slug_history, organization_subscriptions, '
+const TABLES = 'personal_invoices, personal_subscriptions, subscription_seat_sync_jobs, organization_audit_logs, organization_slug_history, organization_subscriptions, '
   + 'organization_invoices, bachs_webhook_events, booking_hosts, event_type_hosts, invitations, members, email_outbox, api_rate_limits, rate_limits, sessions, accounts, '
   + 'verifications, bookings, event_types, date_overrides, availability_rules, schedules, users, organizations'
 
@@ -208,6 +208,33 @@ describe.skipIf(!url)('teams', () => {
     expect(entitlement.status).toBe('canceled')
     expect(entitlement.readOnly).toBe(true)
     expect(entitlement.canAddMembers).toBe(false)
+  })
+
+  it('includes Personal Pro with a paid Team seat but not with a trial', async () => {
+    const ada = await signUp('Ada Lovelace', 'ada', 'ada@example.com')
+    const team = await createTeam(ada.headers)
+    const { personalPlanEntitlement } = await import('../services/personal-entitlement')
+
+    expect((await personalPlanEntitlement(ada.id)).source).toBe('free')
+
+    await sql`
+      update organization_subscriptions set
+        status = 'active',
+        trial_ends_at = null,
+        current_period_end = now() + interval '1 year'
+      where organization_id = ${team!.id}
+    `
+
+    const included = await personalPlanEntitlement(ada.id)
+    expect(included.isPro).toBe(true)
+    expect(included.source).toBe('team')
+    expect(included.teamCoverage?.organizationId).toBe(team!.id)
+
+    await sql`
+      update organization_subscriptions set status = 'canceled'
+      where organization_id = ${team!.id}
+    `
+    expect((await personalPlanEntitlement(ada.id)).source).toBe('free')
   })
 
   it('blocks account deletion while a team would be left ownerless', async () => {

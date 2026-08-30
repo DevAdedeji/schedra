@@ -6,7 +6,7 @@ import {
   personalProPriceCents,
   toDecimalString
 } from '#shared/billing'
-import { personalInvoices, personalSubscriptions } from '../database/schema'
+import { members, personalInvoices, personalSubscriptions } from '../database/schema'
 import { useDatabase } from '../database'
 import {
   cancelSubscription,
@@ -19,7 +19,7 @@ import {
 } from '../integrations/bachs'
 import { useEnv } from '../config/env'
 import { addUtcCalendarPeriod } from '../utils/date-time'
-import { personalPlanEntitlement } from './personal-entitlement'
+import { paidTeamCoverageForUser, personalPlanEntitlement } from './personal-entitlement'
 import { recordSecurityAudit } from './security-audit'
 
 function personalPeriodEnd(from: Date, interval: BillingInterval) {
@@ -49,9 +49,11 @@ export async function startPersonalCheckout(input: {
   if (entitlement.isPro) {
     throw createError({
       statusCode: 409,
-      statusMessage: entitlement.autoRenews
-        ? 'Personal Pro is already active and renews automatically.'
-        : 'Personal Pro is already active for the current billing period.'
+      statusMessage: entitlement.teamCoverage
+        ? `Personal Pro is already included with your seat in ${entitlement.teamCoverage.name}.`
+        : entitlement.autoRenews
+          ? 'Personal Pro is already active and renews automatically.'
+          : 'Personal Pro is already active for the current billing period.'
     })
   }
 
@@ -265,7 +267,52 @@ export async function applyPersonalSubscriptionState(subscription: BachsSubscrip
       updatedAt: sql`now()`
     }
   })
+  if (['active', 'past_due'].includes(status) && await paidTeamCoverageForUser(userId)) {
+    await schedulePersonalRenewalCancellation(userId)
+  }
   return { applied: true, reason: 'subscription-updated' as const, userId, status }
+}
+
+export async function schedulePersonalRenewalCancellation(userId: string, organizationId?: string) {
+  const db = useDatabase()
+  const [row] = await db.select().from(personalSubscriptions)
+    .where(eq(personalSubscriptions.userId, userId)).limit(1)
+
+  if (!row
+    || row.collectionMethod !== 'charge_automatically'
+    || !row.bachsSubscriptionId
+    || row.cancelAtPeriodEnd
+    || !['trialing', 'active', 'past_due'].includes(row.status)) {
+    return { scheduled: false }
+  }
+
+  const updated = await cancelSubscription(row.bachsSubscriptionId, true)
+  await db.update(personalSubscriptions).set({
+    cancelAtPeriodEnd: true,
+    status: updated.status,
+    currentPeriodEnd: updated.current_period_end ? new Date(updated.current_period_end) : row.currentPeriodEnd,
+    updatedAt: sql`now()`
+  }).where(eq(personalSubscriptions.userId, userId))
+  await recordSecurityAudit({
+    action: 'personal_billing.cancellation_scheduled_for_team',
+    actorUserId: userId,
+    organizationId,
+    targetType: 'subscription',
+    targetId: row.bachsSubscriptionId
+  })
+  return { scheduled: true }
+}
+
+export async function schedulePersonalRenewalCancellationsForTeam(organizationId: string) {
+  const teamMembers = await useDatabase().select({ userId: members.userId }).from(members)
+    .where(eq(members.organizationId, organizationId))
+  let scheduled = 0
+
+  for (const member of teamMembers) {
+    const result = await schedulePersonalRenewalCancellation(member.userId, organizationId)
+    if (result.scheduled) scheduled += 1
+  }
+  return { scheduled }
 }
 
 export async function cancelPersonalPlan(userId: string) {

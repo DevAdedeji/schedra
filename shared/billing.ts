@@ -53,17 +53,30 @@ export type OrganizationPlanStatus = typeof organizationPlanStatuses[number]
 
 export type PersonalPlan = 'free' | 'pro'
 export type PersonalPlanStatus = 'free' | OrganizationPlanStatus
+export type PersonalPlanSource = 'free' | 'personal' | 'team' | 'personal_and_team'
+
+export interface PersonalTeamCoverage {
+  organizationId: string
+  name: string
+  slug: string
+  status: OrganizationPlanStatus
+  interval: BillingInterval
+  currentPeriodEnd: string | null
+}
 
 export interface PersonalPlanEntitlement {
   plan: PersonalPlan
   status: PersonalPlanStatus
+  source: PersonalPlanSource
   interval: BillingInterval
   isPro: boolean
   currentPeriodEnd: string | null
+  personalCurrentPeriodEnd: string | null
   graceEndsAt: string | null
   cancelAtPeriodEnd: boolean
   nextInvoiceCents: number
   autoRenews: boolean
+  teamCoverage: PersonalTeamCoverage | null
 }
 
 /** Currencies a customer may pay in. Prices are always quoted in USD. */

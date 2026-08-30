@@ -1,39 +1,78 @@
-import { eq } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import {
   PERSONAL_PRO_PLAN,
   personalProPriceCents,
   type BillingInterval,
   type OrganizationPlanStatus,
-  type PersonalPlanEntitlement
+  type PersonalPlanEntitlement,
+  type PersonalTeamCoverage
 } from '#shared/billing'
-import { personalSubscriptions } from '../database/schema'
+import { members, organizations, organizationSubscriptions, personalSubscriptions } from '../database/schema'
 import { useDatabase } from '../database'
 import { addToInstant } from '../utils/date-time'
 import { useEnv } from '../config/env'
+import { organizationEntitlement } from './entitlement'
 
 function personalGraceEnd(periodEnd: Date) {
   return addToInstant(periodEnd, { hours: PERSONAL_PRO_PLAN.graceDays * 24 })
+}
+
+export async function paidTeamCoverageForUser(
+  userId: string,
+  now = new Date()
+): Promise<PersonalTeamCoverage | null> {
+  const candidates = await useDatabase().select({
+    organizationId: organizations.id,
+    name: organizations.name,
+    slug: organizations.slug
+  }).from(members)
+    .innerJoin(organizations, eq(organizations.id, members.organizationId))
+    .innerJoin(organizationSubscriptions, eq(organizationSubscriptions.organizationId, organizations.id))
+    .where(and(
+      eq(members.userId, userId),
+      isNull(organizations.archivedAt),
+      inArray(organizationSubscriptions.status, ['active', 'past_due'])
+    ))
+
+  for (const candidate of candidates) {
+    const entitlement = await organizationEntitlement(candidate.organizationId, now)
+    if (entitlement.readOnly || entitlement.status === 'trialing' || !entitlement.currentPeriodEnd) continue
+    return {
+      ...candidate,
+      status: entitlement.status,
+      interval: entitlement.interval,
+      currentPeriodEnd: entitlement.currentPeriodEnd
+    }
+  }
+  return null
 }
 
 export async function personalPlanEntitlement(
   userId: string,
   now = new Date()
 ): Promise<PersonalPlanEntitlement> {
-  const [row] = await useDatabase().select().from(personalSubscriptions)
-    .where(eq(personalSubscriptions.userId, userId))
-    .limit(1)
+  const [[row], teamCoverage] = await Promise.all([
+    useDatabase().select().from(personalSubscriptions)
+      .where(eq(personalSubscriptions.userId, userId))
+      .limit(1),
+    paidTeamCoverageForUser(userId, now)
+  ])
 
   if (!row) {
+    const isPro = Boolean(teamCoverage)
     return {
-      plan: 'free',
-      status: 'free',
-      interval: 'yearly',
-      isPro: false,
-      currentPeriodEnd: null,
+      plan: isPro ? 'pro' : 'free',
+      status: teamCoverage?.status ?? 'free',
+      source: isPro ? 'team' : 'free',
+      interval: teamCoverage?.interval ?? 'yearly',
+      isPro,
+      currentPeriodEnd: teamCoverage?.currentPeriodEnd ?? null,
+      personalCurrentPeriodEnd: null,
       graceEndsAt: null,
       cancelAtPeriodEnd: false,
       nextInvoiceCents: PERSONAL_PRO_PLAN.yearlyCents,
-      autoRenews: false
+      autoRenews: false,
+      teamCoverage
     }
   }
 
@@ -54,20 +93,27 @@ export async function personalPlanEntitlement(
   const paidTermAccess = row.collectionMethod === 'invoice'
     && (status === 'active' || insideInvoiceGrace)
   const hasKnownTerm = Boolean(row.currentPeriodEnd)
-  const isPro = hasKnownTerm && (providerManagedAccess || paidTermAccess)
+  const hasPersonalPro = hasKnownTerm && (providerManagedAccess || paidTermAccess)
+  const isPro = hasPersonalPro || Boolean(teamCoverage)
 
   return {
     plan: isPro ? 'pro' : 'free',
-    status,
-    interval,
+    status: hasPersonalPro ? status : (teamCoverage?.status ?? status),
+    source: hasPersonalPro
+      ? (teamCoverage ? 'personal_and_team' : 'personal')
+      : (teamCoverage ? 'team' : 'free'),
+    interval: hasPersonalPro ? interval : (teamCoverage?.interval ?? interval),
     isPro,
-    currentPeriodEnd: row.currentPeriodEnd?.toISOString() ?? null,
+    currentPeriodEnd: teamCoverage?.currentPeriodEnd
+      ?? (hasPersonalPro ? row.currentPeriodEnd?.toISOString() ?? null : null),
+    personalCurrentPeriodEnd: row.currentPeriodEnd?.toISOString() ?? null,
     graceEndsAt: graceEndsAt?.toISOString() ?? null,
     cancelAtPeriodEnd: row.cancelAtPeriodEnd,
     nextInvoiceCents: personalProPriceCents(interval),
     autoRenews: row.collectionMethod === 'charge_automatically'
       && status === 'active'
-      && !row.cancelAtPeriodEnd
+      && !row.cancelAtPeriodEnd,
+    teamCoverage
   }
 }
 
