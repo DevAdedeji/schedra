@@ -1,11 +1,15 @@
 import { z } from 'zod'
-import { filterInvitationSlots, requireUsableBookingLink } from '../../../../services/booking-links'
+import { bookingLinkDurationOptions, filterInvitationSlots, requireUsableBookingLink } from '../../../../services/booking-links'
 import { slotsFor } from '../../../../services/booking-page'
 import { enforceRateLimit } from '../../../../services/rate-limit'
 import { requireLocationIntegration } from '../../../../services/event-location'
 import { calendarDaysBetween } from '../../../../utils/date-time'
 
-const querySchema = z.object({ from: z.iso.date(), to: z.iso.date() })
+const querySchema = z.object({
+  from: z.iso.date(),
+  to: z.iso.date(),
+  durationMinutes: z.coerce.number().int().min(5).max(720).optional()
+})
   .superRefine(({ from, to }, context) => {
     const days = calendarDaysBetween(from, to)
     if (days < 0) {
@@ -21,10 +25,11 @@ export default defineEventHandler(async (event) => {
   if (!parsed.success) throw createError({ statusCode: 400, statusMessage: 'Invalid availability request.' })
   const link = await requireUsableBookingLink(getRouterParam(event, 'token') ?? '')
   await requireLocationIntegration(link.hostId, link.locationType)
-  const slots = await slotsFor(link, parsed.data.from, parsed.data.to, new Date().toISOString())
+  const durationMinutes = parsed.data.durationMinutes ?? bookingLinkDurationOptions(link)[0] ?? link.durationMinutes
+  const slots = await slotsFor(link, parsed.data.from, parsed.data.to, new Date().toISOString(), durationMinutes)
   return {
     timeZone: link.scheduleTimeZone ?? link.hostTimeZone,
-    durationMinutes: link.durationMinutes,
+    durationMinutes,
     slots: filterInvitationSlots(link, slots)
   }
 })

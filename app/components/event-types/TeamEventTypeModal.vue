@@ -70,6 +70,10 @@ watch(() => props.open, async (open) => {
 })
 
 const bookingUrl = computed(() => `${host.value}/team/${props.teamSlug}/${form.slug || 'your-link'}`)
+const bookingWindowDays = computed<number | undefined>({
+  get: () => form.bookingWindowDays ?? undefined,
+  set: (value) => { form.bookingWindowDays = value ?? null }
+})
 
 async function save() {
   if (!valid.value || saving.value) return
@@ -149,20 +153,11 @@ async function save() {
             />
           </UFormField>
 
-          <div class="grid gap-4 sm:grid-cols-2">
-            <UFormField
-              label="Duration"
-              required
-            >
-              <UInput
-                v-model.number="form.durationMinutes"
-                type="number"
-                size="lg"
-                :min="5"
-                :max="720"
-                class="w-full"
-              />
-            </UFormField>
+          <div class="grid items-start gap-4 sm:grid-cols-2">
+            <EventDurationField
+              v-model="form.durationMinutes"
+              v-model:additional="form.additionalDurationMinutes"
+            />
             <UFormField label="Location">
               <USelectMenu
                 v-model="form.locationType"
@@ -447,6 +442,58 @@ async function save() {
             :disabled="form.paymentEnabled"
             label="Require the host to approve each booking"
           />
+          <div class="rounded-xl border border-default bg-muted/40 px-4 py-4">
+            <label class="flex cursor-pointer items-start justify-between gap-5">
+              <span>
+                <span class="block text-[14px] font-medium text-highlighted">Let guests repeat this meeting</span>
+                <span class="mt-0.5 block text-[12px] leading-relaxed text-muted">Offer weekly, every-two-weeks, monthly and yearly series.</span>
+                <span
+                  v-if="!form.recurringBookingEnabled && (form.paymentEnabled || form.capacity > 1 || form.requiresConfirmation)"
+                  class="mt-1 block text-[12px] leading-relaxed text-warning"
+                >Available for free, one-to-one events that confirm instantly.</span>
+              </span>
+              <USwitch
+                v-model="form.recurringBookingEnabled"
+                :disabled="!form.recurringBookingEnabled && (form.paymentEnabled || form.capacity > 1 || form.requiresConfirmation)"
+                aria-label="Allow guests to create recurring team bookings"
+              />
+            </label>
+            <div
+              v-if="form.recurringBookingEnabled"
+              class="mt-4 grid gap-4 sm:grid-cols-2"
+            >
+              <UFormField
+                label="Maximum meetings in one series"
+                name="recurringBookingMaxOccurrences"
+              >
+                <USelect
+                  v-model="form.recurringBookingMaxOccurrences"
+                  :items="Array.from({ length: 7 }, (_, index) => ({ label: `${index + 2} meetings`, value: index + 2 }))"
+                  value-key="value"
+                  label-key="label"
+                  class="w-full"
+                />
+              </UFormField>
+              <UFormField
+                label="Booking window"
+                name="bookingWindowDays"
+                help="The last meeting in a series must fit inside this window."
+              >
+                <UInput
+                  v-model.number="bookingWindowDays"
+                  type="number"
+                  min="1"
+                  max="3660"
+                  size="lg"
+                  class="w-full"
+                >
+                  <template #trailing>
+                    <span class="text-xs text-dimmed">days</span>
+                  </template>
+                </UInput>
+              </UFormField>
+            </div>
+          </div>
           <UCheckbox
             v-model="form.hidden"
             label="Hide this from the team's public page"

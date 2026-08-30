@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { recurringBookingRequestSchema } from './recurrence'
 import { paymentCurrencySchema } from './payments'
 
 export const RESERVED_USERNAMES = new Set([
@@ -105,6 +106,9 @@ export const createBookingSchema = z.object({
   username: z.string().min(1),
   slug: z.string().min(1),
   start: z.iso.datetime(),
+  durationMinutes: z.number().int().min(5).max(720).optional(),
+  requestId: z.uuid().optional(),
+  recurrence: recurringBookingRequestSchema.optional(),
   name: z.string().trim().min(1, 'Please give a name').max(80),
   email: emailSchema,
   guestEmails: z.array(emailSchema).max(10, 'You can invite at most 10 additional guests.')
@@ -120,6 +124,9 @@ export const createBookingSchema = z.object({
   inviteToken: z.string().regex(/^[A-Za-z0-9_-]{32,128}$/).optional(),
   rescheduleOf: z.string().trim().max(64).optional()
 }).superRefine((value, context) => {
+  if (value.recurrence && !value.requestId) {
+    context.addIssue({ code: 'custom', path: ['requestId'], message: 'A recurring booking needs a request identifier.' })
+  }
   if (value.answers && Object.keys(value.answers).length > 10) {
     context.addIssue({
       code: 'custom',
@@ -270,11 +277,14 @@ const eventTypeBaseSchema = z.object({
   slug: eventTypeSlugSchema,
   description: z.string().trim().max(1000, 'At most 1000 characters').optional(),
   durationMinutes: z.number().int().min(5).max(720),
+  additionalDurationMinutes: z.array(z.number().int().min(5).max(720)).max(4).default([]),
+  recurringBookingEnabled: z.boolean().default(false),
+  recurringBookingMaxOccurrences: z.number().int().min(2).max(8).default(8),
   incrementMinutes: z.number().int().min(5).max(720).nullable().optional(),
   bufferBeforeMinutes: z.number().int().min(0).max(1440),
   bufferAfterMinutes: z.number().int().min(0).max(1440),
   minimumNoticeMinutes: z.number().int().min(0).max(525_600),
-  bookingWindowDays: z.number().int().min(1).max(730).nullable().optional(),
+  bookingWindowDays: z.number().int().min(1).max(3660).nullable().optional(),
   maxPerDay: z.number().int().min(1).max(100).nullable().optional(),
   locationType: meetingLocationTypeSchema,
   locationDetails: z.string().trim().max(500, 'Keep meeting details under 500 characters.'),
@@ -291,6 +301,10 @@ const eventTypeBaseSchema = z.object({
 })
 
 interface EventTypeShape {
+  durationMinutes: number
+  additionalDurationMinutes: number[]
+  recurringBookingEnabled: boolean
+  capacity: number
   bookingQuestions: BookingQuestion[]
   locationType: MeetingLocationType
   locationDetails: string
@@ -301,6 +315,27 @@ interface EventTypeShape {
 
 /** Shared by personal and team event types, which differ only in who hosts. */
 function refineEventType(value: EventTypeShape, context: z.RefinementCtx) {
+  if (value.additionalDurationMinutes.includes(value.durationMinutes)) {
+    context.addIssue({
+      code: 'custom',
+      path: ['additionalDurationMinutes'],
+      message: 'The default duration is already included.'
+    })
+  }
+  if (new Set(value.additionalDurationMinutes).size !== value.additionalDurationMinutes.length) {
+    context.addIssue({
+      code: 'custom',
+      path: ['additionalDurationMinutes'],
+      message: 'Each duration can only be offered once.'
+    })
+  }
+  if (value.recurringBookingEnabled && (value.paymentEnabled || value.capacity > 1 || value.requiresConfirmation)) {
+    context.addIssue({
+      code: 'custom',
+      path: ['recurringBookingEnabled'],
+      message: 'Recurring bookings currently require a free, one-to-one event that confirms instantly.'
+    })
+  }
   if (value.paymentEnabled && value.priceCents === null) {
     context.addIssue({ code: 'custom', path: ['priceCents'], message: 'Add a price for this booking.' })
   }
@@ -343,6 +378,13 @@ function refineEventType(value: EventTypeShape, context: z.RefinementCtx) {
 export const eventTypeSchema = eventTypeBaseSchema.superRefine(refineEventType)
 
 export type EventTypeInput = z.infer<typeof eventTypeSchema>
+
+export function eventTypeDurationOptions(eventType: {
+  durationMinutes: number
+  additionalDurationMinutes?: number[] | null
+}) {
+  return [eventType.durationMinutes, ...(eventType.additionalDurationMinutes ?? [])]
+}
 
 export const assignmentModeSchema = z.enum(['single', 'round_robin', 'collective'])
 export type AssignmentMode = z.infer<typeof assignmentModeSchema>

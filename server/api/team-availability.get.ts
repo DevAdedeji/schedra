@@ -9,7 +9,8 @@ const query = z.object({
   team: z.string().min(1),
   slug: z.string().min(1),
   from: z.iso.date(),
-  to: z.iso.date()
+  to: z.iso.date(),
+  durationMinutes: z.coerce.number().int().min(5).max(720).optional()
 }).superRefine(({ from, to }, context) => {
   const days = calendarDaysBetween(from, to)
 
@@ -30,7 +31,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Invalid availability request' })
   }
 
-  const { team, slug, from, to } = parsed.data
+  const { team, slug, from, to, durationMinutes } = parsed.data
   const eventType = await findPublicTeamEventType(team, slug)
   if (!eventType) throw createError({ statusCode: 404, statusMessage: 'No such booking page' })
 
@@ -43,11 +44,11 @@ export default defineEventHandler(async (event) => {
         : hosts).map(host => host.userId),
       eventType.locationType
     )
-    const slots = await teamSlotsFor(eventType, hosts, from, to, new Date().toISOString())
+    const slots = await teamSlotsFor(eventType, hosts, from, to, new Date().toISOString(), durationMinutes)
 
     return {
       timeZone: hosts[0]?.scheduleTimeZone ?? 'UTC',
-      durationMinutes: eventType.durationMinutes,
+      durationMinutes: durationMinutes ?? eventType.durationMinutes,
       assignmentMode: eventType.assignmentMode,
       // Which hosts are free is deliberately not exposed: a guest picking a time
       // has no business learning who on the team is busy.

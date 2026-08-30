@@ -15,6 +15,7 @@ const eventSelection = {
   title: eventTypes.title,
   description: eventTypes.description,
   durationMinutes: eventTypes.durationMinutes,
+  additionalDurationMinutes: eventTypes.additionalDurationMinutes,
   incrementMinutes: eventTypes.incrementMinutes,
   bufferBeforeMinutes: eventTypes.bufferBeforeMinutes,
   bufferAfterMinutes: eventTypes.bufferAfterMinutes,
@@ -51,6 +52,7 @@ export function bookingLinkEventOptions(userId: string) {
     title: eventTypes.title,
     slug: eventTypes.slug,
     durationMinutes: eventTypes.durationMinutes,
+    additionalDurationMinutes: eventTypes.additionalDurationMinutes,
     locationType: eventTypes.locationType,
     hidden: eventTypes.hidden
   }).from(eventTypes)

@@ -3,6 +3,7 @@ import { and, eq, gt, inArray, sql } from 'drizzle-orm'
 import { bookings } from '../database/schema'
 import { useDatabase } from '../database/index'
 import { findPublicEventType, slotsFor } from '../services/booking-page'
+import type { EventTypeRow } from '../services/booking-page'
 import { findBookingByUid } from '../repositories/booking'
 import { queueBookingEmails, queueBookingRequestEmails } from '../services/booking-emails'
 import { cancelBookingReminders } from '../services/email-outbox'
@@ -24,6 +25,7 @@ import { bookingLinkTokenHash, filterInvitationSlots, requireUsableBookingLink }
 import { claimBookingLink } from '../repositories/booking-links'
 import { addUtcCalendarDays, utcCalendarDate } from '../utils/date-time'
 import { personalPaidBookingFeeBps } from '../services/personal-entitlement'
+import { createPersonalRecurringBooking } from '../services/recurring-booking-creation'
 
 const SLOT_TAKEN = '23P01'
 
@@ -39,11 +41,14 @@ export default defineEventHandler(async (event) => {
   }
 
   const {
-    username, slug, start, name, email, guestEmails: submittedGuestEmails,
+    username, slug, start, durationMinutes, requestId, recurrence, name, email, guestEmails: submittedGuestEmails,
     timeZone, notes, answers, source, attribution, inviteToken, rescheduleOf
   } = parsed.data
   if (inviteToken && rescheduleOf) {
     throw createError({ statusCode: 400, statusMessage: 'Use the booking management link to move an existing meeting.' })
+  }
+  if (recurrence && (inviteToken || rescheduleOf)) {
+    throw createError({ statusCode: 400, statusMessage: 'Recurring meetings must start from the public booking page.' })
   }
   const invitation = inviteToken ? await requireUsableBookingLink(inviteToken) : null
   const eventType = invitation ?? await findPublicEventType(username, slug)
@@ -76,6 +81,49 @@ export default defineEventHandler(async (event) => {
     throw error
   }
 
+  if (recurrence && requestId) {
+    if (invitation) {
+      throw createError({ statusCode: 400, statusMessage: 'Recurring meetings must start from the public booking page.' })
+    }
+    let recurring
+    try {
+      await requireLocationIntegration(eventType.hostId, eventType.locationType)
+      recurring = await createPersonalRecurringBooking({
+        eventType: eventType as EventTypeRow,
+        requestId,
+        start,
+        durationMinutes: durationMinutes ?? eventType.durationMinutes,
+        recurrence,
+        guest: {
+          name,
+          email,
+          additionalGuestEmails,
+          timeZone,
+          answers: answerSnapshot ?? undefined,
+          source,
+          attribution
+        }
+      })
+    } catch (error) {
+      if (error instanceof CalendarUnavailableError || (
+        ['google_meet', 'microsoft_teams', 'zoom'].includes(eventType.locationType)
+        && (error as { statusCode?: number }).statusCode === 409
+      )) {
+        throw createError({
+          statusCode: 503,
+          statusMessage: 'Recurring times are temporarily unavailable. Please try again shortly.'
+        })
+      }
+      throw error
+    }
+    return {
+      ...recurring,
+      locationType: eventType.locationType,
+      locationDetails: eventType.locationDetails,
+      meetingUrl: eventType.locationType === 'video_link' ? eventType.locationDetails : null
+    }
+  }
+
   const now = new Date().toISOString()
   const wanted = new Date(start).getTime()
 
@@ -90,7 +138,7 @@ export default defineEventHandler(async (event) => {
   let offered
   try {
     await requireLocationIntegration(eventType.hostId, eventType.locationType)
-    const available = await slotsFor(eventType, day(-1), day(1), now)
+    const available = await slotsFor(eventType, day(-1), day(1), now, durationMinutes)
     offered = invitation ? filterInvitationSlots(invitation, available) : available
   } catch (error) {
     if (error instanceof CalendarUnavailableError || (
@@ -186,6 +234,8 @@ export default defineEventHandler(async (event) => {
 
       const [created] = await tx.insert(bookings).values({
         eventTypeId: eventType.id,
+        seriesId: previous?.seriesId ?? null,
+        seriesPosition: previous?.seriesPosition ?? null,
         groupSessionId: groupSession?.id ?? null,
         hostId: eventType.hostId,
         uid,

@@ -315,7 +315,7 @@ function locationIcon(item: EventTypeRecord) {
                     <span class="flex items-center gap-1.5"><UIcon
                       name="i-lucide-clock-3"
                       class="size-3.5 text-dimmed"
-                    />{{ item.durationMinutes }} min</span>
+                    />{{ [item.durationMinutes, ...item.additionalDurationMinutes].join(' / ') }} min</span>
                     <span
                       v-if="item.capacity > 1"
                       class="flex items-center gap-1.5"

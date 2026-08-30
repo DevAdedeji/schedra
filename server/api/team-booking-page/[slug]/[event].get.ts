@@ -1,5 +1,6 @@
 import { activeHostsFor, findPublicTeamEventType } from '../../../services/team-booking'
 import { enforceRateLimit } from '../../../services/rate-limit'
+import { eventTypeDurationOptions } from '#shared/validation'
 
 export default defineEventHandler(async (request) => {
   await enforceRateLimit(request, { namespace: 'team-booking-page', limit: 120, windowSeconds: 60 })
@@ -28,6 +29,9 @@ export default defineEventHandler(async (request) => {
     title: eventType.title,
     description: eventType.description,
     durationMinutes: eventType.durationMinutes,
+    durationOptionsMinutes: eventTypeDurationOptions(eventType),
+    recurringBookingEnabled: eventType.recurringBookingEnabled,
+    recurringBookingMaxOccurrences: eventType.recurringBookingMaxOccurrences,
     assignmentMode: eventType.assignmentMode,
     locationType: eventType.locationType,
     locationDetails: eventType.locationDetails,

@@ -2,6 +2,7 @@
 import {
   apiErrorMessage,
   bookingsApi,
+  recurrenceApi,
   publicBookingApi,
   invitationBookingApi,
   publicTeamApi,
@@ -10,6 +11,8 @@ import {
   type PublicBookingPage
 } from '~/services/schedra-api'
 import { formatMoney } from '#shared/payments'
+import type { RecurringOccurrencePreview } from '#shared/recurrence'
+import { useRecurringBooking } from '~/composables/booking/useRecurringBooking'
 import { formatInstant } from '~/utils/date-time'
 
 /**
@@ -44,6 +47,7 @@ const slug = computed(() => props.slug)
 const isTeam = computed(() => props.mode === 'team')
 const isInvite = computed(() => props.mode === 'invite')
 const currentUserRequest = useCurrentUser()
+const selectedDurationMinutes = ref<number | undefined>()
 
 const rescheduleOf = computed(() => {
   const value = route.query.reschedule
@@ -62,7 +66,8 @@ const availabilityRequest = useFetch<AvailabilityResponse>(
       ...(!isInvite.value && (isTeam.value ? { team: owner.value } : { username: owner.value })),
       ...(!isInvite.value ? { slug: slug.value } : {}),
       from: isoCalendarDate(firstMonday),
-      to: isoCalendarDate(addCalendarDays(firstMonday, 62))
+      to: isoCalendarDate(addCalendarDays(firstMonday, 62)),
+      durationMinutes: selectedDurationMinutes.value
     }))
   }
 )
@@ -77,6 +82,10 @@ const [
   { data, status, error: availabilityError, refresh },
   { data: page, status: pageStatus, error: pageError, refresh: refreshPage }
 ] = await Promise.all([currentUserRequest, availabilityRequest, pageRequest])
+
+watch(page, (value) => {
+  if (value && selectedDurationMinutes.value === undefined) selectedDurationMinutes.value = value.durationMinutes
+}, { immediate: true })
 
 const initialPageError = pageError.value ?? availabilityError.value
 if (initialPageError) setResponseStatus(initialPageError.statusCode === 404 ? 404 : 503)
@@ -103,6 +112,10 @@ const {
   longSelected, timeLabel, locationLabel, locationIcon, isoDate
 } = useBookingCalendar({ availability: data, page })
 
+watch(selectedDurationMinutes, () => {
+  selectedSlot.value = null
+})
+
 const { booking, bookingAnswers, guestEmails, addGuest, removeGuest } = useBookingGuestForm({
   prefillName: () => props.prefillName,
   prefillEmail: () => props.prefillEmail,
@@ -112,6 +125,60 @@ const { booking, bookingAnswers, guestEmails, addGuest, removeGuest } = useBooki
   page,
   additionalGuestLimit
 })
+
+const recurringPreview = ref<RecurringOccurrencePreview[]>([])
+const recurringPreviewLoading = ref(false)
+const recurringPreviewError = ref('')
+const {
+  recurrence, allowedMaximum: recurringMaximum, preview: recurringOccurrences,
+  validationMessage: recurringValidationMessage, valid: recurringValid,
+  requestRecurrence
+} = useRecurringBooking({
+  enabled: () => Boolean(page.value?.recurringBookingEnabled && !isInvite.value && !rescheduleOf.value),
+  maxOccurrences: () => page.value?.recurringBookingMaxOccurrences ?? 8,
+  selectedStart: selectedSlot,
+  durationMinutes: selectedDurationMinutes,
+  timeZone: viewerTimeZone,
+  offeredSlots: () => recurringPreview.value.filter(occurrence => occurrence.available).map(occurrence => ({
+    start: occurrence.startsAt,
+    end: occurrence.endsAt
+  }))
+})
+let previewGeneration = 0
+watch([
+  () => JSON.stringify(recurrence.value),
+  selectedSlot,
+  selectedDurationMinutes,
+  viewerTimeZone
+], async () => {
+  const generation = ++previewGeneration
+  recurringPreview.value = []
+  recurringPreviewError.value = ''
+  if (!recurrence.value || !selectedSlot.value || !selectedDurationMinutes.value) return
+  recurringPreviewLoading.value = true
+  try {
+    const result = await recurrenceApi.preview({
+      mode: isTeam.value ? 'team' : 'personal',
+      owner: owner.value,
+      slug: slug.value,
+      start: selectedSlot.value,
+      durationMinutes: selectedDurationMinutes.value,
+      timeZone: viewerTimeZone.value,
+      recurrence: recurrence.value
+    })
+    if (generation === previewGeneration) recurringPreview.value = result.occurrences
+  } catch (failure) {
+    if (generation === previewGeneration) {
+      recurringPreviewError.value = apiErrorMessage(failure, 'Those recurring dates could not be checked just now.')
+    }
+  } finally {
+    if (generation === previewGeneration) recurringPreviewLoading.value = false
+  }
+})
+const recurrenceRequestId = ref(crypto.randomUUID())
+watch([
+  () => JSON.stringify(recurrence.value), selectedSlot, selectedDurationMinutes, viewerTimeZone
+], () => { recurrenceRequestId.value = crypto.randomUUID() })
 
 const bookingSource = computed(() => props.embedded ? 'embed' as const : 'hosted' as const)
 const bookingAttribution = computed(() => props.embedded
@@ -133,6 +200,7 @@ const confirmed = ref<{
   locationDetails: string
   meetingUrl: string | null
   status: 'awaiting_payment' | 'pending' | 'confirmed' | 'cancelled' | 'rejected'
+  seriesCount?: number
 } | null>(null)
 
 const confirmedWhen = computed(() => confirmed.value
@@ -157,6 +225,10 @@ function shortWeekday(day: Date) {
 
 async function confirm() {
   if (!selectedSlot.value) return
+  if (recurrence.value && (!recurringValid.value || recurringPreviewLoading.value || recurringPreviewError.value)) {
+    bookingError.value = recurringPreviewError.value || recurringValidationMessage.value || 'Wait while the recurring dates are checked.'
+    return
+  }
 
   const unanswered = page.value?.bookingQuestions.find(question =>
     question.required && !bookingAnswers[question.id]?.trim())
@@ -186,6 +258,10 @@ async function confirm() {
     const shared = {
       slug: slug.value,
       start: selectedSlot.value,
+      durationMinutes: selectedDurationMinutes.value,
+      ...(requestRecurrence.value
+        ? { requestId: recurrenceRequestId.value, recurrence: requestRecurrence.value }
+        : {}),
       name: booking.name,
       email: booking.email,
       guestEmails: normalizedGuests,
@@ -218,7 +294,8 @@ async function confirm() {
       locationType: result.locationType,
       locationDetails: result.locationDetails,
       meetingUrl: result.meetingUrl,
-      status: result.status
+      status: result.status,
+      seriesCount: result.seriesCount
     }
     emit('booked', {
       uid: result.uid,
@@ -375,10 +452,10 @@ useHead({
             </div>
           </div>
           <h1 class="font-editorial text-4xl text-highlighted">
-            {{ confirmed.status === 'pending' ? 'Request sent.' : "You're booked." }}
+            {{ confirmed.status === 'pending' ? 'Request sent.' : confirmed.seriesCount ? `${confirmed.seriesCount} meetings booked.` : "You're booked." }}
           </h1>
           <p class="mx-auto mt-4 max-w-sm text-base leading-relaxed text-muted">
-            {{ confirmedWhen }}, with {{ page?.hostName }}.<template v-if="confirmed.status === 'pending'">
+            {{ confirmed.seriesCount ? `The first is ${confirmedWhen}` : confirmedWhen }}, with {{ page?.hostName }}.<template v-if="confirmed.status === 'pending'">
               The time is held while the host reviews your request.
             </template>
           </p>
@@ -464,7 +541,7 @@ useHead({
                   name="i-lucide-clock"
                   class="size-4 shrink-0 text-dimmed"
                 />
-                {{ page?.durationMinutes }} minutes
+                {{ selectedDurationMinutes ?? page?.durationMinutes }} minutes
               </p>
               <p
                 v-if="page?.paymentEnabled && page.priceCents"
@@ -531,6 +608,29 @@ useHead({
           </aside>
 
           <div class="surface-secondary px-6 py-7 sm:px-7">
+            <div
+              v-if="page && (page.durationOptionsMinutes?.length ?? 0) > 1"
+              class="mb-6 border-b border-default pb-6"
+            >
+              <p class="text-[14px] font-semibold text-highlighted">
+                How long do you need?
+              </p>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <button
+                  v-for="duration in page.durationOptionsMinutes ?? [page.durationMinutes]"
+                  :key="duration"
+                  type="button"
+                  class="min-h-11 min-w-24 rounded-full border px-4 py-2 text-[14px] font-medium transition-colors"
+                  :class="selectedDurationMinutes === duration
+                    ? 'border-primary bg-primary text-inverted'
+                    : 'border-default bg-default text-toned hover:border-primary'"
+                  :aria-pressed="selectedDurationMinutes === duration"
+                  @click="selectedDurationMinutes = duration"
+                >
+                  {{ duration }} min
+                </button>
+              </div>
+            </div>
             <div class="flex items-center justify-between">
               <h2 class="text-sm font-semibold text-highlighted">
                 {{ monthLabel }}
@@ -652,6 +752,23 @@ useHead({
               <p class="text-sm text-toned">
                 <span class="font-semibold text-highlighted">{{ timeLabel(selectedSlot) }}</span>
                 on {{ longSelected }}
+              </p>
+
+              <BookingRecurrencePicker
+                v-if="page?.recurringBookingEnabled && !isInvite && !rescheduleOf"
+                v-model="recurrence"
+                :max-occurrences="recurringMaximum"
+                :occurrences="recurringOccurrences"
+                :time-zone="viewerTimeZone"
+                :error="recurringPreviewError || recurringValidationMessage"
+                :disabled="submitting"
+              />
+              <p
+                v-if="recurringPreviewLoading"
+                class="text-[13px] text-muted"
+                role="status"
+              >
+                Checking every date…
               </p>
 
               <UFormField

@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto'
 import type { CreateBookingLinkInput } from '#shared/booking-links'
+import { eventTypeDurationOptions } from '#shared/validation'
 import { paginationMeta } from '#shared/pagination'
 import {
   createBookingLinkRecord,
@@ -40,7 +41,7 @@ export async function createBookingLink(userId: string, input: CreateBookingLink
     const last = selectedSlots.at(-1)!
     const from = addUtcCalendarDays(utcCalendarDate(first.start), -1)
     const to = addUtcCalendarDays(utcCalendarDate(last.start), 1)
-    const available = await slotsFor(eventType, from, to, now.toISOString())
+    const available = await slotsFor(eventType, from, to, now.toISOString(), input.durationMinutes)
     const availableByStart = new Map(available.map(slot => [Date.parse(slot.start), Date.parse(slot.end)]))
     const invalid = selectedSlots.some(slot => availableByStart.get(slot.start.getTime()) !== slot.end.getTime())
     if (invalid) {
@@ -76,10 +77,15 @@ export async function requireUsableBookingLink(token: string) {
   return link
 }
 
-export function filterInvitationSlots<T extends { start: string }>(link: Awaited<ReturnType<typeof requireUsableBookingLink>>, slots: T[]) {
+export function bookingLinkDurationOptions(link: Awaited<ReturnType<typeof requireUsableBookingLink>>) {
+  if (link.kind !== 'one_off' || !link.slots.length) return eventTypeDurationOptions(link)
+  return [...new Set(link.slots.map(slot => Math.round((slot.end.getTime() - slot.start.getTime()) / 60_000)))]
+}
+
+export function filterInvitationSlots<T extends { start: string, end: string }>(link: Awaited<ReturnType<typeof requireUsableBookingLink>>, slots: T[]) {
   if (link.kind !== 'one_off') return slots
-  const allowed = new Set(link.slots.map(slot => slot.start.getTime()))
-  return slots.filter(slot => allowed.has(Date.parse(slot.start)))
+  const allowed = new Set(link.slots.map(slot => `${slot.start.getTime()}:${slot.end.getTime()}`))
+  return slots.filter(slot => allowed.has(`${Date.parse(slot.start)}:${Date.parse(slot.end)}`))
 }
 
 export async function listBookingLinks(userId: string, input: {

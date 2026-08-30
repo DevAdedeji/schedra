@@ -1,17 +1,19 @@
-import { requireUsableBookingLink } from '../../../services/booking-links'
+import { bookingLinkDurationOptions, requireUsableBookingLink } from '../../../services/booking-links'
 import { enforceRateLimit } from '../../../services/rate-limit'
 
 export default defineEventHandler(async (event) => {
   await enforceRateLimit(event, { namespace: 'booking-invitation', limit: 180, windowSeconds: 60 })
   const token = getRouterParam(event, 'token') ?? ''
   const found = await requireUsableBookingLink(token)
+  const durations = bookingLinkDurationOptions(found)
   return {
     username: found.username,
     slug: found.slug,
     hostName: found.hostName,
     title: found.title,
     description: found.description,
-    durationMinutes: found.durationMinutes,
+    durationMinutes: durations[0] ?? found.durationMinutes,
+    durationOptionsMinutes: durations,
     bookingQuestions: found.bookingQuestions,
     requiresConfirmation: found.requiresConfirmation,
     capacity: found.capacity,

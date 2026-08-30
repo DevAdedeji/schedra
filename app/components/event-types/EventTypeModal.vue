@@ -157,26 +157,11 @@ async function save() {
                   class="w-full"
                 />
               </UFormField>
-              <div class="grid gap-5 sm:grid-cols-2">
-                <UFormField
-                  label="Duration"
-                  name="durationMinutes"
-                  required
-                >
-                  <UInput
-                    v-model.number="form.durationMinutes"
-                    type="number"
-                    min="5"
-                    max="720"
-                    step="5"
-                    size="lg"
-                    class="w-full"
-                  >
-                    <template #trailing>
-                      <span class="text-xs text-dimmed">minutes</span>
-                    </template>
-                  </UInput>
-                </UFormField>
+              <div class="grid items-start gap-5 sm:grid-cols-2">
+                <EventDurationField
+                  v-model="form.durationMinutes"
+                  v-model:additional="form.additionalDurationMinutes"
+                />
                 <UFormField
                   label="Booking URL"
                   name="slug"
@@ -386,13 +371,13 @@ async function save() {
                 <UFormField
                   label="Booking window"
                   name="bookingWindowDays"
-                  help="How far into the future people can book."
+                  help="How far into the future people can book, including the last meeting in a recurring series."
                 >
                   <UInput
                     v-model.number="form.bookingWindowDays"
                     type="number"
                     min="1"
-                    max="730"
+                    max="3660"
                     size="lg"
                     class="w-full"
                   >
@@ -891,6 +876,40 @@ async function save() {
                     aria-label="Require approval before confirming bookings"
                   />
                 </label>
+                <div class="border-b border-default px-5 py-5">
+                  <label class="flex cursor-pointer items-start justify-between gap-5">
+                    <span>
+                      <span class="flex items-center gap-2 text-[15px] font-semibold text-highlighted"><UIcon
+                        name="i-lucide-calendar-sync"
+                        class="size-4 text-muted"
+                      />Let guests repeat this meeting</span>
+                      <span class="mt-1.5 block max-w-xl text-[13px] leading-relaxed text-muted">Guests can choose weekly, every two weeks, monthly or yearly and review every date before booking.</span>
+                      <span
+                        v-if="!form.recurringBookingEnabled && (form.paymentEnabled || form.capacity > 1 || form.requiresConfirmation)"
+                        class="mt-1.5 block max-w-xl text-[12px] leading-relaxed text-warning"
+                      >Available for free, one-to-one events that confirm instantly.</span>
+                    </span>
+                    <USwitch
+                      v-model="form.recurringBookingEnabled"
+                      :disabled="!form.recurringBookingEnabled && (form.paymentEnabled || form.capacity > 1 || form.requiresConfirmation)"
+                      aria-label="Allow guests to create recurring bookings"
+                    />
+                  </label>
+                  <UFormField
+                    v-if="form.recurringBookingEnabled"
+                    label="Maximum meetings in one series"
+                    name="recurringBookingMaxOccurrences"
+                    class="mt-4 max-w-xs"
+                  >
+                    <USelect
+                      v-model="form.recurringBookingMaxOccurrences"
+                      :items="Array.from({ length: 7 }, (_, index) => ({ label: `${index + 2} meetings`, value: index + 2 }))"
+                      value-key="value"
+                      label-key="label"
+                      class="w-full"
+                    />
+                  </UFormField>
+                </div>
                 <label class="flex cursor-pointer items-start justify-between gap-5 px-5 py-5">
                   <span>
                     <span class="flex items-center gap-2 text-[15px] font-semibold text-highlighted"><UIcon

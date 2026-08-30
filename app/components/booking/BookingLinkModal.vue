@@ -8,7 +8,7 @@ const emit = defineEmits<{
 const open = computed({ get: () => props.open, set: value => emit('update:open', value) })
 const {
   copied, eventTypes: options, optionsStatus, optionsError, refreshOptions, kind, eventTypeId,
-  label, expiryDays, selectedStarts, availability, loadingSlots, slotError, submitting,
+  durationMinutes, durationOptions, label, expiryDays, selectedStarts, availability, loadingSlots, slotError, submitting,
   submitError, createdUrl, eventOptions, selectedEvent, groupedSlots,
   dayLabel, timeLabel, toggleSlot, chooseKind, canSubmit, loadSlots, create, copyCreated
 } = await useBookingLinkForm({
@@ -143,6 +143,21 @@ const {
             Manage
           </UButton>
         </div>
+
+        <UFormField
+          v-if="kind === 'one_off' && durationOptions.length > 1"
+          label="Meeting duration"
+          help="Every time in this private link uses this duration."
+          required
+        >
+          <USelectMenu
+            v-model="durationMinutes"
+            :items="durationOptions.map(value => ({ label: `${value} minutes`, value }))"
+            value-key="value"
+            label-key="label"
+            class="w-full"
+          />
+        </UFormField>
 
         <UFormField
           label="Private label"

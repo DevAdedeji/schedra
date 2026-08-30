@@ -14,6 +14,7 @@ interface BookingLinkOption {
   title: string
   slug: string
   durationMinutes: number
+  additionalDurationMinutes: number[]
   hidden: boolean
   locationType: string
   locationReady: boolean
@@ -36,6 +37,7 @@ export async function useBookingLinkForm(options: {
 
   const kind = ref<'single_use' | 'one_off'>('single_use')
   const eventTypeId = ref('')
+  const durationMinutes = ref<number | undefined>()
   const label = ref('')
   const expiryDays = ref('7')
   const selectedStarts = ref<string[]>([])
@@ -47,10 +49,13 @@ export async function useBookingLinkForm(options: {
   const createdUrl = ref('')
 
   const eventOptions = computed(() => (eventTypes.value?.items ?? []).map(item => ({
-    label: `${item.title} · ${item.durationMinutes} min${item.hidden ? ' · Hidden' : ''}${item.locationReady ? '' : ' · Setup needed'}`,
+    label: `${item.title} · ${[item.durationMinutes, ...(item.additionalDurationMinutes ?? [])].join(' / ')} min${item.hidden ? ' · Hidden' : ''}${item.locationReady ? '' : ' · Setup needed'}`,
     value: item.id
   })))
   const selectedEvent = computed(() => eventTypes.value?.items.find(item => item.id === eventTypeId.value))
+  const durationOptions = computed(() => selectedEvent.value
+    ? [selectedEvent.value.durationMinutes, ...(selectedEvent.value.additionalDurationMinutes ?? [])]
+    : [])
 
   async function loadSlots() {
     if (kind.value !== 'one_off' || !eventTypeId.value) return
@@ -61,7 +66,8 @@ export async function useBookingLinkForm(options: {
     try {
       availability.value = await eventTypesApi.slots(eventTypeId.value, {
         from,
-        to: addCalendarDateDays(from, 30)
+        to: addCalendarDateDays(from, 30),
+        durationMinutes: durationMinutes.value
       })
     } catch (failure) {
       availability.value = null
@@ -71,7 +77,10 @@ export async function useBookingLinkForm(options: {
     }
   }
 
-  watch([kind, eventTypeId], () => void loadSlots())
+  watch([kind, eventTypeId, durationMinutes], () => void loadSlots())
+  watch(selectedEvent, (eventType) => {
+    durationMinutes.value = eventType?.durationMinutes
+  })
 
   const groupedSlots = computed(() => {
     const groups = new Map<string, AvailabilityResponse['slots']>()
@@ -108,6 +117,7 @@ export async function useBookingLinkForm(options: {
   function reset() {
     kind.value = toValue(options.initialKind) ?? 'single_use'
     eventTypeId.value = eventTypes.value?.items[0]?.id ?? ''
+    durationMinutes.value = eventTypes.value?.items[0]?.durationMinutes
     label.value = ''
     expiryDays.value = '7'
     selectedStarts.value = []
@@ -134,7 +144,8 @@ export async function useBookingLinkForm(options: {
         ? new Date(Math.max(...selected.map(slot => Date.parse(slot.end)))).toISOString()
         : addExactTime(Date.now(), { hours: Number(expiryDays.value) * 24 }).toISOString()
       const result = await bookingLinksApi.create({
-        kind: kind.value, eventTypeId: eventTypeId.value, label: label.value.trim() || null,
+        kind: kind.value, eventTypeId: eventTypeId.value, durationMinutes: durationMinutes.value,
+        label: label.value.trim() || null,
         expiresAt: expiry, slots: selected
       })
       createdUrl.value = `${siteUrl.value}${result.path}`
@@ -153,7 +164,7 @@ export async function useBookingLinkForm(options: {
 
   return {
     copied, eventTypes, optionsStatus, optionsError, refreshOptions, kind,
-    eventTypeId, label, expiryDays, selectedStarts, availability, loadingSlots,
+    eventTypeId, durationMinutes, durationOptions, label, expiryDays, selectedStarts, availability, loadingSlots,
     slotError, submitting, submitError, createdUrl, eventOptions, selectedEvent,
     groupedSlots, dayLabel, timeLabel, toggleSlot, chooseKind, canSubmit,
     loadSlots, create, copyCreated

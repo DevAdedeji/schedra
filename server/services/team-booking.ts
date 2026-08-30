@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm'
-import type { AssignmentMode, BookingQuestion } from '#shared/validation'
+import { eventTypeDurationOptions, type AssignmentMode, type BookingQuestion } from '#shared/validation'
 import { getAvailableSlots } from '../domain/availability'
 import { combineHostSlots, pickRoundRobinHost, type HostLoad, type TeamSlot } from '../domain/team-availability'
 import type { AvailabilityRule, DateOverride, Weekday } from '../domain/types'
@@ -36,6 +36,9 @@ export interface PublicTeamEventType {
   title: string
   description: string | null
   durationMinutes: number
+  additionalDurationMinutes: number[]
+  recurringBookingEnabled: boolean
+  recurringBookingMaxOccurrences: number
   incrementMinutes: number | null
   bufferBeforeMinutes: number
   bufferAfterMinutes: number
@@ -70,6 +73,9 @@ export async function findPublicTeamEventType(teamSlug: string, eventSlug: strin
       title: eventTypes.title,
       description: eventTypes.description,
       durationMinutes: eventTypes.durationMinutes,
+      additionalDurationMinutes: eventTypes.additionalDurationMinutes,
+      recurringBookingEnabled: eventTypes.recurringBookingEnabled,
+      recurringBookingMaxOccurrences: eventTypes.recurringBookingMaxOccurrences,
       incrementMinutes: eventTypes.incrementMinutes,
       bufferBeforeMinutes: eventTypes.bufferBeforeMinutes,
       bufferAfterMinutes: eventTypes.bufferAfterMinutes,
@@ -178,7 +184,8 @@ async function slotsForHost(
   from: string,
   to: string,
   now: string,
-  groupSessions: Awaited<ReturnType<typeof groupSessionCapacity>>
+  groupSessions: Awaited<ReturnType<typeof groupSessionCapacity>>,
+  requestedDurationMinutes: number
 ) {
   const db = useDatabase()
   const timeZone = host.scheduleTimeZone ?? host.timeZone
@@ -223,8 +230,10 @@ async function slotsForHost(
 
   const assignedSessionIds = new Set(taken.flatMap(row => row.groupSessionId ? [row.groupSessionId] : []))
   const openAssignedSessions = new Map(groupSessions
-    .filter(session => session.availableSeats > 0 && assignedSessionIds.has(session.id))
-    .map(session => [session.startsAt.getTime(), session]))
+    .filter(session => session.availableSeats > 0
+      && assignedSessionIds.has(session.id)
+      && (session.endsAt.getTime() - session.startsAt.getTime()) / 60_000 === requestedDurationMinutes)
+    .map(session => [`${session.startsAt.getTime()}:${session.endsAt.getTime()}`, session]))
   const openAssignedSessionIds = new Set([...openAssignedSessions.values()].map(session => session.id))
   const busyReservations = taken.filter(row => !row.groupSessionId
     || !openAssignedSessionIds.has(row.groupSessionId))
@@ -260,8 +269,8 @@ async function slotsForHost(
       overrides: [...grouped.values()]
     },
     eventType: {
-      durationMinutes: event.durationMinutes,
-      incrementMinutes: event.incrementMinutes ?? undefined,
+      durationMinutes: requestedDurationMinutes,
+      incrementMinutes: event.incrementMinutes ?? Math.min(...eventTypeDurationOptions(event)),
       bufferBeforeMinutes: event.bufferBeforeMinutes,
       bufferAfterMinutes: event.bufferAfterMinutes,
       minimumNoticeMinutes: event.minimumNoticeMinutes,
@@ -282,9 +291,13 @@ export async function teamSlotsFor(
   hosts: ActiveHost[],
   from: string,
   to: string,
-  now: string
+  now: string,
+  requestedDurationMinutes = event.durationMinutes
 ): Promise<TeamSlot[]> {
   if (!hosts.length) return []
+  if (!eventTypeDurationOptions(event).includes(requestedDurationMinutes)) {
+    throw createError({ statusCode: 400, statusMessage: 'Choose one of the offered meeting durations.' })
+  }
 
   const busyFrom = utcCalendarDateBoundary(from, -1)
   const busyTo = utcCalendarDateBoundary(to, 2)
@@ -294,7 +307,7 @@ export async function teamSlotsFor(
 
   const perHost = await Promise.all(hosts.map(async host => ({
     userId: host.userId,
-    slots: await slotsForHost(event, host, from, to, now, groupSessions)
+    slots: await slotsForHost(event, host, from, to, now, groupSessions, requestedDurationMinutes)
   })))
 
   const combined = combineHostSlots(event.assignmentMode, perHost)
@@ -306,10 +319,13 @@ export async function teamSlotsFor(
     if (!row.groupSessionId) continue
     assignedBySession.set(row.groupSessionId, [...(assignedBySession.get(row.groupSessionId) ?? []), row.userId])
   }
-  const sessionByStart = new Map(groupSessions.map(session => [session.startsAt.getTime(), session]))
+  const sessionBySpan = new Map(groupSessions.map(session => [
+    `${session.startsAt.getTime()}:${session.endsAt.getTime()}`,
+    session
+  ]))
 
   return combined.flatMap((slot) => {
-    const session = sessionByStart.get(Date.parse(slot.start))
+    const session = sessionBySpan.get(`${Date.parse(slot.start)}:${Date.parse(slot.end)}`)
     if (!session) return [{ ...slot, availableSeats: event.capacity }]
     if (!session.availableSeats) return []
     const assigned = assignedBySession.get(session.id) ?? []
@@ -380,6 +396,7 @@ export async function publicTeamProfile(teamSlug: string) {
       title: eventTypes.title,
       description: eventTypes.description,
       durationMinutes: eventTypes.durationMinutes,
+      additionalDurationMinutes: eventTypes.additionalDurationMinutes,
       assignmentMode: eventTypes.assignmentMode,
       capacity: eventTypes.capacity,
       paymentEnabled: eventTypes.paymentEnabled,
@@ -398,6 +415,10 @@ export async function publicTeamProfile(teamSlug: string) {
     slug: found.organization.slug,
     logo: found.organization.logo,
     renamed: found.renamed,
-    eventTypes: items
+    eventTypes: items.map(item => ({
+      ...item,
+      durationOptionsMinutes: eventTypeDurationOptions(item),
+      additionalDurationMinutes: undefined
+    }))
   }
 }

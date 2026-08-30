@@ -9,7 +9,8 @@ const query = z.object({
   username: z.string().min(1),
   slug: z.string().min(1),
   from: z.iso.date(),
-  to: z.iso.date()
+  to: z.iso.date(),
+  durationMinutes: z.coerce.number().int().min(5).max(720).optional()
 }).superRefine(({ from, to }, context) => {
   const days = calendarDaysBetween(from, to)
 
@@ -28,7 +29,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Invalid availability request' })
   }
 
-  const { username, slug, from, to } = parsed.data
+  const { username, slug, from, to, durationMinutes } = parsed.data
   const eventType = await findPublicEventType(username, slug)
 
   if (!eventType) {
@@ -38,7 +39,7 @@ export default defineEventHandler(async (event) => {
   let slots
   try {
     await requireLocationIntegration(eventType.hostId, eventType.locationType)
-    slots = await slotsFor(eventType, from, to, new Date().toISOString())
+    slots = await slotsFor(eventType, from, to, new Date().toISOString(), durationMinutes)
   } catch (error) {
     if (error instanceof CalendarUnavailableError || (
       ['google_meet', 'microsoft_teams', 'zoom'].includes(eventType.locationType)
@@ -54,7 +55,7 @@ export default defineEventHandler(async (event) => {
 
   return {
     timeZone: eventType.scheduleTimeZone ?? eventType.hostTimeZone,
-    durationMinutes: eventType.durationMinutes,
+    durationMinutes: durationMinutes ?? eventType.durationMinutes,
     slots
   }
 })

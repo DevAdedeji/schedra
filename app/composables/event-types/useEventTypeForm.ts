@@ -55,7 +55,8 @@ export function useEventTypeForm(options: {
   function emptyForm(): EventTypeForm {
     const scheduleId = schedules().find(schedule => schedule.isDefault)?.id ?? schedules()[0]?.id
     return {
-      title: '', slug: '', description: '', durationMinutes: 30, incrementMinutes: null,
+      title: '', slug: '', description: '', durationMinutes: 30, additionalDurationMinutes: [],
+      recurringBookingEnabled: false, recurringBookingMaxOccurrences: 8, incrementMinutes: null,
       bufferBeforeMinutes: 0, bufferAfterMinutes: 0, minimumNoticeMinutes: 120,
       bookingWindowDays: 60, maxPerDay: undefined,
       locationType: 'custom', locationDetails: 'The host will share meeting details before the meeting.',
@@ -129,14 +130,20 @@ export function useEventTypeForm(options: {
   })
   const groupEventEnabled = computed({
     get: () => form.capacity > 1,
-    set: (enabled) => { form.capacity = enabled ? 10 : 1 }
+    set: (enabled) => {
+      form.capacity = enabled ? 10 : 1
+      if (enabled) form.recurringBookingEnabled = false
+    }
   })
   const paidBookingEnabled = computed({
     get: () => form.paymentEnabled,
     set: (enabled: boolean) => {
       form.paymentEnabled = enabled
       form.priceCents = enabled ? (form.priceCents ?? 2500) : null
-      if (enabled) form.requiresConfirmation = false
+      if (enabled) {
+        form.requiresConfirmation = false
+        form.recurringBookingEnabled = false
+      }
     }
   })
   const priceAmount = computed({
@@ -171,7 +178,7 @@ export function useEventTypeForm(options: {
       payments: form.paymentEnabled && form.priceCents
         ? `${formatMoney(form.priceCents, form.paymentCurrency)} per booking`
         : 'Free to book',
-      rules: `${form.requiresConfirmation ? 'You approve each booking' : 'Booked instantly'} · ${form.hidden ? 'Hidden from your profile' : 'On your public profile'}`
+      rules: `${form.requiresConfirmation ? 'You approve each booking' : 'Booked instantly'} · ${form.recurringBookingEnabled ? 'Repeating meetings available' : 'One booking at a time'} · ${form.hidden ? 'Hidden from your profile' : 'On your public profile'}`
     }
   })
 
@@ -180,7 +187,10 @@ export function useEventTypeForm(options: {
     Object.assign(form, item
       ? {
           title: item.title, slug: item.slug, description: item.description ?? '',
-          durationMinutes: item.durationMinutes, incrementMinutes: item.incrementMinutes,
+          durationMinutes: item.durationMinutes, additionalDurationMinutes: [...item.additionalDurationMinutes],
+          recurringBookingEnabled: item.recurringBookingEnabled,
+          recurringBookingMaxOccurrences: item.recurringBookingMaxOccurrences,
+          incrementMinutes: item.incrementMinutes,
           bufferBeforeMinutes: item.bufferBeforeMinutes, bufferAfterMinutes: item.bufferAfterMinutes,
           minimumNoticeMinutes: item.minimumNoticeMinutes,
           bookingWindowDays: item.bookingWindowDays ?? undefined, maxPerDay: item.maxPerDay ?? undefined,
@@ -243,6 +253,9 @@ export function useEventTypeForm(options: {
 
   watch(() => form.title, (title) => {
     if (!slugTouched.value && !toValue(options.eventType)) form.slug = slugifyEventType(title)
+  })
+  watch(() => form.requiresConfirmation, (required) => {
+    if (required) form.recurringBookingEnabled = false
   })
 
   return {

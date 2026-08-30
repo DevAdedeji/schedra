@@ -287,6 +287,16 @@ useSeoMeta({
             <p class="mt-1.5 text-[16px] text-muted">
               with {{ booking?.hostName }}
             </p>
+            <p
+              v-if="booking?.seriesPosition && booking.seriesOccurrenceCount"
+              class="mt-2 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-[12px] font-medium text-primary"
+            >
+              <UIcon
+                name="i-lucide-calendar-sync"
+                class="size-3.5"
+              />
+              Meeting {{ booking.seriesPosition }} of {{ booking.seriesOccurrenceCount }} · {{ booking.seriesFrequency === 'biweekly' ? 'every 2 weeks' : booking.seriesFrequency }}
+            </p>
 
             <dl class="mt-6 space-y-3 text-[16px]">
               <div

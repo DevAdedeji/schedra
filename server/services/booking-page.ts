@@ -5,20 +5,24 @@ import { availabilityRules, bookings, dateOverrides, eventTypes, schedules, user
 import { useDatabase } from '../database'
 import { calendarBusyTimes } from '../integrations/calendar/providers'
 import { utcCalendarDateBoundary } from '../utils/date-time'
-import type { BookingQuestion } from '#shared/validation'
+import { eventTypeDurationOptions, type BookingQuestion } from '#shared/validation'
 import { groupSessionCapacity } from './group-events'
 
 export interface PublicEventType {
   id: string
   hostId: string
   hostName: string
+  hostEmail: string
   hostTimeZone: string
   username: string
   slug: string
   title: string
   description: string | null
   durationMinutes: number
-  scheduleTimeZone: string
+  additionalDurationMinutes: number[]
+  recurringBookingEnabled: boolean
+  recurringBookingMaxOccurrences: number
+  scheduleTimeZone: string | null
   locationType: 'google_meet' | 'microsoft_teams' | 'zoom' | 'video_link' | 'phone' | 'in_person' | 'custom'
   locationDetails: string
   reminderMinutes: number[]
@@ -50,6 +54,9 @@ export async function findPublicEventType(username: string, slug: string) {
       title: eventTypes.title,
       description: eventTypes.description,
       durationMinutes: eventTypes.durationMinutes,
+      additionalDurationMinutes: eventTypes.additionalDurationMinutes,
+      recurringBookingEnabled: eventTypes.recurringBookingEnabled,
+      recurringBookingMaxOccurrences: eventTypes.recurringBookingMaxOccurrences,
       incrementMinutes: eventTypes.incrementMinutes,
       bufferBeforeMinutes: eventTypes.bufferBeforeMinutes,
       bufferAfterMinutes: eventTypes.bufferAfterMinutes,
@@ -82,9 +89,20 @@ export async function findPublicEventType(username: string, slug: string) {
   return row ?? null
 }
 
-type EventTypeRow = NonNullable<Awaited<ReturnType<typeof findPublicEventType>>>
+export type EventTypeRow = NonNullable<Awaited<ReturnType<typeof findPublicEventType>>>
+type SlotEventTypeRow = Omit<EventTypeRow, 'recurringBookingEnabled' | 'recurringBookingMaxOccurrences'>
 
-export async function slotsFor(event: EventTypeRow, from: string, to: string, now: string): Promise<Slot[]> {
+export async function slotsFor(
+  event: SlotEventTypeRow,
+  from: string,
+  to: string,
+  now: string,
+  requestedDurationMinutes = event.durationMinutes
+): Promise<Slot[]> {
+  const durationOptions = eventTypeDurationOptions(event)
+  if (!durationOptions.includes(requestedDurationMinutes)) {
+    throw createError({ statusCode: 400, statusMessage: 'Choose one of the offered meeting durations.' })
+  }
   const db = useDatabase()
   const timeZone = event.scheduleTimeZone ?? event.hostTimeZone
   // Expand beyond the requested local dates because the schedule's timezone
@@ -135,13 +153,15 @@ export async function slotsFor(event: EventTypeRow, from: string, to: string, no
       : Promise.resolve([])
   ])
 
-  const openSessionByStart = new Map(groupSessions
-    .filter(session => session.availableSeats > 0)
-    .map(session => [session.startsAt.getTime(), session]))
+  const openSessions = groupSessions.filter(session => session.availableSeats > 0
+    && (session.endsAt.getTime() - session.startsAt.getTime()) / 60_000 === requestedDurationMinutes)
+  const openSessionBySpan = new Map(openSessions
+    .map(session => [`${session.startsAt.getTime()}:${session.endsAt.getTime()}`, session]))
   const currentSessionIds = new Set(groupSessions.map(session => session.id))
+  const openSessionIds = new Set(openSessions.map(session => session.id))
   const busyBookings = taken.filter(row => !row.groupSessionId
     || !currentSessionIds.has(row.groupSessionId)
-    || !openSessionByStart.has(row.start.getTime()))
+    || !openSessionIds.has(row.groupSessionId))
   // A shared session consumes one item from the host's daily limit, not one
   // item per guest. This also deduplicates group sessions from other event
   // types, which are present in `taken` but not in this event's session query.
@@ -152,9 +172,8 @@ export async function slotsFor(event: EventTypeRow, from: string, to: string, no
   // Calendar providers report Schedra's own shared invite as busy. Ignore only
   // an exact open session span; unrelated and partially overlapping events
   // continue to protect the host.
-  const effectiveExternalBusy = externalBusy.filter(interval => !groupSessions.some(session =>
-    session.availableSeats > 0
-    && Date.parse(interval.start) === session.startsAt.getTime()
+  const effectiveExternalBusy = externalBusy.filter(interval => !openSessions.some(session =>
+    Date.parse(interval.start) === session.startsAt.getTime()
     && Date.parse(interval.end) === session.endsAt.getTime()
   ))
 
@@ -178,8 +197,8 @@ export async function slotsFor(event: EventTypeRow, from: string, to: string, no
       overrides: [...grouped.values()]
     },
     eventType: {
-      durationMinutes: event.durationMinutes,
-      incrementMinutes: event.incrementMinutes ?? undefined,
+      durationMinutes: requestedDurationMinutes,
+      incrementMinutes: event.incrementMinutes ?? Math.min(...durationOptions),
       bufferBeforeMinutes: event.bufferBeforeMinutes,
       bufferAfterMinutes: event.bufferAfterMinutes,
       minimumNoticeMinutes: event.minimumNoticeMinutes,
@@ -203,7 +222,7 @@ export async function slotsFor(event: EventTypeRow, from: string, to: string, no
   return slots.map(slot => ({
     ...slot,
     ...(event.capacity > 1
-      ? { availableSeats: openSessionByStart.get(Date.parse(slot.start))?.availableSeats ?? event.capacity }
+      ? { availableSeats: openSessionBySpan.get(`${Date.parse(slot.start)}:${Date.parse(slot.end)}`)?.availableSeats ?? event.capacity }
       : {})
   }))
 }

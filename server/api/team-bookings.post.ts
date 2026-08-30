@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { and, eq, gt, inArray, sql } from 'drizzle-orm'
 import { bookingAttributionSchema, bookingSourceSchema, emailSchema, timeZoneSchema } from '#shared/validation'
+import { recurringBookingRequestSchema } from '#shared/recurrence'
 import { bookingHosts, bookings } from '../database/schema'
 import { useDatabase } from '../database/index'
 import {
@@ -31,6 +32,7 @@ import {
   paymentForBooking
 } from '../services/paid-booking'
 import { addUtcCalendarDays, utcCalendarDate } from '../utils/date-time'
+import { createTeamRecurringBooking } from '../services/recurring-booking-creation'
 
 const SLOT_TAKEN = '23P01'
 
@@ -38,6 +40,9 @@ const bodySchema = z.object({
   team: z.string().min(1),
   slug: z.string().min(1),
   start: z.iso.datetime(),
+  durationMinutes: z.number().int().min(5).max(720).optional(),
+  requestId: z.uuid().optional(),
+  recurrence: recurringBookingRequestSchema.optional(),
   name: z.string().trim().min(1, 'Please give a name').max(80),
   email: emailSchema,
   guestEmails: z.array(emailSchema).max(10).transform(values => [...new Set(values)]).optional(),
@@ -47,6 +52,10 @@ const bodySchema = z.object({
   source: bookingSourceSchema.default('hosted'),
   attribution: bookingAttributionSchema,
   rescheduleOf: z.string().trim().max(64).optional()
+}).superRefine((value, context) => {
+  if (value.recurrence && !value.requestId) {
+    context.addIssue({ code: 'custom', path: ['requestId'], message: 'A recurring booking needs a request identifier.' })
+  }
 })
 
 export default defineEventHandler(async (event) => {
@@ -60,9 +69,12 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const { team, slug, start, name, email, guestEmails, timeZone, notes, answers, source, attribution, rescheduleOf } = parsed.data
+  const { team, slug, start, durationMinutes, requestId, recurrence, name, email, guestEmails, timeZone, notes, answers, source, attribution, rescheduleOf } = parsed.data
   const eventType = await findPublicTeamEventType(team, slug)
   if (!eventType) throw createError({ statusCode: 404, statusMessage: 'No such booking page' })
+  if (recurrence && rescheduleOf) {
+    throw createError({ statusCode: 400, statusMessage: 'A recurring series cannot be created while moving another booking.' })
+  }
 
   const previous = rescheduleOf ? await findBookingByUid(rescheduleOf) : null
   if (rescheduleOf && !previous) {
@@ -109,6 +121,44 @@ export default defineEventHandler(async (event) => {
     throw error
   }
 
+  if (recurrence && requestId) {
+    let recurring
+    try {
+      recurring = await createTeamRecurringBooking({
+        eventType,
+        hosts,
+        requestId,
+        start,
+        durationMinutes: durationMinutes ?? eventType.durationMinutes,
+        recurrence,
+        guest: {
+          name,
+          email,
+          additionalGuestEmails,
+          timeZone,
+          answers: answerSnapshot ?? undefined,
+          source,
+          attribution
+        }
+      })
+    } catch (error) {
+      if (error instanceof CalendarUnavailableError) {
+        throw createError({
+          statusCode: 503,
+          statusMessage: 'Recurring times are temporarily unavailable. Please try again shortly.'
+        })
+      }
+      throw error
+    }
+    return {
+      ...recurring,
+      hostNames: [],
+      locationType: eventType.locationType,
+      locationDetails: eventType.locationDetails,
+      meetingUrl: eventType.locationType === 'video_link' ? eventType.locationDetails : null
+    }
+  }
+
   const now = new Date().toISOString()
   const wanted = new Date(start).getTime()
   const wantedDate = utcCalendarDate(wanted)
@@ -119,7 +169,7 @@ export default defineEventHandler(async (event) => {
   // busy between the calendar loading and this submission.
   let offered
   try {
-    offered = await teamSlotsFor(eventType, hosts, day(-1), day(1), now)
+    offered = await teamSlotsFor(eventType, hosts, day(-1), day(1), now, durationMinutes)
   } catch (error) {
     if (error instanceof CalendarUnavailableError) {
       throw createError({
@@ -217,6 +267,8 @@ export default defineEventHandler(async (event) => {
       const [created] = await tx.insert(bookings).values({
         organizationId: eventType.organizationId,
         eventTypeId: eventType.id,
+        seriesId: previous?.seriesId ?? null,
+        seriesPosition: previous?.seriesPosition ?? null,
         groupSessionId: groupSession?.id ?? null,
         // The organizer owns the calendar event and the meeting link. A trigger
         // reserves their time; the co-hosts are added just below.

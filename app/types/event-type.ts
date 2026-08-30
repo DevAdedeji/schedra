@@ -6,6 +6,9 @@ export interface EventTypeRecord {
   slug: string
   description: string | null
   durationMinutes: number
+  additionalDurationMinutes: number[]
+  recurringBookingEnabled: boolean
+  recurringBookingMaxOccurrences: number
   incrementMinutes: number | null
   bufferBeforeMinutes: number
   bufferAfterMinutes: number

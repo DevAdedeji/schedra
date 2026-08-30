@@ -316,6 +316,13 @@
       "when": 1788066383185,
       "tag": "0044_milky_ultron",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1788084775264,
+      "tag": "0045_flexible_recurring_bookings",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,7 @@
 import { findPublicEventType } from '../../../services/booking-page'
 import { enforceRateLimit } from '../../../services/rate-limit'
 import { publicPersonalBranding } from '../../../services/personal-branding'
+import { eventTypeDurationOptions } from '#shared/validation'
 
 export default defineEventHandler(async (event) => {
   await enforceRateLimit(event, { namespace: 'booking-page', limit: 180, windowSeconds: 60 })
@@ -22,6 +23,9 @@ export default defineEventHandler(async (event) => {
     title: found.title,
     description: found.description,
     durationMinutes: found.durationMinutes,
+    durationOptionsMinutes: eventTypeDurationOptions(found),
+    recurringBookingEnabled: found.recurringBookingEnabled,
+    recurringBookingMaxOccurrences: found.recurringBookingMaxOccurrences,
     bookingQuestions: found.bookingQuestions,
     requiresConfirmation: found.requiresConfirmation,
     capacity: found.capacity,

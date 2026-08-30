@@ -125,7 +125,7 @@ useHead({ link: [{ key: 'canonical', rel: 'canonical', href: canonical }] })
                     variant="subtle"
                     size="sm"
                   >
-                    {{ eventType.durationMinutes }} min
+                    {{ eventType.durationOptionsMinutes.join(' / ') }} min
                   </UBadge>
                   <UBadge
                     color="info"

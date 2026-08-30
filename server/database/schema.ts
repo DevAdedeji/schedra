@@ -597,6 +597,9 @@ export const eventTypes = pgTable('event_types', {
   description: text('description'),
 
   durationMinutes: integer('duration_minutes').notNull(),
+  additionalDurationMinutes: integer('additional_duration_minutes').array().notNull().default(sql`'{}'::integer[]`),
+  recurringBookingEnabled: boolean('recurring_booking_enabled').notNull().default(false),
+  recurringBookingMaxOccurrences: integer('recurring_booking_max_occurrences').notNull().default(8),
   incrementMinutes: integer('increment_minutes'),
   bufferBeforeMinutes: integer('buffer_before_minutes').notNull().default(0),
   bufferAfterMinutes: integer('buffer_after_minutes').notNull().default(0),
@@ -642,6 +645,18 @@ export const eventTypes = pgTable('event_types', {
     sql`(${table.organizationId} is null) <> (${table.userId} is null)`
   ),
   check('event_types_duration_positive', sql`${table.durationMinutes} > 0`),
+  check(
+    'event_types_additional_durations_valid',
+    sql`cardinality(${table.additionalDurationMinutes}) <= 4 and 5 <= all(${table.additionalDurationMinutes}) and 720 >= all(${table.additionalDurationMinutes}) and not (${table.durationMinutes} = any(${table.additionalDurationMinutes}))`
+  ),
+  check(
+    'event_types_recurring_occurrences_range',
+    sql`${table.recurringBookingMaxOccurrences} between 2 and 8`
+  ),
+  check(
+    'event_types_recurring_configuration_valid',
+    sql`${table.recurringBookingEnabled} = false or (${table.paymentEnabled} = false and ${table.capacity} = 1 and ${table.requiresConfirmation} = false)`
+  ),
   check(
     'event_types_increment_positive',
     sql`${table.incrementMinutes} is null or ${table.incrementMinutes} > 0`
@@ -735,6 +750,28 @@ export const bookingStatus = pgEnum('booking_status', [
   'confirmed',
   'cancelled',
   'rejected'
+])
+
+/** A guest-created repeating schedule whose occurrences are ordinary bookings. */
+export const bookingSeries = pgTable('booking_series', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  requestId: uuid('request_id').notNull(),
+  requestFingerprint: text('request_fingerprint').notNull(),
+  eventTypeId: uuid('event_type_id').notNull().references(() => eventTypes.id, { onDelete: 'restrict' }),
+  organizationId: uuid('organization_id').references(() => organizations.id, { onDelete: 'set null' }),
+  frequency: text('frequency').notNull(),
+  occurrenceCount: integer('occurrence_count').notNull(),
+  timeZone: text('time_zone').notNull(),
+  durationMinutes: integer('duration_minutes').notNull(),
+  ...timestamps
+}, table => [
+  uniqueIndex('booking_series_request_id_key').on(table.requestId),
+  index('booking_series_event_created_idx').on(table.eventTypeId, table.createdAt),
+  index('booking_series_organization_created_idx').on(table.organizationId, table.createdAt)
+    .where(sql`${table.organizationId} is not null`),
+  check('booking_series_frequency_allowed', sql`${table.frequency} in ('weekly', 'biweekly', 'monthly', 'yearly')`),
+  check('booking_series_occurrence_count_range', sql`${table.occurrenceCount} between 2 and 8`),
+  check('booking_series_duration_positive', sql`${table.durationMinutes} > 0`)
 ])
 
 /**
@@ -839,6 +876,8 @@ export const bookings = pgTable('bookings', {
   organizationId: uuid('organization_id').references(() => organizations.id, { onDelete: 'set null' }),
   eventTypeId: uuid('event_type_id').notNull().references(() => eventTypes.id, { onDelete: 'restrict' }),
   groupSessionId: uuid('group_session_id').references(() => groupEventSessions.id, { onDelete: 'restrict' }),
+  seriesId: uuid('series_id').references(() => bookingSeries.id, { onDelete: 'restrict' }),
+  seriesPosition: integer('series_position'),
   hostId: uuid('host_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
 
   uid: text('uid').notNull(),
@@ -872,6 +911,15 @@ export const bookings = pgTable('bookings', {
   index('bookings_host_status_ends_at_idx').on(table.hostId, table.status, table.endsAt),
   index('bookings_event_type_id_idx').on(table.eventTypeId),
   index('bookings_group_session_status_idx').on(table.groupSessionId, table.status),
+  index('bookings_series_position_idx').on(table.seriesId, table.seriesPosition),
+  uniqueIndex('bookings_active_series_position_key')
+    .on(table.seriesId, table.seriesPosition)
+    .where(sql`${table.seriesId} is not null and ${table.status} in ('awaiting_payment', 'pending', 'confirmed')`),
+  check(
+    'bookings_series_fields_paired',
+    sql`(${table.seriesId} is null) = (${table.seriesPosition} is null)`
+  ),
+  check('bookings_series_position_positive', sql`${table.seriesPosition} is null or ${table.seriesPosition} > 0`),
   check('bookings_ends_after_starts', sql`${table.endsAt} > ${table.startsAt}`)
 ])
 

@@ -229,7 +229,7 @@ function activeHosts(eventType: TeamEventTypeRecord) {
                 variant="subtle"
                 size="sm"
               >
-                {{ eventType.durationMinutes }} min
+                {{ [eventType.durationMinutes, ...eventType.additionalDurationMinutes].join(' / ') }} min
               </UBadge>
               <UBadge
                 color="info"

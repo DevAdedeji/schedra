@@ -13,6 +13,7 @@ const bookingLinkSlotSchema = z.object({
 export const createBookingLinkSchema = z.object({
   kind: bookingLinkKindSchema,
   eventTypeId: z.uuid(),
+  durationMinutes: z.number().int().min(5).max(720).optional(),
   label: z.string().trim().max(80, 'Keep the label under 80 characters.').nullable().default(null),
   expiresAt: z.iso.datetime({ offset: true }),
   slots: z.array(bookingLinkSlotSchema).max(40, 'Choose no more than 40 times.').default([])

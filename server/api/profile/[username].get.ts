@@ -3,6 +3,7 @@ import { eventTypes, users } from '../../database/schema'
 import { useDatabase } from '../../database/index'
 import { enforceRateLimit } from '../../services/rate-limit'
 import { publicPersonalBranding } from '../../services/personal-branding'
+import { eventTypeDurationOptions } from '#shared/validation'
 
 export default defineEventHandler(async (event) => {
   await enforceRateLimit(event, { namespace: 'public-profile', limit: 180, windowSeconds: 60 })
@@ -39,6 +40,7 @@ export default defineEventHandler(async (event) => {
       title: eventTypes.title,
       description: eventTypes.description,
       durationMinutes: eventTypes.durationMinutes,
+      additionalDurationMinutes: eventTypes.additionalDurationMinutes,
       paymentEnabled: eventTypes.paymentEnabled,
       priceCents: eventTypes.priceCents,
       paymentCurrency: eventTypes.paymentCurrency
@@ -55,6 +57,10 @@ export default defineEventHandler(async (event) => {
     bio: host.bio,
     avatarUrl: host.avatarUrl,
     branding,
-    eventTypes: types
+    eventTypes: types.map(type => ({
+      ...type,
+      durationOptionsMinutes: eventTypeDurationOptions(type),
+      additionalDurationMinutes: undefined
+    }))
   }
 })

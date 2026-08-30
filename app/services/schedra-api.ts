@@ -16,6 +16,7 @@ import type {
   MeetingLocationType,
   TeamEventTypeInput
 } from '#shared/validation'
+import type { RecurringBookingRequest, RecurringOccurrencePreview } from '#shared/recurrence'
 import type { WorkflowAction, WorkflowInput, WorkflowTrigger } from '#shared/workflows'
 import type { RoutingFormInput, RoutingQuestion, RoutingRule } from '#shared/routing'
 import type { EventTypeRecord } from '~/types/event-type'
@@ -56,6 +57,9 @@ export interface BookingDetail {
   eventTitle: string
   eventSlug: string
   durationMinutes: number
+  seriesPosition: number | null
+  seriesOccurrenceCount: number | null
+  seriesFrequency: 'weekly' | 'biweekly' | 'monthly' | 'yearly' | null
   hostName: string
   hostUsername: string
   teamName: string | null
@@ -82,6 +86,8 @@ export interface CreateBookingResult {
   locationDetails: string
   meetingUrl: string | null
   status: BookingRecord['status']
+  seriesCount?: number
+  occurrences?: Array<{ uid: string, start: string, end: string }>
   checkoutUrl?: string | null
   paymentExpiresAt?: string | null
 }
@@ -150,6 +156,7 @@ export interface PublicProfile {
     title: string
     description: string | null
     durationMinutes: number
+    durationOptionsMinutes: number[]
     paymentEnabled: boolean
     priceCents: number | null
     paymentCurrency: 'USD' | 'NGN'
@@ -172,6 +179,9 @@ export interface PublicBookingPage {
   title: string
   description: string | null
   durationMinutes: number
+  durationOptionsMinutes: number[]
+  recurringBookingEnabled: boolean
+  recurringBookingMaxOccurrences: number
   locationType: MeetingLocationType
   locationDetails: string
   bookingQuestions: BookingQuestion[]
@@ -189,10 +199,17 @@ export interface AvailabilityResponse {
   slots: Array<{ start: string, end: string, availableSeats?: number }>
 }
 
+export interface RecurrencePreviewResponse {
+  occurrences: RecurringOccurrencePreview[]
+}
+
 export interface CreateBookingInput {
   username: string
   slug: string
   start: string
+  durationMinutes?: number
+  requestId?: string
+  recurrence?: RecurringBookingRequest
   name: string
   email: string
   timeZone: string
@@ -244,13 +261,25 @@ export const bookingsApi = {
   })
 }
 
+export const recurrenceApi = {
+  preview: (body: {
+    mode: 'personal' | 'team'
+    owner: string
+    slug: string
+    start: string
+    durationMinutes: number
+    timeZone: string
+    recurrence: RecurringBookingRequest
+  }) => $fetch<RecurrencePreviewResponse>('/api/recurrence-preview', { method: 'POST', body })
+}
+
 export const eventTypesApi = {
   listEndpoint: '/api/event-types' as const,
   create: (body: EventTypeInput) => $fetch('/api/event-types', { method: 'POST', body }),
   duplicate: (id: string) => $fetch<{ id: string }>(resource('/api/event-types', id, '/duplicate'), { method: 'POST' }),
   update: (id: string, body: EventTypeInput) => $fetch(resource('/api/event-types', id), { method: 'PATCH', body }),
   remove: (id: string) => $fetch(resource('/api/event-types', id), { method: 'DELETE' }),
-  slots: (id: string, query: { from: string, to: string }) => $fetch<AvailabilityResponse>(
+  slots: (id: string, query: { from: string, to: string, durationMinutes?: number }) => $fetch<AvailabilityResponse>(
     resource('/api/event-types', id, '/slots'), { query }
   )
 }
@@ -740,6 +769,9 @@ export interface TeamEventTypeRecord {
   title: string
   description: string | null
   durationMinutes: number
+  additionalDurationMinutes: number[]
+  recurringBookingEnabled: boolean
+  recurringBookingMaxOccurrences: number
   assignmentMode: AssignmentMode
   locationType: MeetingLocationType
   requiresConfirmation: boolean
@@ -927,6 +959,7 @@ export interface PublicTeamProfile {
     title: string
     description: string | null
     durationMinutes: number
+    durationOptionsMinutes: number[]
     assignmentMode: AssignmentMode
     capacity: number
     paymentEnabled: boolean
@@ -942,6 +975,9 @@ export interface PublicTeamBookingPage {
   title: string
   description: string | null
   durationMinutes: number
+  durationOptionsMinutes: number[]
+  recurringBookingEnabled: boolean
+  recurringBookingMaxOccurrences: number
   assignmentMode: AssignmentMode
   locationType: MeetingLocationType
   locationDetails: string
@@ -958,6 +994,9 @@ export interface CreateTeamBookingInput {
   team: string
   slug: string
   start: string
+  durationMinutes?: number
+  requestId?: string
+  recurrence?: RecurringBookingRequest
   name: string
   email: string
   timeZone: string

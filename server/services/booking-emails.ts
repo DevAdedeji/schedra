@@ -26,6 +26,15 @@ export interface BookingNotice {
   notes?: string | null
   hostRecipients?: BookingHostRecipient[]
   publicBookingPath?: string
+  series?: {
+    frequency: 'weekly' | 'biweekly' | 'monthly' | 'yearly'
+    occurrenceCount: number
+    occurrences: Array<{ startsAt: string, endsAt: string }>
+  }
+}
+
+interface QueueBookingEmailOptions {
+  sendConfirmation?: boolean
 }
 
 export interface BookingHostRecipient {
@@ -113,71 +122,118 @@ export function meetingLocationText(
   return details
 }
 
-export async function queueBookingEmails(booking: BookingNotice, executor?: EmailInsertExecutor) {
+export async function queueBookingEmails(
+  booking: BookingNotice,
+  executor?: EmailInsertExecutor,
+  options: QueueBookingEmailOptions = {}
+) {
   const manage = `${useEnv().schedraUrl}/booking/${booking.uid}`
   const hostPage = `${useEnv().schedraUrl}${booking.publicBookingPath ?? `/${booking.hostUsername}`}`
   const recipients = [booking.attendeeEmail, ...booking.additionalGuestEmails]
   const hosts = booking.hostRecipients?.length ? booking.hostRecipients : [fallbackHost(booking)]
-
+  const sendConfirmation = options.sendConfirmation ?? true
+  const seriesLabel = booking.series?.frequency === 'biweekly'
+    ? 'Every 2 weeks'
+    : booking.series
+      ? `${booking.series.frequency[0]?.toUpperCase()}${booking.series.frequency.slice(1)}`
+      : null
   await enqueueEmails([
-    ...recipients.map((recipient, index) => ({
-      dedupeKey: index === 0
-        ? `booking:${booking.uid}:created:guest`
-        : emailDedupeKey(`booking:${booking.uid}:created:additional`, recipient),
-      email: {
-        to: recipient,
-        subject: `Confirmed: ${booking.eventTitle} with ${booking.hostName}`,
-        preheader: `${booking.eventTitle} is confirmed with ${booking.hostName}.`,
-        heading: 'You are booked',
-        body: `Your meeting with ${booking.hostName} is confirmed. Everything you need is below, with the time shown in your timezone.`,
-        details: [
-          { label: 'Meeting', value: booking.eventTitle },
-          { label: 'When', value: whenRange(booking.startsAt, booking.endsAt, booking.attendeeTimeZone) },
-          { label: 'With', value: booking.hostName },
-          {
-            label: 'Where',
-            value: meetingLocationText(booking.locationType, booking.locationDetails, booking.meetingUrl),
-            url: locationUrl(booking.locationType, booking.locationDetails, booking.meetingUrl)
+    ...(sendConfirmation
+      ? recipients.map((recipient, index) => ({
+          dedupeKey: index === 0
+            ? `booking:${booking.uid}:created:guest`
+            : emailDedupeKey(`booking:${booking.uid}:created:additional`, recipient),
+          email: {
+            to: recipient,
+            subject: booking.series
+              ? `Confirmed: ${booking.series.occurrenceCount} ${booking.eventTitle} meetings`
+              : `Confirmed: ${booking.eventTitle} with ${booking.hostName}`,
+            preheader: booking.series
+              ? `${booking.series.occurrenceCount} meetings are confirmed with ${booking.hostName}.`
+              : `${booking.eventTitle} is confirmed with ${booking.hostName}.`,
+            heading: booking.series
+              ? `${booking.series.occurrenceCount} meetings booked`
+              : 'You are booked',
+            body: booking.series
+              ? `Your recurring meetings with ${booking.hostName} are confirmed. Every date below is shown in your timezone.`
+              : `Your meeting with ${booking.hostName} is confirmed. Everything you need is below, with the time shown in your timezone.`,
+            details: [
+              { label: 'Meeting', value: booking.eventTitle },
+              ...(booking.series
+                ? [
+                    { label: 'Repeats', value: seriesLabel! },
+                    ...booking.series.occurrences.map((occurrence, index) => ({
+                      label: `Meeting ${index + 1}`,
+                      value: whenRange(occurrence.startsAt, occurrence.endsAt, booking.attendeeTimeZone)
+                    }))
+                  ]
+                : [{ label: 'When', value: whenRange(booking.startsAt, booking.endsAt, booking.attendeeTimeZone) }]),
+              { label: 'With', value: booking.hostName },
+              {
+                label: 'Where',
+                value: meetingLocationText(booking.locationType, booking.locationDetails, booking.meetingUrl),
+                url: locationUrl(booking.locationType, booking.locationDetails, booking.meetingUrl)
+              }
+            ],
+            action: index === 0
+              ? { label: 'View details or add to calendar', url: manage }
+              : { label: 'View the host’s booking page', url: hostPage },
+            footer: index === 0
+              ? booking.series
+                ? 'Each meeting can be rescheduled or cancelled separately from its booking page.'
+                : 'Plans change. You can reschedule or cancel from the booking page without contacting the host.'
+              : 'The person who made the booking can reschedule or cancel it. You will receive any updates automatically.'
           }
-        ],
-        action: index === 0
-          ? { label: 'View details or add to calendar', url: manage }
-          : { label: 'View the host’s booking page', url: hostPage },
-        footer: index === 0
-          ? 'Plans change. You can reschedule or cancel from the booking page without contacting the host.'
-          : 'The person who made the booking can reschedule or cancel it. You will receive any updates automatically.'
-      }
-    })),
-    ...hosts.map((host, index) => ({
-      dedupeKey: index === 0
-        ? `booking:${booking.uid}:created:host`
-        : emailDedupeKey(`booking:${booking.uid}:created:cohost`, host.email),
-      email: {
-        to: host.email,
-        subject: `New booking: ${booking.eventTitle}`,
-        preheader: `${booking.attendeeName} booked ${booking.eventTitle}.`,
-        heading: `${booking.attendeeName} booked ${hosts.length > 1 ? 'your team' : 'you'}`,
-        body: 'A new meeting has been added to your schedule. The time below is shown in your timezone.',
-        details: [
-          { label: 'Meeting', value: booking.eventTitle },
-          { label: 'When', value: whenRange(booking.startsAt, booking.endsAt, host.timeZone) },
-          { label: 'Guest', value: booking.attendeeName },
-          { label: 'Guest email', value: booking.attendeeEmail },
-          ...(booking.additionalGuestEmails.length
-            ? [{ label: 'Additional guests', value: booking.additionalGuestEmails.join(', ') }]
-            : []),
-          ...(booking.answers ?? []).map(answer => ({ label: answer.label, value: answer.value })),
-          ...(booking.notes ? [{ label: 'Notes', value: booking.notes }] : []),
-          {
-            label: 'Where',
-            value: meetingLocationText(booking.locationType, booking.locationDetails, booking.meetingUrl),
-            url: locationUrl(booking.locationType, booking.locationDetails, booking.meetingUrl)
+        }))
+      : []),
+    ...(sendConfirmation
+      ? hosts.map((host, index) => ({
+          dedupeKey: index === 0
+            ? `booking:${booking.uid}:created:host`
+            : emailDedupeKey(`booking:${booking.uid}:created:cohost`, host.email),
+          email: {
+            to: host.email,
+            subject: booking.series
+              ? `New recurring booking: ${booking.eventTitle}`
+              : `New booking: ${booking.eventTitle}`,
+            preheader: booking.series
+              ? `${booking.attendeeName} booked ${booking.series.occurrenceCount} meetings.`
+              : `${booking.attendeeName} booked ${booking.eventTitle}.`,
+            heading: booking.series
+              ? `${booking.attendeeName} booked ${booking.series.occurrenceCount} meetings`
+              : `${booking.attendeeName} booked ${hosts.length > 1 ? 'your team' : 'you'}`,
+            body: booking.series
+              ? 'A recurring series has been added to your schedule. Every date below is shown in your timezone.'
+              : 'A new meeting has been added to your schedule. The time below is shown in your timezone.',
+            details: [
+              { label: 'Meeting', value: booking.eventTitle },
+              ...(booking.series
+                ? [
+                    { label: 'Repeats', value: seriesLabel! },
+                    ...booking.series.occurrences.map((occurrence, index) => ({
+                      label: `Meeting ${index + 1}`,
+                      value: whenRange(occurrence.startsAt, occurrence.endsAt, host.timeZone)
+                    }))
+                  ]
+                : [{ label: 'When', value: whenRange(booking.startsAt, booking.endsAt, host.timeZone) }]),
+              { label: 'Guest', value: booking.attendeeName },
+              { label: 'Guest email', value: booking.attendeeEmail },
+              ...(booking.additionalGuestEmails.length
+                ? [{ label: 'Additional guests', value: booking.additionalGuestEmails.join(', ') }]
+                : []),
+              ...(booking.answers ?? []).map(answer => ({ label: answer.label, value: answer.value })),
+              ...(booking.notes ? [{ label: 'Notes', value: booking.notes }] : []),
+              {
+                label: 'Where',
+                value: meetingLocationText(booking.locationType, booking.locationDetails, booking.meetingUrl),
+                url: locationUrl(booking.locationType, booking.locationDetails, booking.meetingUrl)
+              }
+            ],
+            action: { label: 'View the booking', url: manage },
+            footer: 'Schedra will keep the booking and your connected calendar in sync.'
           }
-        ],
-        action: { label: 'View the booking', url: manage },
-        footer: 'Schedra will keep the booking and your connected calendar in sync.'
-      }
-    })),
+        }))
+      : []),
     ...booking.reminderMinutes.flatMap((minutes) => {
       const availableAt = subtractFromInstant(booking.startsAt, { minutes })
       if (availableAt.getTime() <= Date.now()) return []

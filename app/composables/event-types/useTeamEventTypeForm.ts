@@ -9,7 +9,8 @@ import type { TeamMemberRecord } from '~/services/schedra-api'
 
 function emptyTeamEventTypeForm(): TeamEventTypeInput {
   return {
-    title: '', slug: '', description: undefined, durationMinutes: 30, incrementMinutes: null,
+    title: '', slug: '', description: undefined, durationMinutes: 30, additionalDurationMinutes: [],
+    recurringBookingEnabled: false, recurringBookingMaxOccurrences: 8, incrementMinutes: null,
     bufferBeforeMinutes: 0, bufferAfterMinutes: 0, minimumNoticeMinutes: 120,
     bookingWindowDays: 60, maxPerDay: null, locationType: 'custom',
     locationDetails: 'The host will share meeting details before the meeting.',
@@ -29,14 +30,20 @@ export function useTeamEventTypeForm(options: {
 
   const groupEventEnabled = computed({
     get: () => form.capacity > 1,
-    set: (enabled) => { form.capacity = enabled ? 10 : 1 }
+    set: (enabled) => {
+      form.capacity = enabled ? 10 : 1
+      if (enabled) form.recurringBookingEnabled = false
+    }
   })
   const paidBookingEnabled = computed({
     get: () => form.paymentEnabled,
     set: (enabled: boolean) => {
       form.paymentEnabled = enabled
       form.priceCents = enabled ? (form.priceCents ?? 2500) : null
-      if (enabled) form.requiresConfirmation = false
+      if (enabled) {
+        form.requiresConfirmation = false
+        form.recurringBookingEnabled = false
+      }
     }
   })
   const priceAmount = computed({
@@ -94,7 +101,12 @@ export function useTeamEventTypeForm(options: {
   })
 
   function resetForm(value?: Partial<TeamEventTypeInput> | null) {
-    Object.assign(form, { ...emptyTeamEventTypeForm(), ...value, hosts: value?.hosts ?? [] })
+    Object.assign(form, {
+      ...emptyTeamEventTypeForm(),
+      ...value,
+      additionalDurationMinutes: value?.additionalDurationMinutes ?? [],
+      hosts: value?.hosts ?? []
+    })
   }
 
   function toggleHost(member: TeamMemberRecord) {
@@ -114,6 +126,9 @@ export function useTeamEventTypeForm(options: {
     if (mode !== 'single') return
     const first = form.hosts.find(host => host.enabled) ?? form.hosts[0]
     form.hosts = first ? [{ ...first, enabled: true }] : []
+  })
+  watch(() => form.requiresConfirmation, (required) => {
+    if (required) form.recurringBookingEnabled = false
   })
 
   return {

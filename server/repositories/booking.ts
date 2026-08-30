@@ -1,5 +1,5 @@
-import { asc, desc, eq } from 'drizzle-orm'
-import { bookingHosts, bookings, eventTypes, organizations, users } from '../database/schema'
+import { asc, desc, eq, sql } from 'drizzle-orm'
+import { bookingHosts, bookings, bookingSeries, eventTypes, organizations, users } from '../database/schema'
 import { useDatabase } from '../database/index'
 
 /**
@@ -14,6 +14,10 @@ export async function findBookingByUid(uid: string) {
       organizationId: bookings.organizationId,
       hostId: bookings.hostId,
       eventTypeId: bookings.eventTypeId,
+      seriesId: bookings.seriesId,
+      seriesPosition: bookings.seriesPosition,
+      seriesOccurrenceCount: bookingSeries.occurrenceCount,
+      seriesFrequency: bookingSeries.frequency,
       uid: bookings.uid,
       status: bookings.status,
       startsAt: bookings.startsAt,
@@ -29,7 +33,7 @@ export async function findBookingByUid(uid: string) {
       answers: bookings.answers,
       eventTitle: eventTypes.title,
       eventSlug: eventTypes.slug,
-      durationMinutes: eventTypes.durationMinutes,
+      durationMinutes: sql<number>`extract(epoch from (${bookings.endsAt} - ${bookings.startsAt})) / 60`.mapWith(Number),
       reminderMinutes: eventTypes.reminderMinutes,
       requiresConfirmation: eventTypes.requiresConfirmation,
       hostName: users.name,
@@ -43,6 +47,7 @@ export async function findBookingByUid(uid: string) {
     .innerJoin(eventTypes, eq(eventTypes.id, bookings.eventTypeId))
     .innerJoin(users, eq(users.id, bookings.hostId))
     .leftJoin(organizations, eq(organizations.id, bookings.organizationId))
+    .leftJoin(bookingSeries, eq(bookingSeries.id, bookings.seriesId))
     .where(eq(bookings.uid, uid))
     .limit(1)
 

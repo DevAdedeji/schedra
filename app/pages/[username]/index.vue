@@ -150,7 +150,7 @@ useSeoMeta({
                     {{ type.title }}
                   </span>
                   <span class="mt-0.5 block truncate text-[14px] text-muted">
-                    {{ type.durationMinutes }} minutes
+                    {{ type.durationOptionsMinutes.join(' / ') }} minutes
                     <template v-if="type.description">· {{ type.description }}</template>
                   </span>
                 </span>
