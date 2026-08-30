@@ -3,6 +3,7 @@ const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 export const DEFAULT_API_BODY_BYTES = 64 * 1024
 export const WEBHOOK_BODY_BYTES = 256 * 1024
 export const AVATAR_BODY_BYTES = 2_250_000
+export const BRAND_LOGO_BODY_BYTES = 2_250_000
 
 interface RequestProtectionInput {
   pathname: string
@@ -22,6 +23,9 @@ export interface SensitiveRateLimit {
 
 export function apiBodyLimit(pathname: string) {
   if (pathname === '/api/profile/avatar') return AVATAR_BODY_BYTES
+  if (pathname === '/api/profile/brand-logo' || /^\/api\/teams\/[^/]+\/brand-logo$/.test(pathname)) {
+    return BRAND_LOGO_BODY_BYTES
+  }
   if (pathname.startsWith('/api/webhooks/')) return WEBHOOK_BODY_BYTES
   if (pathname.startsWith('/api/auth/')) return 16 * 1024
   return DEFAULT_API_BODY_BYTES
