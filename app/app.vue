@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { UMAMI_PROXY_PATH, UMAMI_WEBSITE_ID } from '#shared/analytics'
+
 const route = useRoute()
 // SCHEDRA_URL is the authoritative public origin — the same value better-auth
 // builds callbacks from. The request host cannot be trusted behind a proxy and
@@ -31,10 +33,12 @@ useHead(() => ({
     ? [{
         'key': 'umami',
         'id': 'umami-tracker',
-        'src': 'https://cloud.umami.is/script.js',
+        'src': `${UMAMI_PROXY_PATH}/client.js`,
         'defer': true,
-        'data-website-id': '9fef54d5-fa9e-4d0b-9f33-7494ee9da3d6',
-        'data-auto-track': 'false'
+        'data-website-id': UMAMI_WEBSITE_ID,
+        'data-host-url': `${origin}${UMAMI_PROXY_PATH}`,
+        'data-auto-track': 'false',
+        'data-do-not-track': 'true'
       }]
     : []
 }))

@@ -1,6 +1,9 @@
 import { z } from 'zod'
 import { Temporal } from '@js-temporal/polyfill'
 
+export const UMAMI_WEBSITE_ID = '9fef54d5-fa9e-4d0b-9f33-7494ee9da3d6'
+export const UMAMI_PROXY_PATH = '/insights'
+
 export const analyticsQuerySchema = z.object({
   days: z.coerce.number().int().pipe(z.union([z.literal(7), z.literal(30), z.literal(90)])).default(30),
   eventTypeId: z.uuid().optional()

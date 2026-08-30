@@ -69,12 +69,15 @@ useSeoMeta({
         events, delivery attempts and integration error records to operate and protect the service.
       </p>
       <p>
-        We use Umami for cookieless, aggregate usage analytics. It can process page views, visits,
-        referring-site domains, browser and device information and approximate country. Before a
-        page view is sent, Schedra replaces dynamic URL values with general route categories and
-        removes paths and query values from referrers. Usernames, team slugs, booking and invitation
-        identifiers, private-link tokens, query strings, form values and email addresses are not sent
-        to Umami.
+        We use Umami for cookieless, aggregate usage analytics. Analytics requests first go through
+        a Schedra endpoint and are then forwarded to Umami. Umami can process page views, visits,
+        referring-site domains, browser and device information and approximate country. The proxy
+        forwards the requesting IP address and browser user agent so Umami can estimate anonymous
+        visits, device types and country, but it does not forward Schedra cookies or authorization
+        details. Before a page view is sent, Schedra replaces dynamic URL values with general route
+        categories and removes paths and query values from referrers. Usernames, team slugs, booking
+        and invitation identifiers, private-link tokens, query strings, form values and email
+        addresses are not sent to Umami.
       </p>
     </section>
 
