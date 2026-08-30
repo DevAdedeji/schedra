@@ -1,6 +1,9 @@
 const buildSiteUrl = process.env.SCHEDRA_URL?.trim().replace(/\/+$/, '') ?? ''
 
-if (process.env.NODE_ENV === 'production' && !buildSiteUrl) {
+// Railway may set NODE_ENV=production while dependencies are installing, and
+// Nuxt loads this config from its postinstall `prepare` hook. Require the URL
+// only for the actual project build, where prerendered metadata is generated.
+if (process.env.npm_lifecycle_event === 'build' && !buildSiteUrl) {
   throw new Error('SCHEDRA_URL is required while building so prerendered pages use the public origin.')
 }
 
