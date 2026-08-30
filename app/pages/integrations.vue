@@ -47,7 +47,7 @@ const callbackNotice = computed(() => {
 })
 
 const healthProviderName = computed(() => ({
-  google: 'Google Calendar', microsoft: 'Microsoft Calendar', zoom: 'Zoom'
+  google: 'Google Calendar', microsoft: 'Microsoft Calendar', caldav: 'Apple Calendar', zoom: 'Zoom'
 })[health.value?.failureProvider ?? 'google'])
 
 onMounted(() => {
@@ -185,7 +185,7 @@ async function disconnectZoom() {
       @retry="refreshHealth"
     />
 
-    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
       <CalendarIntegrationCard
         provider="google-calendar"
         name="Google Calendar"
@@ -201,6 +201,16 @@ async function disconnectZoom() {
         icon="i-simple-icons-microsoftoutlook"
         icon-class="text-[#0078D4]"
         description="Use Outlook calendars for conflict checks and booking events."
+        :refresh-signal="calendarRefreshSignal"
+        @saved="calendarSaved"
+      />
+      <CalendarIntegrationCard
+        provider="caldav"
+        name="Apple Calendar"
+        icon="i-simple-icons-apple"
+        icon-class="text-black"
+        description="Protect availability and synchronize bookings with iCloud calendars."
+        credential-connection
         :refresh-signal="calendarRefreshSignal"
         @saved="calendarSaved"
       />

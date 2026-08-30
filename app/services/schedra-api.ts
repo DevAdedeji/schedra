@@ -515,13 +515,15 @@ export const calendarApi = {
   disconnect: () => $fetch('/api/integrations/google-calendar', { method: 'DELETE' })
 }
 
-export type CalendarIntegrationProvider = 'google-calendar' | 'microsoft-calendar'
+export type CalendarIntegrationProvider = 'google-calendar' | 'microsoft-calendar' | 'caldav'
 
 export function calendarIntegrationApi(provider: CalendarIntegrationProvider) {
   const endpoint = `/api/integrations/${provider}` as const
   return {
     connectionEndpoint: endpoint,
     connectEndpoint: `${endpoint}/connect`,
+    connect: (body: { username: string, password: string }) =>
+      $fetch<CalendarConnection>(`${endpoint}/connect`, { method: 'POST', body }),
     calendars: () => $fetch<CalendarsResponse>(`${endpoint}/calendars`),
     update: (body: { conflictCalendarIds: string[], writeCalendarId: string | null, defaultForBookings?: boolean }) =>
       $fetch<{ ok: true, syncQueued: boolean }>(endpoint, { method: 'PATCH', body }),
@@ -534,13 +536,13 @@ export interface IntegrationSyncHealth {
   processing: number
   failed: number
   lastError: string | null
-  failureProvider: 'google' | 'microsoft' | 'zoom' | null
-  retryableProviderCounts: Partial<Record<'google' | 'microsoft' | 'zoom', number>>
+  failureProvider: 'google' | 'microsoft' | 'caldav' | 'zoom' | null
+  retryableProviderCounts: Partial<Record<'google' | 'microsoft' | 'caldav' | 'zoom', number>>
 }
 
 export const integrationHealthApi = {
   endpoint: '/api/integrations/health' as const,
-  retry: (provider?: 'google' | 'microsoft' | 'zoom') => $fetch<{ retried: number }>('/api/integrations/retry', {
+  retry: (provider?: 'google' | 'microsoft' | 'caldav' | 'zoom') => $fetch<{ retried: number }>('/api/integrations/retry', {
     method: 'POST',
     body: provider ? { provider } : {}
   })

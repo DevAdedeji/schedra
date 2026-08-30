@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { CalendarIntegrationProvider } from '~/services/schedra-api'
+import { apiErrorMessage, type CalendarIntegrationProvider } from '~/services/schedra-api'
 
 const props = defineProps<{
   provider: CalendarIntegrationProvider
@@ -8,11 +8,12 @@ const props = defineProps<{
   iconClass: string
   description: string
   refreshSignal?: number
+  credentialConnection?: boolean
 }>()
 
 const emit = defineEmits<{ saved: [] }>()
 const {
-  api, connection, status, connectionFailure, settingsOpen,
+  api, connection, refreshConnection, status, connectionFailure, settingsOpen,
   disconnectOpen, calendars, selectedConflictIds, writeCalendarId, defaultForBookings,
   loadingCalendars, calendarFailure, pageError, saving, disconnecting, isGoogle,
   writableCalendars, conflictCalendars, dirty, writeCalendarMissing,
@@ -23,6 +24,40 @@ const {
   refreshSignal: () => props.refreshSignal,
   onSaved: () => emit('saved')
 })
+const credentialOpen = ref(false)
+const credentialForm = reactive({ username: '', password: '' })
+const credentialError = ref('')
+const connecting = ref(false)
+const canConnect = computed(() => credentialForm.username.trim().includes('@') && credentialForm.password.trim().length >= 10)
+
+watch(credentialOpen, (open) => {
+  if (open) return
+  credentialForm.password = ''
+  credentialError.value = ''
+})
+
+async function connectWithCredentials() {
+  if (!props.credentialConnection || !canConnect.value || connecting.value) return
+  connecting.value = true
+  credentialError.value = ''
+  try {
+    await api.connect({
+      username: credentialForm.username.trim(),
+      password: credentialForm.password.trim()
+    })
+    credentialForm.password = ''
+    credentialOpen.value = false
+    await refreshConnection()
+    await loadCalendars(true)
+    settingsOpen.value = true
+    emit('saved')
+    useFeedback().success({ title: `${props.name} connected` })
+  } catch (failure) {
+    credentialError.value = apiErrorMessage(failure, `Could not connect ${props.name} just now.`)
+  } finally {
+    connecting.value = false
+  }
+}
 
 // Something has to be the default, so the switch only turns on: you move it by
 // turning the other provider on.
@@ -102,6 +137,15 @@ const defaultDescription = computed(() => (alreadyDefault.value
         @click="settingsOpen = true"
       >
         {{ connection.setupRequired ? 'Finish setup' : 'Manage settings' }}
+      </UButton>
+      <UButton
+        v-else-if="connection?.configured && credentialConnection"
+        icon="i-lucide-link"
+        block
+        class="min-h-10"
+        @click="credentialOpen = true"
+      >
+        {{ connection?.status === 'needs_reauthorization' ? 'Reconnect' : 'Connect' }}
       </UButton>
       <UButton
         v-else-if="connection?.configured"
@@ -320,6 +364,89 @@ const defaultDescription = computed(() => (alreadyDefault.value
               @click="save"
             >
               Save preferences
+            </UButton>
+          </template>
+        </ModalFooter>
+      </template>
+    </UModal>
+
+    <UModal
+      v-if="credentialConnection"
+      v-model:open="credentialOpen"
+      title="Connect Apple Calendar"
+      description="Use a separate app-specific password so Schedra never receives your main Apple Account password."
+      :ui="{ content: 'w-[calc(100%-1.5rem)] max-w-lg' }"
+    >
+      <template #body>
+        <form
+          id="apple-calendar-connect-form"
+          class="space-y-4"
+          @submit.prevent="connectWithCredentials"
+        >
+          <UFormField
+            label="Apple Account email"
+            required
+          >
+            <UInput
+              v-model="credentialForm.username"
+              type="email"
+              inputmode="email"
+              autocomplete="username"
+              placeholder="you@icloud.com"
+              class="w-full"
+            />
+          </UFormField>
+          <UFormField
+            label="App-specific password"
+            required
+            help="Create one under Sign-In and Security → App-Specific Passwords on account.apple.com. Two-factor authentication must be enabled."
+          >
+            <UInput
+              v-model="credentialForm.password"
+              type="password"
+              autocomplete="off"
+              placeholder="xxxx-xxxx-xxxx-xxxx"
+              class="w-full"
+            />
+          </UFormField>
+          <div class="rounded-xl border border-default bg-elevated/50 px-4 py-3 text-[13px] leading-relaxed text-muted">
+            Do not enter your normal Apple Account password. You can revoke this password from Apple at any time.
+            <a
+              href="https://support.apple.com/102654"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="ml-1 font-medium text-primary hover:underline"
+            >Apple’s instructions</a>
+          </div>
+          <p
+            v-if="credentialError"
+            class="text-[13px] text-error"
+            role="alert"
+          >
+            {{ credentialError }}
+          </p>
+        </form>
+      </template>
+      <template #footer>
+        <ModalFooter>
+          <template #cancel>
+            <UButton
+              color="neutral"
+              variant="soft"
+              :disabled="connecting"
+              @click="credentialOpen = false"
+            >
+              Cancel
+            </UButton>
+          </template>
+          <template #actions>
+            <UButton
+              type="submit"
+              form="apple-calendar-connect-form"
+              :loading="connecting"
+              :disabled="!canConnect"
+            >
+              Connect securely
             </UButton>
           </template>
         </ModalFooter>

@@ -30,7 +30,7 @@ export const productFeatureGroups: ProductFeatureGroup[] = [
     description: 'Schedra handles the routine work and keeps a clear trail when another service needs attention.',
     features: [
       { title: 'Workflows', summary: 'Send timely emails or secure webhooks when bookings are created, changed or approaching.', icon: 'i-lucide-workflow' },
-      { title: 'Calendar sync', summary: 'Protect busy time and update Google or Microsoft calendars after changes.', icon: 'i-lucide-refresh-cw' },
+      { title: 'Calendar sync', summary: 'Protect busy time and update Google, Microsoft or Apple calendars after changes.', icon: 'i-lucide-refresh-cw' },
       { title: 'Meeting rooms', summary: 'Create unique Google Meet, Microsoft Teams or Zoom links automatically.', icon: 'i-lucide-video' },
       { title: 'Reliable delivery', summary: 'Durable jobs, retries and operational health checks reduce silent failures.', icon: 'i-lucide-shield-check' }
     ]

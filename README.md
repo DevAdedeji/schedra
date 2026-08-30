@@ -44,6 +44,19 @@ The build fails if prerendered marketing pages contain the wrong canonical URL
 or indexing directive. For Docker builds, pass it as a build argument, for
 example `--build-arg SCHEDRA_URL=https://schedra.xyz`.
 
+## Apple Calendar
+
+Apple Calendar connects through iCloud CalDAV. Users must enable two-factor
+authentication on their Apple Account and create an app-specific password at
+`account.apple.com` under **Sign-In and Security → App-Specific Passwords**.
+Schedra encrypts that password using `INTEGRATION_ENCRYPTION_KEY`; the normal
+Apple Account password must never be entered. Changing the main Apple Account
+password revokes app-specific passwords, so the integration will then show
+**Needs attention** until it is reconnected with a new one.
+
+No Apple-specific deployment secret or callback URL is required. Production
+must be able to make outbound HTTPS requests to `*.icloud.com`.
+
 ## Security
 
 Please do not disclose vulnerabilities in public issues. Follow the private
