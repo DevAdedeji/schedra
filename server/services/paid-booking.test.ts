@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { BachsCheckoutSession } from '../integrations/bachs'
-import { checkoutPaymentState } from './paid-booking'
+import { checkoutPaymentState, platformFeeCents } from './paid-booking'
 
 function checkout(overrides: Partial<BachsCheckoutSession> = {}): BachsCheckoutSession {
   return {
@@ -53,5 +53,12 @@ describe('paid booking checkout state', () => {
       status: 'completed',
       payment_status: 'failed'
     }))).toBe('failed')
+  })
+})
+
+describe('paid booking platform fee', () => {
+  it('uses the supplied plan fee and keeps a minimum provider split', () => {
+    expect(platformFeeCents(10_000, 250)).toBe(250)
+    expect(platformFeeCents(10, 250)).toBe(1)
   })
 })

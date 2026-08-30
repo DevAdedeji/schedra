@@ -4,7 +4,7 @@ export function useCurrentUser(options: { server?: boolean } = {}) {
   const requestFetch = useRequestFetch()
   return useAsyncData('current-user', (_nuxtApp, { signal }) =>
     requestFetch('/api/me', { signal }), {
-    default: () => ({ user: null, google: false, isPlatformAdmin: false }),
+    default: () => ({ user: null, google: false, isPlatformAdmin: false, personalPlan: null }),
     dedupe: 'defer',
     server: options.server ?? true
   })

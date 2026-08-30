@@ -1,6 +1,12 @@
 import { getCheckoutSession, getConnectedAccount, type BachsSubscription } from '../../integrations/bachs'
 import { applySubscriptionState, markInvoiceFailed, markInvoicePaid } from '../billing'
+import {
+  applyPersonalSubscriptionState,
+  markPersonalInvoiceFailed,
+  markPersonalInvoicePaid
+} from '../personal-billing'
 import { recordAudit } from '../organization'
+import { recordSecurityAudit } from '../security-audit'
 import {
   applyRefundEvent,
   completePaidBookingFromCheckout,
@@ -129,6 +135,19 @@ export async function processBachsWebhook(payload: BachsEvent) {
   if (SUBSCRIPTION_EVENTS.has(type)) {
     const subscription = payload.data as unknown as BachsSubscription
     if (!subscription?.id) return { received: true, ignored: 'no-subscription' }
+    if (subscription.metadata?.schedraPlan === 'personal_pro') {
+      const result = await applyPersonalSubscriptionState(subscription)
+      if (result.applied && result.userId) {
+        await recordSecurityAudit({
+          action: `personal_billing.subscription_${subscription.status}`,
+          actorUserId: result.userId,
+          targetType: 'subscription',
+          targetId: subscription.id,
+          metadata: { type }
+        })
+      }
+      return { received: true, applied: result.applied, reason: result.reason }
+    }
     const result = await applySubscriptionState(subscription)
     if (result.applied && result.organizationId) {
       await recordAudit({
@@ -160,12 +179,33 @@ export async function processBachsWebhook(payload: BachsEvent) {
         metadata: { type, chargeId: payload.data?.charge_id ?? null }
       })
     }
-    return { received: true, applied: result.applied, reason: result.reason }
+    if (result.reason !== 'unknown-reference') {
+      return { received: true, applied: result.applied, reason: result.reason }
+    }
+
+    const personalResult = await markPersonalInvoicePaid({
+      reference,
+      chargeId: payload.data?.charge_id ?? null,
+      settlementAmountCents: toCents(payload.data?.settlement_amount)
+    })
+    if (personalResult.applied && personalResult.userId) {
+      await recordSecurityAudit({
+        action: 'personal_billing.invoice_paid',
+        actorUserId: personalResult.userId,
+        targetType: 'personal_invoice',
+        targetId: reference,
+        metadata: { type, chargeId: payload.data?.charge_id ?? null }
+      })
+    }
+    return { received: true, applied: personalResult.applied, reason: personalResult.reason }
   }
 
   if (FAILED_EVENTS.has(type)) {
-    await markInvoiceFailed(reference, type)
-    return { received: true, applied: true }
+    const organizationMatched = await markInvoiceFailed(reference, type)
+    const personalMatched = organizationMatched ? false : await markPersonalInvoiceFailed(reference, type)
+    return organizationMatched || personalMatched
+      ? { received: true, applied: true }
+      : { received: true, ignored: 'unknown-reference' }
   }
   return { received: true, ignored: type }
 }

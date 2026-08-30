@@ -220,6 +220,8 @@ const initials = computed(() => getInitials(profile.name))
             </div>
           </form>
         </section>
+
+        <PersonalBrandingSettings />
       </div>
 
       <aside class="space-y-6">

@@ -58,6 +58,12 @@ export const users = pgTable('users', {
   username: text('username').notNull(),
   bio: text('bio'),
   avatarUrl: text('avatar_url'),
+  brandName: text('brand_name'),
+  brandLogoUrl: text('brand_logo_url'),
+  brandColor: text('brand_color'),
+  brandDarkColor: text('brand_dark_color'),
+  bookingPageTheme: text('booking_page_theme').notNull().default('system'),
+  hideSchedraBranding: boolean('hide_schedra_branding').notNull().default(false),
   timeZone: text('time_zone').notNull().default('UTC'),
 
   ...timestamps
@@ -75,6 +81,17 @@ export const userAvatars = pgTable('user_avatars', {
   ...timestamps
 }, table => [
   check('user_avatars_size_range', sql`${table.size} > 0 and ${table.size} <= 2097152`)
+])
+
+export const userBrandLogos = pgTable('user_brand_logos', {
+  userId: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  contentType: text('content_type').notNull(),
+  bytes: bytea('bytes').notNull(),
+  size: integer('size').notNull(),
+  hash: text('hash').notNull(),
+  ...timestamps
+}, table => [
+  check('user_brand_logos_size_range', sql`${table.size} > 0 and ${table.size} <= 2097152`)
 ])
 
 export const sessions = pgTable('sessions', {
@@ -218,6 +235,74 @@ export const organizationInvoices = pgTable('organization_invoices', {
   check('organization_invoices_seats_positive', sql`${table.seats} > 0`),
   check('organization_invoices_amount_positive', sql`${table.amountCents} > 0`),
   check('organization_invoices_period_ordered', sql`${table.periodEnd} > ${table.periodStart}`)
+])
+
+export const personalSubscriptions = pgTable('personal_subscriptions', {
+  userId: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  status: text('status').notNull().default('canceled'),
+  interval: text('interval').notNull().default('yearly'),
+  collectionCurrency: text('collection_currency').notNull().default('USD'),
+  collectionMethod: text('collection_method').notNull().default('invoice'),
+  currentPeriodEnd: timestamp('current_period_end', { withTimezone: true }),
+  graceEndsAt: timestamp('grace_ends_at', { withTimezone: true }),
+  cancelAtPeriodEnd: boolean('cancel_at_period_end').notNull().default(false),
+  bachsCustomerId: text('bachs_customer_id'),
+  bachsSubscriptionId: text('bachs_subscription_id'),
+  lastInvoiceReference: text('last_invoice_reference'),
+  ...timestamps
+}, table => [
+  index('personal_subscriptions_status_idx').on(table.status),
+  uniqueIndex('personal_subscriptions_bachs_subscription_key')
+    .on(table.bachsSubscriptionId)
+    .where(sql`${table.bachsSubscriptionId} is not null`),
+  check(
+    'personal_subscriptions_status_allowed',
+    sql`${table.status} in ('trialing', 'active', 'past_due', 'unpaid', 'paused', 'canceled')`
+  ),
+  check(
+    'personal_subscriptions_collection_method_allowed',
+    sql`${table.collectionMethod} in ('charge_automatically', 'invoice')`
+  ),
+  check('personal_subscriptions_interval_allowed', sql`${table.interval} in ('monthly', 'yearly')`),
+  check(
+    'personal_subscriptions_currency_allowed',
+    sql`${table.collectionCurrency} in ('USD', 'NGN')`
+  )
+])
+
+export const personalInvoices = pgTable('personal_invoices', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  reference: text('reference').notNull(),
+  status: text('status').notNull().default('pending'),
+  interval: text('interval').notNull(),
+  amountCents: integer('amount_cents').notNull(),
+  collectionCurrency: text('collection_currency').notNull().default('USD'),
+  collectionAmount: text('collection_amount'),
+  exchangeRate: text('exchange_rate'),
+  settlementAmountCents: integer('settlement_amount_cents'),
+  periodStart: timestamp('period_start', { withTimezone: true }).notNull(),
+  periodEnd: timestamp('period_end', { withTimezone: true }).notNull(),
+  paidAt: timestamp('paid_at', { withTimezone: true }),
+  bachsCheckoutId: text('bachs_checkout_id'),
+  checkoutUrl: text('checkout_url'),
+  bachsChargeId: text('bachs_charge_id'),
+  lastError: text('last_error'),
+  ...timestamps
+}, table => [
+  uniqueIndex('personal_invoices_reference_key').on(table.reference),
+  index('personal_invoices_user_created_idx').on(table.userId, table.createdAt),
+  index('personal_invoices_checkout_idx').on(table.bachsCheckoutId),
+  check(
+    'personal_invoices_status_allowed',
+    sql`${table.status} in ('pending', 'paid', 'failed', 'expired')`
+  ),
+  check('personal_invoices_amount_positive', sql`${table.amountCents} > 0`),
+  check('personal_invoices_period_ordered', sql`${table.periodEnd} > ${table.periodStart}`),
+  check(
+    'personal_invoices_currency_allowed',
+    sql`${table.collectionCurrency} in ('USD', 'NGN')`
+  )
 ])
 
 export const organizationAuditLogs = pgTable('organization_audit_logs', {

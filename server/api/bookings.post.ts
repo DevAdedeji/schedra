@@ -23,6 +23,7 @@ import {
 import { bookingLinkTokenHash, filterInvitationSlots, requireUsableBookingLink } from '../services/booking-links'
 import { claimBookingLink } from '../repositories/booking-links'
 import { addUtcCalendarDays, utcCalendarDate } from '../utils/date-time'
+import { personalPaidBookingFeeBps } from '../services/personal-entitlement'
 
 const SLOT_TAKEN = '23P01'
 
@@ -136,6 +137,9 @@ export default defineEventHandler(async (event) => {
   }
   const paymentCovered = previousPayment?.status === 'paid'
   const awaitingPayment = Boolean(payment && !paymentCovered)
+  const platformFeeBps = awaitingPayment
+    ? await personalPaidBookingFeeBps(eventType.hostId)
+    : undefined
 
   const uid = crypto.randomUUID()
 
@@ -208,7 +212,8 @@ export default defineEventHandler(async (event) => {
           recipientId: payment.recipient.id,
           amountCents: payment.amountCents,
           currency: payment.currency,
-          reference: `booking-${uid}`
+          reference: `booking-${uid}`,
+          platformFeeBps
         }, tx)
       } else {
         if (paymentCovered && previous) {

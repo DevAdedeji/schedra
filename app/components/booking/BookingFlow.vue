@@ -85,6 +85,8 @@ const missingPage = computed(() => pageError.value?.statusCode === 404 || availa
 const loadingFailure = computed(() => pageError.value && !missingPage.value ? pageError.value : availabilityError.value)
 const initialLoading = computed(() => !page.value && !loadingFailure.value && (pageStatus.value === 'pending' || status.value === 'pending'))
 const retrying = computed(() => pageStatus.value === 'pending' || status.value === 'pending')
+const branding = computed(() => isTeam.value || isInvite.value ? undefined : page.value?.branding)
+const { brandStyle, brandThemeClass } = usePersonalBookingBranding(branding)
 
 async function retryBookingPage() {
   await Promise.allSettled([refresh(), refreshPage()])
@@ -275,7 +277,9 @@ useHead({
 
 <template>
   <div
-    class="flex min-h-screen flex-col bg-muted"
+    class="personal-booking-brand flex min-h-screen flex-col bg-muted"
+    :class="brandThemeClass"
+    :style="brandStyle"
     :data-embedded="embedded ? 'true' : undefined"
   >
     <div
@@ -287,8 +291,8 @@ useHead({
           v-if="!embedded"
           class="pt-6 pb-12"
         >
-          <NuxtLink to="/">
-            <SchedraMark />
+          <NuxtLink :to="branding?.logoUrl || branding?.brandName ? `/${owner}` : '/'">
+            <PersonalBookingBrand :branding="branding" />
           </NuxtLink>
         </div>
         <div
@@ -809,6 +813,7 @@ useHead({
     </div>
 
     <footer
+      v-if="!branding?.hideSchedraBranding"
       class="px-5 text-center text-xs text-muted"
       :class="embedded ? 'pb-4 pt-3' : 'pb-10 pt-6'"
     >

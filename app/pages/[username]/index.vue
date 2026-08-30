@@ -14,6 +14,8 @@ if (error.value) setResponseStatus(error.value.statusCode === 404 ? 404 : 503)
 const missingProfile = computed(() => error.value?.statusCode === 404)
 
 const initials = computed(() => getInitials(profile.value?.name ?? ''))
+const branding = computed(() => profile.value?.branding)
+const { brandStyle, brandThemeClass } = usePersonalBookingBranding(branding)
 
 useSeoMeta({
   title: () => profile.value ? `Book time with ${profile.value.name}` : 'Not found',
@@ -30,12 +32,16 @@ useSeoMeta({
 </script>
 
 <template>
-  <div class="flex min-h-screen flex-col bg-muted">
+  <div
+    class="personal-booking-brand flex min-h-screen flex-col bg-muted"
+    :class="brandThemeClass"
+    :style="brandStyle"
+  >
     <main class="flex-1 px-5">
       <div class="mx-auto max-w-2xl">
         <div class="pt-6 pb-12">
-          <NuxtLink to="/">
-            <SchedraMark />
+          <NuxtLink :to="profile?.branding?.logoUrl || profile?.branding?.brandName ? `/${username}` : '/'">
+            <PersonalBookingBrand :branding="profile?.branding" />
           </NuxtLink>
         </div>
 
@@ -166,7 +172,10 @@ useSeoMeta({
       </div>
     </main>
 
-    <footer class="px-5 pb-10 pt-6 text-center text-xs text-dimmed">
+    <footer
+      v-if="!profile?.branding?.hideSchedraBranding"
+      class="px-5 pb-10 pt-6 text-center text-xs text-dimmed"
+    >
       Scheduling by
       <NuxtLink
         to="/"

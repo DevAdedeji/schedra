@@ -4,8 +4,10 @@ import type {
   CollectionCurrency,
   InvitableRole,
   OrganizationEntitlement,
-  OrganizationRole
+  OrganizationRole,
+  PersonalPlanEntitlement
 } from '#shared/billing'
+import type { PersonalBrandingInput, PublicPersonalBranding } from '#shared/branding'
 import type {
   AssignmentMode,
   BookingAnswer,
@@ -142,6 +144,7 @@ export interface PublicProfile {
   username: string
   bio: string | null
   avatarUrl: string | null
+  branding: PublicPersonalBranding
   eventTypes: Array<{
     slug: string
     title: string
@@ -177,6 +180,7 @@ export interface PublicBookingPage {
   paymentEnabled: boolean
   priceCents: number | null
   paymentCurrency: 'USD' | 'NGN'
+  branding?: PublicPersonalBranding
 }
 
 export interface AvailabilityResponse {
@@ -407,6 +411,17 @@ export const profileApi = {
     return $fetch<{ avatarUrl: string }>('/api/profile/avatar', { method: 'PUT', body })
   },
   removeAvatar: () => $fetch('/api/profile/avatar', { method: 'DELETE' })
+}
+
+export const brandingApi = {
+  endpoint: '/api/personal-branding' as const,
+  update: (body: PersonalBrandingInput) => $fetch<{ branding: PublicPersonalBranding }>('/api/personal-branding', { method: 'PATCH', body }),
+  uploadLogo: (file: File) => {
+    const body = new FormData()
+    body.append('logo', file)
+    return $fetch<{ logoUrl: string }>('/api/profile/brand-logo', { method: 'PUT', body })
+  },
+  removeLogo: () => $fetch('/api/profile/brand-logo', { method: 'DELETE' })
 }
 
 export const accountApi = {
@@ -1002,6 +1017,37 @@ export const billingApi = {
       resource('/api/teams', slug, '/billing/checkout'),
       { method: 'POST', body }
     )
+}
+
+export interface PersonalBillingResponse {
+  entitlement: PersonalPlanEntitlement
+  configured: boolean
+  payment: {
+    collectionMethod: 'charge_automatically' | 'invoice'
+    collectionCurrency: CollectionCurrency
+  }
+  invoices: Array<{
+    id: string
+    reference: string
+    status: 'pending' | 'paid' | 'failed' | 'expired'
+    interval: BillingInterval
+    amountCents: number
+    collectionCurrency: CollectionCurrency
+    periodStart: string
+    periodEnd: string
+    paidAt: string | null
+    createdAt: string
+  }>
+}
+
+export const personalBillingApi = {
+  summaryEndpoint: '/api/billing' as const,
+  checkout: (body: { interval: BillingInterval, currency: CollectionCurrency, requestId: string }) =>
+    $fetch<{ checkoutUrl: string, reference: string }>('/api/billing/checkout', { method: 'POST', body }),
+  cancel: () => $fetch<{ cancelAtPeriodEnd: boolean, currentPeriodEnd: string | null, autoRenews: boolean }>(
+    '/api/billing/cancel',
+    { method: 'POST' }
+  )
 }
 
 export const invitationsApi = {

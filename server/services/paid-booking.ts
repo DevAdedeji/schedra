@@ -52,8 +52,8 @@ async function currentPaymentRecipient(owner: { userId?: string | null, organiza
   return syncPaymentRecipient(stored)
 }
 
-export function platformFeeCents(amountCents: number) {
-  const fee = Math.round(amountCents * useEnv().paidBookingPlatformFeeBps / 10_000)
+export function platformFeeCents(amountCents: number, feeBps = useEnv().paidBookingPlatformFeeBps) {
+  const fee = Math.round(amountCents * feeBps / 10_000)
   return Math.min(amountCents - 1, Math.max(1, fee))
 }
 
@@ -90,13 +90,14 @@ export async function createPaymentRecord(input: {
   amountCents: number
   currency: 'USD' | 'NGN'
   reference: string
+  platformFeeBps?: number
 }, executor: PaymentExecutor) {
   const [payment] = await executor.insert(bookingPayments).values({
     bookingId: input.bookingId,
     recipientId: input.recipientId,
     amountCents: input.amountCents,
     currency: input.currency,
-    platformFeeCents: platformFeeCents(input.amountCents),
+    platformFeeCents: platformFeeCents(input.amountCents, input.platformFeeBps),
     reference: input.reference
   }).returning()
   if (!payment) throw new Error('Payment reservation could not be created.')

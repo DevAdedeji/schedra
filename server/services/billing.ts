@@ -253,9 +253,11 @@ export async function markInvoicePaid(input: {
 }
 
 export async function markInvoiceFailed(reference: string, reason: string) {
-  await useDatabase().update(organizationInvoices)
+  const rows = await useDatabase().update(organizationInvoices)
     .set({ status: 'failed', lastError: reason, updatedAt: sql`now()` })
     .where(eq(organizationInvoices.reference, reference))
+    .returning({ id: organizationInvoices.id })
+  return Boolean(rows.length)
 }
 
 /**

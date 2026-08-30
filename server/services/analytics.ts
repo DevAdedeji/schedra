@@ -32,7 +32,11 @@ function periodWhere(owner: AnalyticsOwner, from: Date, to: Date, eventTypeId?: 
 const realBooking = sql`${bookings.status} <> 'awaiting_payment'`
 const cancelledBooking = sql`${bookings.status} in ('cancelled', 'rejected')`
 
-export async function getBookingAnalytics(owner: AnalyticsOwner, query: AnalyticsQuery) {
+export async function getBookingAnalytics(
+  owner: AnalyticsOwner,
+  query: AnalyticsQuery,
+  capabilities: { includeRevenue?: boolean } = { includeRevenue: true }
+) {
   const db = useDatabase()
   const to = new Date()
   const from = subtractFromInstant(to, { hours: query.days * 24 })
@@ -74,13 +78,15 @@ export async function getBookingAnalytics(owner: AnalyticsOwner, query: Analytic
     }).from(bookings).innerJoin(eventTypes, eq(eventTypes.id, bookings.eventTypeId))
       .where(current).groupBy(eventTypes.id, eventTypes.title)
       .orderBy(desc(sql`count(*) filter (where ${realBooking})`)).limit(10),
-    db.select({
-      currency: bookingPayments.currency,
-      amountCents: sql<number>`coalesce(sum(${bookingPayments.amountCents}) filter (where ${bookingPayments.status} = 'paid'), 0)`.mapWith(Number)
-    }).from(bookings)
-      .innerJoin(eventTypes, eq(eventTypes.id, bookings.eventTypeId))
-      .innerJoin(bookingPayments, eq(bookingPayments.bookingId, bookings.id))
-      .where(current).groupBy(bookingPayments.currency),
+    capabilities.includeRevenue
+      ? db.select({
+          currency: bookingPayments.currency,
+          amountCents: sql<number>`coalesce(sum(${bookingPayments.amountCents}) filter (where ${bookingPayments.status} = 'paid'), 0)`.mapWith(Number)
+        }).from(bookings)
+          .innerJoin(eventTypes, eq(eventTypes.id, bookings.eventTypeId))
+          .innerJoin(bookingPayments, eq(bookingPayments.bookingId, bookings.id))
+          .where(current).groupBy(bookingPayments.currency)
+      : Promise.resolve([]),
     db.select({ id: eventTypes.id, title: eventTypes.title })
       .from(eventTypes)
       .where(and(

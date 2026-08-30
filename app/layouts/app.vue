@@ -46,6 +46,7 @@ const personalLinks = computed(() => [
   { label: 'Workflows', to: '/workflows', icon: 'i-lucide-workflow' },
   { label: 'Routing forms', to: '/routing-forms', icon: 'i-lucide-git-branch' },
   { label: 'Payments', to: '/payments', icon: 'i-lucide-wallet-cards' },
+  { label: 'Plan & billing', to: '/billing', icon: 'i-lucide-credit-card' },
   ...(data.value?.isPlatformAdmin
     ? [{ label: 'Operations', to: '/operations', icon: 'i-lucide-activity' }]
     : [])
