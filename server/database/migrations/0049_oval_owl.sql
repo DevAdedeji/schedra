@@ -1,0 +1,3 @@
+ALTER TABLE "organizations" ADD CONSTRAINT "organizations_brand_color_valid" CHECK ("organizations"."brand_color" is null or "organizations"."brand_color" ~ '^#[0-9A-Fa-f]{6}$');--> statement-breakpoint
+ALTER TABLE "organizations" ADD CONSTRAINT "organizations_brand_dark_color_valid" CHECK ("organizations"."brand_dark_color" is null or "organizations"."brand_dark_color" ~ '^#[0-9A-Fa-f]{6}$');--> statement-breakpoint
+ALTER TABLE "organizations" ADD CONSTRAINT "organizations_booking_page_theme_allowed" CHECK ("organizations"."booking_page_theme" in ('system', 'light', 'dark'));
