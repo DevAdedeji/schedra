@@ -48,6 +48,29 @@ export class ZoomUnavailableError extends IntegrationUnavailableError {
   }
 }
 
+const requiredZoomCapabilities = [
+  ['user:read:user', 'user:read'],
+  ['meeting:write:meeting', 'meeting:write'],
+  ['meeting:update:meeting', 'meeting:write'],
+  ['meeting:delete:meeting', 'meeting:write'],
+  ['meeting:read:list_meetings', 'meeting:read']
+]
+
+function hasRequiredZoomPermissions(scope: string) {
+  if (!scope.trim()) return true
+  const granted = new Set(scope.split(/[\s,]+/).filter(Boolean))
+  return requiredZoomCapabilities.every(options => options.some(option =>
+    granted.has(option) || granted.has(`${option}:admin`)
+  ))
+}
+
+function zoomPermissionError() {
+  return new ZoomUnavailableError(
+    'Zoom permissions changed. Reconnect Zoom to keep meeting links working.',
+    { retryable: false }
+  )
+}
+
 function credentials() {
   const env = useEnv()
   if (!env.zoomClientId || !env.zoomClientSecret) {
@@ -131,6 +154,7 @@ async function accessToken(userId: string, forceRefresh = false) {
   if (connection.status !== 'active') {
     throw new ZoomUnavailableError('Zoom needs to be reconnected.', { retryable: false })
   }
+  if (!hasRequiredZoomPermissions(connection.scope)) throw zoomPermissionError()
   if (!forceRefresh && connection.accessTokenExpiresAt.getTime() > Date.now() + 60_000) {
     return { connection, token: decryptCredential(connection.accessTokenEncrypted) }
   }
@@ -201,7 +225,14 @@ async function zoomResponse(userId: string, path: string, init: RequestInit = {}
     response = await request(auth.token)
   }
   if (!response.ok && response.status !== 404) {
-    const message = `Zoom request failed (${response.status}).`
+    const payload = await response.clone().json().catch(() => null) as { code?: number | string, message?: string } | null
+    const code = typeof payload?.code === 'number' || typeof payload?.code === 'string'
+      ? `, code ${String(payload.code).slice(0, 24)}`
+      : ''
+    const detail = typeof payload?.message === 'string'
+      ? `: ${payload.message.replace(/\s+/g, ' ').trim().slice(0, 240).replace(/[.\s]+$/, '')}`
+      : ''
+    const message = `Zoom request failed (${response.status}${code})${detail}.`
     await useDatabase().update(videoConferenceConnections).set({
       lastError: message,
       lastCheckedAt: sql`now()`,
@@ -266,12 +297,15 @@ export async function zoomConnection(userId: string) {
   const connection = await zoomConnectionFor(userId)
   const configured = Boolean(useEnv().zoomClientId && useEnv().zoomClientSecret)
   if (!connection) return { connected: false as const, configured }
+  const permissionsComplete = hasRequiredZoomPermissions(connection.scope)
   return {
-    connected: connection.status === 'active',
+    connected: connection.status === 'active' && permissionsComplete,
     configured,
-    status: connection.status,
+    status: permissionsComplete ? connection.status : 'needs_reauthorization' as const,
     accountLabel: connection.accountLabel,
-    lastError: connection.lastError,
+    lastError: permissionsComplete
+      ? connection.lastError
+      : 'Zoom permissions changed. Reconnect Zoom to keep meeting links working.',
     lastCheckedAt: connection.lastCheckedAt?.toISOString() ?? null
   }
 }

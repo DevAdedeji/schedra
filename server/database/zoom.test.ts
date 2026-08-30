@@ -3,6 +3,13 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 import { configureAppTestEnvironment, getTestDatabaseUrl } from '../../test/helpers/database'
 
 const url = getTestDatabaseUrl()
+const requiredScopes = [
+  'user:read:user',
+  'meeting:write:meeting',
+  'meeting:update:meeting',
+  'meeting:delete:meeting',
+  'meeting:read:list_meetings'
+].join(' ')
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -68,7 +75,7 @@ describe.skipIf(!url)('Zoom integration', () => {
       access_token: 'plain-access-token',
       refresh_token: 'plain-refresh-token',
       expires_in: 3600,
-      scope: 'meeting:write:meeting'
+      scope: requiredScopes
     })
   }
 
@@ -122,7 +129,7 @@ describe.skipIf(!url)('Zoom integration', () => {
       access_token: 'plain-access-token',
       refresh_token: 'plain-refresh-token',
       expires_in: 3600,
-      scope: 'meeting:write:meeting'
+      scope: requiredScopes
     })
 
     const [stored] = await sql<{
@@ -141,6 +148,42 @@ describe.skipIf(!url)('Zoom integration', () => {
     await expect(zoomConnection(hostId)).resolves.toMatchObject({ connected: true, configured: true })
   })
 
+  it('requires reconnection when an older token is missing meeting permissions', async () => {
+    const { hostId } = await createHostAndBooking()
+    await connect(hostId)
+    await sql`
+      update video_conference_connections
+      set scope = 'user:read:user meeting:write:meeting'
+      where user_id = ${hostId}
+    `
+
+    const { checkZoomConnection, zoomConnection } = await import('../integrations/video/zoom')
+    await expect(zoomConnection(hostId)).resolves.toMatchObject({
+      connected: false,
+      status: 'needs_reauthorization'
+    })
+    await expect(checkZoomConnection(hostId)).rejects.toThrow('Reconnect Zoom')
+  })
+
+  it('keeps Zoom error codes and messages available for private diagnostics', async () => {
+    const { hostId } = await createHostAndBooking()
+    await connect(hostId)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({
+      code: 3161,
+      message: 'Meeting hosting and scheduling capabilities are not allowed for this user.'
+    }, 400)))
+
+    const { upsertZoomMeeting } = await import('../integrations/video/zoom')
+    await expect(upsertZoomMeeting(hostId, null, {
+      uid: 'failed-zoom-booking',
+      title: 'Zoom call',
+      description: null,
+      startsAt: new Date('2026-09-07T08:00:00Z'),
+      endsAt: new Date('2026-09-07T08:30:00Z'),
+      attendeeName: 'Guest Person'
+    })).rejects.toThrow('Zoom request failed (400, code 3161): Meeting hosting and scheduling capabilities are not allowed for this user.')
+  })
+
   it('rotates refresh tokens and retries an unauthorized Zoom request once', async () => {
     const { hostId } = await createHostAndBooking()
     await connect(hostId)
@@ -153,7 +196,7 @@ describe.skipIf(!url)('Zoom integration', () => {
           access_token: 'rotated-access-token',
           refresh_token: 'rotated-refresh-token',
           expires_in: 3600,
-          scope: 'meeting:write:meeting'
+          scope: requiredScopes
         })
       }
       if (requestUrl.includes('/users/me/meetings?')) return json({ meetings: [] })
