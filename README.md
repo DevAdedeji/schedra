@@ -39,6 +39,11 @@ pnpm build
 Database and browser tests require an isolated test database configured with
 `TEST_DATABASE_URL` in `.env.test`. Test commands may erase that database.
 
+Production builds require `SCHEDRA_URL` during the build as well as at runtime.
+The build fails if prerendered marketing pages contain the wrong canonical URL
+or indexing directive. For Docker builds, pass it as a build argument, for
+example `--build-arg SCHEDRA_URL=https://schedra.xyz`.
+
 ## Security
 
 Please do not disclose vulnerabilities in public issues. Follow the private

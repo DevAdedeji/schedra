@@ -1,3 +1,9 @@
+const buildSiteUrl = process.env.SCHEDRA_URL?.trim().replace(/\/+$/, '') ?? ''
+
+if (process.env.NODE_ENV === 'production' && !buildSiteUrl) {
+  throw new Error('SCHEDRA_URL is required while building so prerendered pages use the public origin.')
+}
+
 export default defineNuxtConfig({
   modules: [
     '@nuxt/eslint',
@@ -12,7 +18,9 @@ export default defineNuxtConfig({
   css: ['~/assets/css/main.css'],
   runtimeConfig: {
     public: {
-      siteUrl: ''
+      // Nitro supplies this per request at runtime. Prerendering has no request,
+      // so it also needs the public origin while Nuxt is building the HTML.
+      siteUrl: buildSiteUrl
     }
   },
   routeRules: {
