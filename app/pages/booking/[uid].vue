@@ -519,7 +519,12 @@ useSeoMeta({
               >
                 The host is reviewing this request. You will receive an email when it is approved or declined.
               </p>
-              <div class="mb-3 grid gap-3 sm:grid-cols-2">
+              <div
+                class="grid gap-3"
+                :class="!pendingApproval && !awaitingPayment
+                  ? joinUrl ? 'sm:grid-cols-2' : 'sm:grid-cols-3'
+                  : 'sm:grid-cols-1'"
+              >
                 <UButton
                   v-if="joinUrl && !pendingApproval && !awaitingPayment"
                   :to="joinUrl"
@@ -543,13 +548,11 @@ useSeoMeta({
                 >
                   Add to calendar
                 </UButton>
-              </div>
-              <div class="flex flex-col gap-3 sm:flex-row">
                 <UButton
                   v-if="!pendingApproval && !awaitingPayment"
                   :to="`${booking?.bookingPath}?reschedule=${encodeURIComponent(uid)}`"
                   size="lg"
-                  class="justify-center rounded-full font-medium sm:flex-1"
+                  class="rounded-full font-medium"
                 >
                   Move to another time
                 </UButton>
@@ -557,7 +560,7 @@ useSeoMeta({
                   color="neutral"
                   variant="outline"
                   size="lg"
-                  class="justify-center rounded-full font-medium sm:flex-1"
+                  class="rounded-full font-medium"
                   @click="confirming = true"
                 >
                   Cancel booking

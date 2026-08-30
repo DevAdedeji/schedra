@@ -249,6 +249,9 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', checkSetu
           <p class="mt-1 text-sm text-muted">
             Follow paid bookings from collection through settlement and delivery to your bank.
           </p>
+          <p class="mt-1 max-w-3xl text-xs leading-relaxed text-dimmed">
+            Collection and balance amounts use the currency held in Bachs. “Paid to your bank” uses the destination currency after conversion.
+          </p>
         </div>
         <UButton
           v-if="summary?.providerStatus === 'unavailable'"
@@ -399,7 +402,7 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', checkSetu
             </p>
           </div>
           <p class="mt-2 text-xs text-muted">
-            Completed payouts Bachs has delivered to the bank account saved during setup.
+            The amount that reached the bank, shown in the bank destination’s currency after conversion.
           </p>
         </div>
       </div>

@@ -14,9 +14,14 @@ interface PublicRoutingForm {
   questions: RoutingQuestion[]
 }
 
-const { data, status, error, refresh } = await useFetch<PublicRoutingForm>(endpoint)
-const name = ref('')
-const email = ref('')
+const routingFormRequest = useFetch<PublicRoutingForm>(endpoint)
+const currentUserRequest = useCurrentUser()
+const [
+  { data, status, error, refresh },
+  { data: currentUser }
+] = await Promise.all([routingFormRequest, currentUserRequest])
+const name = ref(currentUser.value?.user?.name ?? '')
+const email = ref(currentUser.value?.user?.email ?? '')
 const answers = reactive<Record<string, string>>({})
 const submitting = ref(false)
 const submitError = ref('')

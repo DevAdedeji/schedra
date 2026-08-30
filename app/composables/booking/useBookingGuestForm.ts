@@ -4,6 +4,8 @@ import type { BookingDetail, PublicBookingPage } from '~/services/schedra-api'
 export function useBookingGuestForm(options: {
   prefillName: MaybeRefOrGetter<string | undefined>
   prefillEmail: MaybeRefOrGetter<string | undefined>
+  viewerName: MaybeRefOrGetter<string | undefined>
+  viewerEmail: MaybeRefOrGetter<string | undefined>
   rescheduleBooking: MaybeRefOrGetter<BookingDetail | null | undefined>
   page: MaybeRefOrGetter<PublicBookingPage | null | undefined>
   additionalGuestLimit: MaybeRefOrGetter<number>
@@ -42,6 +44,8 @@ export function useBookingGuestForm(options: {
         }
       }
     }
+    booking.name ||= toValue(options.viewerName)?.trim() ?? ''
+    booking.email ||= toValue(options.viewerEmail)?.trim().toLowerCase() ?? ''
   }
 
   function addGuest() {

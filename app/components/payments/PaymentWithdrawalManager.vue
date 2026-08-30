@@ -124,11 +124,21 @@ async function confirmWithdrawal() {
       confirmationToken: preview.value.confirmationToken
     }, props.teamSlug)
     const uncertain = withdrawal.status === 'unknown' || withdrawal.status === 'creating'
+    const withdrawalAmount = formatMoney(withdrawal.requestedAmountCents, withdrawal.sourceCurrency)
+    const fee = withdrawal.feeCents == null
+      ? 'the Bachs fee'
+      : `${formatMoney(withdrawal.feeCents, withdrawal.sourceCurrency)} Bachs fee`
+    const total = withdrawal.totalDebitedCents == null
+      ? 'the final quoted total'
+      : formatMoney(withdrawal.totalDebitedCents, withdrawal.sourceCurrency)
+    const delivered = withdrawal.deliveredAmountCents == null
+      ? 'the quoted bank amount'
+      : formatMoney(withdrawal.deliveredAmountCents, withdrawal.destinationCurrency)
     toast.add({
       title: uncertain ? 'Withdrawal is being verified' : 'Withdrawal submitted',
       description: uncertain
         ? 'Do not submit it again. Schedra is checking the same request with Bachs.'
-        : 'Bachs accepted the request. We will show Paid only after the destination confirms delivery.',
+        : `${withdrawalAmount} withdrawal + ${fee} = ${total} deducted. ${delivered} is being sent to the bank.`,
       color: uncertain ? 'warning' : 'success'
     })
     open.value = false
@@ -275,12 +285,12 @@ function withdrawalAmount(withdrawal: PaymentWithdrawalRecord) {
       </div>
 
       <div v-if="data?.withdrawals.length">
-        <div class="mb-3 flex items-center justify-between gap-3">
+        <div class="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
           <h3 class="text-sm font-semibold text-highlighted">
             Recent withdrawals
           </h3>
           <p class="text-xs text-muted">
-            Paid means Bachs confirmed delivery.
+            Paid means Bachs confirmed the amount reached the destination.
           </p>
         </div>
         <ul class="divide-y divide-default rounded-xl border border-default">
@@ -292,6 +302,9 @@ function withdrawalAmount(withdrawal: PaymentWithdrawalRecord) {
             <div class="min-w-0">
               <div class="flex flex-wrap items-center gap-2">
                 <p class="font-medium text-highlighted">
+                  <span class="text-xs font-normal text-muted">
+                    {{ withdrawal.status === 'completed' ? 'Paid to bank:' : 'Expected at bank:' }}
+                  </span>
                   {{ withdrawalAmount(withdrawal) }}
                 </p>
                 <UBadge
@@ -304,6 +317,12 @@ function withdrawalAmount(withdrawal: PaymentWithdrawalRecord) {
               <p class="mt-1 text-xs text-muted">
                 {{ withdrawal.destinationName }} · {{ formatDateTime(withdrawal.createdAt, 'en') }}
               </p>
+              <p class="mt-1 text-xs leading-relaxed text-muted">
+                Withdrawal amount: {{ formatMoney(withdrawal.requestedAmountCents, withdrawal.sourceCurrency) }}
+                <template v-if="withdrawal.feeCents != null">
+                  · Bachs fee: {{ formatMoney(withdrawal.feeCents, withdrawal.sourceCurrency) }}
+                </template>
+              </p>
               <p
                 v-if="withdrawal.failureReason"
                 class="mt-1 text-xs text-error"
@@ -311,12 +330,17 @@ function withdrawalAmount(withdrawal: PaymentWithdrawalRecord) {
                 {{ withdrawal.failureReason }}
               </p>
             </div>
-            <p
+            <div
               v-if="withdrawal.totalDebitedCents != null"
-              class="shrink-0 text-xs text-muted"
+              class="shrink-0 rounded-lg bg-elevated px-3 py-2 sm:text-right"
             >
-              {{ formatMoney(withdrawal.totalDebitedCents, withdrawal.sourceCurrency) }} debited
-            </p>
+              <p class="text-[11px] font-medium uppercase tracking-wide text-dimmed">
+                Total deducted from {{ withdrawal.sourceCurrency }} balance
+              </p>
+              <p class="mt-0.5 font-medium tabular-nums text-highlighted">
+                {{ formatMoney(withdrawal.totalDebitedCents, withdrawal.sourceCurrency) }}
+              </p>
+            </div>
           </li>
         </ul>
       </div>
@@ -337,18 +361,10 @@ function withdrawalAmount(withdrawal: PaymentWithdrawalRecord) {
           <dl class="divide-y divide-default rounded-xl border border-default px-4">
             <div class="flex items-center justify-between gap-4 py-3">
               <dt class="text-sm text-muted">
-                From your balance
+                Withdrawal amount
               </dt>
               <dd class="font-medium tabular-nums text-highlighted">
-                {{ formatMoney(preview.totalDebitedCents, preview.sourceCurrency) }}
-              </dd>
-            </div>
-            <div class="flex items-center justify-between gap-4 py-3">
-              <dt class="text-sm text-muted">
-                Destination receives
-              </dt>
-              <dd class="font-medium tabular-nums text-highlighted">
-                {{ formatMoney(preview.deliveredAmountCents, preview.destinationCurrency) }}
+                {{ formatMoney(preview.requestedAmountCents, preview.sourceCurrency) }}
               </dd>
             </div>
             <div
@@ -360,6 +376,34 @@ function withdrawalAmount(withdrawal: PaymentWithdrawalRecord) {
               </dt>
               <dd class="tabular-nums text-toned">
                 {{ formatMoney(preview.feeCents, preview.sourceCurrency) }}
+              </dd>
+            </div>
+            <div class="flex items-center justify-between gap-4 bg-elevated py-3">
+              <dt class="text-sm font-medium text-highlighted">
+                Total deducted from balance
+              </dt>
+              <dd class="font-semibold tabular-nums text-highlighted">
+                {{ formatMoney(preview.totalDebitedCents, preview.sourceCurrency) }}
+              </dd>
+            </div>
+            <div
+              v-if="crossCurrency"
+              class="flex items-center justify-between gap-4 py-3"
+            >
+              <dt class="text-sm text-muted">
+                Conversion
+              </dt>
+              <dd class="text-right text-sm tabular-nums text-toned">
+                1 {{ preview.sourceCurrency }} =
+                {{ formatMoney(Math.round((preview.deliveredAmountCents * 100) / preview.requestedAmountCents), preview.destinationCurrency) }}
+              </dd>
+            </div>
+            <div class="flex items-center justify-between gap-4 py-3">
+              <dt class="text-sm text-muted">
+                Paid to bank
+              </dt>
+              <dd class="font-semibold tabular-nums text-highlighted">
+                {{ formatMoney(preview.deliveredAmountCents, preview.destinationCurrency) }}
               </dd>
             </div>
             <div class="flex items-center justify-between gap-4 py-3">
@@ -376,7 +420,17 @@ function withdrawalAmount(withdrawal: PaymentWithdrawalRecord) {
               name="i-lucide-triangle-alert"
               class="mt-0.5 size-4 shrink-0 text-error"
             />
-            Check the destination and amount carefully. Bachs debits the balance immediately after accepting this request, and it cannot be cancelled.
+            <span>
+              Check the destination carefully. Bachs will deduct
+              <strong>{{ formatMoney(preview.totalDebitedCents, preview.sourceCurrency) }}</strong>
+              in total—the {{ formatMoney(preview.requestedAmountCents, preview.sourceCurrency) }} withdrawal plus
+              <template v-if="preview.feeCents != null">
+                the {{ formatMoney(preview.feeCents, preview.sourceCurrency) }} fee
+              </template><template v-else>
+                its fee
+              </template>—and pay <strong>{{ formatMoney(preview.deliveredAmountCents, preview.destinationCurrency) }}</strong>
+              to the bank. Bachs may show the total deduction in its email. The request cannot be cancelled after acceptance.
+            </span>
           </div>
         </div>
 
@@ -410,11 +464,11 @@ function withdrawalAmount(withdrawal: PaymentWithdrawalRecord) {
             />
           </UFormField>
           <UFormField
-            :label="crossCurrency ? `Amount from ${sourceCurrency} balance` : 'Amount destination receives'"
+            :label="`Withdrawal amount (${sourceCurrency}, before fee)`"
             required
             :help="crossCurrency
-              ? `Bachs will quote how much arrives in ${selectedDestination?.currency}. The withdrawal fee is charged on top and shown before confirmation.`
-              : 'The Bachs withdrawal fee is added on top and shown before confirmation.'"
+              ? `Enter the amount to convert. Bachs adds its fee on top; the total ${sourceCurrency} deduction and final ${selectedDestination?.currency} bank payment are shown before confirmation.`
+              : `Enter the amount to send. Bachs adds its fee on top; the total ${sourceCurrency} deduction is shown before confirmation.`"
           >
             <UInput
               v-model="amount"

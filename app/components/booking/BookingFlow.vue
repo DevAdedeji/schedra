@@ -43,6 +43,7 @@ const owner = computed(() => props.owner)
 const slug = computed(() => props.slug)
 const isTeam = computed(() => props.mode === 'team')
 const isInvite = computed(() => props.mode === 'invite')
+const currentUserRequest = useCurrentUser()
 
 const rescheduleOf = computed(() => {
   const value = route.query.reschedule
@@ -72,9 +73,10 @@ const pageRequest = useFetch<PublicBookingPage>(() => isInvite.value && props.in
     ? publicTeamApi.pageEndpoint(owner.value, slug.value)
     : publicBookingApi.pageEndpoint(owner.value, slug.value))
 const [
+  { data: currentUser },
   { data, status, error: availabilityError, refresh },
   { data: page, status: pageStatus, error: pageError, refresh: refreshPage }
-] = await Promise.all([availabilityRequest, pageRequest])
+] = await Promise.all([currentUserRequest, availabilityRequest, pageRequest])
 
 const initialPageError = pageError.value ?? availabilityError.value
 if (initialPageError) setResponseStatus(initialPageError.statusCode === 404 ? 404 : 503)
@@ -102,6 +104,8 @@ const {
 const { booking, bookingAnswers, guestEmails, addGuest, removeGuest } = useBookingGuestForm({
   prefillName: () => props.prefillName,
   prefillEmail: () => props.prefillEmail,
+  viewerName: () => currentUser.value?.user?.name,
+  viewerEmail: () => currentUser.value?.user?.email,
   rescheduleBooking,
   page,
   additionalGuestLimit
