@@ -1,5 +1,6 @@
 import { findPublicEventType } from '../../../services/booking-page'
 import { enforceRateLimit } from '../../../services/rate-limit'
+import { publicPersonalBranding } from '../../../services/personal-branding'
 
 export default defineEventHandler(async (event) => {
   await enforceRateLimit(event, { namespace: 'booking-page', limit: 180, windowSeconds: 60 })
@@ -27,6 +28,7 @@ export default defineEventHandler(async (event) => {
     paymentEnabled: found.paymentEnabled,
     priceCents: found.priceCents,
     paymentCurrency: found.paymentCurrency,
+    branding: await publicPersonalBranding(found.hostId),
     locationType: found.locationType,
     locationDetails: ['google_meet', 'microsoft_teams', 'zoom'].includes(found.locationType)
       ? `A private ${found.locationType === 'zoom' ? 'Zoom' : found.locationType === 'microsoft_teams' ? 'Microsoft Teams' : 'Google Meet'} link will be created when you book.`

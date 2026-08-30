@@ -2,6 +2,7 @@ import { and, asc, eq, sql } from 'drizzle-orm'
 import { eventTypes, users } from '../../database/schema'
 import { useDatabase } from '../../database/index'
 import { enforceRateLimit } from '../../services/rate-limit'
+import { publicPersonalBranding } from '../../services/personal-branding'
 
 export default defineEventHandler(async (event) => {
   await enforceRateLimit(event, { namespace: 'public-profile', limit: 180, windowSeconds: 60 })
@@ -32,8 +33,8 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'No such person' })
   }
 
-  const types = await db
-    .select({
+  const [types, branding] = await Promise.all([
+    db.select({
       slug: eventTypes.slug,
       title: eventTypes.title,
       description: eventTypes.description,
@@ -42,15 +43,18 @@ export default defineEventHandler(async (event) => {
       priceCents: eventTypes.priceCents,
       paymentCurrency: eventTypes.paymentCurrency
     })
-    .from(eventTypes)
-    .where(and(eq(eventTypes.userId, host.id), eq(eventTypes.hidden, false)))
-    .orderBy(asc(eventTypes.durationMinutes))
+      .from(eventTypes)
+      .where(and(eq(eventTypes.userId, host.id), eq(eventTypes.hidden, false)))
+      .orderBy(asc(eventTypes.durationMinutes)),
+    publicPersonalBranding(host.id)
+  ])
 
   return {
     name: host.name,
     username: host.username,
     bio: host.bio,
     avatarUrl: host.avatarUrl,
+    branding,
     eventTypes: types
   }
 })

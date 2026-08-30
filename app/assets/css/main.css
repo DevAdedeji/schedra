@@ -40,6 +40,22 @@ body {
   --schedra-secondary-surface: #211e1c;
 }
 
+.personal-booking-brand {
+  --ui-primary: var(--booking-brand-light, #FF3D00);
+  --ui-text-inverted: var(--booking-brand-light-contrast, #FFFFFF);
+}
+
+.dark .personal-booking-brand,
+.personal-booking-brand.dark {
+  --ui-primary: var(--booking-brand-dark, #FF6F42);
+  --ui-text-inverted: var(--booking-brand-dark-contrast, #1C1917);
+}
+
+.personal-booking-brand.light {
+  --ui-primary: var(--booking-brand-light, #FF3D00);
+  --ui-text-inverted: var(--booking-brand-light-contrast, #FFFFFF);
+}
+
 @layer base {
   /* Time is displayed constantly. Tabular figures stop the grid twitching
      as digits tick over. */

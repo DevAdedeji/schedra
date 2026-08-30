@@ -62,6 +62,12 @@ export default defineEventHandler(async (event) => {
         username: profileRow.username,
         bio: profileRow.bio,
         avatarUrl: profileRow.avatarUrl,
+        brandName: profileRow.brandName,
+        brandLogoUrl: profileRow.brandLogoUrl,
+        brandColor: profileRow.brandColor,
+        brandDarkColor: profileRow.brandDarkColor,
+        bookingPageTheme: profileRow.bookingPageTheme,
+        hideSchedraBranding: profileRow.hideSchedraBranding,
         timeZone: profileRow.timeZone,
         createdAt: profileRow.createdAt,
         updatedAt: profileRow.updatedAt
