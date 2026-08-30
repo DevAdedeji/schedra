@@ -36,7 +36,7 @@ useHead(() => ({
         'src': `${UMAMI_PROXY_PATH}/client.js`,
         'defer': true,
         'data-website-id': UMAMI_WEBSITE_ID,
-        'data-host-url': `${origin}${UMAMI_PROXY_PATH}`,
+        'data-host-url': UMAMI_PROXY_PATH,
         'data-auto-track': 'false',
         'data-do-not-track': 'true'
       }]
