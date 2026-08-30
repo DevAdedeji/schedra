@@ -17,6 +17,25 @@ describe('operations email recovery', () => {
     expect(isRetryableEmailJob('sending', new Date('2026-08-28T11:59:00.000Z'), now)).toBe(false)
     expect(isRetryableEmailJob('sent', new Date('2026-08-28T11:00:00.000Z'), now)).toBe(false)
   })
+
+  it('does not treat a future scheduled reminder as delayed', () => {
+    expect(isRetryableEmailJob(
+      'pending',
+      new Date('2026-08-28T09:00:00.000Z'),
+      now,
+      new Date('2026-08-29T09:00:00.000Z')
+    )).toBe(false)
+  })
+
+  it('gives a newly due reminder the normal delivery window', () => {
+    const oldUpdate = new Date('2026-08-28T09:00:00.000Z')
+    expect(isRetryableEmailJob(
+      'pending', oldUpdate, now, new Date('2026-08-28T11:50:00.000Z')
+    )).toBe(false)
+    expect(isRetryableEmailJob(
+      'pending', oldUpdate, now, new Date('2026-08-28T11:44:59.000Z')
+    )).toBe(true)
+  })
 })
 
 describe('operations alert notifications', () => {

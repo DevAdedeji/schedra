@@ -22,10 +22,17 @@ import { useEnv } from '../config/env'
 export type OperationKind = 'automation' | 'calendar' | 'billing' | 'email' | 'webhook'
 export type OperationStatus = 'all' | 'pending' | 'processing' | 'completed' | 'failed' | 'ignored'
 
-export function isRetryableEmailJob(status: string, updatedAt: Date, now = new Date()) {
+export function isRetryableEmailJob(
+  status: string,
+  updatedAt: Date,
+  now = new Date(),
+  availableAt = updatedAt
+) {
   if (status === 'failed') return true
+  const staleBefore = now.getTime() - 15 * 60 * 1000
+  if (status === 'pending' && availableAt.getTime() > staleBefore) return false
   return ['pending', 'sending'].includes(status)
-    && updatedAt.getTime() <= now.getTime() - 15 * 60 * 1000
+    && updatedAt.getTime() <= staleBefore
 }
 
 function maskEmail(value: string) {
@@ -40,25 +47,39 @@ export async function operationsOverview() {
       pending: sql<number>`count(*) filter (where ${automationRuns.status} = 'pending')`.mapWith(Number),
       processing: sql<number>`count(*) filter (where ${automationRuns.status} = 'processing')`.mapWith(Number),
       failed: sql<number>`count(*) filter (where ${automationRuns.status} = 'failed')`.mapWith(Number),
-      stale: sql<number>`count(*) filter (where ${automationRuns.status} in ('pending', 'processing') and ${automationRuns.updatedAt} < now() - interval '15 minutes')`.mapWith(Number)
+      stale: sql<number>`count(*) filter (where (
+        (${automationRuns.status} = 'pending' and ${automationRuns.availableAt} < now() - interval '15 minutes')
+        or ${automationRuns.status} = 'processing'
+      ) and ${automationRuns.updatedAt} < now() - interval '15 minutes')`.mapWith(Number)
     }).from(automationRuns),
     db.select({
       pending: sql<number>`count(*) filter (where ${calendarSyncJobs.status} = 'pending')`.mapWith(Number),
       processing: sql<number>`count(*) filter (where ${calendarSyncJobs.status} = 'processing')`.mapWith(Number),
       failed: sql<number>`count(*) filter (where ${calendarSyncJobs.status} = 'failed')`.mapWith(Number),
-      stale: sql<number>`count(*) filter (where ${calendarSyncJobs.status} in ('pending', 'processing') and ${calendarSyncJobs.updatedAt} < now() - interval '15 minutes')`.mapWith(Number)
+      stale: sql<number>`count(*) filter (where (
+        (${calendarSyncJobs.status} = 'pending' and ${calendarSyncJobs.availableAt} < now() - interval '15 minutes')
+        or ${calendarSyncJobs.status} = 'processing'
+      ) and ${calendarSyncJobs.updatedAt} < now() - interval '15 minutes')`.mapWith(Number)
     }).from(calendarSyncJobs),
     db.select({
       pending: sql<number>`count(*) filter (where ${subscriptionSeatSyncJobs.status} = 'pending')`.mapWith(Number),
       processing: sql<number>`count(*) filter (where ${subscriptionSeatSyncJobs.status} = 'processing')`.mapWith(Number),
       failed: sql<number>`count(*) filter (where ${subscriptionSeatSyncJobs.status} = 'failed')`.mapWith(Number),
-      stale: sql<number>`count(*) filter (where ${subscriptionSeatSyncJobs.status} in ('pending', 'processing') and ${subscriptionSeatSyncJobs.updatedAt} < now() - interval '15 minutes')`.mapWith(Number)
+      stale: sql<number>`count(*) filter (where (
+        (${subscriptionSeatSyncJobs.status} = 'pending' and ${subscriptionSeatSyncJobs.availableAt} < now() - interval '15 minutes')
+        or ${subscriptionSeatSyncJobs.status} = 'processing'
+      ) and ${subscriptionSeatSyncJobs.updatedAt} < now() - interval '15 minutes')`.mapWith(Number)
     }).from(subscriptionSeatSyncJobs),
     db.select({
       pending: sql<number>`count(*) filter (where ${emailOutbox.status} = 'pending')`.mapWith(Number),
       processing: sql<number>`count(*) filter (where ${emailOutbox.status} = 'sending')`.mapWith(Number),
       failed: sql<number>`count(*) filter (where ${emailOutbox.status} = 'failed')`.mapWith(Number),
-      stale: sql<number>`count(*) filter (where ${emailOutbox.status} in ('pending', 'sending') and ${emailOutbox.updatedAt} < now() - interval '15 minutes')`.mapWith(Number)
+      // A reminder created today for next week is pending but healthy. It only
+      // becomes delayed after availableAt, while a claimed send can go stale.
+      stale: sql<number>`count(*) filter (where (
+        (${emailOutbox.status} = 'pending' and ${emailOutbox.availableAt} < now() - interval '15 minutes')
+        or ${emailOutbox.status} = 'sending'
+      ) and ${emailOutbox.updatedAt} < now() - interval '15 minutes')`.mapWith(Number)
     }).from(emailOutbox),
     db.select({
       processing: sql<number>`count(*) filter (where ${webhookDeliveries.status} = 'processing')`.mapWith(Number),
@@ -238,8 +259,8 @@ export async function operationsJobs(input: {
       kind,
       provider: 'email',
       label: `${row.subject} · ${maskEmail(row.recipient)}`,
-      delayed: isRetryableEmailJob(row.status, row.updatedAt) && row.status !== 'failed',
-      retryable: isRetryableEmailJob(row.status, row.updatedAt)
+      delayed: isRetryableEmailJob(row.status, row.updatedAt, new Date(), row.availableAt) && row.status !== 'failed',
+      retryable: isRetryableEmailJob(row.status, row.updatedAt, new Date(), row.availableAt)
     })), total?.value ?? 0, page, pageSize)
   }
 
@@ -318,7 +339,10 @@ export async function retryOperation(kind: OperationKind, id: string) {
       sql`(
         ${emailOutbox.status} = 'failed'
         or (
-          ${emailOutbox.status} in ('pending', 'sending')
+          (
+            (${emailOutbox.status} = 'pending' and ${emailOutbox.availableAt} < now() - interval '15 minutes')
+            or ${emailOutbox.status} = 'sending'
+          )
           and ${emailOutbox.updatedAt} < now() - interval '15 minutes'
         )
       )`

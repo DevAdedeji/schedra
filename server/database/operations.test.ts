@@ -165,4 +165,26 @@ describe.skipIf(!url)('operations and durable webhooks', () => {
       resetEnv()
     }
   })
+
+  it('keeps future scheduled emails out of delayed recovery', async () => {
+    const [scheduled] = await sql<{ id: string }[]>`
+      insert into email_outbox (
+        dedupe_key, recipient, subject, heading, body, action_label, action_url,
+        available_at, updated_at
+      ) values (
+        'future-reminder', 'guest@example.com', 'Future reminder', 'Reminder',
+        'Your meeting is tomorrow.', 'View booking', 'https://schedra.xyz/booking/test',
+        now() + interval '1 day', now() - interval '1 day'
+      )
+      returning id
+    `
+    const { operationsJobs, operationsOverview, retryOperation } = await import('../services/operations')
+
+    const overview = await operationsOverview()
+    expect(overview.queues.email).toMatchObject({ pending: 1, stale: 0 })
+
+    const jobs = await operationsJobs({ kind: 'email', status: 'all', page: 1, pageSize: 10 })
+    expect(jobs.items).toMatchObject([{ id: scheduled!.id, delayed: false, retryable: false }])
+    await expect(retryOperation('email', scheduled!.id)).resolves.toBe(false)
+  })
 })
