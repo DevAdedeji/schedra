@@ -84,8 +84,18 @@ describe('payment withdrawal previews', () => {
   it('uses a short-lived quote when a USD balance is withdrawn to an NGN bank', async () => {
     vi.mocked(getConnectedAccountBalance).mockResolvedValue({
       account_id: 'acct_1',
-      total_balance_usd: '5.00',
-      balances: [{ currency: 'USD', available_balance: '5.00', pending_balance: '0.00' }]
+      total_balance_usd: '10.00',
+      balances: [{ currency: 'USD', available_balance: '10.00', pending_balance: '0.00' }]
+    })
+    vi.mocked(estimateConnectedAccountPayout).mockResolvedValue({
+      from_currency: 'USD',
+      to_currency: 'NGN',
+      amount: '5.00',
+      payout_method: 'BANK_TRANSFER',
+      withdrawal_fee: '1.00',
+      gross_from_amount: '6.00',
+      exchange_rate: '1600.00',
+      to_amount: '8000.00'
     })
     vi.mocked(createConnectedAccountPayoutQuote).mockResolvedValue({
       quote_id: 'pqt_1',
@@ -106,7 +116,8 @@ describe('payment withdrawal previews', () => {
     expect(result).toMatchObject({
       requestedAmountCents: 500,
       deliveredAmountCents: 780_000,
-      totalDebitedCents: 500,
+      feeCents: 100,
+      totalDebitedCents: 600,
       sourceCurrency: 'USD',
       destinationCurrency: 'NGN',
       exchangeRate: '1600.00'
@@ -118,6 +129,34 @@ describe('payment withdrawal previews', () => {
       amount: '5.00',
       payoutMethod: 'BANK_TRANSFER'
     }))
+  })
+
+  it('blocks a cross-currency withdrawal when the amount plus fee exceeds the balance', async () => {
+    vi.mocked(getConnectedAccountBalance).mockResolvedValue({
+      account_id: 'acct_1',
+      total_balance_usd: '0.95',
+      balances: [{ currency: 'USD', available_balance: '0.95', pending_balance: '0.00' }]
+    })
+    vi.mocked(estimateConnectedAccountPayout).mockResolvedValue({
+      from_currency: 'USD',
+      to_currency: 'NGN',
+      amount: '0.50',
+      payout_method: 'BANK_TRANSFER',
+      withdrawal_fee: '1.00',
+      gross_from_amount: '1.50',
+      exchange_rate: '1600.00',
+      to_amount: '800.00'
+    })
+
+    await expect(previewPaymentWithdrawal({ userId: 'user-1' }, {
+      destinationId: 'pd_ngn',
+      sourceCurrency: 'USD',
+      amountCents: 50
+    })).rejects.toMatchObject({
+      statusCode: 409,
+      statusMessage: 'This withdrawal requires USD 1.50 including the Bachs fee, but only USD 0.95 is available.'
+    })
+    expect(createConnectedAccountPayoutQuote).not.toHaveBeenCalled()
   })
 
   it('fails closed when amount plus provider fee exceeds the available balance', async () => {

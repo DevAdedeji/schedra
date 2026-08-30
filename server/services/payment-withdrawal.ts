@@ -191,11 +191,15 @@ async function availableBalanceCents(accountId: string, currency: PaymentCurrenc
   return providerCents(bucket?.available_balance)
 }
 
-function ensureBalanceCovers(availableCents: number, totalDebitedCents: number) {
+function ensureBalanceCovers(
+  availableCents: number,
+  totalDebitedCents: number,
+  currency: PaymentCurrency
+) {
   if (totalDebitedCents > availableCents) {
     throw createError({
       statusCode: 409,
-      statusMessage: 'The available balance does not cover this withdrawal and its provider fee.'
+      statusMessage: `This withdrawal requires ${currency} ${toDecimalString(totalDebitedCents)} including the Bachs fee, but only ${currency} ${toDecimalString(availableCents)} is available.`
     })
   }
 }
@@ -228,7 +232,7 @@ export async function previewPaymentWithdrawal(owner: PaymentRecipientOwner, inp
     }
     const totalDebitedCents = requiredProviderCents(estimate.gross_from_amount, 'withdrawal total')
     const deliveredAmountCents = requiredProviderCents(estimate.to_amount, 'delivery amount')
-    ensureBalanceCovers(availableCents, totalDebitedCents)
+    ensureBalanceCovers(availableCents, totalDebitedCents, input.sourceCurrency)
     payload = {
       v: PREVIEW_VERSION,
       recipientId: recipient.id,
@@ -245,6 +249,24 @@ export async function previewPaymentWithdrawal(owner: PaymentRecipientOwner, inp
       expiresAt: Date.now() + PREVIEW_LIFETIME_MS
     }
   } else {
+    // Bachs quotes lock the exchange rate, but the payout estimate is the
+    // provider source of truth for the fee charged on top of the requested
+    // amount. Check the fee-inclusive debit before creating a quote that the
+    // connected account cannot afford.
+    const estimate = await estimateConnectedAccountPayout({
+      accountId,
+      fromCurrency: input.sourceCurrency,
+      toCurrency: destinationCurrency,
+      amount: toDecimalString(input.amountCents),
+      payoutMethod: method
+    })
+    if (providerCents(estimate.amount) !== input.amountCents) {
+      throw createError({ statusCode: 502, statusMessage: 'Bachs returned a withdrawal estimate for a different amount. No money was moved.' })
+    }
+    const feeCents = providerCents(estimate.withdrawal_fee)
+    const totalDebitedCents = requiredProviderCents(estimate.gross_from_amount, 'withdrawal total')
+    ensureBalanceCovers(availableCents, totalDebitedCents, input.sourceCurrency)
+
     const quote = await createConnectedAccountPayoutQuote({
       accountId,
       fromCurrency: input.sourceCurrency,
@@ -252,12 +274,11 @@ export async function previewPaymentWithdrawal(owner: PaymentRecipientOwner, inp
       amount: toDecimalString(input.amountCents),
       payoutMethod: method
     })
-    const totalDebitedCents = requiredProviderCents(quote.from_amount, 'quoted debit amount')
+    const quotedAmountCents = requiredProviderCents(quote.from_amount, 'quoted amount')
     const deliveredAmountCents = requiredProviderCents(quote.to_amount, 'quoted delivery amount')
-    if (totalDebitedCents !== input.amountCents) {
+    if (quotedAmountCents !== input.amountCents) {
       throw createError({ statusCode: 502, statusMessage: 'Bachs returned a withdrawal quote for a different amount. No money was moved.' })
     }
-    ensureBalanceCovers(availableCents, totalDebitedCents)
     const providerExpiry = Date.parse(quote.expires_at) - PROVIDER_EXPIRY_SAFETY_MS
     payload = {
       v: PREVIEW_VERSION,
@@ -268,7 +289,7 @@ export async function previewPaymentWithdrawal(owner: PaymentRecipientOwner, inp
       destinationCurrency,
       requestedAmountCents: input.amountCents,
       deliveredAmountCents,
-      feeCents: null,
+      feeCents,
       totalDebitedCents,
       exchangeRate: quote.exchange_rate,
       quoteId: quote.quote_id,
@@ -348,7 +369,7 @@ export async function createPaymentWithdrawal(input: {
     throw createError({ statusCode: 409, statusMessage: 'The payout destination changed after the preview. Review the withdrawal again.' })
   }
   const availableCents = await availableBalanceCents(accountId, confirmation.sourceCurrency)
-  ensureBalanceCovers(availableCents, confirmation.totalDebitedCents)
+  ensureBalanceCovers(availableCents, confirmation.totalDebitedCents, confirmation.sourceCurrency)
 
   const reference = `schedra-wd-${input.request.requestId}`
   const values: typeof paymentWithdrawals.$inferInsert = {

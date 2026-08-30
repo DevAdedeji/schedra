@@ -413,7 +413,7 @@ function withdrawalAmount(withdrawal: PaymentWithdrawalRecord) {
             :label="crossCurrency ? `Amount from ${sourceCurrency} balance` : 'Amount destination receives'"
             required
             :help="crossCurrency
-              ? `Bachs will quote how much arrives in ${selectedDestination?.currency}. Provider fees are included in the converted delivery amount.`
+              ? `Bachs will quote how much arrives in ${selectedDestination?.currency}. The withdrawal fee is charged on top and shown before confirmation.`
               : 'The Bachs withdrawal fee is added on top and shown before confirmation.'"
           >
             <UInput
