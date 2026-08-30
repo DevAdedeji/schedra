@@ -24,6 +24,10 @@ export interface OrganizationContext {
     name: string
     slug: string
     logo: string | null
+    brandColor: string | null
+    brandDarkColor: string | null
+    bookingPageTheme: string
+    hideSchedraBranding: boolean
     archivedAt: Date | null
   }
   role: OrganizationRole

@@ -442,3 +442,26 @@ export const teamEventTypeSchema = eventTypeBaseSchema
   })
 
 export type TeamEventTypeInput = z.infer<typeof teamEventTypeSchema>
+
+/**
+ * Managed templates are snapshots of reusable event defaults. Links, hosts and
+ * payment settings stay event-specific so applying a template never publishes
+ * a duplicate URL, assigns people silently, or enables a charge unexpectedly.
+ */
+export const teamEventTemplateDefaultsSchema = eventTypeBaseSchema
+  .omit({ slug: true, scheduleId: true, paymentEnabled: true, priceCents: true, paymentCurrency: true })
+  .extend({ assignmentMode: assignmentModeSchema })
+  .superRefine((value, context) => refineEventType({
+    ...value,
+    paymentEnabled: false,
+    priceCents: null
+  }, context))
+
+export type TeamEventTemplateDefaults = z.infer<typeof teamEventTemplateDefaultsSchema>
+
+export const teamEventTemplateWriteSchema = z.object({
+  name: z.string().trim().min(1, 'Give this template a name.').max(80, 'Keep the template name under 80 characters.'),
+  sourceEventTypeId: z.uuid('Choose an event type to copy defaults from.')
+})
+
+export type TeamEventTemplateWriteInput = z.infer<typeof teamEventTemplateWriteSchema>

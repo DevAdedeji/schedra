@@ -18,6 +18,9 @@ export const personalBrandingSchema = z.object({
 
 export type PersonalBrandingInput = z.infer<typeof personalBrandingSchema>
 
+export const organizationBrandingSchema = personalBrandingSchema.omit({ brandName: true })
+export type OrganizationBrandingInput = z.infer<typeof organizationBrandingSchema>
+
 export interface PublicPersonalBranding {
   brandName: string | null
   logoUrl: string | null

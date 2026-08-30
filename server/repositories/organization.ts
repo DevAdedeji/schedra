@@ -13,6 +13,10 @@ const selection = {
   name: organizations.name,
   slug: organizations.slug,
   logo: organizations.logo,
+  brandColor: organizations.brandColor,
+  brandDarkColor: organizations.brandDarkColor,
+  bookingPageTheme: organizations.bookingPageTheme,
+  hideSchedraBranding: organizations.hideSchedraBranding,
   archivedAt: organizations.archivedAt
 }
 

@@ -17,7 +17,13 @@ import {
   uniqueIndex,
   uuid
 } from 'drizzle-orm/pg-core'
-import type { BookingAnswersSnapshot, BookingAttribution, BookingQuestion, BookingSource } from '#shared/validation'
+import type {
+  BookingAnswersSnapshot,
+  BookingAttribution,
+  BookingQuestion,
+  BookingSource,
+  TeamEventTemplateDefaults
+} from '#shared/validation'
 import type { WorkflowAction } from '#shared/workflows'
 import type { RoutingCondition } from '#shared/routing'
 
@@ -38,6 +44,10 @@ export const organizations = pgTable('organizations', {
   name: text('name').notNull(),
   slug: text('slug').notNull(),
   logo: text('logo'),
+  brandColor: text('brand_color'),
+  brandDarkColor: text('brand_dark_color'),
+  bookingPageTheme: text('booking_page_theme').notNull().default('system'),
+  hideSchedraBranding: boolean('hide_schedra_branding').notNull().default(false),
   metadata: jsonb('metadata').$type<Record<string, unknown>>(),
   // Organizations are archived rather than deleted so booking history, exports
   // and audit records survive. The slug stays reserved so nobody can claim it
@@ -46,7 +56,21 @@ export const organizations = pgTable('organizations', {
   ...timestamps
 }, table => [
   uniqueIndex('organizations_slug_key').on(sql`lower(${table.slug})`),
-  index('organizations_archived_at_idx').on(table.archivedAt)
+  index('organizations_archived_at_idx').on(table.archivedAt),
+  check('organizations_brand_color_valid', sql`${table.brandColor} is null or ${table.brandColor} ~ '^#[0-9A-Fa-f]{6}$'`),
+  check('organizations_brand_dark_color_valid', sql`${table.brandDarkColor} is null or ${table.brandDarkColor} ~ '^#[0-9A-Fa-f]{6}$'`),
+  check('organizations_booking_page_theme_allowed', sql`${table.bookingPageTheme} in ('system', 'light', 'dark')`)
+])
+
+export const organizationBrandLogos = pgTable('organization_brand_logos', {
+  organizationId: uuid('organization_id').primaryKey().references(() => organizations.id, { onDelete: 'cascade' }),
+  contentType: text('content_type').notNull(),
+  bytes: bytea('bytes').notNull(),
+  size: integer('size').notNull(),
+  hash: text('hash').notNull(),
+  ...timestamps
+}, table => [
+  check('organization_brand_logos_size_range', sql`${table.size} > 0 and ${table.size} <= 2097152`)
 ])
 
 export const users = pgTable('users', {
@@ -767,6 +791,27 @@ export const eventTypeHosts = pgTable('event_type_hosts', {
   index('event_type_hosts_user_idx').on(table.userId),
   check('event_type_hosts_position_non_negative', sql`${table.position} >= 0`),
   check('event_type_hosts_weight_positive', sql`${table.weight} > 0`)
+])
+
+/**
+ * A managed template is a snapshot. Updating it affects only event types
+ * created afterwards; existing links keep the values guests already saw.
+ */
+export const organizationEventTemplates = pgTable('organization_event_templates', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  defaults: jsonb('defaults').$type<TeamEventTemplateDefaults>().notNull(),
+  sourceEventTypeId: uuid('source_event_type_id').references(() => eventTypes.id, { onDelete: 'set null' }),
+  createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  archivedAt: timestamp('archived_at', { withTimezone: true }),
+  ...timestamps
+}, table => [
+  uniqueIndex('organization_event_templates_active_name_key')
+    .on(table.organizationId, sql`lower(${table.name})`)
+    .where(sql`${table.archivedAt} is null`),
+  index('organization_event_templates_organization_archived_idx')
+    .on(table.organizationId, table.archivedAt, table.createdAt)
 ])
 
 export const bookingStatus = pgEnum('booking_status', [
