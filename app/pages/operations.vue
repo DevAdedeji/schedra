@@ -167,7 +167,7 @@ async function acknowledgeAlert(id: string) {
 </script>
 
 <template>
-  <main class="mx-auto w-full max-w-7xl space-y-8 px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
+  <div class="space-y-8">
     <PageHeader
       title="Operations"
       description="Private delivery health, failures and safe recovery controls."
@@ -578,5 +578,5 @@ async function acknowledgeAlert(id: string) {
 
       <PaymentActivityList operations />
     </template>
-  </main>
+  </div>
 </template>

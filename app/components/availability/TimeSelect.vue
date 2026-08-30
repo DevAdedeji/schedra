@@ -22,5 +22,10 @@ const items = Array.from({ length: 96 }, (_, index) => {
     :search-input="{ placeholder: 'Search time…' }"
     icon="i-lucide-clock-3"
     class="w-full"
+    :ui="{
+      base: 'max-sm:ps-2.5',
+      leading: 'max-sm:hidden',
+      leadingIcon: 'max-sm:hidden'
+    }"
   />
 </template>

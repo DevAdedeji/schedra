@@ -160,7 +160,7 @@ const {
                     <div
                       v-for="window in row.windows"
                       :key="window.id"
-                      class="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto] items-center gap-2 sm:max-w-md"
+                      class="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:max-w-md sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto]"
                     >
                       <TimeSelect v-model="window.start" />
                       <span class="text-[12px] text-dimmed">to</span>
@@ -170,7 +170,7 @@ const {
                         variant="ghost"
                         size="xs"
                         icon="i-lucide-trash-2"
-                        class="size-7 justify-center p-0 hover:text-error"
+                        class="col-start-3 row-start-2 size-7 justify-self-end p-0 hover:text-error sm:col-start-auto sm:row-start-auto sm:justify-self-auto"
                         :ui="{ leadingIcon: 'size-4' }"
                         :aria-label="`Remove hours from ${row.label}`"
                         @click="removeWindow(row, window.id)"

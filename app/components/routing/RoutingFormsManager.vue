@@ -254,8 +254,8 @@ async function remove() {
           </section>
 
           <section class="space-y-4">
-            <div class="flex items-start justify-between gap-4">
-              <div>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+              <div class="min-w-0">
                 <h3 class="text-[15px] font-semibold text-highlighted">
                   Questions
                 </h3>
@@ -267,6 +267,8 @@ async function remove() {
                 color="neutral"
                 variant="soft"
                 icon="i-lucide-plus"
+                size="sm"
+                class="self-start whitespace-nowrap sm:self-auto"
                 :disabled="form.questions.length >= 10"
                 @click="addQuestion"
               >
@@ -278,13 +280,13 @@ async function remove() {
               :key="question.id"
               class="space-y-4 rounded-xl border border-default bg-muted/30 p-4"
             >
-              <div class="flex items-center gap-3">
+              <div class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3">
                 <span class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-[12px] font-semibold text-primary">{{ questionIndex + 1 }}</span>
                 <UInput
                   v-model="question.label"
                   placeholder="What would you like to discuss?"
                   size="lg"
-                  class="flex-1"
+                  class="min-w-0 w-full"
                 />
                 <UButton
                   color="neutral"
@@ -332,8 +334,8 @@ async function remove() {
           </section>
 
           <section class="space-y-4">
-            <div class="flex items-start justify-between gap-4">
-              <div>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+              <div class="min-w-0">
                 <h3 class="text-[15px] font-semibold text-highlighted">
                   Routes
                 </h3>
@@ -345,6 +347,8 @@ async function remove() {
                 color="neutral"
                 variant="soft"
                 icon="i-lucide-plus"
+                size="sm"
+                class="self-start whitespace-nowrap sm:self-auto"
                 :disabled="form.rules.length >= 20"
                 @click="addRoute"
               >
