@@ -72,6 +72,8 @@ const filterOptions = computed(() => [
 
 const editing = ref<TeamEventTypeRecord | null>(null)
 const modalOpen = ref(false)
+const personalizationOpen = ref(false)
+const personalizing = ref<TeamEventTypeRecord | null>(null)
 const busyId = ref('')
 const embedOpen = ref(false)
 const embeddingItem = ref<TeamEventTypeRecord | null>(null)
@@ -82,6 +84,11 @@ function create() {
 }
 
 function edit(eventType: TeamEventTypeRecord) {
+  if (eventType.managed) {
+    personalizing.value = eventType
+    personalizationOpen.value = true
+    return
+  }
   editing.value = eventType
   modalOpen.value = true
 }
@@ -131,12 +138,14 @@ function actions(eventType: TeamEventTypeRecord) {
     onSelect: async () => { showEmbed(eventType) }
   }]
 
-  if (permissions.value?.manageEventTypes) {
+  if ((!eventType.managed && permissions.value?.manageEventTypes) || eventType.managed?.canPersonalize) {
     items.push({
-      label: 'Edit',
+      label: eventType.managed ? 'Personalize' : 'Edit',
       icon: 'i-lucide-square-pen',
       onSelect: async () => { edit(eventType) }
     })
+  }
+  if (permissions.value?.manageEventTypes) {
     items.push({
       label: 'Delete',
       icon: 'i-lucide-trash-2',
@@ -182,6 +191,7 @@ function bookingLimitLabel(eventType: TeamEventTypeRecord) {
       v-if="permissions?.manageEventTypes"
       :team-slug="slug"
       :refresh-key="data?.counts.all"
+      @changed="refresh"
     />
 
     <section class="overflow-hidden rounded-xl border border-default bg-default">
@@ -244,6 +254,14 @@ function bookingLimitLabel(eventType: TeamEventTypeRecord) {
                 size="sm"
               >
                 {{ [eventType.durationMinutes, ...eventType.additionalDurationMinutes].join(' / ') }} min
+              </UBadge>
+              <UBadge
+                v-if="eventType.managed"
+                color="primary"
+                variant="subtle"
+                size="sm"
+              >
+                Managed · {{ eventType.managed.templateName }}
               </UBadge>
               <UBadge
                 color="info"
@@ -359,6 +377,13 @@ function bookingLimitLabel(eventType: TeamEventTypeRecord) {
       :members-error="Boolean(membersFailure)"
       :event-type="editing"
       @retry-members="refreshMembers"
+      @saved="() => refresh()"
+    />
+
+    <ManagedTeamEventPersonalizationModal
+      v-model:open="personalizationOpen"
+      :team-slug="slug"
+      :event-type="personalizing"
       @saved="() => refresh()"
     />
 

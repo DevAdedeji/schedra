@@ -6,6 +6,8 @@ import { formatCalendarDate } from '~/utils/date-time'
 const props = withDefaults(defineProps<{ teamSlug?: string, personalPro?: boolean }>(), { personalPro: false })
 const days = ref<7 | 30 | 90>(30)
 const eventTypeId = ref('')
+const exporting = ref(false)
+const exportError = ref('')
 const { data, status, error, refresh } = await useLazyFetch<AnalyticsResponse>(
   () => analyticsApi.endpoint(props.teamSlug),
   { query: computed(() => ({ days: days.value, eventTypeId: eventTypeId.value || undefined })) }
@@ -19,6 +21,9 @@ const options = computed(() => [
   ...((data.value?.options ?? []).map(item => ({ label: item.title, value: item.id })))
 ])
 const exportUrl = computed(() => `/api/analytics/export?days=${days.value}${eventTypeId.value ? `&eventTypeId=${encodeURIComponent(eventTypeId.value)}` : ''}`)
+const teamExportUrl = computed(() => props.teamSlug
+  ? `/api/teams/${encodeURIComponent(props.teamSlug)}/analytics/export?days=${days.value}${eventTypeId.value ? `&eventTypeId=${encodeURIComponent(eventTypeId.value)}` : ''}`
+  : '')
 const canUseAdvancedAnalytics = computed(() => Boolean(props.teamSlug || props.personalPro))
 
 function changeLabel(value: number | null) {
@@ -40,6 +45,28 @@ function shortDate(value: string) {
 function sourcePercentage(value: number) {
   return sourceTotal.value ? Math.round(value / sourceTotal.value * 100) : 0
 }
+
+async function exportTeamCsv() {
+  if (!teamExportUrl.value || exporting.value) return
+  exporting.value = true
+  exportError.value = ''
+  try {
+    const response = await fetch(teamExportUrl.value, { credentials: 'same-origin' })
+    if (!response.ok) throw new Error('Could not export team analytics.')
+    const href = URL.createObjectURL(await response.blob())
+    const link = document.createElement('a')
+    link.href = href
+    link.download = `schedra-${props.teamSlug}-bookings-${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.setTimeout(() => URL.revokeObjectURL(href), 0)
+  } catch {
+    exportError.value = 'The export could not be prepared. Please try again.'
+  } finally {
+    exporting.value = false
+  }
+}
 </script>
 
 <template>
@@ -51,7 +78,17 @@ function sourcePercentage(value: number) {
       <template #actions>
         <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           <UButton
-            v-if="!teamSlug && personalPro"
+            v-if="teamSlug"
+            color="neutral"
+            variant="outline"
+            icon="i-lucide-download"
+            :loading="exporting"
+            @click="exportTeamCsv"
+          >
+            Export CSV
+          </UButton>
+          <UButton
+            v-else-if="personalPro"
             :to="exportUrl"
             external
             color="neutral"
@@ -87,6 +124,14 @@ function sourcePercentage(value: number) {
       </template>
     </PageHeader>
 
+    <p
+      v-if="exportError"
+      class="rounded-lg border border-error/30 bg-error/5 px-4 py-3 text-[13px] text-error"
+      role="alert"
+    >
+      {{ exportError }}
+    </p>
+
     <AsyncErrorState
       v-if="error && !data"
       title="Could not load booking analytics"
@@ -98,9 +143,9 @@ function sourcePercentage(value: number) {
       class="space-y-5"
       aria-label="Loading booking analytics"
     >
-      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <USkeleton
-          v-for="index in 4"
+          v-for="index in 5"
           :key="index"
           class="h-32 rounded-xl"
         />
@@ -116,7 +161,7 @@ function sourcePercentage(value: number) {
       </p>
 
       <section
-        class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+        class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5"
         :class="refreshing && 'opacity-60'"
       >
         <article class="rounded-xl border border-default bg-default p-5">
@@ -134,6 +179,23 @@ function sourcePercentage(value: number) {
           </p>
           <p class="mt-2 text-[12px] text-dimmed">
             {{ changeLabel(data.summary.totalChange) }}
+          </p>
+        </article>
+        <article class="rounded-xl border border-default bg-default p-5">
+          <div class="flex items-center justify-between">
+            <p class="text-[13px] font-medium text-muted">
+              No-show rate
+            </p>
+            <UIcon
+              name="i-lucide-user-x"
+              class="size-4 text-warning"
+            />
+          </div>
+          <p class="mt-4 text-3xl font-semibold tracking-tight text-highlighted">
+            {{ data.summary.noShowRate }}%
+          </p>
+          <p class="mt-2 text-[12px] text-dimmed">
+            {{ data.summary.noShows }} missed meeting{{ data.summary.noShows === 1 ? '' : 's' }}
           </p>
         </article>
         <article class="rounded-xl border border-default bg-default p-5">
@@ -208,6 +270,13 @@ function sourcePercentage(value: number) {
               variant="subtle"
             >
               {{ data.summary.completed }} completed
+            </UBadge>
+            <UBadge
+              v-if="data.summary.noShows"
+              color="warning"
+              variant="subtle"
+            >
+              {{ data.summary.noShows }} no-show{{ data.summary.noShows === 1 ? '' : 's' }}
             </UBadge>
             <UBadge
               color="neutral"
@@ -375,6 +444,8 @@ function sourcePercentage(value: number) {
                     Confirmed
                   </th><th class="px-5 py-3 text-right font-medium">
                     Cancelled
+                  </th><th class="px-5 py-3 text-right font-medium">
+                    No-show
                   </th>
                 </tr>
               </thead>
@@ -394,6 +465,9 @@ function sourcePercentage(value: number) {
                   </td>
                   <td class="px-5 py-3.5 text-right text-muted">
                     {{ item.cancellationRate }}%
+                  </td>
+                  <td class="px-5 py-3.5 text-right text-muted">
+                    {{ item.noShowRate }}%
                   </td>
                 </tr>
               </tbody>

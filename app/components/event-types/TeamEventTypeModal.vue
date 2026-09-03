@@ -61,14 +61,17 @@ watch(() => props.open, async (open) => {
   error.value = ''
   selectedTemplateId.value = undefined
   slugTouched.value = Boolean(props.eventType)
-  await refreshPaymentAccount().catch(() => undefined)
 
   if (!props.eventType) {
     resetForm()
-    await refreshTemplates().catch(() => undefined)
+    await Promise.all([
+      refreshPaymentAccount().catch(() => undefined),
+      refreshTemplates().catch(() => undefined)
+    ])
     return
   }
 
+  await refreshPaymentAccount().catch(() => undefined)
   try {
     const detail = await teamEventTypesApi.get(props.teamSlug, props.eventType.id)
     resetForm(detail)
@@ -156,8 +159,8 @@ async function save() {
           class="rounded-xl border border-default bg-muted/40 px-4 py-4"
         >
           <UFormField
-            label="Start from a managed template"
-            help="Optional. Templates copy approved defaults; you can still adjust this event before creating it."
+            label="Start from a reusable template"
+            help="Optional. This makes a one-time copy you can adjust. Assign synchronized member links from the template manager instead."
           >
             <USelectMenu
               :model-value="selectedTemplateId"

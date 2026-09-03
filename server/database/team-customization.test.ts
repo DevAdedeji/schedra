@@ -162,6 +162,137 @@ describe.skipIf(!url)('team templates and branding persistence', () => {
     expect(active?.value).toBe(MAX_ACTIVE_TEAM_EVENT_TEMPLATES)
   })
 
+  it('creates collision-safe member links and synchronizes only admin-controlled fields', async () => {
+    const { team, user, eventType } = await fixture()
+    const [memberUser] = await sql<{ id: string }[]>`
+      insert into users (email, name, username, time_zone)
+      values ('agent@example.com', 'Agent', 'agent', 'UTC') returning id
+    `
+    const [member] = await sql<{ id: string }[]>`
+      insert into members (organization_id, user_id, role)
+      values (${team.id}, ${memberUser!.id}, 'member') returning id
+    `
+    await sql`
+      insert into event_types (
+        organization_id, created_by_user_id, user_id, slug, title, duration_minutes,
+        location_type, location_details, reminder_minutes, assignment_mode, hidden
+      ) values (
+        ${team.id}, ${user.id}, null, 'discovery-call-agent', 'Existing link', 30,
+        'custom', 'Existing details', '[1440]'::jsonb, 'single', false
+      )
+    `
+    const {
+      createTeamEventTemplate,
+      snapshotTeamEventDefaults,
+      updateTeamEventTemplate
+    } = await import('../services/team-event-template')
+    const defaults = await snapshotTeamEventDefaults(team.id, eventType.id, appDatabase!.db)
+    const created = await createTeamEventTemplate({
+      organizationId: team.id,
+      name: 'Managed discovery',
+      defaults,
+      sourceEventTypeId: eventType.id,
+      createdByUserId: user.id,
+      assignmentMemberIds: [member!.id],
+      memberEditableFields: ['description']
+    }, appDatabase!.db)
+
+    const [managed] = await sql<{
+      eventTypeId: string
+      slug: string
+      title: string
+      description: string
+      durationMinutes: number
+      assignmentMode: string
+      hostUserId: string
+    }[]>`
+      select
+        a.event_type_id as "eventTypeId",
+        e.slug,
+        e.title,
+        e.description,
+        e.duration_minutes as "durationMinutes",
+        e.assignment_mode as "assignmentMode",
+        h.user_id as "hostUserId"
+      from organization_event_template_assignments a
+      join event_types e on e.id = a.event_type_id
+      join event_type_hosts h on h.event_type_id = e.id
+      where a.template_id = ${created.id}
+    `
+    expect(managed).toMatchObject({
+      slug: 'discovery-call-agent-2',
+      title: 'Discovery call',
+      description: 'Meet the team',
+      durationMinutes: 30,
+      assignmentMode: 'single',
+      hostUserId: memberUser!.id
+    })
+
+    await sql`update event_types set description = 'Agent introduction' where id = ${managed!.eventTypeId}`
+    await sql`update event_types set title = 'Qualification call', duration_minutes = 45, description = 'Admin copy' where id = ${eventType.id}`
+    const latest = await snapshotTeamEventDefaults(team.id, eventType.id, appDatabase!.db)
+    await updateTeamEventTemplate({
+      id: created.id,
+      organizationId: team.id,
+      name: 'Managed qualification',
+      defaults: latest,
+      sourceEventTypeId: eventType.id,
+      createdByUserId: user.id,
+      assignmentMemberIds: [member!.id],
+      memberEditableFields: ['description']
+    }, appDatabase!.db)
+
+    const [synchronized] = await sql<{ title: string, description: string, durationMinutes: number }[]>`
+      select title, description, duration_minutes as "durationMinutes"
+      from event_types where id = ${managed!.eventTypeId}
+    `
+    expect(synchronized).toEqual({
+      title: 'Qualification call',
+      description: 'Agent introduction',
+      durationMinutes: 45
+    })
+
+    await updateTeamEventTemplate({
+      id: created.id,
+      organizationId: team.id,
+      name: 'Managed qualification',
+      defaults: latest,
+      sourceEventTypeId: eventType.id,
+      createdByUserId: user.id,
+      assignmentMemberIds: [],
+      memberEditableFields: ['description']
+    }, appDatabase!.db)
+    const [detached] = await sql<{ assignments: number, eventTypes: number }[]>`
+      select
+        (select count(*)::int from organization_event_template_assignments where template_id = ${created.id}) as assignments,
+        (select count(*)::int from event_types where id = ${managed!.eventTypeId}) as "eventTypes"
+    `
+    expect(detached).toEqual({ assignments: 0, eventTypes: 1 })
+  })
+
+  it('rejects managed assignments to a member from another team', async () => {
+    const { team, other, user, eventType } = await fixture()
+    const [outsider] = await sql<{ id: string }[]>`
+      insert into users (email, name, username, time_zone)
+      values ('outsider@example.com', 'Outsider', 'outsider', 'UTC') returning id
+    `
+    const [otherMember] = await sql<{ id: string }[]>`
+      insert into members (organization_id, user_id, role)
+      values (${other.id}, ${outsider!.id}, 'member') returning id
+    `
+    const { createTeamEventTemplate, snapshotTeamEventDefaults } = await import('../services/team-event-template')
+    const defaults = await snapshotTeamEventDefaults(team.id, eventType.id, appDatabase!.db)
+    await expect(createTeamEventTemplate({
+      organizationId: team.id,
+      name: 'Unsafe assignment',
+      defaults,
+      sourceEventTypeId: eventType.id,
+      createdByUserId: user.id,
+      assignmentMemberIds: [otherMember!.id],
+      memberEditableFields: []
+    }, appDatabase!.db)).rejects.toMatchObject({ statusCode: 400 })
+  })
+
   it('uses safe branding defaults and validates stored colours', async () => {
     const { team } = await fixture()
     const { storedTeamBranding } = await import('../services/team-branding')

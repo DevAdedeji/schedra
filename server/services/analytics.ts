@@ -50,7 +50,8 @@ export async function getBookingAnalytics(
       confirmed: sql<number>`count(*) filter (where ${bookings.status} = 'confirmed')`.mapWith(Number),
       pending: sql<number>`count(*) filter (where ${bookings.status} = 'pending')`.mapWith(Number),
       cancelled: sql<number>`count(*) filter (where ${cancelledBooking})`.mapWith(Number),
-      completed: sql<number>`count(*) filter (where ${bookings.status} = 'confirmed' and ${bookings.endsAt} < now())`.mapWith(Number),
+      completed: sql<number>`count(*) filter (where ${bookings.status} = 'confirmed' and ${bookings.endsAt} < now() and ${bookings.attendanceStatus} is distinct from 'no_show')`.mapWith(Number),
+      noShows: sql<number>`count(*) filter (where ${bookings.status} = 'confirmed' and ${bookings.endsAt} < now() and ${bookings.attendanceStatus} = 'no_show')`.mapWith(Number),
       averageLeadHours: sql<number>`coalesce(avg(extract(epoch from (${bookings.startsAt} - ${bookings.createdAt})) / 3600) filter (where ${realBooking} and ${bookings.startsAt} > ${bookings.createdAt}), 0)`.mapWith(Number)
     }).from(bookings).innerJoin(eventTypes, eq(eventTypes.id, bookings.eventTypeId)).where(current),
     db.select({
@@ -74,7 +75,9 @@ export async function getBookingAnalytics(
       title: eventTypes.title,
       total: sql<number>`count(*) filter (where ${realBooking})`.mapWith(Number),
       confirmed: sql<number>`count(*) filter (where ${bookings.status} = 'confirmed')`.mapWith(Number),
-      cancelled: sql<number>`count(*) filter (where ${cancelledBooking})`.mapWith(Number)
+      cancelled: sql<number>`count(*) filter (where ${cancelledBooking})`.mapWith(Number),
+      noShows: sql<number>`count(*) filter (where ${bookings.status} = 'confirmed' and ${bookings.endsAt} < now() and ${bookings.attendanceStatus} = 'no_show')`.mapWith(Number),
+      completed: sql<number>`count(*) filter (where ${bookings.status} = 'confirmed' and ${bookings.endsAt} < now() and ${bookings.attendanceStatus} is distinct from 'no_show')`.mapWith(Number)
     }).from(bookings).innerJoin(eventTypes, eq(eventTypes.id, bookings.eventTypeId))
       .where(current).groupBy(eventTypes.id, eventTypes.title)
       .orderBy(desc(sql`count(*) filter (where ${realBooking})`)).limit(10),
@@ -100,6 +103,7 @@ export async function getBookingAnalytics(
   const total = summary?.total ?? 0
   const cancelled = summary?.cancelled ?? 0
   const completed = summary?.completed ?? 0
+  const noShows = summary?.noShows ?? 0
   const hosted = sourceRows.find(row => row.source === 'hosted')?.value ?? 0
   const embed = sourceRows.find(row => row.source === 'embed')?.value ?? 0
 
@@ -112,8 +116,10 @@ export async function getBookingAnalytics(
       pending: summary?.pending ?? 0,
       cancelled,
       completed,
+      noShows,
+      noShowRate: percentage(noShows, completed + noShows),
       cancellationRate: percentage(cancelled, total),
-      completionRate: percentage(completed, completed + cancelled),
+      completionRate: percentage(completed, completed + cancelled + noShows),
       averageLeadHours: Math.round((summary?.averageLeadHours ?? 0) * 10) / 10,
       totalChange: percentageChange(total, prior?.total ?? 0),
       confirmedChange: percentageChange(summary?.confirmed ?? 0, prior?.confirmed ?? 0)
@@ -122,8 +128,14 @@ export async function getBookingAnalytics(
     sources: { hosted, embed },
     revenue: revenueRows.map(row => ({ currency: row.currency as 'USD' | 'NGN', amountCents: row.amountCents })),
     eventTypes: eventRows.map(row => ({
-      ...row,
-      cancellationRate: percentage(row.cancelled, row.total)
+      id: row.id,
+      title: row.title,
+      total: row.total,
+      confirmed: row.confirmed,
+      cancelled: row.cancelled,
+      noShows: row.noShows,
+      cancellationRate: percentage(row.cancelled, row.total),
+      noShowRate: percentage(row.noShows, row.completed + row.noShows)
     })),
     options
   }

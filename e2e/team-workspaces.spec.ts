@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type BrowserContext, type Page } from '@playwright/test'
 import postgres from 'postgres'
 
 const databaseUrl = process.env.TEST_DATABASE_URL
@@ -222,6 +222,187 @@ test('guides an invited new user through account creation without exposing owner
     where u.email = 'new-member@schedra.test' and o.slug = 'newcomer-studio'
   `
   expect(membership?.role).toBe('member')
+})
+
+test('manages synchronized member links and scopes team analytics exports', async ({ page }) => {
+  test.setTimeout(180_000)
+  const memberEmail = 'managed-member@schedra.test'
+  const ownerEmail = 'managed-owner@schedra.test'
+  const accountCookies = new Map<string, Awaited<ReturnType<BrowserContext['cookies']>>>()
+  async function switchAccount(email: string, next: string) {
+    await signOutLocally(page)
+    const cookies = accountCookies.get(email)
+    if (!cookies) throw new Error(`No browser session was saved for ${email}.`)
+    await page.context().addCookies(cookies)
+    await page.goto(next)
+    await page.waitForLoadState('networkidle')
+    await expect(page).toHaveURL(new RegExp(`${next.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`))
+  }
+
+  await signUpAndSignIn(page, {
+    name: 'Managed Member', username: 'managed-member', email: memberEmail
+  })
+  accountCookies.set(memberEmail, await page.context().cookies())
+  await signOutLocally(page)
+  await signUpAndSignIn(page, {
+    name: 'Managed Owner', username: 'managed-owner', email: ownerEmail
+  })
+  await createTeam(page, 'Managed Studio', 'managed-studio')
+  const invitationId = await invite(page, memberEmail)
+  accountCookies.set(ownerEmail, await page.context().cookies())
+
+  await switchAccount(memberEmail, `/invite/${invitationId}`)
+  await page.getByRole('button', { name: 'Accept invitation' }).click()
+  await expect(page).toHaveURL(/\/t\/managed-studio\/members$/)
+  accountCookies.set(memberEmail, await page.context().cookies())
+
+  const [ownerUser] = await sql<{ id: string }[]>`select id from users where email = ${ownerEmail}`
+  const [memberUser] = await sql<{ id: string }[]>`select id from users where email = ${memberEmail}`
+  const [organizationRow] = await sql<{ id: string }[]>`select id from organizations where slug = 'managed-studio'`
+  const [ownerMember] = await sql<{ id: string }[]>`
+    select id from members where organization_id = ${organizationRow!.id} and user_id = ${ownerUser!.id}
+  `
+  const [sourceEvent] = await sql<{ id: string }[]>`
+    insert into event_types (
+      organization_id, created_by_user_id, user_id, slug, title, description,
+      duration_minutes, location_type, location_details, reminder_minutes, assignment_mode, hidden
+    ) values (
+      ${organizationRow!.id}, ${ownerUser!.id}, null, 'discovery-call', 'Discovery call',
+      'Approved team description', 30, 'custom', 'Details follow after booking.',
+      '[1440,60]'::jsonb, 'single', false
+    ) returning id
+  `
+  await sql`
+    insert into event_type_hosts (event_type_id, member_id, user_id, enabled, position, weight)
+    values (${sourceEvent!.id}, ${ownerMember!.id}, ${ownerUser!.id}, true, 0, 100)
+  `
+
+  await switchAccount(ownerEmail, '/t/managed-studio/event-types')
+  await expect(page.getByText('Discovery call', { exact: true }).first()).toBeVisible()
+
+  await page.getByRole('button', { name: 'New template' }).click()
+  const templateDialog = page.getByRole('dialog', { name: 'New managed template' })
+  await templateDialog.getByLabel('Template name').fill('Managed discovery')
+  await templateDialog.getByLabel('Copy defaults from').click()
+  await page.getByText(/Discovery call · 30 min/).last().click()
+  await templateDialog.getByRole('checkbox', { name: 'Assign Managed Member' }).check()
+  await templateDialog.getByRole('checkbox', { name: 'Allow members to edit Description' }).check()
+  await templateDialog.getByRole('button', { name: 'Create template' }).click()
+  await expect(page.getByText('1 managed link', { exact: true })).toBeVisible()
+
+  const [managed] = await sql<{
+    templateId: string
+    eventTypeId: string
+    sourceEventTypeId: string
+    slug: string
+    durationMinutes: number
+  }[]>`
+    select
+      a.template_id as "templateId",
+      a.event_type_id as "eventTypeId",
+      t.source_event_type_id as "sourceEventTypeId",
+      e.slug,
+      e.duration_minutes as "durationMinutes"
+    from organization_event_template_assignments a
+    join organization_event_templates t on t.id = a.template_id
+    join event_types e on e.id = a.event_type_id
+    join organizations o on o.id = a.organization_id
+    where o.slug = 'managed-studio'
+  `
+  expect(managed).toMatchObject({ slug: 'discovery-call-managed-member', durationMinutes: 30 })
+  await expect(page.getByText('Managed · Managed discovery', { exact: true })).toBeVisible()
+
+  await switchAccount(memberEmail, '/t/managed-studio/event-types')
+  const managedRow = page.getByRole('listitem').filter({ hasText: 'Managed · Managed discovery' })
+  await managedRow.getByRole('button', { name: 'Actions for Discovery call' }).click()
+  await page.getByText('Personalize', { exact: true }).click()
+  const personalizeDialog = page.getByRole('dialog', { name: 'Personalize managed link' })
+  await personalizeDialog.getByLabel('Description').fill('My personal introduction')
+  await personalizeDialog.getByRole('button', { name: 'Save changes' }).click()
+  await expect(page.getByText('Managed link personalized', { exact: true })).toBeVisible()
+
+  const detailResponse = await page.request.get(`/api/teams/managed-studio/event-types/${managed!.eventTypeId}`)
+  expect(detailResponse.ok()).toBe(true)
+  const detail = await detailResponse.json() as Record<string, unknown>
+  const lockedAttempt = await page.request.patch(`/api/teams/managed-studio/event-types/${managed!.eventTypeId}`, {
+    data: { ...detail, title: 'Member changed title', durationMinutes: 90, description: 'Allowed API update' }
+  })
+  expect(lockedAttempt.ok()).toBe(true)
+  const [afterMemberEdit] = await sql<{ title: string, durationMinutes: number, description: string }[]>`
+    select title, duration_minutes as "durationMinutes", description
+    from event_types where id = ${managed!.eventTypeId}
+  `
+  expect(afterMemberEdit).toEqual({
+    title: 'Discovery call', durationMinutes: 30, description: 'Allowed API update'
+  })
+
+  await sql`
+    update event_types
+    set title = 'Qualification call', duration_minutes = 45, description = 'Updated admin description'
+    where id = ${managed!.sourceEventTypeId}
+  `
+  await switchAccount(ownerEmail, '/t/managed-studio/event-types')
+  await page.getByRole('button', { name: 'Edit Managed discovery' }).click()
+  const editTemplate = page.getByRole('dialog', { name: 'Edit managed template' })
+  await editTemplate.getByRole('button', { name: 'Save template' }).click()
+  await expect(editTemplate).toBeHidden()
+  const [afterSync] = await sql<{ title: string, durationMinutes: number, description: string }[]>`
+    select title, duration_minutes as "durationMinutes", description
+    from event_types where id = ${managed!.eventTypeId}
+  `
+  expect(afterSync).toEqual({
+    title: 'Qualification call', durationMinutes: 45, description: 'Allowed API update'
+  })
+
+  await sql`
+    insert into bookings (
+      organization_id, event_type_id, host_id, uid, status, starts_at, ends_at,
+      attendee_name, attendee_email, attendee_time_zone, source, created_at
+    ) values
+      (${organizationRow!.id}, ${managed!.eventTypeId}, ${memberUser!.id}, ${crypto.randomUUID()}, 'confirmed', now() + interval '1 day', now() + interval '1 day 45 minutes', 'Member Guest', 'member-guest@schedra.test', 'UTC', 'hosted', now()),
+      (${organizationRow!.id}, ${managed!.sourceEventTypeId}, ${ownerUser!.id}, ${crypto.randomUUID()}, 'confirmed', now() + interval '2 days', now() + interval '2 days 45 minutes', 'Owner Guest', 'owner-guest@schedra.test', 'UTC', 'hosted', now())
+  `
+
+  await switchAccount(memberEmail, '/t/managed-studio/analytics')
+  await expect(page.getByRole('button', { name: 'Export CSV' })).toBeVisible()
+  const memberExport = await page.request.get('/api/teams/managed-studio/analytics/export?days=30')
+  expect(memberExport.ok()).toBe(true)
+  const memberCsv = await memberExport.text()
+  expect(memberCsv).toContain('member-guest@schedra.test')
+  expect(memberCsv).not.toContain('owner-guest@schedra.test')
+  expect(memberCsv).not.toContain('notes')
+
+  await switchAccount(ownerEmail, '/t/managed-studio/analytics')
+  const ownerExport = await page.request.get('/api/teams/managed-studio/analytics/export?days=30')
+  expect(ownerExport.ok()).toBe(true)
+  const ownerCsv = await ownerExport.text()
+  expect(ownerCsv).toContain('member-guest@schedra.test')
+  expect(ownerCsv).toContain('owner-guest@schedra.test')
+
+  await page.goto('/t/managed-studio/event-types')
+  await page.waitForLoadState('networkidle')
+  await page.getByRole('button', { name: 'Edit Managed discovery' }).click()
+  const detachDialog = page.getByRole('dialog', { name: 'Edit managed template' })
+  await detachDialog.getByRole('checkbox', { name: 'Assign Managed Member' }).uncheck()
+  await detachDialog.getByRole('button', { name: 'Save template' }).click()
+  await expect(detachDialog).toBeHidden()
+  const [detached] = await sql<{ assignments: number, links: number }[]>`
+    select
+      (select count(*)::int from organization_event_template_assignments where template_id = ${managed!.templateId}) as assignments,
+      (select count(*)::int from event_types where id = ${managed!.eventTypeId}) as links
+  `
+  expect(detached).toEqual({ assignments: 0, links: 1 })
+
+  await page.getByRole('button', { name: 'Archive Managed discovery' }).click()
+  const archiveDialog = page.getByRole('dialog', { name: 'Archive this template?' })
+  await archiveDialog.getByRole('button', { name: 'Archive template' }).click()
+  await expect(archiveDialog).toBeHidden()
+  const [archived] = await sql<{ archived: boolean, links: number }[]>`
+    select
+      (select archived_at is not null from organization_event_templates where id = ${managed!.templateId}) as archived,
+      (select count(*)::int from event_types where id = ${managed!.eventTypeId}) as links
+  `
+  expect(archived).toEqual({ archived: true, links: 1 })
 })
 
 test('revokes invitations, transfers ownership and archives the team safely', async ({ page }) => {

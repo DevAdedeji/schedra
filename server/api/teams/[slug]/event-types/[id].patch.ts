@@ -1,11 +1,13 @@
 import { and, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { teamEventTypeSchema } from '#shared/validation'
+import { organizationAccessRoles } from '#shared/organization-access'
 import { eventTypes } from '../../../../database/schema'
 import { useDatabase } from '../../../../database/index'
 import { assertTeamWritable } from '../../../../services/entitlement'
 import { requireTeamLocationIntegrations } from '../../../../services/event-location'
-import { recordAudit, requireOrganizationPermission } from '../../../../services/organization'
+import { recordAudit, requireOrganization } from '../../../../services/organization'
+import { managedEventAssignment } from '../../../../services/team-event-template'
 import { replaceHosts, resolveHosts } from '../../../../services/team-event-type'
 import { requirePaymentRecipient } from '../../../../services/paid-booking'
 
@@ -16,7 +18,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Event type not found' })
   }
 
-  const context = await requireOrganizationPermission(event, slug, { eventType: ['update'] })
+  const context = await requireOrganization(event, slug)
   await assertTeamWritable(context.organization.id)
 
   const parsed = await readValidatedBody(event, teamEventTypeSchema.safeParse)
@@ -28,6 +30,42 @@ export default defineEventHandler(async (event) => {
   }
 
   const { hosts, ...fields } = parsed.data
+  const managed = await managedEventAssignment(context.organization.id, id)
+  if (managed) {
+    const canManageAll = organizationAccessRoles[context.role].authorize({ eventType: ['update'] }).success
+    if (!canManageAll && managed.assignedUserId !== context.userId) {
+      throw createError({ statusCode: 403, statusMessage: 'You can only personalize a managed event assigned to you.' })
+    }
+    if (!managed.memberEditableFields.length) {
+      throw createError({ statusCode: 403, statusMessage: 'This managed event is fully controlled by the team administrator.' })
+    }
+
+    const personalizable = {
+      description: fields.description ?? null,
+      locationDetails: fields.locationDetails,
+      hidden: fields.hidden
+    }
+    const updates = Object.fromEntries(
+      managed.memberEditableFields.map(field => [field, personalizable[field]])
+    )
+    await useDatabase().update(eventTypes).set({ ...updates, updatedAt: sql`now()` }).where(and(
+      eq(eventTypes.id, id),
+      eq(eventTypes.organizationId, context.organization.id)
+    ))
+    await recordAudit({
+      organizationId: context.organization.id,
+      actorUserId: context.userId,
+      actorEmail: context.userEmail,
+      action: 'managed_event.personalized',
+      targetType: 'event_type',
+      targetId: id,
+      metadata: { templateId: managed.templateId, fields: managed.memberEditableFields }
+    })
+    return { id }
+  }
+
+  const canManage = organizationAccessRoles[context.role].authorize({ eventType: ['update'] }).success
+  if (!canManage) throw createError({ statusCode: 403, statusMessage: 'You do not have permission to do that in this team.' })
   await requirePaymentRecipient({ organizationId: context.organization.id }, fields.paymentEnabled)
   const db = useDatabase()
 

@@ -81,4 +81,62 @@ describe.skipIf(!url)('booking analytics scoping and aggregation', () => {
     expect(team.summary.total).toBe(2)
     expect(team.scope).toBe('team')
   })
+
+  it('keeps no-shows out of completed meetings and reports their rate', async () => {
+    await booking({ eventTypeId: personalEventId, hostId: userId, status: 'confirmed', source: 'hosted', uid: 'attended-meeting' })
+    await booking({ eventTypeId: personalEventId, hostId: userId, status: 'confirmed', source: 'hosted', uid: 'missed-meeting' })
+    await booking({ eventTypeId: personalEventId, hostId: userId, status: 'confirmed', source: 'hosted', uid: 'future-meeting' })
+    await sql`
+      update bookings
+      set starts_at = case
+            when uid = 'missed-meeting' then now() - interval '4 hours'
+            when uid = 'attended-meeting' then now() - interval '2 hours'
+            else now() + interval '2 hours'
+          end,
+          ends_at = case
+            when uid = 'missed-meeting' then now() - interval '210 minutes'
+            when uid = 'attended-meeting' then now() - interval '90 minutes'
+            else now() + interval '150 minutes'
+          end,
+          attendance_status = case when uid = 'attended-meeting' then 'attended' else 'no_show' end
+      where uid in ('attended-meeting', 'missed-meeting', 'future-meeting')
+    `
+
+    const { getBookingAnalytics } = await import('../services/analytics')
+    const result = await getBookingAnalytics({ userId }, { days: 30 })
+
+    expect(result.summary).toMatchObject({ completed: 1, noShows: 1, noShowRate: 50 })
+    expect(result.eventTypes).toContainEqual(expect.objectContaining({
+      title: 'Personal call',
+      noShows: 1,
+      noShowRate: 50
+    }))
+  })
+
+  it('exports only assigned team bookings for members and supports event filters', async () => {
+    await booking({ eventTypeId: teamEventId, hostId: userId, organizationId, status: 'confirmed', source: 'hosted', uid: 'assigned-export' })
+    await booking({ eventTypeId: teamEventId, hostId: otherUserId, organizationId, status: 'confirmed', source: 'hosted', uid: 'other-export' })
+    const [otherEvent] = await sql<{ id: string }[]>`
+      insert into event_types (organization_id, created_by_user_id, slug, title, duration_minutes)
+      values (${organizationId}, ${otherUserId}, 'other-team-call', 'Other team call', 30) returning id
+    `
+    await booking({ eventTypeId: otherEvent!.id, hostId: userId, organizationId, status: 'confirmed', source: 'embed', uid: 'other-event-export' })
+
+    const { teamAnalyticsExportRows } = await import('../services/team-analytics-export')
+    const memberRows = await teamAnalyticsExportRows(
+      { organizationId, visibleUserId: userId },
+      { days: 30 },
+      { executor: (await import('./index')).useDatabase(), now: new Date() }
+    )
+    expect(memberRows.map(row => row.bookingId).sort()).toEqual(['assigned-export', 'other-event-export'])
+
+    const filtered = await teamAnalyticsExportRows(
+      { organizationId },
+      { days: 30, eventTypeId: teamEventId },
+      { executor: (await import('./index')).useDatabase(), now: new Date() }
+    )
+    expect(filtered.map(row => row.bookingId).sort()).toEqual(['assigned-export', 'other-export'])
+    expect(filtered[0]).toHaveProperty('attendanceStatus')
+    expect(filtered[0]).not.toHaveProperty('notes')
+  })
 })

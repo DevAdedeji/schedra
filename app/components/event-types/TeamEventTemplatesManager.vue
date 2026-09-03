@@ -5,8 +5,10 @@ import {
   type TeamEventTemplateRecord,
   type TeamEventTemplatesResponse
 } from '~/services/schedra-api'
+import type { ManagedEventMemberEditableField } from '#shared/validation'
 
 const props = defineProps<{ teamSlug: string, refreshKey?: number }>()
+const emit = defineEmits<{ changed: [] }>()
 const feedback = useFeedback()
 const endpoint = computed(() => teamEventTemplatesApi.listEndpoint(props.teamSlug))
 const { data, status, error, refresh } = await useLazyFetch<TeamEventTemplatesResponse>(endpoint)
@@ -18,6 +20,8 @@ const modalOpen = ref(false)
 const editing = ref<TeamEventTemplateRecord | null>(null)
 const name = ref('')
 const sourceEventTypeId = ref<string | undefined>()
+const assignmentMemberIds = ref<string[]>([])
+const memberEditableFields = ref<ManagedEventMemberEditableField[]>([])
 const saving = ref(false)
 const saveError = ref('')
 const archiving = ref<TeamEventTemplateRecord | null>(null)
@@ -28,11 +32,18 @@ const sourceOptions = computed(() => (data.value?.sourceEventTypes ?? []).map(it
   value: item.id
 })))
 const canSave = computed(() => Boolean(name.value.trim() && sourceEventTypeId.value))
+const editableOptions: Array<{ value: ManagedEventMemberEditableField, label: string, description: string }> = [
+  { value: 'description', label: 'Description', description: 'Let the assigned member personalize the public explanation.' },
+  { value: 'locationDetails', label: 'Meeting details', description: 'Let the member provide their own address, phone or meeting instructions.' },
+  { value: 'hidden', label: 'Visibility', description: 'Let the member hide or publish their assigned link.' }
+]
 
 function openCreate() {
   editing.value = null
   name.value = ''
   sourceEventTypeId.value = undefined
+  assignmentMemberIds.value = []
+  memberEditableFields.value = []
   saveError.value = ''
   modalOpen.value = true
 }
@@ -41,8 +52,22 @@ function openEdit(template: TeamEventTemplateRecord) {
   editing.value = template
   name.value = template.name
   sourceEventTypeId.value = template.sourceEventTypeId ?? undefined
+  assignmentMemberIds.value = template.assignments.map(assignment => assignment.memberId)
+  memberEditableFields.value = [...template.memberEditableFields]
   saveError.value = ''
   modalOpen.value = true
+}
+
+function toggleAssignment(memberId: string, checked: boolean) {
+  assignmentMemberIds.value = checked
+    ? [...assignmentMemberIds.value, memberId]
+    : assignmentMemberIds.value.filter(id => id !== memberId)
+}
+
+function toggleEditableField(field: ManagedEventMemberEditableField, checked: boolean) {
+  memberEditableFields.value = checked
+    ? [...memberEditableFields.value, field]
+    : memberEditableFields.value.filter(value => value !== field)
 }
 
 async function save() {
@@ -50,15 +75,23 @@ async function save() {
   saving.value = true
   saveError.value = ''
   try {
-    const body = { name: name.value.trim(), sourceEventTypeId: sourceEventTypeId.value }
+    const body = {
+      name: name.value.trim(),
+      sourceEventTypeId: sourceEventTypeId.value,
+      assignmentMemberIds: assignmentMemberIds.value,
+      memberEditableFields: memberEditableFields.value
+    }
     if (editing.value) await teamEventTemplatesApi.update(props.teamSlug, editing.value.id, body)
     else await teamEventTemplatesApi.create(props.teamSlug, body)
     feedback.success({
       title: editing.value ? 'Template updated' : 'Template created',
-      description: 'Existing event types were not changed.'
+      description: assignmentMemberIds.value.length
+        ? 'Assigned links now use the latest admin-controlled settings.'
+        : 'The reusable template is ready for future event types.'
     })
     modalOpen.value = false
     await refresh()
+    emit('changed')
   } catch (failure) {
     saveError.value = apiErrorMessage(failure, 'Could not save that template.')
   } finally {
@@ -74,6 +107,7 @@ async function archive() {
     feedback.success({ title: 'Template archived', description: 'Event types already created from it are unchanged.' })
     archiving.value = null
     await refresh()
+    emit('changed')
   } catch (failure) {
     feedback.error({ title: 'Could not archive template', description: apiErrorMessage(failure, 'Please try again.') })
   } finally {
@@ -90,7 +124,7 @@ async function archive() {
           Managed templates
         </h2>
         <p class="mt-1 text-[13px] leading-relaxed text-muted">
-          Reuse approved event defaults. A template is copied when selected, so later template edits never change existing links.
+          Reuse approved defaults, or assign synchronized links that stay under team control.
         </p>
       </div>
       <UButton
@@ -153,6 +187,11 @@ async function archive() {
           <p class="mt-1 text-[12px] text-muted">
             {{ template.defaults.title }} · {{ [template.defaults.durationMinutes, ...template.defaults.additionalDurationMinutes].join(' / ') }} min
           </p>
+          <p class="mt-1 text-[12px] text-dimmed">
+            {{ template.assignments.length
+              ? `${template.assignments.length} managed ${template.assignments.length === 1 ? 'link' : 'links'}`
+              : 'Reusable copy only' }}
+          </p>
         </div>
         <div class="flex shrink-0 gap-1">
           <UButton
@@ -179,7 +218,7 @@ async function archive() {
   <UModal
     v-model:open="modalOpen"
     :title="editing ? 'Edit managed template' : 'New managed template'"
-    description="Choose an existing event type whose settings should become the reusable defaults."
+    description="Choose approved defaults, then optionally give selected members synchronized booking links."
     :ui="{ content: 'w-[min(95vw,34rem)] max-w-lg', footer: 'border-t border-default px-5 py-4 sm:px-6' }"
   >
     <template #body>
@@ -210,11 +249,67 @@ async function archive() {
             value-key="value"
             :loading="status === 'pending'"
             placeholder="Choose a team event type"
+            aria-label="Copy defaults from"
             class="w-full"
           />
         </UFormField>
+        <UFormField
+          label="Assign managed links"
+          help="Optional. Each selected member gets a separate team booking link with themselves as the host."
+        >
+          <div class="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-default p-2">
+            <label
+              v-for="member in data?.teamMembers ?? []"
+              :key="member.id"
+              class="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 hover:bg-muted"
+            >
+              <UCheckbox
+                :model-value="assignmentMemberIds.includes(member.id)"
+                :aria-label="`Assign ${member.name}`"
+                @update:model-value="checked => toggleAssignment(member.id, Boolean(checked))"
+              />
+              <span class="min-w-0">
+                <span class="block truncate text-[13px] font-medium text-highlighted">{{ member.name }}</span>
+                <span class="block truncate text-[12px] text-muted">@{{ member.username }}</span>
+              </span>
+            </label>
+            <p
+              v-if="!data?.teamMembers.length"
+              class="px-2 py-3 text-center text-[12px] text-muted"
+            >
+              Invite a team member before assigning a managed link.
+            </p>
+          </div>
+        </UFormField>
+        <fieldset
+          v-if="assignmentMemberIds.length"
+          class="space-y-2"
+        >
+          <legend class="text-[13px] font-medium text-highlighted">
+            Member-editable fields
+          </legend>
+          <p class="text-[12px] leading-relaxed text-muted">
+            Everything else stays locked and follows later template updates.
+          </p>
+          <label
+            v-for="option in editableOptions"
+            :key="option.value"
+            class="flex cursor-pointer items-start gap-3 rounded-lg border border-default px-3 py-2.5"
+          >
+            <UCheckbox
+              class="mt-0.5"
+              :model-value="memberEditableFields.includes(option.value)"
+              :aria-label="`Allow members to edit ${option.label}`"
+              @update:model-value="checked => toggleEditableField(option.value, Boolean(checked))"
+            />
+            <span>
+              <span class="block text-[13px] font-medium text-highlighted">{{ option.label }}</span>
+              <span class="mt-0.5 block text-[12px] leading-relaxed text-muted">{{ option.description }}</span>
+            </span>
+          </label>
+        </fieldset>
         <p class="rounded-lg border border-default bg-muted px-3 py-2.5 text-[12px] leading-relaxed text-muted">
-          Updating this template replaces its snapshot for future event types only. Existing event types always keep their current settings.
+          Removing a member stops future synchronization but keeps their existing team link. Archiving behaves the same way, so no shared URL disappears unexpectedly.
         </p>
         <p
           v-if="saveError"
@@ -254,7 +349,7 @@ async function archive() {
   <ConfirmDialog
     :open="Boolean(archiving)"
     title="Archive this template?"
-    description="It will no longer appear when creating event types. Existing event types stay exactly as they are."
+    description="It will no longer appear when creating event types. Managed links stay online but stop receiving template updates."
     confirm-label="Archive template"
     :loading="archiveBusy"
     @update:open="value => { if (!value) archiving = null }"

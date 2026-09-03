@@ -15,7 +15,9 @@ export default defineEventHandler(async (event) => {
     name: parsed.data.name,
     defaults,
     sourceEventTypeId: parsed.data.sourceEventTypeId,
-    createdByUserId: context.userId
+    createdByUserId: context.userId,
+    assignmentMemberIds: parsed.data.assignmentMemberIds,
+    memberEditableFields: parsed.data.memberEditableFields
   })
 
   await recordAudit({
@@ -25,7 +27,12 @@ export default defineEventHandler(async (event) => {
     action: 'event_template.created',
     targetType: 'event_template',
     targetId: created.id,
-    metadata: { name: parsed.data.name, sourceEventTypeId: parsed.data.sourceEventTypeId }
+    metadata: {
+      name: parsed.data.name,
+      sourceEventTypeId: parsed.data.sourceEventTypeId,
+      assignedMembers: parsed.data.assignmentMemberIds.length,
+      createdAssignments: created.createdAssignments
+    }
   })
   setResponseStatus(event, 201)
   return { id: created.id }

@@ -1,7 +1,14 @@
 import { and, asc, count, eq, ilike, inArray, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { paginationMeta, paginationQuerySchema } from '#shared/pagination'
-import { eventTypeHosts, eventTypes, users } from '../../../database/schema'
+import {
+  eventTypeHosts,
+  eventTypes,
+  members,
+  organizationEventTemplateAssignments,
+  organizationEventTemplates,
+  users
+} from '../../../database/schema'
 import { useDatabase } from '../../../database/index'
 import { requireOrganization } from '../../../services/organization'
 
@@ -66,8 +73,8 @@ export default defineEventHandler(async (event) => {
 
   // Hosts drive whether an event is bookable at all, so the list carries them
   // rather than making the page fetch each event separately.
-  const hosts = items.length
-    ? await db.select({
+  const [hosts, managed] = items.length
+    ? await Promise.all([db.select({
         eventTypeId: eventTypeHosts.eventTypeId,
         memberId: eventTypeHosts.memberId,
         enabled: eventTypeHosts.enabled,
@@ -75,15 +82,38 @@ export default defineEventHandler(async (event) => {
         avatarUrl: users.avatarUrl
       }).from(eventTypeHosts)
         .innerJoin(users, eq(users.id, eventTypeHosts.userId))
-        .where(inArray(eventTypeHosts.eventTypeId, items.map(item => item.id)))
-    : []
+        .where(inArray(eventTypeHosts.eventTypeId, items.map(item => item.id))),
+      db.select({
+        eventTypeId: organizationEventTemplateAssignments.eventTypeId,
+        templateId: organizationEventTemplateAssignments.templateId,
+        templateName: organizationEventTemplates.name,
+        assignedUserId: members.userId,
+        memberEditableFields: organizationEventTemplates.memberEditableFields
+      }).from(organizationEventTemplateAssignments)
+        .innerJoin(organizationEventTemplates, eq(organizationEventTemplates.id, organizationEventTemplateAssignments.templateId))
+        .innerJoin(members, eq(members.id, organizationEventTemplateAssignments.memberId))
+        .where(and(
+          eq(organizationEventTemplateAssignments.organizationId, context.organization.id),
+          inArray(organizationEventTemplateAssignments.eventTypeId, items.map(item => item.id))
+        ))])
+    : [[], []]
 
   return {
-    items: items.map(item => ({
-      ...item,
-      createdAt: item.createdAt.toISOString(),
-      hosts: hosts.filter(host => host.eventTypeId === item.id)
-    })),
+    items: items.map((item) => {
+      const management = managed.find(entry => entry.eventTypeId === item.id)
+      return {
+        ...item,
+        managed: management
+          ? {
+              ...management,
+              canPersonalize: Boolean(management.memberEditableFields.length
+                && (management.assignedUserId === context.userId || context.role !== 'member'))
+            }
+          : null,
+        createdAt: item.createdAt.toISOString(),
+        hosts: hosts.filter(host => host.eventTypeId === item.id)
+      }
+    }),
     pagination: paginationMeta(totalRow?.value ?? 0, page, pageSize),
     counts: {
       all: countRow?.all ?? 0,

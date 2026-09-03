@@ -17,6 +17,7 @@ import type {
   BookingAnswer,
   BookingQuestion,
   EventTypeInput,
+  ManagedEventMemberEditableField,
   MeetingLocationType,
   TeamEventTemplateDefaults,
   TeamEventTypeInput
@@ -27,12 +28,14 @@ import type { RoutingFormInput, RoutingQuestion, RoutingRule } from '#shared/rou
 import type { EventTypeRecord } from '~/types/event-type'
 import type { CreateBookingLinkInput } from '#shared/booking-links'
 import type { AwayPeriodInput } from '#shared/away-periods'
+import type { EmailNotificationPreferences } from '#shared/email-notification-preferences'
 import type { ScheduleOverrideRecord, ScheduleRecord, ScheduleRuleRecord } from '~/types/schedule'
 import { DEFAULT_LIST_PAGE_SIZE } from '~/constants/lists'
 
 export interface BookingRecord {
   uid: string
   status: 'awaiting_payment' | 'pending' | 'confirmed' | 'cancelled' | 'rejected'
+  attendanceStatus: 'attended' | 'no_show' | null
   startsAt: string
   endsAt: string
   attendeeName: string
@@ -50,6 +53,8 @@ export interface BookingRecord {
 export interface BookingDetail {
   uid: string
   status: BookingRecord['status']
+  attendanceStatus: BookingRecord['attendanceStatus']
+  attendanceUpdatedAt: string | null
   startsAt: string
   endsAt: string
   attendeeName: string
@@ -194,6 +199,7 @@ export interface CurrentProfile {
   bio: string | null
   avatarUrl: string | null
   timeZone: string
+  twoFactorEnabled: boolean
 }
 
 export interface PublicBookingPage {
@@ -280,7 +286,11 @@ export const bookingsApi = {
   reject: (uid: string, reason?: string) => $fetch(resource('/api/booking', uid, '/reject'), {
     method: 'POST',
     body: { reason }
-  })
+  }),
+  updateAttendance: (uid: string, status: BookingRecord['attendanceStatus']) => $fetch<{
+    status: BookingRecord['attendanceStatus']
+    unchanged: boolean
+  }>(resource('/api/booking', uid, '/attendance'), { method: 'PATCH', body: { status } })
 }
 
 export const recurrenceApi = {
@@ -422,6 +432,8 @@ export interface AnalyticsResponse {
     pending: number
     cancelled: number
     completed: number
+    noShows: number
+    noShowRate: number
     cancellationRate: number
     completionRate: number
     averageLeadHours: number
@@ -437,7 +449,9 @@ export interface AnalyticsResponse {
     total: number
     confirmed: number
     cancelled: number
+    noShows: number
     cancellationRate: number
+    noShowRate: number
   }>
   options: Array<{ id: string, title: string }>
 }
@@ -485,6 +499,14 @@ export const brandingApi = {
 export const accountApi = {
   exportUrl: '/api/account/export' as const,
   remove: (body: { email: string, confirmation: 'DELETE' }) => $fetch('/api/account', { method: 'DELETE', body })
+}
+
+export const emailNotificationPreferencesApi = {
+  endpoint: '/api/settings/email-notifications' as const,
+  update: (body: EmailNotificationPreferences) => $fetch<EmailNotificationPreferences>(
+    '/api/settings/email-notifications',
+    { method: 'PATCH', body }
+  )
 }
 
 export interface UsernameAvailability {
@@ -614,6 +636,12 @@ export const operationsApi = {
   diagnostics: () => $fetch<OperationsDiagnostics>('/api/operations/diagnostics'),
   retry: (kind: OperationKind, id: string) => $fetch<{ retried: true }>('/api/operations/retry', {
     method: 'POST', body: { kind, id }
+  }),
+  retryRefund: (paymentReference: string) => $fetch<{
+    retried: true
+    providerState: 'pending' | 'paid' | 'failed' | 'unknown'
+  }>('/api/operations/refunds/retry', {
+    method: 'POST', body: { paymentReference }
   }),
   acknowledgeAlert: (id: string) => $fetch<{ acknowledged: true }>(
     `/api/operations/alerts/${encodeURIComponent(id)}/acknowledge`, { method: 'POST' }
@@ -829,6 +857,13 @@ export interface TeamEventTypeRecord {
   hidden: boolean
   createdAt: string
   hosts: TeamEventTypeHostRecord[]
+  managed: {
+    templateId: string
+    templateName: string
+    assignedUserId: string
+    memberEditableFields: ManagedEventMemberEditableField[]
+    canPersonalize: boolean
+  } | null
 }
 
 export type TeamEventTypeDetail = TeamEventTypeInput & {
@@ -838,6 +873,7 @@ export type TeamEventTypeDetail = TeamEventTypeInput & {
     enabled: boolean
     weight: number
   }>
+  managed: TeamEventTypeRecord['managed']
 }
 
 export interface TeamEventTypesResponse {
@@ -865,6 +901,8 @@ export interface TeamEventTemplateRecord {
   id: string
   name: string
   defaults: TeamEventTemplateDefaults
+  memberEditableFields: ManagedEventMemberEditableField[]
+  assignments: Array<{ memberId: string, eventTypeId: string, eventTypeSlug: string }>
   sourceEventTypeId: string | null
   archivedAt: string | null
   createdAt: string
@@ -874,13 +912,21 @@ export interface TeamEventTemplateRecord {
 export interface TeamEventTemplatesResponse {
   items: TeamEventTemplateRecord[]
   sourceEventTypes: Array<{ id: string, title: string, durationMinutes: number }>
+  teamMembers: Array<{ id: string, name: string, username: string }>
+}
+
+export interface TeamEventTemplateWriteBody {
+  name: string
+  sourceEventTypeId: string
+  assignmentMemberIds: string[]
+  memberEditableFields: ManagedEventMemberEditableField[]
 }
 
 export const teamEventTemplatesApi = {
   listEndpoint: (slug: string) => resource('/api/teams', slug, '/event-templates'),
-  create: (slug: string, body: { name: string, sourceEventTypeId: string }) =>
+  create: (slug: string, body: TeamEventTemplateWriteBody) =>
     $fetch<{ id: string }>(resource('/api/teams', slug, '/event-templates'), { method: 'POST', body }),
-  update: (slug: string, id: string, body: { name: string, sourceEventTypeId: string }) =>
+  update: (slug: string, id: string, body: TeamEventTemplateWriteBody) =>
     $fetch<{ id: string }>(`${resource('/api/teams', slug, '/event-templates')}/${encodeURIComponent(id)}`, { method: 'PATCH', body }),
   archive: (slug: string, id: string) =>
     $fetch(`${resource('/api/teams', slug, '/event-templates')}/${encodeURIComponent(id)}`, { method: 'DELETE' })
@@ -1083,6 +1129,7 @@ export interface CreateTeamBookingInput {
 export interface TeamBookingRecord {
   uid: string
   status: 'awaiting_payment' | 'pending' | 'confirmed' | 'cancelled' | 'rejected'
+  attendanceStatus: 'attended' | 'no_show' | null
   startsAt: string
   endsAt: string
   attendeeName: string
