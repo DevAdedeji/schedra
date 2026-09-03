@@ -274,6 +274,18 @@ async function reject(uid: string) {
                       >
                         Declined
                       </span>
+                      <span
+                        v-else-if="item.attendanceStatus === 'no_show'"
+                        class="rounded-full bg-warning/10 px-2.5 py-0.5 text-[12px] font-medium text-warning"
+                      >
+                        No-show
+                      </span>
+                      <span
+                        v-else-if="item.attendanceStatus === 'attended'"
+                        class="rounded-full bg-success/10 px-2.5 py-0.5 text-[12px] font-medium text-success"
+                      >
+                        Attended
+                      </span>
                     </div>
 
                     <p class="mt-1 text-[15px] text-toned">

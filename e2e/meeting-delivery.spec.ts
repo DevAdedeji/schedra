@@ -208,6 +208,63 @@ test('lets a guest reschedule a team booking from its private management link', 
   expect(moved[1]!.rescheduled_from_id).toBeTruthy()
 })
 
+test('records and reverses a past meeting outcome without duplicating no-show workflows', async ({ page }) => {
+  await signUpAndSignIn(page, {
+    name: 'Attendance Host',
+    username: 'attendance-host',
+    email: 'attendance-host@schedra.test'
+  })
+
+  const [host] = await sql<{ id: string }[]>`
+    select id from users where email = 'attendance-host@schedra.test'
+  `
+  const [eventType] = await sql<{ id: string }[]>`
+    select id from event_types where user_id = ${host!.id} order by created_at limit 1
+  `
+  const [booking] = await sql<{ id: string, uid: string }[]>`
+    insert into bookings (
+      event_type_id, host_id, uid, status, starts_at, ends_at,
+      attendee_name, attendee_email, attendee_time_zone
+    ) values (
+      ${eventType!.id}, ${host!.id}, 'attendance-booking', 'confirmed',
+      now() - interval '2 hours', now() - interval '90 minutes',
+      'Missed Guest', 'missed-guest@schedra.test', 'UTC'
+    ) returning id, uid
+  `
+  const concurrent = await Promise.all([
+    page.request.patch(`/api/booking/${booking!.uid}/attendance`, { data: { status: 'no_show' } }),
+    page.request.patch(`/api/booking/${booking!.uid}/attendance`, { data: { status: 'no_show' } })
+  ])
+  expect(concurrent.every(response => response.ok())).toBe(true)
+  const results = await Promise.all(concurrent.map(response => response.json() as Promise<{ unchanged: boolean }>))
+  expect(results.filter(result => result.unchanged)).toHaveLength(1)
+
+  await page.goto(`/booking/${booking!.uid}`)
+  await page.waitForLoadState('networkidle')
+  await expect(page.getByText('No-show', { exact: true }).first()).toBeVisible()
+
+  const [missed] = await sql<{ status: string, updatedBy: string }[]>`
+    select attendance_status as status, attendance_updated_by_user_id as "updatedBy"
+    from bookings where id = ${booking!.id}
+  `
+  expect(missed).toEqual({ status: 'no_show', updatedBy: host!.id })
+
+  await page.getByRole('button', { name: 'Clear outcome' }).click()
+  await expect(page.getByRole('button', { name: 'Clear outcome' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Attended' }).click()
+  await expect(page.getByText('Attendance recorded', { exact: true })).toBeVisible()
+
+  const [outcome] = await sql<{ status: string }[]>`
+    select attendance_status as status from bookings where id = ${booking!.id}
+  `
+  expect(outcome?.status).toBe('attended')
+  const [events] = await sql<{ count: number }[]>`
+    select count(*)::int as count from domain_events
+    where booking_id = ${booking!.id} and type = 'booking_no_show'
+  `
+  expect(events?.count).toBe(1)
+})
+
 test('holds approval requests, invites additional guests and duplicates the event safely', async ({ page }) => {
   await signUpAndSignIn(page, {
     name: 'Approval Host',
@@ -322,7 +379,8 @@ test('holds approval requests, invites additional guests and duplicates the even
   const approvalEvent = page.getByRole('listitem').filter({
     has: page.getByRole('heading', { name: 'Approval consultation', exact: true })
   })
-  await approvalEvent.getByRole('button', { name: 'Duplicate event type' }).click()
+  await approvalEvent.getByRole('button', { name: 'Actions for Approval consultation' }).click()
+  await page.getByRole('menuitem', { name: 'Duplicate' }).click()
   await expect(page.getByRole('heading', { name: 'Approval consultation (copy)' })).toBeVisible()
 
   const copies = await sql<{
@@ -358,10 +416,19 @@ test('exports portable account data and permanently removes the account', async 
 
   const exported = await exportedResponse.json()
   expect(exported.profile).toMatchObject({ email, username: 'account-owner' })
+  expect(exported.profile.twoFactorEnabled).toBe(false)
+  expect(exported.emailNotificationPreferences).toMatchObject({
+    newBookingEmails: true,
+    rescheduleEmails: true,
+    cancellationEmails: true,
+    approvalRequestEmails: true
+  })
   expect(exported.schedules).toHaveLength(1)
   expect(exported.eventTypes).toHaveLength(1)
   expect(JSON.stringify(exported)).not.toContain('accessTokenEncrypted')
   expect(JSON.stringify(exported)).not.toContain('refreshTokenEncrypted')
+  expect(JSON.stringify(exported)).not.toContain('backup_codes')
+  expect(JSON.stringify(exported)).not.toContain('two_factors')
 
   const rejectedDeletion = await accountRequest.delete('/api/account', {
     data: { email, confirmation: 'delete' }

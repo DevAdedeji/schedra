@@ -120,6 +120,14 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
               >
                 {{ booking.status }}
               </UBadge>
+              <UBadge
+                v-if="booking.attendanceStatus"
+                :color="booking.attendanceStatus === 'no_show' ? 'warning' : 'success'"
+                variant="subtle"
+                size="sm"
+              >
+                {{ booking.attendanceStatus === 'no_show' ? 'No-show' : 'Attended' }}
+              </UBadge>
             </div>
             <p class="mt-1 text-[14px] text-muted">
               {{ when(booking.startsAt) }} · {{ booking.attendeeName }}

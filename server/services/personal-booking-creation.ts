@@ -5,7 +5,7 @@ import { useDatabase } from '../database/index'
 import { findPublicEventType, slotsFor } from './booking-page'
 import type { EventTypeRow } from './booking-page'
 import { findBookingByUid } from '../repositories/booking'
-import { queueBookingEmails, queueBookingRequestEmails } from './booking-emails'
+import { queueBookingEmails, queueBookingRequestEmails, queueBookingRescheduledEmails } from './booking-emails'
 import { cancelBookingReminders } from './email-outbox'
 import { cancelPendingAutomationRuns, publishBookingEvent } from './workflows'
 import { enqueueCalendarSync } from './calendar-sync'
@@ -307,6 +307,7 @@ export async function createPersonalBooking(input: CreateBookingInput): Promise<
         uid,
         eventTitle: eventType.title,
         hostName: eventType.hostName,
+        hostUserId: eventType.hostId,
         hostEmail: eventType.hostEmail,
         hostUsername: eventType.username,
         hostTimeZone: eventType.scheduleTimeZone ?? eventType.hostTimeZone,
@@ -324,7 +325,17 @@ export async function createPersonalBooking(input: CreateBookingInput): Promise<
         notes: answerSnapshot?.notes ?? null
       }
       if (!awaitingPayment) {
-        if (eventType.requiresConfirmation) await queueBookingRequestEmails(notice, tx)
+        if (previous) {
+          await queueBookingRescheduledEmails(notice, {
+            previousStartsAt: previous.startsAt.toISOString(),
+            previousEndsAt: previous.endsAt.toISOString(),
+            requiresConfirmation: eventType.requiresConfirmation,
+            seriesPosition: previous.seriesPosition
+          }, tx)
+          if (!eventType.requiresConfirmation) {
+            await queueBookingEmails(notice, tx, { sendConfirmation: false })
+          }
+        } else if (eventType.requiresConfirmation) await queueBookingRequestEmails(notice, tx)
         else await queueBookingEmails(notice, tx)
       }
     })

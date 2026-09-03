@@ -26,6 +26,8 @@ export default defineEventHandler(async (event) => {
   return {
     uid: booking.uid,
     status: booking.status,
+    attendanceStatus: booking.attendanceStatus,
+    attendanceUpdatedAt: booking.attendanceUpdatedAt?.toISOString() ?? null,
     startsAt: booking.startsAt.toISOString(),
     endsAt: booking.endsAt.toISOString(),
     attendeeName: booking.attendeeName,

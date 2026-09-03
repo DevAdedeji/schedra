@@ -175,6 +175,7 @@ export async function createPersonalRecurringBooking(input: {
           uid,
           eventTitle: input.eventType.title,
           hostName: input.eventType.hostName,
+          hostUserId: input.eventType.hostId,
           hostEmail: input.eventType.hostEmail,
           hostUsername: input.eventType.username,
           hostTimeZone: input.eventType.scheduleTimeZone ?? input.eventType.hostTimeZone,
@@ -340,6 +341,7 @@ export async function createTeamRecurringBooking(input: {
           hostName: attending.length > 1
             ? `${input.eventType.organizationName} (${attending.map(host => host.name).join(', ')})`
             : organizer.name,
+          hostUserId: organizer.userId,
           hostEmail: organizer.email,
           hostUsername: input.eventType.organizationSlug,
           hostTimeZone: organizer.scheduleTimeZone ?? organizer.timeZone,
@@ -356,6 +358,7 @@ export async function createTeamRecurringBooking(input: {
           answers: input.guest.answers?.responses ?? [],
           notes: input.guest.answers?.notes ?? null,
           hostRecipients: attending.map(host => ({
+            userId: host.userId,
             name: host.name,
             email: host.email,
             timeZone: host.scheduleTimeZone ?? host.timeZone,

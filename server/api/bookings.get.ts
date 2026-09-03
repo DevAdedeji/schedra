@@ -47,6 +47,7 @@ export default defineEventHandler(async (event) => {
   const columns = {
     uid: bookings.uid,
     status: bookings.status,
+    attendanceStatus: bookings.attendanceStatus,
     startsAt: bookings.startsAt,
     endsAt: bookings.endsAt,
     attendeeName: bookings.attendeeName,

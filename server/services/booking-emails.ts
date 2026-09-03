@@ -4,11 +4,17 @@ import { useEnv } from '../config/env'
 import type { BookingAnswer, MeetingLocationType } from '#shared/validation'
 import { readBookingAnswers } from '../domain/booking-answers'
 import { subtractFromInstant } from '../utils/date-time'
+import { useDatabase } from '../database'
+import {
+  optionalHostRecipients,
+  type NotificationPreferenceExecutor
+} from './email-notification-preferences'
 
 export interface BookingNotice {
   uid: string
   eventTitle: string
   hostName: string
+  hostUserId?: string
   hostEmail: string
   hostUsername: string
   hostTimeZone: string
@@ -37,15 +43,27 @@ interface QueueBookingEmailOptions {
   sendConfirmation?: boolean
 }
 
+export interface BookingRescheduleDetails {
+  previousStartsAt: string
+  previousEndsAt: string
+  requiresConfirmation: boolean
+  seriesPosition?: number | null
+  previousHostRecipients?: BookingHostRecipient[]
+}
+
 export interface BookingHostRecipient {
+  userId?: string
   name: string
   email: string
   timeZone: string
   isOrganizer: boolean
 }
 
-function fallbackHost(booking: Pick<BookingNotice, 'hostName' | 'hostEmail' | 'hostTimeZone'>): BookingHostRecipient {
+export type BookingEmailExecutor = EmailInsertExecutor & NotificationPreferenceExecutor
+
+function fallbackHost(booking: Pick<BookingNotice, 'hostName' | 'hostUserId' | 'hostEmail' | 'hostTimeZone'>): BookingHostRecipient {
   return {
+    userId: booking.hostUserId,
     name: booking.hostName,
     email: booking.hostEmail,
     timeZone: booking.hostTimeZone,
@@ -68,6 +86,7 @@ export function bookingNoticeFromManaged(
     uid: booking.uid,
     eventTitle: booking.eventTitle,
     hostName: booking.hostName,
+    hostUserId: booking.hostId,
     hostEmail: booking.hostEmail,
     hostUsername: booking.hostUsername,
     hostTimeZone: booking.hostTimeZone,
@@ -124,13 +143,14 @@ export function meetingLocationText(
 
 export async function queueBookingEmails(
   booking: BookingNotice,
-  executor?: EmailInsertExecutor,
+  executor?: BookingEmailExecutor,
   options: QueueBookingEmailOptions = {}
 ) {
   const manage = `${useEnv().schedraUrl}/booking/${booking.uid}`
   const hostPage = `${useEnv().schedraUrl}${booking.publicBookingPath ?? `/${booking.hostUsername}`}`
   const recipients = [booking.attendeeEmail, ...booking.additionalGuestEmails]
   const hosts = booking.hostRecipients?.length ? booking.hostRecipients : [fallbackHost(booking)]
+  const notifiedHosts = await optionalHostRecipients(hosts, 'newBookingEmails', executor ?? useDatabase())
   const sendConfirmation = options.sendConfirmation ?? true
   const seriesLabel = booking.series?.frequency === 'biweekly'
     ? 'Every 2 weeks'
@@ -187,7 +207,7 @@ export async function queueBookingEmails(
         }))
       : []),
     ...(sendConfirmation
-      ? hosts.map((host, index) => ({
+      ? notifiedHosts.map((host, index) => ({
           dedupeKey: index === 0
             ? `booking:${booking.uid}:created:host`
             : emailDedupeKey(`booking:${booking.uid}:created:cohost`, host.email),
@@ -277,10 +297,131 @@ export async function queueBookingEmails(
   ], executor)
 }
 
-export async function queueBookingRequestEmails(booking: BookingNotice, executor?: EmailInsertExecutor) {
+export async function queueBookingRescheduledEmails(
+  booking: BookingNotice,
+  reschedule: BookingRescheduleDetails,
+  executor?: BookingEmailExecutor
+) {
+  const manage = `${useEnv().schedraUrl}/booking/${booking.uid}`
+  const hostPage = `${useEnv().schedraUrl}${booking.publicBookingPath ?? `/${booking.hostUsername}`}`
+  const recipients = [booking.attendeeEmail, ...booking.additionalGuestEmails]
+  const hosts = booking.hostRecipients?.length ? booking.hostRecipients : [fallbackHost(booking)]
+  const currentHostEmails = new Set(hosts.map(host => host.email.toLowerCase()))
+  const previousOnlyHosts = (reschedule.previousHostRecipients ?? [])
+    .filter(host => !currentHostEmails.has(host.email.toLowerCase()))
+  const notifiedHosts = await optionalHostRecipients(hosts, 'rescheduleEmails', executor ?? useDatabase())
+  const notifiedPreviousOnlyHosts = await optionalHostRecipients(
+    previousOnlyHosts,
+    'rescheduleEmails',
+    executor ?? useDatabase()
+  )
+  const seriesDetail = reschedule.seriesPosition
+    ? [{ label: 'Recurring meeting', value: `Meeting ${reschedule.seriesPosition} in the series` }]
+    : []
+  const guestState = reschedule.requiresConfirmation
+    ? {
+        subject: `Reschedule requested: ${booking.eventTitle} with ${booking.hostName}`,
+        preheader: `${booking.hostName} will review the new time.`,
+        heading: 'Your new time is awaiting approval',
+        body: `Your previous time has been released. ${booking.hostName} will review the new time shown below.`,
+        footer: 'You will receive another email as soon as the host approves or declines the new time.'
+      }
+    : {
+        subject: `Rescheduled: ${booking.eventTitle} with ${booking.hostName}`,
+        preheader: `${booking.eventTitle} has moved to a new time.`,
+        heading: 'Your meeting has been rescheduled',
+        body: `Your meeting with ${booking.hostName} is confirmed at the new time below.`,
+        footer: 'Your previous time has been released. Schedra will keep the new booking and connected calendars in sync.'
+      }
+
+  await enqueueEmails([
+    ...recipients.map((recipient, index) => ({
+      dedupeKey: index === 0
+        ? `booking:${booking.uid}:rescheduled:guest`
+        : emailDedupeKey(`booking:${booking.uid}:rescheduled:additional`, recipient),
+      email: {
+        to: recipient,
+        ...guestState,
+        details: [
+          { label: 'Meeting', value: booking.eventTitle },
+          ...seriesDetail,
+          { label: 'Previous time', value: whenRange(reschedule.previousStartsAt, reschedule.previousEndsAt, booking.attendeeTimeZone) },
+          { label: reschedule.requiresConfirmation ? 'Requested time' : 'New time', value: whenRange(booking.startsAt, booking.endsAt, booking.attendeeTimeZone) },
+          { label: 'With', value: booking.hostName },
+          {
+            label: 'Where',
+            value: meetingLocationText(booking.locationType, booking.locationDetails, booking.meetingUrl),
+            url: locationUrl(booking.locationType, booking.locationDetails, booking.meetingUrl)
+          }
+        ],
+        action: index === 0
+          ? { label: reschedule.requiresConfirmation ? 'View the request' : 'View updated booking', url: manage }
+          : { label: 'View the host’s booking page', url: hostPage }
+      }
+    })),
+    ...notifiedHosts.map((host, index) => ({
+      dedupeKey: index === 0
+        ? `booking:${booking.uid}:rescheduled:host`
+        : emailDedupeKey(`booking:${booking.uid}:rescheduled:cohost`, host.email),
+      email: {
+        to: host.email,
+        subject: reschedule.requiresConfirmation
+          ? `Approval needed: reschedule for ${booking.eventTitle}`
+          : `Rescheduled: ${booking.eventTitle} with ${booking.attendeeName}`,
+        preheader: reschedule.requiresConfirmation
+          ? `${booking.attendeeName} requested a new time.`
+          : `${booking.attendeeName} moved ${booking.eventTitle} to a new time.`,
+        heading: reschedule.requiresConfirmation
+          ? `${booking.attendeeName} requested a new time`
+          : 'The booking has moved',
+        body: reschedule.requiresConfirmation
+          ? 'The previous time has been released. Review the requested time below before approving or declining it.'
+          : 'The previous time has been released and the new time has been added to your schedule.',
+        details: [
+          { label: 'Meeting', value: booking.eventTitle },
+          ...seriesDetail,
+          { label: 'Previous time', value: whenRange(reschedule.previousStartsAt, reschedule.previousEndsAt, host.timeZone) },
+          { label: reschedule.requiresConfirmation ? 'Requested time' : 'New time', value: whenRange(booking.startsAt, booking.endsAt, host.timeZone) },
+          { label: 'Guest', value: booking.attendeeName },
+          { label: 'Guest email', value: booking.attendeeEmail },
+          ...(booking.additionalGuestEmails.length
+            ? [{ label: 'Additional guests', value: booking.additionalGuestEmails.join(', ') }]
+            : []),
+          ...(booking.answers ?? []).map(answer => ({ label: answer.label, value: answer.value })),
+          ...(booking.notes ? [{ label: 'Notes', value: booking.notes }] : [])
+        ],
+        action: { label: reschedule.requiresConfirmation ? 'Review requested time' : 'View updated booking', url: manage },
+        footer: reschedule.requiresConfirmation
+          ? 'Approving creates the calendar event; declining releases the requested time.'
+          : 'Schedra will keep the updated booking and connected calendars in sync.'
+      }
+    })),
+    ...notifiedPreviousOnlyHosts.map(host => ({
+      dedupeKey: emailDedupeKey(`booking:${booking.uid}:rescheduled:previous-host`, host.email),
+      email: {
+        to: host.email,
+        subject: `Booking moved: ${booking.eventTitle} with ${booking.attendeeName}`,
+        preheader: `${booking.eventTitle} is no longer assigned to you.`,
+        heading: 'This booking moved off your schedule',
+        body: 'The guest chose a new time and the team assigned another host. Your previous calendar event will be removed.',
+        details: [
+          { label: 'Meeting', value: booking.eventTitle },
+          ...seriesDetail,
+          { label: 'Previous time', value: whenRange(reschedule.previousStartsAt, reschedule.previousEndsAt, host.timeZone) },
+          { label: 'Guest', value: booking.attendeeName }
+        ],
+        action: { label: 'View team booking page', url: hostPage },
+        footer: 'You do not need to take any action.'
+      }
+    }))
+  ], executor)
+}
+
+export async function queueBookingRequestEmails(booking: BookingNotice, executor?: BookingEmailExecutor) {
   const manage = `${useEnv().schedraUrl}/booking/${booking.uid}`
   const recipients = [booking.attendeeEmail, ...booking.additionalGuestEmails]
   const hosts = booking.hostRecipients?.length ? booking.hostRecipients : [fallbackHost(booking)]
+  const notifiedHosts = await optionalHostRecipients(hosts, 'approvalRequestEmails', executor ?? useDatabase())
   const hostPage = `${useEnv().schedraUrl}${booking.publicBookingPath ?? `/${booking.hostUsername}`}`
   const guestDetails = [
     { label: 'Meeting', value: booking.eventTitle },
@@ -306,7 +447,7 @@ export async function queueBookingRequestEmails(booking: BookingNotice, executor
         footer: 'You will receive another email as soon as the host approves or declines the request.'
       }
     })),
-    ...hosts.map((host, index) => ({
+    ...notifiedHosts.map((host, index) => ({
       dedupeKey: index === 0
         ? `booking:${booking.uid}:requested:host`
         : emailDedupeKey(`booking:${booking.uid}:requested:cohost`, host.email),
@@ -335,7 +476,7 @@ export async function queueBookingRequestEmails(booking: BookingNotice, executor
 export async function queueBookingRejectedEmails(
   booking: ManagedBooking,
   reason?: string,
-  executor?: EmailInsertExecutor,
+  executor?: BookingEmailExecutor,
   assignedHosts: AssignedBookingHost[] = []
 ) {
   const recipients = [booking.attendeeEmail, ...booking.additionalGuestEmails]
@@ -347,6 +488,7 @@ export async function queueBookingRejectedEmails(
         hostEmail: booking.hostEmail,
         hostTimeZone: booking.hostTimeZone
       })]
+  const notifiedHosts = await optionalHostRecipients(hosts, 'approvalRequestEmails', executor ?? useDatabase())
   await enqueueEmails([
     ...recipients.map((recipient, index) => ({
       dedupeKey: index === 0
@@ -367,7 +509,7 @@ export async function queueBookingRejectedEmails(
         footer: 'No calendar event was created for this request.'
       }
     })),
-    ...hosts.map((host, index) => ({
+    ...notifiedHosts.map((host, index) => ({
       dedupeKey: index === 0
         ? `booking:${booking.uid}:rejected:host`
         : emailDedupeKey(`booking:${booking.uid}:rejected:cohost`, host.email),
@@ -394,7 +536,7 @@ export async function queueCancellationEmails(
   booking: ManagedBooking,
   reason?: string,
   actor: 'guest' | 'host' = 'guest',
-  executor?: EmailInsertExecutor,
+  executor?: BookingEmailExecutor,
   assignedHosts: AssignedBookingHost[] = []
 ) {
   const guestHeading = actor === 'host'
@@ -414,6 +556,7 @@ export async function queueCancellationEmails(
         hostEmail: booking.hostEmail,
         hostTimeZone: booking.hostTimeZone
       })]
+  const notifiedHosts = await optionalHostRecipients(hosts, 'cancellationEmails', executor ?? useDatabase())
 
   await enqueueEmails([
     {
@@ -452,7 +595,7 @@ export async function queueCancellationEmails(
         footer: 'You were included as an additional guest on this booking.'
       }
     })),
-    ...hosts.map((host, index) => ({
+    ...notifiedHosts.map((host, index) => ({
       dedupeKey: index === 0
         ? `booking:${booking.uid}:cancelled:host`
         : emailDedupeKey(`booking:${booking.uid}:cancelled:cohost`, host.email),

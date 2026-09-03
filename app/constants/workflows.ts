@@ -11,6 +11,7 @@ export const WORKFLOW_TRIGGER_OPTIONS: Array<{
   { label: 'A request is declined', value: 'booking_rejected', description: 'Runs after the host declines it.' },
   { label: 'A booking is cancelled', value: 'booking_cancelled', description: 'Runs for guest or host cancellations.' },
   { label: 'A booking is rescheduled', value: 'booking_rescheduled', description: 'Runs after a guest chooses a new time.' },
+  { label: 'A guest is marked as a no-show', value: 'booking_no_show', description: 'Runs the first time a host records a missed meeting.' },
   { label: 'Before a meeting starts', value: 'before_start', description: 'Useful for reminders and preparation.' },
   { label: 'After a meeting ends', value: 'after_end', description: 'Useful for follow-ups and feedback.' }
 ]

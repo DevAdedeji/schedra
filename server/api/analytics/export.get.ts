@@ -25,6 +25,7 @@ export default defineEventHandler(async (event) => {
     startsAt: bookings.startsAt,
     endsAt: bookings.endsAt,
     status: bookings.status,
+    attendanceStatus: bookings.attendanceStatus,
     eventType: eventTypes.title,
     attendeeName: bookings.attendeeName,
     attendeeEmail: bookings.attendeeEmail,
@@ -46,7 +47,7 @@ export default defineEventHandler(async (event) => {
     .limit(10_000)
 
   const columns = Object.keys(rows[0] ?? {
-    bookingId: '', createdAt: '', startsAt: '', endsAt: '', status: '', eventType: '', attendeeName: '',
+    bookingId: '', createdAt: '', startsAt: '', endsAt: '', status: '', attendanceStatus: '', eventType: '', attendeeName: '',
     attendeeEmail: '', attendeeTimeZone: '', source: '', paymentStatus: '', amountCents: '', currency: '', platformFeeCents: ''
   })
   const csv = [

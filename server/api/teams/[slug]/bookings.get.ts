@@ -70,6 +70,7 @@ export default defineEventHandler(async (event) => {
     db.select({
       uid: bookings.uid,
       status: bookings.status,
+      attendanceStatus: bookings.attendanceStatus,
       startsAt: bookings.startsAt,
       endsAt: bookings.endsAt,
       attendeeName: bookings.attendeeName,

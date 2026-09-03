@@ -187,4 +187,191 @@ describe.skipIf(!url)('meeting delivery', () => {
     expect(messages.find(message => message.recipient === 'guest@example.com')?.action_url).toContain('/booking/meeting-delivery-booking')
     expect(messages.find(message => message.recipient === 'friend@example.com')?.action_url).toBe('http://localhost:3002/host')
   })
+
+  it('describes a reschedule clearly, preserves series context and deduplicates every recipient', async () => {
+    const { queueBookingRescheduledEmails } = await import('../services/booking-emails')
+    const notice = {
+      uid: 'rescheduled-booking',
+      eventTitle: 'Coaching session',
+      hostName: 'Schedra Team',
+      hostUsername: 'schedra-team',
+      hostEmail: 'organizer@example.com',
+      hostTimeZone: 'Africa/Lagos',
+      attendeeName: 'Guest Person',
+      attendeeEmail: 'guest@example.com',
+      additionalGuestEmails: ['friend@example.com'],
+      attendeeTimeZone: 'Europe/London',
+      startsAt: '2030-09-14T09:00:00Z',
+      endsAt: '2030-09-14T09:30:00Z',
+      locationType: 'video_link' as const,
+      locationDetails: 'https://meet.example.com/updated',
+      meetingUrl: 'https://meet.example.com/updated',
+      reminderMinutes: [],
+      hostRecipients: [
+        { name: 'New Host', email: 'new-host@example.com', timeZone: 'Africa/Lagos', isOrganizer: true }
+      ],
+      publicBookingPath: '/team/schedra-team/coaching-session'
+    }
+    const details = {
+      previousStartsAt: '2030-09-07T08:00:00Z',
+      previousEndsAt: '2030-09-07T08:30:00Z',
+      requiresConfirmation: false,
+      seriesPosition: 2,
+      previousHostRecipients: [
+        { name: 'Previous Host', email: 'previous-host@example.com', timeZone: 'Europe/Paris', isOrganizer: true }
+      ]
+    }
+
+    await queueBookingRescheduledEmails(notice, details)
+    await queueBookingRescheduledEmails(notice, details)
+
+    const messages = await sql<{
+      recipient: string
+      subject: string
+      heading: string
+      details: Array<{ label: string, value: string }>
+    }[]>`
+      select recipient, subject, heading, details
+      from email_outbox order by recipient
+    `
+    expect(messages).toHaveLength(4)
+    expect(messages.find(message => message.recipient === 'guest@example.com')).toMatchObject({
+      subject: 'Rescheduled: Coaching session with Schedra Team',
+      heading: 'Your meeting has been rescheduled'
+    })
+    expect(messages.find(message => message.recipient === 'guest@example.com')?.details).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: 'Recurring meeting', value: 'Meeting 2 in the series' }),
+      expect.objectContaining({ label: 'Previous time' }),
+      expect.objectContaining({ label: 'New time' })
+    ]))
+    expect(messages.find(message => message.recipient === 'new-host@example.com')?.subject)
+      .toBe('Rescheduled: Coaching session with Guest Person')
+    expect(messages.find(message => message.recipient === 'previous-host@example.com')).toMatchObject({
+      subject: 'Booking moved: Coaching session with Guest Person',
+      heading: 'This booking moved off your schedule'
+    })
+  })
+
+  it('makes a confirmation-required reschedule an explicit approval request', async () => {
+    const { queueBookingRescheduledEmails } = await import('../services/booking-emails')
+    await queueBookingRescheduledEmails({
+      uid: 'pending-reschedule',
+      eventTitle: 'Portfolio review',
+      hostName: 'Host Person',
+      hostUsername: 'host',
+      hostEmail: 'host@example.com',
+      hostTimeZone: 'Africa/Lagos',
+      attendeeName: 'Guest Person',
+      attendeeEmail: 'guest@example.com',
+      additionalGuestEmails: [],
+      attendeeTimeZone: 'Europe/London',
+      startsAt: '2030-09-14T09:00:00Z',
+      endsAt: '2030-09-14T09:30:00Z',
+      locationType: 'phone',
+      locationDetails: '+2348000000000',
+      reminderMinutes: []
+    }, {
+      previousStartsAt: '2030-09-07T08:00:00Z',
+      previousEndsAt: '2030-09-07T08:30:00Z',
+      requiresConfirmation: true
+    })
+
+    const messages = await sql<{ recipient: string, subject: string, action_label: string }[]>`
+      select recipient, subject, action_label from email_outbox order by recipient
+    `
+    expect(messages).toEqual([
+      {
+        recipient: 'guest@example.com',
+        subject: 'Reschedule requested: Portfolio review with Host Person',
+        action_label: 'View the request'
+      },
+      {
+        recipient: 'host@example.com',
+        subject: 'Approval needed: reschedule for Portfolio review',
+        action_label: 'Review requested time'
+      }
+    ])
+  })
+
+  it('suppresses only optional host updates while preserving guest and security email', async () => {
+    const { hostId } = await bookingFixture()
+    const [guest] = await sql<{ id: string }[]>`
+      insert into users (email, name, username, email_verified, time_zone)
+      values ('guest@example.com', 'Guest Person', 'guest-person', true, 'Europe/London')
+      returning id
+    `
+    await sql`
+      insert into email_notification_preferences (
+        user_id, new_booking_emails, reschedule_emails,
+        cancellation_emails, approval_request_emails
+      ) values
+        (${hostId}, false, false, false, false),
+        (${guest!.id}, false, false, false, false)
+    `
+
+    const { queueBookingEmails, queueCancellationEmails } = await import('../services/booking-emails')
+    await queueBookingEmails({
+      uid: 'preference-booking',
+      eventTitle: 'Intro call',
+      hostUserId: hostId,
+      hostName: 'Host Person',
+      hostUsername: 'host',
+      hostEmail: 'host@example.com',
+      hostTimeZone: 'Africa/Lagos',
+      attendeeName: 'Guest Person',
+      attendeeEmail: 'guest@example.com',
+      additionalGuestEmails: [],
+      attendeeTimeZone: 'Europe/London',
+      startsAt: '2030-09-07T08:00:00Z',
+      endsAt: '2030-09-07T08:30:00Z',
+      locationType: 'video_link',
+      locationDetails: 'https://meet.example.com/original',
+      reminderMinutes: [60]
+    })
+    const { findBookingByUid } = await import('../repositories/booking')
+    const booking = await findBookingByUid('meeting-delivery-booking')
+    await queueCancellationEmails(booking!, 'Plans changed')
+
+    const { queueVerificationEmail } = await import('../services/verification-email')
+    await queueVerificationEmail(
+      { email: 'host@example.com' },
+      'http://localhost:3002/api/auth/verify-email?token=critical-notice'
+    )
+
+    const messages = await sql<{ recipient: string, subject: string, category: string }[]>`
+      select recipient, subject, category from email_outbox order by recipient, subject
+    `
+    expect(messages.filter(message => message.recipient === 'guest@example.com').map(message => message.subject))
+      .toEqual([
+        'Cancelled: Intro call with Host Person',
+        'Confirmed: Intro call with Host Person',
+        'Reminder: Intro call is in 1 hour'
+      ])
+    expect(messages.filter(message => message.recipient === 'host@example.com')).toEqual([
+      {
+        recipient: 'host@example.com',
+        subject: 'Confirm your email for Schedra',
+        category: 'transactional'
+      }
+    ])
+  })
+
+  it('returns enabled defaults and persists all account notification choices', async () => {
+    const { hostId } = await bookingFixture()
+    const { emailPreferencesForUser, saveEmailPreferences } = await import('../services/email-notification-preferences')
+    await expect(emailPreferencesForUser(hostId)).resolves.toEqual({
+      newBookingEmails: true,
+      rescheduleEmails: true,
+      cancellationEmails: true,
+      approvalRequestEmails: true
+    })
+    const disabled = {
+      newBookingEmails: false,
+      rescheduleEmails: false,
+      cancellationEmails: false,
+      approvalRequestEmails: false
+    }
+    await expect(saveEmailPreferences(hostId, disabled)).resolves.toEqual(disabled)
+    await expect(emailPreferencesForUser(hostId)).resolves.toEqual(disabled)
+  })
 })

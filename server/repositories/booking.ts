@@ -20,6 +20,8 @@ export async function findBookingByUid(uid: string) {
       seriesFrequency: bookingSeries.frequency,
       uid: bookings.uid,
       status: bookings.status,
+      attendanceStatus: bookings.attendanceStatus,
+      attendanceUpdatedAt: bookings.attendanceUpdatedAt,
       startsAt: bookings.startsAt,
       endsAt: bookings.endsAt,
       attendeeName: bookings.attendeeName,

@@ -8,11 +8,11 @@ import {
   findPublicTeamEventType,
   teamSlotsFor
 } from './team-booking'
-import { queueBookingEmails, queueBookingRequestEmails } from './booking-emails'
+import { queueBookingEmails, queueBookingRequestEmails, queueBookingRescheduledEmails } from './booking-emails'
 import { enqueueCalendarSync } from './calendar-sync'
 import { CalendarUnavailableError } from '../integrations/calendar/google'
 import { BookingAnswerValidationError, buildBookingAnswersSnapshot } from '../domain/booking-answers'
-import { findBookingByUid } from '../repositories/booking'
+import { assignedHostsForBooking, findBookingByUid } from '../repositories/booking'
 import { cancelBookingReminders } from './email-outbox'
 import { cancelPendingAutomationRuns, publishBookingEvent } from './workflows'
 import { requireTeamLocationIntegrations } from './event-location'
@@ -59,6 +59,7 @@ export async function createTeamBooking(input: CreateTeamBookingInput): Promise<
   }
 
   const previous = rescheduleOf ? await findBookingByUid(rescheduleOf) : null
+  const previousHosts = previous ? await assignedHostsForBooking(previous.id) : []
   if (rescheduleOf && !previous) {
     throw createError({ statusCode: 404, statusMessage: 'No such booking to move' })
   }
@@ -332,6 +333,7 @@ export async function createTeamBooking(input: CreateTeamBookingInput): Promise<
         hostName: attending.length > 1
           ? `${eventType.organizationName} (${attending.map(host => host.name).join(', ')})`
           : organizer.name,
+        hostUserId: organizer.userId,
         hostEmail: organizer.email,
         hostUsername: eventType.organizationSlug,
         hostTimeZone: organizer.scheduleTimeZone ?? organizer.timeZone,
@@ -348,6 +350,7 @@ export async function createTeamBooking(input: CreateTeamBookingInput): Promise<
         answers: answerSnapshot?.responses ?? [],
         notes: answerSnapshot?.notes ?? null,
         hostRecipients: attending.map(host => ({
+          userId: host.userId,
           name: host.name,
           email: host.email,
           timeZone: host.scheduleTimeZone ?? host.timeZone,
@@ -357,7 +360,18 @@ export async function createTeamBooking(input: CreateTeamBookingInput): Promise<
       }
 
       if (!awaitingPayment) {
-        if (eventType.requiresConfirmation) await queueBookingRequestEmails(notice, tx)
+        if (previous) {
+          await queueBookingRescheduledEmails(notice, {
+            previousStartsAt: previous.startsAt.toISOString(),
+            previousEndsAt: previous.endsAt.toISOString(),
+            requiresConfirmation: eventType.requiresConfirmation,
+            seriesPosition: previous.seriesPosition,
+            previousHostRecipients: previousHosts
+          }, tx)
+          if (!eventType.requiresConfirmation) {
+            await queueBookingEmails(notice, tx, { sendConfirmation: false })
+          }
+        } else if (eventType.requiresConfirmation) await queueBookingRequestEmails(notice, tx)
         else await queueBookingEmails(notice, tx)
       }
     })

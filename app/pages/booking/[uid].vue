@@ -3,7 +3,7 @@ import { apiErrorMessage, bookingsApi, type BookingDetail } from '~/services/sch
 import { formatMoney } from '#shared/payments'
 import { formatInstant, isPast, localTimeZone } from '~/utils/date-time'
 
-definePageMeta({ layout: 'bare' })
+definePageMeta({ layout: 'bare', middleware: 'booking-shell' })
 
 const route = useRoute()
 const uid = String(route.params.uid)
@@ -12,7 +12,6 @@ const uid = String(route.params.uid)
 // their bookings list. Only the signed-in one should get the app shell.
 const { data: viewer } = await useCurrentUser()
 const signedIn = computed(() => Boolean(viewer.value?.user))
-if (signedIn.value) setPageLayout('app')
 
 const { data: booking, error, status, refresh } = await useFetch<BookingDetail>(bookingsApi.detailEndpoint(uid))
 if (error.value) setResponseStatus(error.value.statusCode === 404 ? 404 : 503)
@@ -31,6 +30,7 @@ const reason = ref('')
 const cancelError = ref('')
 const paymentCheckState = ref<'idle' | 'checking' | 'pending' | 'failed'>('idle')
 const paymentCheckError = ref('')
+const attendanceBusy = ref<'attended' | 'no_show' | 'clear' | null>(null)
 let paymentCheckStopped = false
 
 const cancelled = computed(() => booking.value?.status === 'cancelled')
@@ -41,6 +41,7 @@ const paymentRecoveryAvailable = computed(() => Boolean(booking.value?.payment?.
 const canReconcilePayment = computed(() => awaitingPayment.value || paymentRecoveryAvailable.value)
 const rejected = computed(() => booking.value?.status === 'rejected')
 const past = computed(() => booking.value ? isPast(booking.value.endsAt) : false)
+const hasStarted = computed(() => booking.value ? isPast(booking.value.startsAt) : false)
 const joinUrl = computed(() => booking.value?.status === 'confirmed'
   ? booking.value.meetingUrl ?? (booking.value.locationType === 'video_link' ? booking.value.locationDetails : null)
   : null)
@@ -68,14 +69,22 @@ async function cancel() {
   cancelError.value = ''
 
   try {
-    const result = await bookingsApi.cancel(uid, reason.value || undefined) as { refundPending?: boolean }
+    const result = await bookingsApi.cancel(uid, reason.value || undefined) as {
+      refundPending?: boolean
+      refundFailed?: boolean
+      refunded?: boolean
+    }
     confirming.value = false
     await refresh()
     feedback.success({
       title: 'Booking cancelled',
-      description: result.refundPending
-        ? 'Your refund has started. Your bank will post it after processing.'
-        : 'The host and guest will receive an updated confirmation.'
+      description: result.refundFailed
+        ? 'The booking is cancelled, but the refund needs support review. Your payment record has been kept for recovery.'
+        : result.refundPending
+          ? 'Your refund has started. Your bank will post it after processing.'
+          : result.refunded
+            ? 'Your refund has been completed.'
+            : 'The host and guest will receive an updated confirmation.'
     })
   } catch (failure) {
     cancelError.value = apiErrorMessage(failure, 'Could not cancel that just now. Please try again.')
@@ -99,6 +108,28 @@ async function handleRequest(action: 'approve' | 'reject') {
     cancelError.value = apiErrorMessage(failure, `Could not ${action} this request. Please try again.`)
   } finally {
     handlingRequest.value = null
+  }
+}
+
+async function updateAttendance(status: BookingDetail['attendanceStatus']) {
+  attendanceBusy.value = status ?? 'clear'
+  cancelError.value = ''
+  try {
+    const result = await bookingsApi.updateAttendance(uid, status)
+    await refresh()
+    if (booking.value) booking.value.attendanceStatus = result.status
+    feedback.success({
+      title: status === 'no_show' ? 'Guest marked as no-show' : status === 'attended' ? 'Attendance recorded' : 'Attendance cleared',
+      description: status === 'no_show'
+        ? 'Analytics and no-show workflows now include this meeting.'
+        : status === 'attended'
+          ? 'This meeting now counts as attended.'
+          : 'You can record the outcome again at any time.'
+    })
+  } catch (failure) {
+    cancelError.value = apiErrorMessage(failure, 'Could not update attendance just now.')
+  } finally {
+    attendanceBusy.value = null
   }
 }
 
@@ -278,7 +309,7 @@ useSeoMeta({
                 class="size-1.5 rounded-full"
                 :class="cancelled || rejected || past ? 'bg-dimmed' : pendingApproval || awaitingPayment ? 'bg-warning' : 'bg-primary'"
               />
-              {{ cancelled ? 'Cancelled' : rejected ? 'Declined' : awaitingPayment ? 'Awaiting payment' : pendingApproval ? 'Awaiting approval' : past ? 'Finished' : 'Confirmed' }}
+              {{ cancelled ? 'Cancelled' : rejected ? 'Declined' : awaitingPayment ? 'Awaiting payment' : pendingApproval ? 'Awaiting approval' : booking?.attendanceStatus === 'no_show' ? 'No-show' : booking?.attendanceStatus === 'attended' ? 'Attended' : past ? 'Finished' : 'Confirmed' }}
             </span>
 
             <h1 class="mt-4 font-editorial text-3xl leading-tight text-highlighted">
@@ -427,6 +458,53 @@ useSeoMeta({
             >
               Reason given: {{ booking.cancellationReason }}
             </p>
+            <section
+              v-if="booking?.canHostManage && booking.status === 'confirmed' && hasStarted"
+              class="mt-6 rounded-xl border border-default bg-muted p-4"
+              aria-labelledby="attendance-heading"
+            >
+              <h2
+                id="attendance-heading"
+                class="text-[14px] font-semibold text-highlighted"
+              >
+                Meeting outcome
+              </h2>
+              <p class="mt-1 text-[13px] leading-relaxed text-muted">
+                Record whether the guest attended. No-show workflows run only the first time this meeting is marked as missed.
+              </p>
+              <div class="mt-4 flex flex-wrap gap-2">
+                <UButton
+                  color="success"
+                  :variant="booking.attendanceStatus === 'attended' ? 'solid' : 'soft'"
+                  icon="i-lucide-user-check"
+                  :loading="attendanceBusy === 'attended'"
+                  :disabled="Boolean(attendanceBusy)"
+                  @click="updateAttendance('attended')"
+                >
+                  Attended
+                </UButton>
+                <UButton
+                  color="warning"
+                  :variant="booking.attendanceStatus === 'no_show' ? 'solid' : 'soft'"
+                  icon="i-lucide-user-x"
+                  :loading="attendanceBusy === 'no_show'"
+                  :disabled="Boolean(attendanceBusy)"
+                  @click="updateAttendance('no_show')"
+                >
+                  No-show
+                </UButton>
+                <UButton
+                  v-if="booking.attendanceStatus"
+                  color="neutral"
+                  variant="ghost"
+                  :loading="attendanceBusy === 'clear'"
+                  :disabled="Boolean(attendanceBusy)"
+                  @click="updateAttendance(null)"
+                >
+                  Clear outcome
+                </UButton>
+              </div>
+            </section>
             <div
               v-if="paymentRecoveryAvailable"
               class="mt-5 rounded-xl border border-primary/30 bg-primary/5 p-4"
