@@ -3,6 +3,7 @@ import { betterAuth } from 'better-auth'
 import { APIError } from 'better-auth/api'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { organization } from 'better-auth/plugins/organization'
+import { twoFactor } from 'better-auth/plugins/two-factor'
 import { accountProfileSchema } from '../../shared/validation'
 import { TEAM_PLAN, createOrganizationSchema } from '../../shared/billing'
 import { accessControl, organizationAccessRoles } from '../../shared/organization-access'
@@ -90,6 +91,15 @@ function createAuth() {
     },
 
     plugins: [
+      twoFactor({
+        issuer: 'Schedra',
+        allowPasswordless: true,
+        accountLockout: {
+          enabled: true,
+          maxFailedAttempts: 8,
+          durationSeconds: 15 * 60
+        }
+      }),
       organization({
         ac: accessControl,
         roles: organizationAccessRoles,

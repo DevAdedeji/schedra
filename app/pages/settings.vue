@@ -222,6 +222,8 @@ const initials = computed(() => getInitials(profile.name))
         </section>
 
         <PersonalBrandingSettings />
+
+        <EmailNotificationPreferences />
       </div>
 
       <aside class="space-y-6">
@@ -263,6 +265,8 @@ const initials = computed(() => getInitials(profile.name))
             </div>
           </dl>
         </section>
+
+        <AccountSecuritySettings />
 
         <section class="overflow-hidden rounded-xl border border-default bg-default">
           <div class="border-b border-default px-6 py-5 sm:px-7">

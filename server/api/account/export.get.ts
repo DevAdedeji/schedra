@@ -6,6 +6,7 @@ import {
   bookings,
   calendarConnections,
   dateOverrides,
+  emailNotificationPreferences,
   eventTypes,
   schedules,
   users,
@@ -18,7 +19,7 @@ import { recordSecurityAudit } from '../../services/security-audit'
 export default defineEventHandler(async (event) => {
   const session = await requireAuthSession(event)
   const db = useDatabase()
-  const [profile, scheduleRows, awayPeriodRows, eventTypeRows, bookingRows, workflowRows, calendarIntegrationRows, videoIntegrationRows] = await Promise.all([
+  const [profile, scheduleRows, awayPeriodRows, eventTypeRows, bookingRows, workflowRows, calendarIntegrationRows, videoIntegrationRows, notificationPreferenceRows] = await Promise.all([
     db.select().from(users).where(eq(users.id, session.user.id)).limit(1),
     db.select().from(schedules).where(eq(schedules.userId, session.user.id)),
     db.select().from(awayPeriods).where(eq(awayPeriods.userId, session.user.id)),
@@ -50,7 +51,15 @@ export default defineEventHandler(async (event) => {
       status: videoConferenceConnections.status,
       createdAt: videoConferenceConnections.createdAt,
       updatedAt: videoConferenceConnections.updatedAt
-    }).from(videoConferenceConnections).where(eq(videoConferenceConnections.userId, session.user.id))
+    }).from(videoConferenceConnections).where(eq(videoConferenceConnections.userId, session.user.id)),
+    db.select({
+      newBookingEmails: emailNotificationPreferences.newBookingEmails,
+      rescheduleEmails: emailNotificationPreferences.rescheduleEmails,
+      cancellationEmails: emailNotificationPreferences.cancellationEmails,
+      approvalRequestEmails: emailNotificationPreferences.approvalRequestEmails,
+      createdAt: emailNotificationPreferences.createdAt,
+      updatedAt: emailNotificationPreferences.updatedAt
+    }).from(emailNotificationPreferences).where(eq(emailNotificationPreferences.userId, session.user.id)).limit(1)
   ])
   const scheduleIds = scheduleRows.map(schedule => schedule.id)
   const rules = scheduleIds.length ? await db.select().from(availabilityRules).where(inArray(availabilityRules.scheduleId, scheduleIds)) : []
@@ -71,6 +80,7 @@ export default defineEventHandler(async (event) => {
         bookingPageTheme: profileRow.bookingPageTheme,
         hideSchedraBranding: profileRow.hideSchedraBranding,
         timeZone: profileRow.timeZone,
+        twoFactorEnabled: profileRow.twoFactorEnabled,
         createdAt: profileRow.createdAt,
         updatedAt: profileRow.updatedAt
       }
@@ -101,6 +111,12 @@ export default defineEventHandler(async (event) => {
     eventTypes: eventTypeRows,
     bookings: bookingRows,
     workflows: workflowRows,
-    integrations: [...calendarIntegrationRows, ...videoIntegrationRows]
+    integrations: [...calendarIntegrationRows, ...videoIntegrationRows],
+    emailNotificationPreferences: notificationPreferenceRows[0] ?? {
+      newBookingEmails: true,
+      rescheduleEmails: true,
+      cancellationEmails: true,
+      approvalRequestEmails: true
+    }
   }, null, 2)
 })

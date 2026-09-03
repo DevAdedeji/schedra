@@ -30,10 +30,11 @@ async function onSubmit(event: FormSubmitEvent<SignInInput>) {
   unverified.value = false
 
   try {
-    const { error: failure } = await signIn.email({
+    const result = await signIn.email({
       ...event.data,
       rememberMe: remember.value
     })
+    const failure = result.error
 
     if (failure) {
       if (failure.status === 429) {
@@ -50,6 +51,8 @@ async function onSubmit(event: FormSubmitEvent<SignInInput>) {
       error.value = 'That email and password do not match.'
       return
     }
+
+    if (result.data && 'twoFactorRedirect' in result.data && result.data.twoFactorRedirect) return
 
     clearNuxtData('current-user')
     await navigateTo(safeNext(route.query.next))

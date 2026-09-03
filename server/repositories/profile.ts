@@ -11,7 +11,8 @@ export async function profileForUser(userId: string) {
     username: users.username,
     timeZone: users.timeZone,
     bio: users.bio,
-    avatarUrl: users.avatarUrl
+    avatarUrl: users.avatarUrl,
+    twoFactorEnabled: users.twoFactorEnabled
   }).from(users).where(eq(users.id, userId)).limit(1)
 
   return profile ?? null

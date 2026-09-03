@@ -30,10 +30,12 @@ export default defineEventHandler(async (event) => {
       id: users.id,
       name: users.name,
       email: users.email,
+      emailVerified: users.emailVerified,
       username: users.username,
       timeZone: users.timeZone,
       bio: users.bio,
-      avatarUrl: users.avatarUrl
+      avatarUrl: users.avatarUrl,
+      twoFactorEnabled: users.twoFactorEnabled
     })
 
   if (!updated) throw createError({ statusCode: 404, statusMessage: 'Your profile could not be found.' })
