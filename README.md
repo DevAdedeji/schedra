@@ -4,8 +4,9 @@ Schedra is a scheduling platform for personal and team bookings. It supports
 shareable booking pages, availability management, calendar integrations,
 video-meeting links, team workspaces and website booking overlays.
 
-> Schedra is under active development. This repository is publicly visible for
-> transparency and evaluation, but it is not open source. See [LICENSE](LICENSE).
+> Schedra is under active development. This repository is private and
+> proprietary, and access is limited to authorized collaborators. See
+> [LICENSE](LICENSE).
 
 ## Technology
 
@@ -98,6 +99,6 @@ reporting instructions in [SECURITY.md](SECURITY.md).
 
 ## License
 
-Copyright © 2026 Schedra. All rights reserved. This project is proprietary and
-source-available; viewing the repository does not grant permission to copy,
-modify, distribute or operate the software. See [LICENSE](LICENSE).
+Copyright © 2026 Schedra. All rights reserved. This project is proprietary;
+access to its private source code does not grant permission to copy, modify,
+distribute or operate the software. See [LICENSE](LICENSE).
