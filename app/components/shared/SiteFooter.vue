@@ -18,6 +18,16 @@ const columns = computed<{ title: string, links: FooterLink[] }[]>(() => [
     ]
   },
   {
+    title: 'Solutions',
+    links: [
+      { label: 'Consultants', to: '/solutions/consultants' },
+      { label: 'Small businesses', to: '/solutions/small-business' },
+      { label: 'Paid appointments', to: '/solutions/paid-appointments' },
+      { label: 'Team scheduling', to: '/solutions/team-scheduling' },
+      { label: 'Calendly alternative', to: '/compare/calendly-alternative' }
+    ]
+  },
+  {
     title: 'Account',
     links: isSignedIn.value
       ? [{ label: 'Dashboard', to: '/dashboard' }]
@@ -43,7 +53,7 @@ const year = new Date().getFullYear()
 <template>
   <footer class="border-t border-default bg-muted">
     <div class="mx-auto max-w-312 px-6 lg:px-10">
-      <div class="grid gap-12 py-16 sm:grid-cols-2 lg:grid-cols-[1.4fr_repeat(3,1fr)]">
+      <div class="grid gap-12 py-16 sm:grid-cols-2 lg:grid-cols-[1.35fr_repeat(4,1fr)]">
         <div>
           <SchedraMark />
           <p class="mt-5 max-w-[28ch] text-[16px] leading-relaxed text-muted">

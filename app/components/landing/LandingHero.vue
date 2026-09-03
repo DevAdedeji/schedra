@@ -8,19 +8,18 @@ const { isSignedIn, accountDestination } = await useLandingNavigation()
       <div class="grid items-center gap-14 lg:grid-cols-[1.15fr_0.85fr] lg:gap-20">
         <div>
           <p class="eyebrow text-primary">
-            Free · No credit card
+            Online scheduling software
           </p>
 
           <h1 class="mt-7 font-editorial text-[clamp(3.25rem,8vw,6.5rem)] font-normal leading-[0.94] tracking-[-0.02em] text-highlighted">
-            Share a link.<br>
-            Get <em class="text-primary">booked.</em>
+            Scheduling that<br>
+            gets you <em class="text-primary">booked.</em>
           </h1>
 
           <p class="mt-8 max-w-[44ch] text-[17px] leading-[1.65] text-toned">
-            Schedra brings availability, bookings and follow-ups into one
-            seamless scheduling experience. Share your link, let guests choose
-            a time that works and automate everything that follows, from
-            confirmations and reminders to rescheduling and cancellations.
+            Create a booking page that respects your real availability. Let
+            guests choose a time, automate confirmations and reminders, and
+            keep rescheduling, payments and team scheduling in one clear flow.
           </p>
 
           <div class="mt-10 flex flex-wrap items-center gap-3">

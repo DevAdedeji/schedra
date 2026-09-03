@@ -79,7 +79,13 @@ export default defineEventHandler(async (event) => {
   const pages: SitemapPage[] = [
     { path: '/', priority: '1.0', changefreq: 'weekly' },
     { path: '/features', priority: '0.9', changefreq: 'weekly' },
+    { path: '/features/booking-widget', priority: '0.8', changefreq: 'weekly' },
     { path: '/pricing', priority: '0.9', changefreq: 'weekly' },
+    { path: '/solutions/consultants', priority: '0.8', changefreq: 'weekly' },
+    { path: '/solutions/small-business', priority: '0.8', changefreq: 'weekly' },
+    { path: '/solutions/paid-appointments', priority: '0.8', changefreq: 'weekly' },
+    { path: '/solutions/team-scheduling', priority: '0.8', changefreq: 'weekly' },
+    { path: '/compare/calendly-alternative', priority: '0.8', changefreq: 'weekly' },
     { path: '/support', priority: '0.5', changefreq: 'weekly' },
     { path: '/docs/integrations/zoom', priority: '0.5', changefreq: 'weekly' },
     { path: '/privacy', priority: '0.3', changefreq: 'weekly' },
