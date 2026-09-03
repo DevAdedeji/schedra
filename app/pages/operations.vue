@@ -104,6 +104,10 @@ function ago(value: string) {
   return compactRelativeTime(value)
 }
 
+function timestamp(value: string) {
+  return formatDateTime(value, 'en', hydrated.value ? undefined : 'UTC')
+}
+
 // Headline counts. Failures and delays lead because they are the only two an
 // operator can act on; queued and running are context.
 const headlineStats = computed(() => [
@@ -295,7 +299,7 @@ async function acknowledgeAlert(id: string) {
                 />
               </div>
               <p class="mt-1 text-[13px] text-muted">
-                Last detected {{ formatDateTime(alert.lastSeenAt) }}
+                Last detected {{ timestamp(alert.lastSeenAt) }}
               </p>
             </div>
             <UButton
@@ -534,7 +538,7 @@ async function acknowledgeAlert(id: string) {
                     :class="job.delayed ? 'text-warning' : job.status === 'failed' ? 'text-error' : ''"
                   >{{ job.delayed ? 'delayed' : job.status }}</span>
                   <span class="text-dimmed">·</span>
-                  <span :title="formatDateTime(job.updatedAt)">{{ ago(job.updatedAt) }}</span>
+                  <span :title="timestamp(job.updatedAt)">{{ ago(job.updatedAt) }}</span>
                   <span class="text-dimmed">·</span>
                   <span>{{ job.attempts }} attempt{{ job.attempts === 1 ? '' : 's' }}</span>
                   <template v-if="job.provider">

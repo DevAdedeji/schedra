@@ -6,6 +6,7 @@ import { formatCalendarDate, formatDateTime } from '~/utils/date-time'
 
 const props = withDefaults(defineProps<{ teamSlug?: string, operations?: boolean }>(), { operations: false })
 const feedback = useFeedback()
+const hydrated = ref(false)
 const retryingRefundId = ref<string | null>(null)
 const direction = ref<'all' | 'in' | 'out'>('all')
 const state = ref<'all' | 'pending' | 'succeeded' | 'failed' | 'expired'>('all')
@@ -39,6 +40,10 @@ const statusOptions = [
   { label: 'Failed', value: 'failed' },
   { label: 'Expired', value: 'expired' }
 ]
+
+onMounted(() => {
+  hydrated.value = true
+})
 
 watch([direction, state, from, to], () => {
   resetPage()
@@ -118,7 +123,7 @@ function amount(item: PaymentActivityRecord) {
 }
 
 function timestamp(value: string) {
-  return formatDateTime(value, 'en')
+  return formatDateTime(value, 'en', hydrated.value ? undefined : 'UTC')
 }
 
 function traceRows(item: PaymentActivityRecord) {

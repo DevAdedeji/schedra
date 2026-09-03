@@ -7,6 +7,8 @@ if (!databaseUrl) throw new Error('TEST_DATABASE_URL is required for Playwright 
 const sql = postgres(databaseUrl, { max: 2, onnotice: () => {} })
 const password = 'a-production-grade-passphrase'
 
+test.use({ timezoneId: 'America/New_York' })
+
 test.beforeEach(async () => {
   await sql`
     truncate table
@@ -49,6 +51,11 @@ async function signUpAndSignIn(page: Page, email: string, username: string) {
 }
 
 test('keeps operations private and retries a failed delivery job', async ({ page, request }) => {
+  const consoleErrors: string[] = []
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text())
+  })
+
   const [liveness, readiness] = await Promise.all([
     request.get('/api/healthz'),
     request.get('/api/readyz')
@@ -87,6 +94,7 @@ test('keeps operations private and retries a failed delivery job', async ({ page
   await page.goto('/operations')
   await expect(page.getByRole('heading', { name: 'Operations', exact: true })).toBeVisible()
   await expect(page.getByTestId('operations-page')).toHaveAttribute('data-ready', 'true')
+  expect(consoleErrors.filter(message => message.includes('Hydration'))).toEqual([])
   await expect(page.getByText('Active alerts')).toBeVisible()
   await expect(page.getByText('1 email could not be delivered')).toBeVisible()
   await expect(page.getByText('Provider unavailable')).toHaveCount(0)
