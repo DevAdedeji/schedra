@@ -132,16 +132,24 @@ async function accessToken(userId: string, forceRefresh = false) {
   }
 
   const env = useEnv()
-  const response = await fetchWithTimeout('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: env.googleClientId!,
-      client_secret: env.googleClientSecret!,
-      refresh_token: decryptCredential(connection.refreshTokenEncrypted),
-      grant_type: 'refresh_token'
+  let response: Response
+  try {
+    response = await fetchWithTimeout('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: env.googleClientId!,
+        client_secret: env.googleClientSecret!,
+        refresh_token: decryptCredential(connection.refreshTokenEncrypted),
+        grant_type: 'refresh_token'
+      })
     })
-  })
+  } catch (error) {
+    throw new CalendarUnavailableError('Google Calendar is temporarily unavailable.', {
+      retryable: true,
+      cause: error
+    })
+  }
   if (!response.ok) {
     if (response.status === 429 || response.status >= 500) {
       throw new CalendarUnavailableError('Google Calendar is temporarily unavailable.', {
@@ -172,10 +180,19 @@ async function accessToken(userId: string, forceRefresh = false) {
 async function googleResponse(userId: string, path: string, init?: RequestInit) {
   let auth = await accessToken(userId)
   if (!auth) throw new CalendarUnavailableError('Google Calendar is not connected.', { retryable: false })
-  const request = (token: string) => fetchWithTimeout(`https://www.googleapis.com/calendar/v3${path}`, {
-    ...init,
-    headers: { 'authorization': `Bearer ${token}`, 'content-type': 'application/json', ...init?.headers }
-  })
+  const request = async (token: string) => {
+    try {
+      return await fetchWithTimeout(`https://www.googleapis.com/calendar/v3${path}`, {
+        ...init,
+        headers: { 'authorization': `Bearer ${token}`, 'content-type': 'application/json', ...init?.headers }
+      })
+    } catch (error) {
+      throw new CalendarUnavailableError('Google Calendar is temporarily unavailable.', {
+        retryable: true,
+        cause: error
+      })
+    }
+  }
   let response = await request(auth.token)
   if (response.status === 401) {
     auth = await accessToken(userId, true)

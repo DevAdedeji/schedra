@@ -570,6 +570,122 @@ describe.skipIf(!url)('Google Calendar integration', () => {
     expect(job?.attempts).toBe(8)
   })
 
+  it('reconciles stale remote events without duplicating jobs or mappings', async () => {
+    const { hostId, eventTypeId } = await createHost({ withSchedule: true })
+    await connect(hostId)
+    await chooseCalendars(hostId)
+    const future = new Date(Date.now() + 7 * 24 * 60 * 60_000)
+    const bookingId = await createBooking(hostId, eventTypeId!, 'reconciliation-booking', future.toISOString())
+    const fetchMock = vi.fn(async (_request: string | URL | Request, init?: RequestInit) => {
+      if (init?.method === 'PATCH') return json({}, 404)
+      if (init?.method === 'POST') {
+        const body = JSON.parse(String(init.body)) as { id: string }
+        return json({ id: body.id }, 201)
+      }
+      throw new Error(`Unexpected Google request: ${init?.method}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const {
+      enqueueCalendarReconciliation,
+      enqueueCalendarSync,
+      processCalendarSyncJobs
+    } = await import('../services/calendar-sync')
+    await enqueueCalendarSync(bookingId, 'upsert')
+    expect(await processCalendarSyncJobs()).toBe(1)
+    await sql`
+      update booking_calendar_events
+      set synced_at = now() - interval '13 hours'
+      where booking_id = ${bookingId}
+    `
+
+    expect(await enqueueCalendarReconciliation()).toBe(1)
+    expect(await enqueueCalendarReconciliation()).toBe(0)
+    expect(await processCalendarSyncJobs()).toBe(1)
+
+    const [counts] = await sql<{ jobs: number, mappings: number }[]>`
+      select
+        (select count(*)::int from calendar_sync_jobs where booking_id = ${bookingId}) as jobs,
+        (select count(*)::int from booking_calendar_events where booking_id = ${bookingId}) as mappings
+    `
+    expect(counts).toEqual({ jobs: 1, mappings: 1 })
+    expect(fetchMock.mock.calls.filter(call => call[1]?.method === 'POST')).toHaveLength(2)
+  })
+
+  it('keeps provider timeouts retryable and records which calendar failed', async () => {
+    const { hostId, eventTypeId } = await createHost({ withSchedule: true })
+    await connect(hostId)
+    await chooseCalendars(hostId)
+    const future = new Date(Date.now() + 7 * 24 * 60 * 60_000)
+    const bookingId = await createBooking(hostId, eventTypeId!, 'timeout-reconciliation', future.toISOString())
+    await sql`
+      insert into booking_calendar_events (
+        booking_id, user_id, provider, calendar_id, event_id, synced_at
+      ) values (
+        ${bookingId}, ${hostId}, 'google', 'primary@example.com', 'remote-event',
+        now() - interval '13 hours'
+      )
+    `
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new DOMException('Timed out', 'TimeoutError')))
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const { enqueueCalendarReconciliation, processCalendarSyncJobs } = await import('../services/calendar-sync')
+    expect(await enqueueCalendarReconciliation()).toBe(1)
+    expect(await processCalendarSyncJobs()).toBe(1)
+
+    const [job] = await sql<{ status: string, attempts: number, failure_provider: string, last_error: string }[]>`
+      select status, attempts, failure_provider, last_error
+      from calendar_sync_jobs where booking_id = ${bookingId}
+    `
+    expect(job).toMatchObject({
+      status: 'pending',
+      attempts: 1,
+      failure_provider: 'google',
+      last_error: 'Google Calendar is temporarily unavailable.'
+    })
+  })
+
+  it('stops reconciliation and requests reconnection when provider access is revoked', async () => {
+    const { hostId, eventTypeId } = await createHost({ withSchedule: true })
+    await connect(hostId)
+    await chooseCalendars(hostId)
+    const future = new Date(Date.now() + 7 * 24 * 60 * 60_000)
+    const bookingId = await createBooking(hostId, eventTypeId!, 'revoked-reconciliation', future.toISOString())
+    await sql`
+      update calendar_connections
+      set access_token_expires_at = now() - interval '1 minute'
+      where user_id = ${hostId}
+    `
+    await sql`
+      insert into booking_calendar_events (
+        booking_id, user_id, provider, calendar_id, event_id, synced_at
+      ) values (
+        ${bookingId}, ${hostId}, 'google', 'primary@example.com', 'remote-event',
+        now() - interval '13 hours'
+      )
+    `
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({ error: 'invalid_grant' }, 400)))
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const { enqueueCalendarReconciliation, processCalendarSyncJobs } = await import('../services/calendar-sync')
+    expect(await enqueueCalendarReconciliation()).toBe(1)
+    expect(await processCalendarSyncJobs()).toBe(1)
+
+    const [[connection], [job]] = await Promise.all([
+      sql<{ status: string, last_error: string }[]>`
+        select status, last_error from calendar_connections where user_id = ${hostId}
+      `,
+      sql<{ status: string, failure_provider: string }[]>`
+        select status, failure_provider from calendar_sync_jobs where booking_id = ${bookingId}
+      `
+    ])
+    expect(connection).toMatchObject({
+      status: 'needs_reauthorization',
+      last_error: 'Google authorization expired.'
+    })
+    expect(job).toMatchObject({ status: 'failed', failure_provider: 'google' })
+  })
+
   it('validates calendar choices and disconnects locally if revocation fails', async () => {
     const { hostId } = await createHost()
     await connect(hostId)

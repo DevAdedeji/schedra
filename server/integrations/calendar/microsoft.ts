@@ -139,11 +139,19 @@ export function microsoftAuthorizationUrl(state: string, email: string, codeChal
 }
 
 async function tokenRequest(body: URLSearchParams) {
-  const response = await fetchWithTimeout(`${MICROSOFT_AUTHORITY}/token`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body
-  })
+  let response: Response
+  try {
+    response = await fetchWithTimeout(`${MICROSOFT_AUTHORITY}/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body
+    })
+  } catch (error) {
+    throw new MicrosoftCalendarUnavailableError('Microsoft Calendar is temporarily unavailable.', {
+      retryable: true,
+      cause: error
+    })
+  }
   if (!response.ok) {
     throw new MicrosoftCalendarUnavailableError('Microsoft did not complete the calendar connection.', {
       retryable: response.status === 429 || response.status >= 500,
@@ -256,14 +264,23 @@ async function graphResponse(userId: string, path: string, init: RequestInit = {
   if (!auth) {
     throw new MicrosoftCalendarUnavailableError('Microsoft Calendar is not connected.', { retryable: false })
   }
-  const request = (token: string) => fetchWithTimeout(graphUrl(path), {
-    ...init,
-    headers: {
-      'authorization': `Bearer ${token}`,
-      'content-type': 'application/json',
-      ...init.headers
+  const request = async (token: string) => {
+    try {
+      return await fetchWithTimeout(graphUrl(path), {
+        ...init,
+        headers: {
+          'authorization': `Bearer ${token}`,
+          'content-type': 'application/json',
+          ...init.headers
+        }
+      })
+    } catch (error) {
+      throw new MicrosoftCalendarUnavailableError('Microsoft Calendar is temporarily unavailable.', {
+        retryable: true,
+        cause: error
+      })
     }
-  })
+  }
 
   let response = await request(auth.token)
   if (response.status === 401) {

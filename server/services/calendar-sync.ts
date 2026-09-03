@@ -5,6 +5,7 @@ import {
   bookingConferenceMeetings,
   bookingHosts,
   bookings,
+  calendarConnections,
   calendarSyncJobs,
   eventTypes
 } from '../database/schema'
@@ -95,6 +96,64 @@ export async function enqueueFutureBookingsForCalendarSync(userId: string) {
       failure_provider = null,
       updated_at = now()
   `)
+}
+
+export async function enqueueCalendarReconciliation(batchSize = 100) {
+  const safeBatchSize = Math.max(1, Math.min(500, Math.trunc(batchSize)))
+  const queued = await useDatabase().execute(sql`
+    with candidates as (
+      select target.booking_id
+      from (
+        select distinct
+          case
+            when b.group_session_id is null then b.id
+            else (
+              select canonical.id from bookings canonical
+              where canonical.group_session_id = b.group_session_id
+              order by canonical.created_at, canonical.id
+              limit 1
+            )
+          end as booking_id,
+          bh.user_id
+        from bookings b
+        inner join booking_hosts bh on bh.booking_id = b.id
+        where bh.released_at is null
+          and b.status = 'confirmed'
+          and b.ends_at > now()
+          and b.starts_at < now() + interval '90 days'
+      ) target
+      inner join calendar_connections cc
+        on cc.user_id = target.user_id
+       and cc.status = 'active'
+       and cc.write_calendar_id is not null
+      left join booking_calendar_events bce
+        on bce.booking_id = target.booking_id
+       and bce.user_id = target.user_id
+      where bce.id is null
+         or bce.synced_at < now() - interval '12 hours'
+      group by target.booking_id
+      order by min(coalesce(bce.synced_at, '-infinity'::timestamptz)), target.booking_id
+      limit ${safeBatchSize}
+    )
+    insert into calendar_sync_jobs (booking_id, action, dedupe_key)
+    select booking_id, 'upsert'::calendar_sync_action, 'booking:' || booking_id::text
+    from candidates
+    on conflict (booking_id) do update set
+      action = 'upsert'::calendar_sync_action,
+      dedupe_key = excluded.dedupe_key,
+      revision = ${calendarSyncJobs.revision} + 1,
+      status = 'pending'::calendar_sync_status,
+      attempts = 0,
+      available_at = now(),
+      locked_at = null,
+      completed_at = null,
+      last_error = null,
+      failure_provider = null,
+      updated_at = now()
+    where ${calendarSyncJobs.status} = 'completed'
+    returning booking_id
+  `)
+  return queued.length
 }
 
 async function syncBooking(bookingId: string, action: CalendarSyncAction) {
@@ -229,6 +288,11 @@ async function syncBooking(bookingId: string, action: CalendarSyncAction) {
         const connection = provider ? await provider.connectionFor(host.userId) : null
         if (provider && connection?.status === 'active') {
           await provider.deleteEvent(host.userId, mapping.calendarId, mapping.eventId)
+          await db.update(calendarConnections).set({
+            lastError: null,
+            lastCheckedAt: sql`now()`,
+            updatedAt: sql`now()`
+          }).where(eq(calendarConnections.id, connection.id))
         }
         await db.delete(bookingCalendarEvents).where(eq(bookingCalendarEvents.id, mapping.id))
         continue
@@ -328,6 +392,11 @@ async function syncBooking(bookingId: string, action: CalendarSyncAction) {
         updatedAt: sql`now()`
       }
     })
+    await db.update(calendarConnections).set({
+      lastError: null,
+      lastCheckedAt: sql`now()`,
+      updatedAt: sql`now()`
+    }).where(eq(calendarConnections.id, connection.id))
   }
 
   if (['google_meet', 'microsoft_teams', 'zoom'].includes(booking.locationType) && !sharedMeetingUrl) {
