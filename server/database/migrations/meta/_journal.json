@@ -351,6 +351,20 @@
       "when": 1788105222277,
       "tag": "0049_oval_owl",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1788451719905,
+      "tag": "0050_complete_lady_deathstrike",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1788452555551,
+      "tag": "0051_bumpy_rage",
+      "breakpoints": true
     }
   ]
 }

@@ -22,6 +22,7 @@ import type {
   BookingAttribution,
   BookingQuestion,
   BookingSource,
+  ManagedEventMemberEditableField,
   TeamEventTemplateDefaults
 } from '#shared/validation'
 import type { WorkflowAction } from '#shared/workflows'
@@ -89,11 +90,35 @@ export const users = pgTable('users', {
   bookingPageTheme: text('booking_page_theme').notNull().default('system'),
   hideSchedraBranding: boolean('hide_schedra_branding').notNull().default(false),
   timeZone: text('time_zone').notNull().default('UTC'),
+  twoFactorEnabled: boolean('two_factor_enabled').notNull().default(false),
 
   ...timestamps
 }, table => [
   uniqueIndex('users_email_key').on(sql`lower(${table.email})`),
   uniqueIndex('users_username_key').on(sql`lower(${table.username})`)
+])
+
+export const emailNotificationPreferences = pgTable('email_notification_preferences', {
+  userId: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  newBookingEmails: boolean('new_booking_emails').notNull().default(true),
+  rescheduleEmails: boolean('reschedule_emails').notNull().default(true),
+  cancellationEmails: boolean('cancellation_emails').notNull().default(true),
+  approvalRequestEmails: boolean('approval_request_emails').notNull().default(true),
+  ...timestamps
+})
+
+export const twoFactors = pgTable('two_factors', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  secret: text('secret').notNull(),
+  backupCodes: text('backup_codes').notNull(),
+  verified: boolean('verified').notNull().default(true),
+  failedVerificationCount: integer('failed_verification_count').notNull().default(0),
+  lockedUntil: timestamp('locked_until', { withTimezone: true }),
+  ...timestamps
+}, table => [
+  uniqueIndex('two_factors_user_key').on(table.userId),
+  index('two_factors_secret_idx').on(table.secret)
 ])
 
 export const userAvatars = pgTable('user_avatars', {
@@ -793,15 +818,12 @@ export const eventTypeHosts = pgTable('event_type_hosts', {
   check('event_type_hosts_weight_positive', sql`${table.weight} > 0`)
 ])
 
-/**
- * A managed template is a snapshot. Updating it affects only event types
- * created afterwards; existing links keep the values guests already saw.
- */
 export const organizationEventTemplates = pgTable('organization_event_templates', {
   id: uuid('id').primaryKey().defaultRandom(),
   organizationId: uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   defaults: jsonb('defaults').$type<TeamEventTemplateDefaults>().notNull(),
+  memberEditableFields: text('member_editable_fields').array().$type<ManagedEventMemberEditableField[]>().notNull().default(sql`'{}'::text[]`),
   sourceEventTypeId: uuid('source_event_type_id').references(() => eventTypes.id, { onDelete: 'set null' }),
   createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   archivedAt: timestamp('archived_at', { withTimezone: true }),
@@ -812,6 +834,24 @@ export const organizationEventTemplates = pgTable('organization_event_templates'
     .where(sql`${table.archivedAt} is null`),
   index('organization_event_templates_organization_archived_idx')
     .on(table.organizationId, table.archivedAt, table.createdAt)
+])
+
+/**
+ * One managed link per assigned team member. The template owns approved fields
+ * while the assignment identifies the member who may personalize allowed fields.
+ */
+export const organizationEventTemplateAssignments = pgTable('organization_event_template_assignments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  templateId: uuid('template_id').notNull().references(() => organizationEventTemplates.id, { onDelete: 'cascade' }),
+  memberId: uuid('member_id').notNull().references(() => members.id, { onDelete: 'cascade' }),
+  eventTypeId: uuid('event_type_id').notNull().references(() => eventTypes.id, { onDelete: 'cascade' }),
+  ...timestamps
+}, table => [
+  uniqueIndex('organization_event_template_assignments_template_member_key').on(table.templateId, table.memberId),
+  uniqueIndex('organization_event_template_assignments_event_type_key').on(table.eventTypeId),
+  index('organization_event_template_assignments_organization_idx').on(table.organizationId, table.createdAt),
+  index('organization_event_template_assignments_member_idx').on(table.memberId)
 ])
 
 export const bookingStatus = pgEnum('booking_status', [
@@ -952,6 +992,9 @@ export const bookings = pgTable('bookings', {
 
   uid: text('uid').notNull(),
   status: bookingStatus('status').notNull().default('confirmed'),
+  attendanceStatus: text('attendance_status'),
+  attendanceUpdatedAt: timestamp('attendance_updated_at', { withTimezone: true }),
+  attendanceUpdatedByUserId: uuid('attendance_updated_by_user_id').references(() => users.id, { onDelete: 'set null' }),
 
   startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
   endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
@@ -988,6 +1031,10 @@ export const bookings = pgTable('bookings', {
   check(
     'bookings_series_fields_paired',
     sql`(${table.seriesId} is null) = (${table.seriesPosition} is null)`
+  ),
+  check(
+    'bookings_attendance_status_allowed',
+    sql`${table.attendanceStatus} is null or ${table.attendanceStatus} in ('attended', 'no_show')`
   ),
   check('bookings_series_position_positive', sql`${table.seriesPosition} is null or ${table.seriesPosition} > 0`),
   check('bookings_ends_after_starts', sql`${table.endsAt} > ${table.startsAt}`)

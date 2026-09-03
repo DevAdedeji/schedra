@@ -8,6 +8,7 @@ export const workflowTriggerSchema = z.enum([
   'booking_rejected',
   'booking_cancelled',
   'booking_rescheduled',
+  'booking_no_show',
   'before_start',
   'after_end'
 ])
@@ -68,7 +69,8 @@ export const bookingDomainEventTypes = [
   'booking_approved',
   'booking_rejected',
   'booking_cancelled',
-  'booking_rescheduled'
+  'booking_rescheduled',
+  'booking_no_show'
 ] as const
 
 export type BookingDomainEventType = typeof bookingDomainEventTypes[number]

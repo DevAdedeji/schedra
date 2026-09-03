@@ -176,6 +176,14 @@ export const cancelBookingSchema = z.object({
 
 export type CancelBookingInput = z.infer<typeof cancelBookingSchema>
 
+export const bookingAttendanceStatusSchema = z.enum(['attended', 'no_show'])
+
+export const updateBookingAttendanceSchema = z.object({
+  status: bookingAttendanceStatusSchema.nullable()
+})
+
+export type BookingAttendanceStatus = z.infer<typeof bookingAttendanceStatusSchema>
+
 export const rejectBookingSchema = z.object({
   reason: z.string().trim().max(500).optional()
 })
@@ -468,9 +476,8 @@ export const teamEventTypeSchema = eventTypeBaseSchema
 export type TeamEventTypeInput = z.infer<typeof teamEventTypeSchema>
 
 /**
- * Managed templates are snapshots of reusable event defaults. Links, hosts and
- * payment settings stay event-specific so applying a template never publishes
- * a duplicate URL, assigns people silently, or enables a charge unexpectedly.
+ * Template defaults never copy payment settings. They may be used once as a
+ * starting point or synchronized to explicitly assigned member links.
  */
 export const teamEventTemplateDefaultsSchema = eventTypeBaseSchema
   .omit({ slug: true, scheduleId: true, paymentEnabled: true, priceCents: true, paymentCurrency: true })
@@ -483,9 +490,21 @@ export const teamEventTemplateDefaultsSchema = eventTypeBaseSchema
 
 export type TeamEventTemplateDefaults = z.infer<typeof teamEventTemplateDefaultsSchema>
 
+export const managedEventMemberEditableFieldSchema = z.enum([
+  'description',
+  'locationDetails',
+  'hidden'
+])
+
+export type ManagedEventMemberEditableField = z.infer<typeof managedEventMemberEditableFieldSchema>
+
 export const teamEventTemplateWriteSchema = z.object({
   name: z.string().trim().min(1, 'Give this template a name.').max(80, 'Keep the template name under 80 characters.'),
-  sourceEventTypeId: z.uuid('Choose an event type to copy defaults from.')
+  sourceEventTypeId: z.uuid('Choose an event type to copy defaults from.'),
+  assignmentMemberIds: z.array(z.uuid()).max(50, 'A template can be assigned to at most 50 members.')
+    .transform(values => [...new Set(values)]).default([]),
+  memberEditableFields: z.array(managedEventMemberEditableFieldSchema)
+    .transform(values => [...new Set(values)]).default([])
 })
 
 export type TeamEventTemplateWriteInput = z.infer<typeof teamEventTemplateWriteSchema>
