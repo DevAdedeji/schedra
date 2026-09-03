@@ -1,4 +1,8 @@
 const buildSiteUrl = process.env.SCHEDRA_URL?.trim().replace(/\/+$/, '') ?? ''
+const publicPage = () => ({
+  prerender: true,
+  headers: { 'cache-control': 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400' }
+})
 
 // Railway may set NODE_ENV=production while dependencies are installing, and
 // Nuxt loads this config from its postinstall `prepare` hook. Require the URL
@@ -27,13 +31,19 @@ export default defineNuxtConfig({
     }
   },
   routeRules: {
-    '/': { prerender: true },
-    '/features': { prerender: true },
-    '/pricing': { prerender: true },
-    '/privacy': { prerender: true },
-    '/terms': { prerender: true },
-    '/support': { prerender: true },
-    '/docs/integrations/zoom': { prerender: true },
+    '/': publicPage(),
+    '/features': publicPage(),
+    '/features/booking-widget': publicPage(),
+    '/pricing': publicPage(),
+    '/solutions/consultants': publicPage(),
+    '/solutions/small-business': publicPage(),
+    '/solutions/paid-appointments': publicPage(),
+    '/solutions/team-scheduling': publicPage(),
+    '/compare/calendly-alternative': publicPage(),
+    '/privacy': publicPage(),
+    '/terms': publicPage(),
+    '/support': publicPage(),
+    '/docs/integrations/zoom': publicPage(),
     '/embed.js': {
       headers: {
         'access-control-allow-origin': '*',
@@ -55,6 +65,7 @@ export default defineNuxtConfig({
     '/availability': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
     '/integrations': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
     '/operations': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
+    '/control/**': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
     '/settings': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
     '/booking/**': { prerender: false, headers: { 'cache-control': 'private, no-store' } },
     '/t/**': { prerender: false, headers: { 'cache-control': 'private, no-store' } },

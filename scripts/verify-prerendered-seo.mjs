@@ -24,12 +24,27 @@ const publicDirectory = resolve('.output/public')
 const routes = [
   '/',
   '/features',
+  '/features/booking-widget',
   '/pricing',
+  '/solutions/consultants',
+  '/solutions/small-business',
+  '/solutions/paid-appointments',
+  '/solutions/team-scheduling',
+  '/compare/calendly-alternative',
   '/privacy',
   '/terms',
   '/support',
   '/docs/integrations/zoom'
 ]
+
+const contentLandingRoutes = new Set([
+  '/features/booking-widget',
+  '/solutions/consultants',
+  '/solutions/small-business',
+  '/solutions/paid-appointments',
+  '/solutions/team-scheduling',
+  '/compare/calendly-alternative'
+])
 
 function generatedFile(route) {
   return route === '/'
@@ -71,6 +86,15 @@ for (const route of routes) {
   }
   if (indexable && /https?:\/\/localhost(?=[/:"'])/i.test(html)) {
     throw new Error(`${route} contains a localhost URL in a production prerender.`)
+  }
+  if (contentLandingRoutes.has(route)) {
+    const h1Count = (html.match(/<h1\b/gi) ?? []).length
+    if (h1Count !== 1) {
+      throw new Error(`${route} must contain exactly one H1, found ${h1Count}.`)
+    }
+    if (!html.includes('"@type":"FAQPage"') || !html.includes('"@type":"BreadcrumbList"')) {
+      throw new Error(`${route} is missing FAQ or breadcrumb structured data.`)
+    }
   }
 }
 

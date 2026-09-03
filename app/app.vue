@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { UMAMI_PROXY_PATH, UMAMI_WEBSITE_ID } from '#shared/analytics'
-
 const route = useRoute()
 // SCHEDRA_URL is the authoritative public origin — the same value better-auth
 // builds callbacks from. The request host cannot be trusted behind a proxy and
@@ -8,8 +6,8 @@ const route = useRoute()
 const { url: siteUrl, indexable } = useSiteUrl()
 const origin = siteUrl.value
 
-const title = 'Schedra — share a link, get booked'
-const description = 'Share one link and let people pick a time that suits you both. Meetings land in your calendar with reminders sent and timezones handled.'
+const title = 'Schedra — online scheduling software for easier bookings'
+const description = 'Create booking pages, automate reminders, collect appointment payments and coordinate team availability with Schedra online scheduling software.'
 const ogImage = `${origin}/og.png`
 
 const canonical = computed(() => `${origin}${route.path === '/' ? '' : route.path}`)
@@ -25,22 +23,7 @@ useHead(() => ({
     { rel: 'icon', href: '/favicon.ico', sizes: '48x48' },
     { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
     { key: 'canonical', rel: 'canonical', href: canonical }
-  ],
-  // Automatic tracking is disabled so the client plugin can send normalized
-  // route categories without usernames, team slugs, tokens or query values.
-  // Keeping the tracker out of dev prevents local navigation from polluting it.
-  script: !import.meta.dev
-    ? [{
-        'key': 'umami',
-        'id': 'umami-tracker',
-        'src': `${UMAMI_PROXY_PATH}/client.js`,
-        'defer': true,
-        'data-website-id': UMAMI_WEBSITE_ID,
-        'data-host-url': UMAMI_PROXY_PATH,
-        'data-auto-track': 'false',
-        'data-do-not-track': 'true'
-      }]
-    : []
+  ]
 }))
 
 useSeoMeta({
@@ -58,7 +41,7 @@ useSeoMeta({
   ogImage,
   ogImageWidth: 1200,
   ogImageHeight: 630,
-  ogImageAlt: 'Schedra — share a link, get booked',
+  ogImageAlt: 'Schedra online scheduling software',
   twitterCard: 'summary_large_image',
   twitterTitle: title,
   twitterDescription: description,
