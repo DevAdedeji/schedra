@@ -5,6 +5,7 @@ const disallowed = [
   '/availability',
   '/booking/',
   '/bookings',
+  '/control',
   '/dashboard',
   '/event-types',
   '/forgot-password',
