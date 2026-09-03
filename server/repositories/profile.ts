@@ -1,9 +1,10 @@
-import { eq } from 'drizzle-orm'
-import { users } from '../database/schema'
+import { and, eq, isNotNull } from 'drizzle-orm'
+import { accounts, users } from '../database/schema'
 import { useDatabase } from '../database'
 
 export async function profileForUser(userId: string) {
-  const [profile] = await useDatabase().select({
+  const database = useDatabase()
+  const [profile] = await database.select({
     id: users.id,
     name: users.name,
     email: users.email,
@@ -15,5 +16,12 @@ export async function profileForUser(userId: string) {
     twoFactorEnabled: users.twoFactorEnabled
   }).from(users).where(eq(users.id, userId)).limit(1)
 
-  return profile ?? null
+  if (!profile) return null
+
+  const [passwordAccount] = await database.select({ id: accounts.id })
+    .from(accounts)
+    .where(and(eq(accounts.userId, userId), isNotNull(accounts.password)))
+    .limit(1)
+
+  return { ...profile, hasPassword: Boolean(passwordAccount) }
 }

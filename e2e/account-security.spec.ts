@@ -44,25 +44,29 @@ test.afterAll(async () => {
   await sql.end()
 })
 
-test('enables authenticator security and accepts both authenticator and backup codes', async ({ page }) => {
-  test.setTimeout(90_000)
+async function signUpAndSignIn(page: import('@playwright/test').Page, userEmail: string, username: string) {
   await page.goto('/signup')
   await expect(page.getByTestId('signup-form')).toHaveAttribute('data-ready', 'true')
   await page.getByLabel('Your name').fill('Two Factor Owner')
-  await page.getByLabel('Your booking link').fill('two-factor-owner')
-  await page.getByLabel('Email').fill(email)
+  await page.getByLabel('Your booking link').fill(username)
+  await page.getByLabel('Email').fill(userEmail)
   await page.locator('input[name="password"]').fill(password)
   await expect(page.getByText('Available', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Create my link' }).click()
   await expect(page).toHaveURL(/\/verify-email/)
-  await sql`update users set email_verified = true where email = ${email}`
+  await sql`update users set email_verified = true where email = ${userEmail}`
 
   await page.goto('/login')
   await page.waitForLoadState('networkidle')
-  await page.getByLabel('Email').fill(email)
+  await page.getByLabel('Email').fill(userEmail)
   await page.locator('input[name="password"]').fill(password)
   await page.getByRole('button', { name: 'Sign in' }).click()
   await expect(page).toHaveURL(/\/dashboard$/)
+}
+
+test('enables authenticator security and accepts both authenticator and backup codes', async ({ page }) => {
+  test.setTimeout(90_000)
+  await signUpAndSignIn(page, email, 'two-factor-owner')
 
   await page.goto('/settings')
   await page.waitForLoadState('networkidle')
@@ -125,4 +129,22 @@ test('enables authenticator security and accepts both authenticator and backup c
   await page.getByRole('button', { name: 'Verify and sign in' }).click()
   await expect(page.getByRole('alert')).toContainText('not valid')
   await expect(page).toHaveURL(/\/two-factor/)
+})
+
+test('skips password confirmation when the signed-in account has no password', async ({ page }) => {
+  const googleEmail = 'google-only-two-factor@schedra.test'
+  await signUpAndSignIn(page, googleEmail, 'google-only-two-factor')
+  await sql`
+    update accounts
+    set provider_id = 'google', password = null
+    where user_id = (select id from users where email = ${googleEmail})
+  `
+
+  await page.goto('/settings')
+  await page.waitForLoadState('networkidle')
+  await page.getByRole('button', { name: 'Set up 2FA' }).click()
+  const setup = page.getByRole('dialog', { name: 'Set up two-factor authentication' })
+  await expect(setup.getByLabel('Current password')).toHaveCount(0)
+  await expect(setup.getByText('Setup key', { exact: true })).toBeVisible()
+  await expect(setup.getByLabel('Authentication code')).toBeVisible()
 })

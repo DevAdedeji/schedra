@@ -7,9 +7,10 @@ const feedback = useFeedback()
 const { copied, copy } = useCopy()
 
 const enabled = computed(() => Boolean(data.value?.user?.twoFactorEnabled))
+const hasPassword = computed(() => data.value?.user?.hasPassword !== false)
 const setupOpen = ref(false)
 const disableOpen = ref(false)
-const setupStep = ref<'password' | 'verify' | 'backup'>('password')
+const setupStep = ref<'password' | 'starting' | 'verify' | 'backup'>('password')
 const password = ref('')
 const code = ref('')
 const totpUri = ref('')
@@ -27,7 +28,7 @@ const setupKey = computed(() => {
 })
 
 function resetSetup() {
-  setupStep.value = 'password'
+  setupStep.value = hasPassword.value ? 'password' : 'starting'
   password.value = ''
   code.value = ''
   totpUri.value = ''
@@ -35,9 +36,10 @@ function resetSetup() {
   error.value = ''
 }
 
-function openSetup() {
+async function openSetup() {
   resetSetup()
   setupOpen.value = true
+  if (!hasPassword.value) await beginSetup()
 }
 
 async function beginSetup() {
@@ -130,7 +132,7 @@ async function copyValue(value: string, label: string) {
       </p>
     </div>
     <div class="flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
-      <div class="flex items-center gap-3">
+      <div class="flex min-w-0 items-center gap-3">
         <span
           class="flex size-9 items-center justify-center rounded-lg"
           :class="enabled ? 'bg-success/10 text-success' : 'bg-elevated text-muted'"
@@ -140,7 +142,7 @@ async function copyValue(value: string, label: string) {
             class="size-4"
           />
         </span>
-        <div>
+        <div class="min-w-0">
           <p class="text-[14px] font-medium text-highlighted">
             Two-factor authentication
           </p>
@@ -160,9 +162,12 @@ async function copyValue(value: string, label: string) {
       <UButton
         v-else
         icon="i-lucide-shield-plus"
+        size="sm"
+        class="shrink-0 self-start whitespace-nowrap sm:self-auto"
+        aria-label="Set up 2FA"
         @click="openSetup"
       >
-        Set up 2FA
+        Set up
       </UButton>
     </div>
   </section>
@@ -176,13 +181,51 @@ async function copyValue(value: string, label: string) {
     @after:leave="resetSetup"
   >
     <template #body>
+      <div
+        v-if="setupStep === 'starting'"
+        class="space-y-4"
+      >
+        <div
+          v-if="pending"
+          class="flex min-h-32 flex-col items-center justify-center gap-3 text-center"
+          role="status"
+        >
+          <UIcon
+            name="i-lucide-loader-circle"
+            class="size-5 animate-spin text-primary"
+          />
+          <p class="text-[14px] text-muted">
+            Preparing your authenticator setup…
+          </p>
+        </div>
+        <template v-else>
+          <p
+            class="text-[13px] text-error"
+            role="alert"
+          >
+            {{ error }}
+          </p>
+          <div class="flex justify-end gap-2">
+            <UButton
+              color="neutral"
+              variant="ghost"
+              @click="setupOpen = false"
+            >
+              Cancel
+            </UButton>
+            <UButton @click="beginSetup">
+              Try again
+            </UButton>
+          </div>
+        </template>
+      </div>
       <form
-        v-if="setupStep === 'password'"
+        v-else-if="setupStep === 'password'"
         class="space-y-4"
         @submit.prevent="beginSetup"
       >
         <p class="text-[14px] leading-relaxed text-muted">
-          Confirm your password before changing sign-in security. If you created your account only with Google, leave this blank.
+          Confirm your password before changing sign-in security.
         </p>
         <UFormField label="Current password">
           <PasswordField

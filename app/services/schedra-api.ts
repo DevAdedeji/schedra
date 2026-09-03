@@ -200,6 +200,7 @@ export interface CurrentProfile {
   avatarUrl: string | null
   timeZone: string
   twoFactorEnabled: boolean
+  hasPassword: boolean
 }
 
 export interface PublicBookingPage {

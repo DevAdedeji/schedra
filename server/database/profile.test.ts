@@ -62,6 +62,27 @@ describe.skipIf(!url)('profile persistence', () => {
     })
   })
 
+  it('reports whether an account has a password credential', async () => {
+    const [user] = await sql<{ id: string }[]>`
+      insert into users (email, name, username, time_zone)
+      values ('google-only@example.com', 'Google Only', 'google-only', 'UTC')
+      returning id
+    `
+    await sql`
+      insert into accounts (user_id, account_id, provider_id)
+      values (${user!.id}, 'google-account', 'google')
+    `
+    const { profileForUser } = await import('../repositories/profile')
+
+    await expect(profileForUser(user!.id)).resolves.toMatchObject({ hasPassword: false })
+
+    await sql`
+      insert into accounts (user_id, account_id, provider_id, password)
+      values (${user!.id}, 'credential-account', 'credential', 'hashed-password')
+    `
+    await expect(profileForUser(user!.id)).resolves.toMatchObject({ hasPassword: true })
+  })
+
   it('stores verified avatar bytes and removes them with the owning account', async () => {
     const [user] = await sql<{ id: string }[]>`
       insert into users (email, name, username, time_zone)
