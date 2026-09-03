@@ -57,33 +57,46 @@ watch(() => state.name, (value) => {
 
 const checking = ref(false)
 const availability = ref<UsernameAvailability | null>(null)
+const availabilityFailed = ref(false)
 let debounce: ReturnType<typeof setTimeout> | undefined
 let availabilityRequest = 0
 let availabilityController: AbortController | undefined
 
+async function checkAvailability(value: string, request: number) {
+  availabilityController = new AbortController()
+  availabilityFailed.value = false
+  checking.value = true
+
+  try {
+    const result = await usernameApi.check(value, availabilityController.signal)
+
+    if (request === availabilityRequest && value === state.username) {
+      availability.value = result
+      return result
+    }
+  } catch (failure) {
+    if (request === availabilityRequest && !(failure instanceof DOMException && failure.name === 'AbortError')) {
+      availability.value = null
+      availabilityFailed.value = true
+    }
+  } finally {
+    if (request === availabilityRequest) checking.value = false
+  }
+
+  return null
+}
+
 watch(() => state.username, (value) => {
   const request = ++availabilityRequest
   availability.value = null
+  availabilityFailed.value = false
   clearTimeout(debounce)
   availabilityController?.abort()
   checking.value = false
   if (value.length < 2) return
 
-  checking.value = true
-  debounce = setTimeout(async () => {
-    availabilityController = new AbortController()
-
-    try {
-      const result = await usernameApi.check(value, availabilityController.signal)
-
-      if (request === availabilityRequest && value === state.username) {
-        availability.value = result
-      }
-    } catch {
-      if (request === availabilityRequest) availability.value = null
-    } finally {
-      if (request === availabilityRequest) checking.value = false
-    }
+  debounce = setTimeout(() => {
+    void checkAvailability(value, request)
   }, 350)
 })
 
@@ -102,7 +115,10 @@ const linkState = computed<'ok' | 'bad' | 'busy' | null>(() => {
 const linkMessage = computed(() => {
   if (state.username.length < 2) return null
   if (checking.value) return { tone: 'muted', text: 'Checking…' }
-  if (!availability.value) return null
+  if (availabilityFailed.value) {
+    return { tone: 'bad', text: 'We could not check this link. You can still select Create my link to retry.' }
+  }
+  if (!availability.value) return { tone: 'muted', text: 'We will check this link before creating your account.' }
 
   return {
     tone: availability.value.available ? 'ok' : 'bad',
@@ -111,23 +127,34 @@ const linkMessage = computed(() => {
 })
 
 async function onSubmit(event: FormSubmitEvent<SignUpFormInput>) {
-  if (checking.value || !availability.value?.available) {
-    error.value = checking.value
-      ? 'Please wait while we check your booking link.'
-      : 'Please choose an available booking link.'
-    return
-  }
-
   pending.value = true
   error.value = ''
 
-  const { email } = event.data
-  // Verifying returns them to the invitation so joining is one continuous flow.
-  const callbackURL = inviteId.value
-    ? `/invite/${encodeURIComponent(inviteId.value)}`
-    : `/verify-email?verified=1&email=${encodeURIComponent(email)}`
-
   try {
+    let currentAvailability = availability.value
+    if (checking.value || !currentAvailability) {
+      clearTimeout(debounce)
+      availabilityController?.abort()
+      const request = ++availabilityRequest
+      currentAvailability = await checkAvailability(state.username, request)
+    }
+
+    if (!currentAvailability) {
+      error.value = 'We could not check your booking link. Check your connection and try again.'
+      return
+    }
+
+    if (!currentAvailability.available) {
+      error.value = 'Please choose an available booking link.'
+      return
+    }
+
+    const { email } = event.data
+    // Verifying returns them to the invitation so joining is one continuous flow.
+    const callbackURL = inviteId.value
+      ? `/invite/${encodeURIComponent(inviteId.value)}`
+      : `/verify-email?verified=1&email=${encodeURIComponent(email)}`
+
     const { error: failure } = await signUp.email({
       ...event.data,
       timeZone: localTimeZone(),
@@ -266,14 +293,13 @@ async function onSubmit(event: FormSubmitEvent<SignUpFormInput>) {
         size="xl"
         block
         :loading="pending"
-        :disabled="checking || !availability?.available"
         class="rounded-full font-medium"
       >
         Create my link
       </UButton>
 
       <p class="text-center text-[13px] leading-relaxed text-dimmed">
-        We'll email you a link to confirm your address.
+        Select Create my link after completing the form. We'll check your booking link, then email you to confirm your address.
       </p>
     </UForm>
 

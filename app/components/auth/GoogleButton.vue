@@ -4,15 +4,24 @@ const props = withDefaults(defineProps<{ label?: string }>(), {
 })
 
 const { signIn } = useAuthClient()
+const route = useRoute()
 const pending = ref(false)
 const error = ref('')
+const callbackError = computed(() => route.query.error
+  ? 'Google sign-in could not be completed. Try again or continue with email.'
+  : '')
+const displayedError = computed(() => error.value || callbackError.value)
 
 async function go() {
   pending.value = true
   error.value = ''
 
   try {
-    const { error: failure } = await signIn.social({ provider: 'google', callbackURL: '/dashboard' })
+    const { error: failure } = await signIn.social({
+      provider: 'google',
+      callbackURL: '/dashboard',
+      errorCallbackURL: route.fullPath
+    })
     if (failure) error.value = 'Could not start Google sign-in. Try again.'
   } catch {
     error.value = 'Could not reach Google sign-in. Check your connection and try again.'
@@ -62,11 +71,11 @@ async function go() {
     </UButton>
 
     <p
-      v-if="error"
+      v-if="displayedError"
       class="mt-3 text-[14px] text-error"
       role="alert"
     >
-      {{ error }}
+      {{ displayedError }}
     </p>
   </div>
 </template>
