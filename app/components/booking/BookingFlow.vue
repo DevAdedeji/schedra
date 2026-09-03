@@ -145,10 +145,12 @@ const {
   selectedStart: selectedSlot,
   durationMinutes: selectedDurationMinutes,
   timeZone: viewerTimeZone,
-  offeredSlots: () => recurringPreview.value.filter(occurrence => occurrence.available).map(occurrence => ({
-    start: occurrence.startsAt,
-    end: occurrence.endsAt
-  }))
+  offeredSlots: () => recurringPreviewLoading.value || recurringPreview.value.length === 0
+    ? null
+    : recurringPreview.value.filter(occurrence => occurrence.available).map(occurrence => ({
+        start: occurrence.startsAt,
+        end: occurrence.endsAt
+      }))
 })
 let previewGeneration = 0
 watch([

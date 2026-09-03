@@ -7,14 +7,20 @@ const logoInput = ref<HTMLInputElement | null>(null)
 const saving = ref(false)
 const uploading = ref(false)
 const removing = ref(false)
+const dirty = ref(false)
+const hydrated = ref(false)
 const form = reactive({ ...DEFAULT_PERSONAL_BRANDING, brandName: DEFAULT_PERSONAL_BRANDING.brandName ?? '' })
+
+onMounted(() => {
+  hydrated.value = true
+})
 
 const { data, status, error, refresh } = await useLazyFetch(brandingApi.endpoint)
 const entitlement = computed(() => data.value?.entitlement)
 const canBrand = computed(() => Boolean(entitlement.value?.isPro))
 
 watch(() => data.value?.branding, (value) => {
-  if (value) Object.assign(form, value, { brandName: value.brandName ?? '' })
+  if (value && !dirty.value) Object.assign(form, value, { brandName: value.brandName ?? '' })
 }, { immediate: true })
 
 const themeOptions: Array<{ label: string, value: BookingPageTheme }> = [
@@ -39,6 +45,7 @@ async function save() {
       hideSchedraBranding: form.hideSchedraBranding
     })
     Object.assign(form, result.branding)
+    dirty.value = false
     feedback.success({ title: 'Branding saved', description: 'Your public booking pages now use these settings.' })
   } catch (failure) {
     feedback.error({ title: 'Could not save branding', description: apiErrorMessage(failure, 'Check the colours and try again.') })
@@ -100,6 +107,8 @@ async function removeLogo() {
 
   <section
     v-else
+    data-testid="personal-branding-settings"
+    :data-ready="hydrated"
     class="overflow-hidden rounded-xl border border-default bg-default"
   >
     <div class="border-b border-default px-6 py-5 sm:px-7">
@@ -122,6 +131,8 @@ async function removeLogo() {
     <div class="grid gap-7 px-6 py-6 sm:px-7 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.8fr)]">
       <form
         class="space-y-5"
+        @input="dirty = true"
+        @change="dirty = true"
         @submit.prevent="save"
       >
         <div>
@@ -223,6 +234,7 @@ async function removeLogo() {
             v-model="form.bookingPageTheme"
             :items="themeOptions"
             value-key="value"
+            aria-label="Booking-page theme"
             class="w-full"
           />
         </UFormField>

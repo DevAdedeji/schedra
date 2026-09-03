@@ -26,7 +26,7 @@ test('shows an interactive overlay preview on the landing page', async ({ page }
   await page.goto('/#embed')
   await expect(page.locator('#embed')).toHaveAttribute('data-ready', 'true')
   await expect(page.getByRole('button', { name: 'Close booking preview' })).toBeVisible()
-  const previewTime = page.getByRole('button', { name: '10:30' })
+  const previewTime = page.getByRole('dialog', { name: 'Booking preview' }).getByRole('button', { name: '10:30' })
   await previewTime.click()
   await expect(previewTime).toHaveAttribute('aria-pressed', 'true')
 
@@ -49,8 +49,10 @@ test('keeps marketing links, pricing controls and public security headers usable
   const monthly = page.getByRole('button', { name: 'Monthly' })
   await monthly.click()
   await expect(monthly).toHaveAttribute('aria-pressed', 'true')
+  await page.getByText('Integrations and distribution', { exact: true }).click()
   await expect(page.getByText('Booking overlay for your website', { exact: true })).toBeVisible()
   await expect(page.getByText('Microsoft Calendar conflict checks and sync', { exact: true })).toBeVisible()
+  await page.getByText('Scheduling together', { exact: true }).click()
   await expect(page.getByText('Round-robin assignment', { exact: true })).toBeVisible()
 
   await page.setViewportSize({ width: 390, height: 844 })
@@ -131,7 +133,8 @@ test('generates an embed and completes a personal booking without leaving the cu
   const websiteDemo = page.getByRole('listitem').filter({
     has: page.getByRole('heading', { name: 'Website demo' })
   })
-  await websiteDemo.getByRole('button', { name: 'Embed on website' }).click()
+  await websiteDemo.getByRole('button', { name: 'Actions for Website demo' }).click()
+  await page.getByRole('menuitem', { name: 'Embed on website' }).click()
   const generator = page.getByRole('dialog', { name: 'Embed on your website' })
   await expect(generator).toBeVisible()
   await expect(generator).toContainText('data-schedra-embed="http://127.0.0.1:3102/embed-host/website-demo"')

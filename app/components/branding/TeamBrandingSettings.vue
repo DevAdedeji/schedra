@@ -13,15 +13,16 @@ const logoInput = ref<HTMLInputElement | null>(null)
 const saving = ref(false)
 const uploading = ref(false)
 const removing = ref(false)
+const dirty = ref(false)
 const form = reactive({ ...DEFAULT_PERSONAL_BRANDING })
 const endpoint = computed(() => teamBrandingApi.endpoint(props.teamSlug))
 const { data, status, error, refresh } = await useLazyFetch<{ branding: PublicPersonalBranding }>(endpoint)
 
 watch(() => data.value?.branding, (value) => {
-  if (value) Object.assign(form, value)
+  if (value && !dirty.value) Object.assign(form, value)
 }, { immediate: true })
 watch(() => props.teamName, (value) => {
-  form.brandName = value
+  if (!dirty.value) form.brandName = value
 })
 
 const themeOptions: Array<{ label: string, value: BookingPageTheme }> = [
@@ -45,6 +46,7 @@ async function save() {
       hideSchedraBranding: form.hideSchedraBranding
     })
     Object.assign(form, result.branding)
+    dirty.value = false
     feedback.success({ title: 'Team branding saved', description: 'Public team pages now use these settings.' })
   } catch (failure) {
     feedback.error({ title: 'Could not save team branding', description: apiErrorMessage(failure, 'Check the colours and try again.') })
@@ -113,6 +115,8 @@ async function removeLogo() {
     <div class="grid gap-7 px-5 py-5 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.8fr)]">
       <form
         class="space-y-5"
+        @input="dirty = true"
+        @change="dirty = true"
         @submit.prevent="save"
       >
         <div>
@@ -202,6 +206,7 @@ async function removeLogo() {
             v-model="form.bookingPageTheme"
             :items="themeOptions"
             value-key="value"
+            aria-label="Booking-page theme"
             class="w-full"
           />
         </UFormField>

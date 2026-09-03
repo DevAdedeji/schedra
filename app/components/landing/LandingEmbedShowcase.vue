@@ -119,6 +119,9 @@ onMounted(() => {
                 <div
                   v-if="previewOpen"
                   class="absolute inset-0 grid place-items-center bg-black/55 p-4 backdrop-blur-[2px] sm:p-7"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="Booking preview"
                 >
                   <div class="w-full max-w-2xl overflow-hidden rounded-2xl border border-default bg-default shadow-2xl">
                     <div class="flex items-center justify-between gap-6 border-b border-default px-5 py-3">

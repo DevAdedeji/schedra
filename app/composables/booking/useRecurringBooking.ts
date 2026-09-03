@@ -52,7 +52,9 @@ export function useRecurringBooking(options: {
         occurrences: request.occurrences,
         frequency: request.frequency
       })
-      const offered = new Set((toValue(options.offeredSlots) ?? []).map(slot =>
+      const offeredSlots = toValue(options.offeredSlots)
+      if (offeredSlots == null) return { items: [], error: '' }
+      const offered = new Set(offeredSlots.map(slot =>
         `${new Date(slot.start).getTime()}:${new Date(slot.end).getTime()}`
       ))
       return {
