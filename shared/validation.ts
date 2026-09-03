@@ -138,6 +138,30 @@ export const createBookingSchema = z.object({
 
 export type CreateBookingInput = z.infer<typeof createBookingSchema>
 
+export const createTeamBookingSchema = z.object({
+  team: z.string().min(1),
+  slug: z.string().min(1),
+  start: z.iso.datetime(),
+  durationMinutes: z.number().int().min(5).max(720).optional(),
+  requestId: z.uuid().optional(),
+  recurrence: recurringBookingRequestSchema.optional(),
+  name: z.string().trim().min(1, 'Please give a name').max(80),
+  email: emailSchema,
+  guestEmails: z.array(emailSchema).max(10).transform(values => [...new Set(values)]).optional(),
+  timeZone: timeZoneSchema,
+  notes: z.string().trim().max(2000).optional(),
+  answers: z.record(z.string().trim().min(1).max(64), z.string().trim().max(2000)).optional(),
+  source: bookingSourceSchema.default('hosted'),
+  attribution: bookingAttributionSchema,
+  rescheduleOf: z.string().trim().max(64).optional()
+}).superRefine((value, context) => {
+  if (value.recurrence && !value.requestId) {
+    context.addIssue({ code: 'custom', path: ['requestId'], message: 'A recurring booking needs a request identifier.' })
+  }
+})
+
+export type CreateTeamBookingInput = z.infer<typeof createTeamBookingSchema>
+
 export const updateProfileSchema = z.object({
   name: nameSchema,
   bio: z.string().trim().max(280, 'Keep it under 280 characters').optional(),

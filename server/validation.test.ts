@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   accountProfileSchema,
   createBookingSchema,
+  createTeamBookingSchema,
   emailSchema,
   eventTypeSchema,
   passwordSchema,
@@ -99,6 +100,21 @@ describe('authentication validation', () => {
     expect(createBookingSchema.safeParse(booking).success).toBe(false)
     expect(createBookingSchema.safeParse({
       ...booking,
+      requestId: 'f5d799e8-5773-4fcf-9dc7-cb82e4efbd73'
+    }).success).toBe(true)
+    const teamBooking = {
+      team: 'product',
+      slug: booking.slug,
+      start: booking.start,
+      durationMinutes: booking.durationMinutes,
+      name: booking.name,
+      email: booking.email,
+      timeZone: booking.timeZone,
+      recurrence: booking.recurrence
+    }
+    expect(createTeamBookingSchema.safeParse(teamBooking).success).toBe(false)
+    expect(createTeamBookingSchema.safeParse({
+      ...teamBooking,
       requestId: 'f5d799e8-5773-4fcf-9dc7-cb82e4efbd73'
     }).success).toBe(true)
 
