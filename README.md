@@ -44,6 +44,36 @@ The build fails if prerendered marketing pages contain the wrong canonical URL
 or indexing directive. For Docker builds, pass it as a build argument, for
 example `--build-arg SCHEDRA_URL=https://schedra.xyz`.
 
+## Production deployment
+
+Run `pnpm db:migrate` before starting the new application version. The current
+release candidate includes two ordered migrations that must not be skipped:
+
+- `0050_complete_lady_deathstrike.sql` adds managed-event assignments and the
+  list of template fields that a team member may personalize.
+- `0051_bumpy_rage.sql` adds email-notification preferences, authenticator 2FA
+  records and booking attendance/no-show fields.
+
+Background work must be running in every deployed environment. For a small
+deployment, use `SCHEDRA_PROCESS_ROLE=all` on the application process. For
+separate services, run the web service with `SCHEDRA_PROCESS_ROLE=web` and run
+`node scripts/start-worker.mjs` from the same built image as a continuously
+running worker (`pnpm worker` is the equivalent source-checkout command). The
+worker delivers queued email and workflows, synchronizes and periodically
+reconciles calendars, expires payment holds, recovers stale refunds, reconciles
+team seats and evaluates operational alerts. Without it, HTTP pages may still
+load while those durable jobs remain pending.
+
+After deployment, verify that migrations completed, `/api/healthz` responds,
+`/api/readyz` reports ready for the process role, and the private Operations page
+shows an online worker with no unexpected failed or stale jobs. Exercise a normal
+booking, reschedule and cancellation in staging before promoting the release.
+Provider-dependent release checks must use sandbox or dedicated staging accounts:
+confirm an Apple Calendar event can be created, updated and removed, and confirm
+the Bachs refund state moves from pending to its provider-confirmed result. The
+automated suite covers these boundaries with fakes, but it does not replace live
+iCloud or Bachs validation.
+
 ## Apple Calendar
 
 Apple Calendar connects through iCloud CalDAV. Users must enable two-factor
@@ -56,6 +86,10 @@ password revokes app-specific passwords, so the integration will then show
 
 No Apple-specific deployment secret or callback URL is required. Production
 must be able to make outbound HTTPS requests to `*.icloud.com`.
+
+The CalDAV implementation and failure handling have automated provider-boundary
+coverage. A real iCloud account should still complete the staging create,
+reschedule and cancellation check described above before launch.
 
 ## Security
 
