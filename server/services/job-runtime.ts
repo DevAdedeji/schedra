@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto'
-import { processCalendarSyncJobs } from './calendar-sync'
+import { enqueueCalendarReconciliation, processCalendarSyncJobs } from './calendar-sync'
 import { processEmailOutbox } from './email-outbox'
 import { processSubscriptionSeatSyncJobs } from './subscription-seat-sync'
 import { expireLapsedTeams, processBillingReminders } from './billing-reminders'
 import { evaluateOperationsAlerts } from './operations-alerts'
 import { dispatchDomainEvents, processAutomationRuns } from './workflows'
-import { expirePaidBookingHolds } from './paid-booking'
+import { expirePaidBookingHolds, retryStalePaidBookingRefunds } from './paid-booking'
 import {
   heartbeatWorkerInstance,
   pruneWorkerInstances,
@@ -32,6 +32,13 @@ export function defaultRuntimeTasks(): RuntimeTask[] {
       run: () => processCalendarSyncJobs()
     },
     {
+      name: 'calendar-reconciliation',
+      intervalMs: 15 * 60_000,
+      initialDelayMs: 45_000,
+      leaseMs: 60_000,
+      run: () => enqueueCalendarReconciliation()
+    },
+    {
       name: 'email-outbox',
       intervalMs: 5_000,
       leaseMs: 60_000,
@@ -52,6 +59,13 @@ export function defaultRuntimeTasks(): RuntimeTask[] {
       intervalMs: 60_000,
       leaseMs: 60_000,
       run: () => expirePaidBookingHolds()
+    },
+    {
+      name: 'paid-booking-refunds',
+      intervalMs: 15 * 60_000,
+      initialDelayMs: 30_000,
+      leaseMs: 120_000,
+      run: () => retryStalePaidBookingRefunds()
     },
     {
       name: 'subscription-seat-sync',
