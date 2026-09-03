@@ -6,7 +6,7 @@ import {
   listConnectedAccountPayoutDestinations
 } from '../integrations/bachs'
 import { findPaymentRecipient, syncPaymentRecipient } from './payment-recipient'
-import { createPaymentWithdrawal, previewPaymentWithdrawal } from './payment-withdrawal'
+import { createPaymentWithdrawal, previewPaymentWithdrawal, withdrawalTransitionStates } from './payment-withdrawal'
 
 vi.mock('../integrations/bachs', () => ({
   createConnectedAccountPayout: vi.fn(),
@@ -211,5 +211,14 @@ describe('payment withdrawal previews', () => {
         confirmationToken: `${preview.confirmationToken}changed`
       }
     })).rejects.toMatchObject({ statusCode: 400 })
+  })
+})
+
+describe('withdrawal provider ordering', () => {
+  it('never lets a delayed provider event overwrite a completed payout', () => {
+    expect(withdrawalTransitionStates('completed')).toContain('failed')
+    expect(withdrawalTransitionStates('failed')).not.toContain('completed')
+    expect(withdrawalTransitionStates('processing')).not.toContain('completed')
+    expect(withdrawalTransitionStates('pending')).not.toContain('processing')
   })
 })

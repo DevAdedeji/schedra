@@ -225,6 +225,8 @@ async function financialAlertCounts(): Promise<FinancialAlertCounts> {
         'collection.overpaid',
         'dispute.created',
         'dispute.updated',
+        'refund.paid',
+        'refund.failed',
         'payout.failed'
       ]),
       sql`${webhookDeliveries.receivedAt} >= now() - interval '7 days'`

@@ -1,6 +1,6 @@
 import postgres from 'postgres'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
-import { getTestDatabaseUrl } from '../../test/helpers/database'
+import { configureAppTestEnvironment, getTestDatabaseUrl } from '../../test/helpers/database'
 
 const url = getTestDatabaseUrl()
 
@@ -17,6 +17,9 @@ describe.skipIf(!url)('paid booking database invariants', () => {
   })
 
   beforeEach(async () => {
+    configureAppTestEnvironment(url!)
+    const { resetEnv } = await import('../config/env')
+    resetEnv()
     await sql`truncate table payment_ledger_entries, booking_payments, payment_recipients, bookings, event_types, users restart identity cascade`
     const [user] = await sql<{ id: string }[]>`
       insert into users (email, name, username)
@@ -152,5 +155,58 @@ describe.skipIf(!url)('paid booking database invariants', () => {
         booking_payment_id, dedupe_key, kind, direction, status, amount_cents, currency
       ) values (${payment!.id}, 'payment:invalid', 'cash', 'sideways', 'lost', -1, 'BTC')
     `).rejects.toMatchObject({ code: '23514' })
+  })
+
+  it('lets a completed refund win over duplicate and out-of-order failure events', async () => {
+    const [payment] = await sql<{ id: string }[]>`
+      insert into booking_payments (
+        booking_id, recipient_id, reference, status, amount_cents, currency,
+        platform_fee_cents, bachs_charge_id
+      ) values (
+        ${bookingId}, ${recipientId}, 'booking-refund-ordering', 'refund_pending',
+        2500, 'USD', 125, 'charge-refund-ordering'
+      ) returning id
+    `
+    const refundReference = `booking-refund-${payment!.id}`
+    const { applyRefundEvent } = await import('../services/paid-booking')
+
+    await expect(applyRefundEvent({
+      reference: refundReference,
+      status: 'failed',
+      providerEventId: 'evt-refund-failed',
+      refundId: 'refund-ordering'
+    })).resolves.toBe(true)
+    await expect(applyRefundEvent({
+      reference: refundReference,
+      status: 'paid',
+      providerEventId: 'evt-refund-paid',
+      refundId: 'refund-ordering'
+    })).resolves.toBe(true)
+    await expect(applyRefundEvent({
+      reference: refundReference,
+      status: 'failed',
+      providerEventId: 'evt-refund-late-failure',
+      refundId: 'refund-ordering'
+    })).resolves.toBe(true)
+    await expect(applyRefundEvent({
+      reference: refundReference,
+      status: 'paid',
+      providerEventId: 'evt-refund-paid',
+      refundId: 'refund-ordering'
+    })).resolves.toBe(true)
+
+    const [stored] = await sql<{ status: string, refundedAt: Date | null }[]>`
+      select status, refunded_at as "refundedAt"
+      from booking_payments where id = ${payment!.id}
+    `
+    expect(stored).toMatchObject({ status: 'refunded' })
+    expect(stored?.refundedAt).toBeInstanceOf(Date)
+
+    const ledger = await sql<{ status: string }[]>`
+      select status from payment_ledger_entries
+      where booking_payment_id = ${payment!.id} and kind = 'refund'
+      order by created_at
+    `
+    expect(ledger.map(row => row.status)).toEqual(['failed', 'succeeded'])
   })
 })

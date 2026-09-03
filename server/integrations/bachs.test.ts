@@ -293,6 +293,51 @@ describe('bachs checkout payment methods', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('safely retries a transient refund request with the same idempotency key', async () => {
+    const refund = {
+      refund_id: 'refund_123',
+      charge_id: 'charge_123',
+      reference: 'booking-refund-payment-123',
+      status: 'pending',
+      requested_amount: '25.00'
+    }
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(refund), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { createRefund } = await import('./bachs')
+    await expect(createRefund({
+      chargeId: 'charge_123',
+      reference: 'booking-refund-payment-123',
+      reason: 'Booking cancelled'
+    })).resolves.toEqual(refund)
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    for (const call of fetchMock.mock.calls) {
+      expect(new Headers((call[1] as RequestInit).headers).get('Idempotency-Key')).toBe(
+        'booking-refund-payment-123'
+      )
+    }
+  })
+
+  it('rejects a malformed successful refund response as an unknown provider state', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      refund_id: 'refund_wrong',
+      charge_id: 'charge_123',
+      reference: 'another-refund',
+      status: 'pending'
+    }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { createRefund } = await import('./bachs')
+    await expect(createRefund({
+      chargeId: 'charge_123',
+      reference: 'booking-refund-payment-123',
+      reason: 'Booking cancelled'
+    })).rejects.toMatchObject({ statusCode: 502 })
+  })
+
   it('uses owner identity, not email, to make payout account creation idempotent', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: 'acct_host' }), { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)

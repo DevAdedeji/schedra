@@ -558,10 +558,11 @@ export interface BachsRefund {
   requested_amount: string
 }
 
-export function createRefund(input: { chargeId: string, reference: string, reason: string }) {
-  return bachsFetch<BachsRefund>('/refunds', {
+export async function createRefund(input: { chargeId: string, reference: string, reason: string }) {
+  const refund = await bachsFetch<BachsRefund>('/refunds', {
     method: 'POST',
     idempotencyKey: input.reference,
+    retryTransient: true,
     body: {
       charge_id: input.chargeId,
       reference: input.reference,
@@ -569,6 +570,24 @@ export function createRefund(input: { chargeId: string, reference: string, reaso
       fee_bearer: 'ORG'
     }
   })
+
+  if (
+    !refund
+    || typeof refund.refund_id !== 'string'
+    || !refund.refund_id
+    || typeof refund.reference !== 'string'
+    || refund.reference !== input.reference
+    || typeof refund.status !== 'string'
+    || !refund.status
+    || (refund.charge_id && refund.charge_id !== input.chargeId)
+  ) {
+    throw createError({
+      statusCode: 502,
+      statusMessage: 'Bachs returned an invalid refund confirmation. Its current state must be reconciled before retrying.'
+    })
+  }
+
+  return refund
 }
 
 export interface BachsQuote {

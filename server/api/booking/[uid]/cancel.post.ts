@@ -11,6 +11,7 @@ import { cancelBookingReminders } from '../../../services/email-outbox'
 import { cancelPendingAutomationRuns, publishBookingEvent } from '../../../services/workflows'
 import { requestPaidBookingRefund } from '../../../services/paid-booking'
 import { recordSecurityAudit } from '../../../services/security-audit'
+import { logEvent } from '../../../observability/logger'
 
 export default defineEventHandler(async (event) => {
   const uid = getRouterParam(event, 'uid')
@@ -32,21 +33,20 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'No such booking' })
   }
 
+  const session = await getAuthSession(event)
+  const hosts = await assignedHostsForBooking(booking.id)
+  const actor = hosts.some(host => host.userId === session?.user.id) ? 'host' : 'guest'
+  const refundReason = parsed.data.reason || `Booking cancelled by ${actor}`
+
   if (booking.status === 'cancelled') {
-    return { ok: true, alreadyCancelled: true }
+    const refund = await safelyRequestRefund(booking.id, refundReason)
+    return refundResponse(true, refund)
   }
 
   if (booking.endsAt.getTime() < Date.now()) {
     throw createError({ statusCode: 409, statusMessage: 'That meeting has already happened.' })
   }
 
-  const session = await getAuthSession(event)
-  const hosts = await assignedHostsForBooking(booking.id)
-  const actor = hosts.some(host => host.userId === session?.user.id) ? 'host' : 'guest'
-  const refund = await requestPaidBookingRefund(
-    booking.id,
-    parsed.data.reason || `Booking cancelled by ${actor}`
-  )
   const cancelled = await useDatabase().transaction(async (tx) => {
     const [updated] = await tx
       .update(bookings)
@@ -91,8 +91,14 @@ export default defineEventHandler(async (event) => {
   })
 
   if (!cancelled) {
-    return { ok: true, alreadyCancelled: true }
+    const refund = await safelyRequestRefund(booking.id, refundReason)
+    return refundResponse(true, refund)
   }
+
+  // The calendar reservation is cancelled before crossing the provider
+  // boundary. A timeout can then leave a refund pending for reconciliation,
+  // but it can never refund a booking that remained active locally.
+  const refund = await safelyRequestRefund(booking.id, refundReason)
 
   await recordSecurityAudit({
     action: 'booking.cancelled',
@@ -101,8 +107,30 @@ export default defineEventHandler(async (event) => {
     organizationId: booking.organizationId,
     targetType: 'booking',
     targetId: booking.id,
-    metadata: { actor, paidRefundRequired: refund.required }
+    metadata: { actor, paidRefundRequired: refund.required, refundState: refund.providerState }
   }, event)
 
-  return { ok: true, alreadyCancelled: false, refundPending: refund.required }
+  return refundResponse(false, refund)
 })
+
+async function safelyRequestRefund(bookingId: string, reason: string) {
+  try {
+    return await requestPaidBookingRefund(bookingId, reason)
+  } catch (error) {
+    logEvent('error', 'paid_booking_refund_request_failed', { bookingId, error })
+    return { required: true as const, providerState: 'failed' as const }
+  }
+}
+
+function refundResponse(
+  alreadyCancelled: boolean,
+  refund: Awaited<ReturnType<typeof safelyRequestRefund>>
+) {
+  return {
+    ok: true,
+    alreadyCancelled,
+    refundPending: refund.required && ['pending', 'unknown'].includes(refund.providerState),
+    refundFailed: refund.providerState === 'failed',
+    refunded: refund.providerState === 'paid'
+  }
+}

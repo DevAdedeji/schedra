@@ -515,6 +515,13 @@ async function reconcileWithdrawalRows(recipientId: string, payouts: readonly Ba
   }))
 }
 
+export function withdrawalTransitionStates(status: BachsPayout['status']) {
+  if (status === 'completed') return ['creating', 'unknown', 'pending', 'processing', 'failed'] as const
+  if (status === 'failed') return ['creating', 'unknown', 'pending', 'processing'] as const
+  if (status === 'processing') return ['creating', 'unknown', 'pending', 'processing'] as const
+  return ['creating', 'unknown', 'pending'] as const
+}
+
 async function applyProviderPayout(withdrawalId: string, payout: BachsPayout, providerEventId?: string) {
   const sourceCurrency = supportedCurrency(payout.source_currency ?? payout.currency)
   const destinationCurrency = supportedCurrency(payout.currency)
@@ -537,8 +544,16 @@ async function applyProviderPayout(withdrawalId: string, payout: BachsPayout, pr
     completedAt,
     lastCheckedAt: sql`now()`,
     updatedAt: sql`now()`
-  }).where(eq(paymentWithdrawals.id, withdrawalId)).returning()
-  if (!updated) throw new Error('Withdrawal disappeared during provider reconciliation.')
+  }).where(and(
+    eq(paymentWithdrawals.id, withdrawalId),
+    inArray(paymentWithdrawals.status, [...withdrawalTransitionStates(payout.status)])
+  )).returning()
+  if (!updated) {
+    const [existing] = await useDatabase().select().from(paymentWithdrawals)
+      .where(eq(paymentWithdrawals.id, withdrawalId)).limit(1)
+    if (existing) return existing
+    throw new Error('Withdrawal disappeared during provider reconciliation.')
+  }
   return updated
 }
 

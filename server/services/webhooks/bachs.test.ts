@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getCheckoutSession } from '../../integrations/bachs'
-import { completePaidBookingFromCheckout } from '../paid-booking'
+import { applyRefundEvent, completePaidBookingFromCheckout } from '../paid-booking'
 import { applyWithdrawalPayoutEvent } from '../payment-withdrawal'
 import { processBachsWebhook } from './bachs'
 
@@ -85,6 +85,26 @@ describe('Bachs paid-booking webhooks', () => {
       payoutId: 'pay_123',
       reference: 'schedra-wd-request',
       providerEventId: 'evt_payout'
+    })
+  })
+
+  it('identifies a refund event that does not belong to a local payment', async () => {
+    vi.mocked(applyRefundEvent).mockResolvedValue(false)
+
+    await expect(processBachsWebhook({
+      id: 'evt_refund_late_failure',
+      type: 'refund.failed',
+      data: {
+        reference: 'booking-refund-payment-123',
+        refund_id: 'refund_123'
+      }
+    })).resolves.toEqual({ received: true, ignored: 'unknown-refund' })
+
+    expect(applyRefundEvent).toHaveBeenCalledWith({
+      reference: 'booking-refund-payment-123',
+      status: 'failed',
+      providerEventId: 'evt_refund_late_failure',
+      refundId: 'refund_123'
     })
   })
 })

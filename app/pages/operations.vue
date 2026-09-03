@@ -20,7 +20,12 @@ const filter = ref<OperationStatus>('all')
 const page = ref(1)
 const retryingId = ref<string | null>(null)
 const acknowledgingId = ref<string | null>(null)
+const hydrated = ref(false)
 const requestFetch = useRequestFetch()
+
+onMounted(() => {
+  hydrated.value = true
+})
 
 const { data: overview, status: overviewStatus, error: overviewError, refresh: refreshOverview } = await useAsyncData(
   'operations-overview', (_nuxtApp, { signal }) => requestFetch<OperationsOverview>(
@@ -167,7 +172,11 @@ async function acknowledgeAlert(id: string) {
 </script>
 
 <template>
-  <div class="space-y-8">
+  <div
+    class="space-y-8"
+    data-testid="operations-page"
+    :data-ready="hydrated"
+  >
     <PageHeader
       title="Operations"
       description="Private delivery health, failures and safe recovery controls."

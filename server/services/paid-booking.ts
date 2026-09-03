@@ -33,6 +33,8 @@ type PaymentExecutor = Pick<Database, 'insert' | 'select' | 'update'>
 
 export const PAYMENT_HOLD_EXPIRED_REASON = 'Payment was not completed before the hold expired.'
 const SLOT_TAKEN = '23P01'
+const REFUND_RETRY_AFTER_MS = 15 * 60 * 1000
+const REFUND_RETRY_BATCH_SIZE = 25
 
 function paymentRecipientOwner(owner: { userId?: string | null, organizationId?: string | null }): PaymentRecipientOwner | null {
   return owner.organizationId
@@ -651,9 +653,112 @@ function errorCode(error: unknown) {
     : null
 }
 
+export function refundProviderState(status: string): 'pending' | 'paid' | 'failed' {
+  const normalized = status.trim().toLowerCase()
+  if (['paid', 'succeeded', 'completed', 'refunded'].includes(normalized)) return 'paid'
+  if (['failed', 'rejected', 'cancelled', 'canceled'].includes(normalized)) return 'failed'
+  return 'pending'
+}
+
+export function isAmbiguousRefundFailure(error: unknown) {
+  if (!error || typeof error !== 'object' || !('statusCode' in error)) return true
+  const statusCode = Number(error.statusCode)
+  return statusCode === 408
+    || statusCode === 409
+    || statusCode === 425
+    || statusCode === 429
+    || statusCode >= 500
+}
+
+async function markRefundRequestFailed(payment: typeof bookingPayments.$inferSelect, error: unknown) {
+  const message = error instanceof Error ? error.message.slice(0, 1000) : 'Refund request failed.'
+  const updated = await useDatabase().transaction(async (tx) => {
+    const [failed] = await tx.update(bookingPayments).set({
+      status: 'refund_failed',
+      lastError: message,
+      updatedAt: sql`now()`
+    }).where(and(
+      eq(bookingPayments.id, payment.id),
+      eq(bookingPayments.status, 'refund_pending')
+    )).returning({ id: bookingPayments.id })
+    if (!failed) return false
+    await appendPaymentLedgerEntry({
+      bookingPaymentId: payment.id,
+      dedupeKey: `payment:${payment.id}:refund-request-failed`,
+      kind: 'refund',
+      direction: 'out',
+      status: 'failed',
+      amountCents: payment.amountCents,
+      currency: payment.currency as 'USD' | 'NGN',
+      providerObjectId: payment.bachsChargeId,
+      message
+    }, tx)
+    return true
+  })
+  return updated
+}
+
+async function recordAmbiguousRefundRequest(payment: typeof bookingPayments.$inferSelect, error: unknown) {
+  const message = 'Bachs may have accepted this refund, but Schedra could not confirm its current state yet.'
+  await appendPaymentLedgerEntry({
+    bookingPaymentId: payment.id,
+    dedupeKey: `payment:${payment.id}:refund-state-unknown`,
+    kind: 'refund',
+    direction: 'out',
+    status: 'pending',
+    amountCents: payment.amountCents,
+    currency: payment.currency as 'USD' | 'NGN',
+    providerObjectId: payment.bachsChargeId,
+    message
+  }, useDatabase())
+  logEvent('error', 'paid_booking_refund_state_unknown', {
+    paymentId: payment.id,
+    bookingId: payment.bookingId,
+    providerReference: `booking-refund-${payment.id}`,
+    error
+  })
+}
+
+async function submitPaidBookingRefund(
+  payment: typeof bookingPayments.$inferSelect,
+  reason: string
+) {
+  const reference = `booking-refund-${payment.id}`
+  try {
+    const refund = await createRefund({ chargeId: payment.bachsChargeId!, reference, reason })
+    const state = refundProviderState(refund.status)
+    if (state !== 'pending') {
+      await applyRefundEvent({
+        reference,
+        status: state,
+        refundId: refund.refund_id
+      })
+    }
+    logEvent('info', 'paid_booking_refund_acknowledged', {
+      paymentId: payment.id,
+      bookingId: payment.bookingId,
+      refundId: refund.refund_id,
+      providerStatus: refund.status
+    })
+    return state
+  } catch (error) {
+    if (isAmbiguousRefundFailure(error)) {
+      await recordAmbiguousRefundRequest(payment, error)
+      return 'unknown' as const
+    }
+    await markRefundRequestFailed(payment, error)
+    throw error
+  }
+}
+
 export async function requestPaidBookingRefund(bookingId: string, reason: string) {
   const payment = await paymentForBooking(bookingId)
-  if (!payment || !['paid', 'refund_failed'].includes(payment.status)) return { required: false as const }
+  if (!payment) return { required: false as const, providerState: 'not-required' as const }
+  if (payment.status === 'refund_pending') return { required: true as const, providerState: 'pending' as const }
+  if (payment.status === 'refunded') return { required: false as const, providerState: 'paid' as const }
+  if (!['paid', 'refund_failed'].includes(payment.status)) {
+    return { required: false as const, providerState: 'not-required' as const }
+  }
   if (!payment.bachsChargeId) throw createError({ statusCode: 409, statusMessage: 'This payment is still settling. Try cancelling again shortly.' })
   const reference = `booking-refund-${payment.id}`
   const claimed = await useDatabase().transaction(async (tx) => {
@@ -683,31 +788,8 @@ export async function requestPaidBookingRefund(bookingId: string, reason: string
     }, tx)
     return updated
   })
-  if (!claimed) return { required: true as const }
-  try {
-    await createRefund({ chargeId: payment.bachsChargeId, reference, reason })
-  } catch (error) {
-    const message = error instanceof Error ? error.message.slice(0, 1000) : 'Refund request failed.'
-    await useDatabase().transaction(async (tx) => {
-      await tx.update(bookingPayments).set({
-        status: 'refund_failed',
-        lastError: message,
-        updatedAt: sql`now()`
-      }).where(eq(bookingPayments.id, payment.id))
-      await appendPaymentLedgerEntry({
-        bookingPaymentId: payment.id,
-        dedupeKey: `payment:${payment.id}:refund-request-failed`,
-        kind: 'refund',
-        direction: 'out',
-        status: 'failed',
-        amountCents: payment.amountCents,
-        currency: payment.currency as 'USD' | 'NGN',
-        providerObjectId: payment.bachsChargeId,
-        message
-      }, tx)
-    })
-    throw error
-  }
+  if (!claimed) return { required: true as const, providerState: 'pending' as const }
+  const providerState = await submitPaidBookingRefund(payment, reason)
   await recordSecurityAudit({
     action: 'payments.refund_requested',
     targetType: 'booking_payment',
@@ -716,10 +798,44 @@ export async function requestPaidBookingRefund(bookingId: string, reason: string
       bookingId: payment.bookingId,
       amountCents: payment.amountCents,
       currency: payment.currency,
-      providerReference: reference
+      providerReference: reference,
+      providerState
     }
   })
-  return { required: true as const }
+  return { required: true as const, providerState }
+}
+
+export async function retryStalePaidBookingRefunds() {
+  const candidates = await useDatabase().select().from(bookingPayments).where(and(
+    eq(bookingPayments.status, 'refund_pending'),
+    lte(bookingPayments.updatedAt, new Date(Date.now() - REFUND_RETRY_AFTER_MS))
+  )).limit(REFUND_RETRY_BATCH_SIZE)
+
+  let retried = 0
+  for (const payment of candidates) {
+    if (!payment.bachsChargeId) continue
+    try {
+      await submitPaidBookingRefund(payment, 'Retrying a previously requested booking cancellation refund.')
+      retried += 1
+    } catch (error) {
+      logEvent('warn', 'paid_booking_refund_retry_failed', {
+        paymentId: payment.id,
+        bookingId: payment.bookingId,
+        error
+      })
+    }
+  }
+  return retried
+}
+
+export async function retryPaidBookingRefundByReference(reference: string) {
+  const [payment] = await useDatabase().select().from(bookingPayments)
+    .where(eq(bookingPayments.reference, reference)).limit(1)
+  if (!payment) throw createError({ statusCode: 404, statusMessage: 'No such booking payment.' })
+  if (payment.status !== 'refund_failed') {
+    throw createError({ statusCode: 409, statusMessage: 'Only a failed refund can be retried manually.' })
+  }
+  return requestPaidBookingRefund(payment.bookingId, 'Refund retried by a platform operator.')
 }
 
 export async function applyRefundEvent(input: {
@@ -730,13 +846,19 @@ export async function applyRefundEvent(input: {
 }) {
   if (!input.reference?.startsWith('booking-refund-')) return false
   const id = input.reference.slice('booking-refund-'.length)
+  const allowedCurrentStates = input.status === 'paid'
+    ? ['refund_pending', 'refund_failed']
+    : ['refund_pending']
   const updated = await useDatabase().transaction(async (tx) => {
     const [payment] = await tx.update(bookingPayments).set({
       status: input.status === 'paid' ? 'refunded' : 'refund_failed',
       refundedAt: input.status === 'paid' ? sql`now()` : null,
       lastError: input.status === 'failed' ? 'Bachs could not complete the refund.' : null,
       updatedAt: sql`now()`
-    }).where(eq(bookingPayments.id, id)).returning({
+    }).where(and(
+      eq(bookingPayments.id, id),
+      inArray(bookingPayments.status, allowedCurrentStates)
+    )).returning({
       id: bookingPayments.id,
       bookingId: bookingPayments.bookingId,
       amountCents: bookingPayments.amountCents,
@@ -770,8 +892,11 @@ export async function applyRefundEvent(input: {
         providerEventId: input.providerEventId ?? null
       }
     })
+    return true
   }
-  return Boolean(updated)
+  const [existing] = await useDatabase().select({ id: bookingPayments.id }).from(bookingPayments)
+    .where(eq(bookingPayments.id, id)).limit(1)
+  return Boolean(existing)
 }
 
 async function recordSuccessfulPaymentEntries(

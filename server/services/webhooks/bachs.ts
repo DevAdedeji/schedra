@@ -71,7 +71,9 @@ export async function processBachsWebhook(payload: BachsEvent) {
       providerEventId: payload.id,
       refundId: payload.data?.refund_id
     })
-    if (applied) return { received: true, applied: true }
+    return applied
+      ? { received: true, applied: true }
+      : { received: true, ignored: 'unknown-refund' }
   }
 
   if (PAYOUT_EVENTS.has(type)) {

@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { formatMoney } from '#shared/payments'
-import { operationsApi, paymentsApi, type PaymentActivityRecord, type PaymentActivityResponse } from '~/services/schedra-api'
+import { apiErrorMessage, operationsApi, paymentsApi, type PaymentActivityRecord, type PaymentActivityResponse } from '~/services/schedra-api'
 import { DEFAULT_LIST_PAGE_SIZE } from '~/constants/lists'
 import { formatCalendarDate, formatDateTime } from '~/utils/date-time'
 
 const props = withDefaults(defineProps<{ teamSlug?: string, operations?: boolean }>(), { operations: false })
+const feedback = useFeedback()
+const retryingRefundId = ref<string | null>(null)
 const direction = ref<'all' | 'in' | 'out'>('all')
 const state = ref<'all' | 'pending' | 'succeeded' | 'failed' | 'expired'>('all')
 const from = ref('')
@@ -126,6 +128,24 @@ function traceRows(item: PaymentActivityRecord) {
     ['Provider event', item.providerEventId],
     ['Guest', item.attendeeEmail]
   ].filter((row): row is [string, string] => Boolean(row[1]))
+}
+
+async function retryRefund(item: PaymentActivityRecord) {
+  retryingRefundId.value = item.id
+  try {
+    const result = await operationsApi.retryRefund(item.paymentReference)
+    feedback.success({
+      title: result.providerState === 'paid' ? 'Refund confirmed' : 'Refund submitted again',
+      description: result.providerState === 'unknown'
+        ? 'Bachs may have accepted it. Schedra will keep reconciling the refund safely.'
+        : 'The payment ledger will update when Bachs confirms the final state.'
+    })
+    await refresh()
+  } catch (failure) {
+    feedback.error({ title: apiErrorMessage(failure, 'The refund could not be retried.') })
+  } finally {
+    retryingRefundId.value = null
+  }
 }
 </script>
 
@@ -387,15 +407,27 @@ function traceRows(item: PaymentActivityRecord) {
                 <p class="text-xs text-muted">
                   {{ item.message || 'Recorded from the payment provider.' }}
                 </p>
-                <UButton
-                  :to="item.bookingPath"
-                  color="neutral"
-                  variant="outline"
-                  size="sm"
-                  trailing-icon="i-lucide-arrow-right"
-                >
-                  Open booking
-                </UButton>
+                <div class="flex flex-wrap items-center gap-2">
+                  <UButton
+                    v-if="item.kind === 'refund' && item.status === 'failed'"
+                    label="Retry refund"
+                    icon="i-lucide-rotate-ccw"
+                    color="error"
+                    variant="outline"
+                    size="sm"
+                    :loading="retryingRefundId === item.id"
+                    @click="retryRefund(item)"
+                  />
+                  <UButton
+                    :to="item.bookingPath"
+                    color="neutral"
+                    variant="outline"
+                    size="sm"
+                    trailing-icon="i-lucide-arrow-right"
+                  >
+                    Open booking
+                  </UButton>
+                </div>
               </div>
             </div>
           </details>
