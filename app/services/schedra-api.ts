@@ -29,6 +29,7 @@ import type { EventTypeRecord } from '~/types/event-type'
 import type { CreateBookingLinkInput } from '#shared/booking-links'
 import type { AwayPeriodInput } from '#shared/away-periods'
 import type { EmailNotificationPreferences } from '#shared/email-notification-preferences'
+import type { BookingEmailTemplateSettings } from '#shared/email-templates'
 import type { ScheduleOverrideRecord, ScheduleRecord, ScheduleRuleRecord } from '~/types/schedule'
 import { DEFAULT_LIST_PAGE_SIZE } from '~/constants/lists'
 
@@ -510,6 +511,20 @@ export const emailNotificationPreferencesApi = {
   )
 }
 
+export interface BookingEmailTemplateSettingsResponse {
+  settings: BookingEmailTemplateSettings
+  branding: PublicPersonalBranding
+  entitlement?: PersonalPlanEntitlement
+}
+
+export const bookingEmailTemplatesApi = {
+  endpoint: '/api/settings/booking-emails' as const,
+  update: (body: BookingEmailTemplateSettings) => $fetch<{ settings: BookingEmailTemplateSettings }>(
+    '/api/settings/booking-emails',
+    { method: 'PATCH', body }
+  )
+}
+
 export interface UsernameAvailability {
   available: boolean
   reason: 'invalid' | 'taken' | null
@@ -952,6 +967,15 @@ export const teamBrandingApi = {
   },
   removeLogo: (slug: string) =>
     $fetch(resource('/api/teams', slug, '/brand-logo'), { method: 'DELETE' })
+}
+
+export const teamBookingEmailTemplatesApi = {
+  endpoint: (slug: string) => resource('/api/teams', slug, '/booking-emails'),
+  update: (slug: string, body: BookingEmailTemplateSettings) =>
+    $fetch<{ settings: BookingEmailTemplateSettings }>(
+      resource('/api/teams', slug, '/booking-emails'),
+      { method: 'PATCH', body }
+    )
 }
 
 export interface TeamInvoiceRecord {

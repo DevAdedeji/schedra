@@ -337,6 +337,7 @@ export async function createTeamRecurringBooking(input: {
         }, tx)
         await queueBookingEmails({
           uid,
+          organizationId: input.eventType.organizationId,
           eventTitle: input.eventType.title,
           hostName: attending.length > 1
             ? `${input.eventType.organizationName} (${attending.map(host => host.name).join(', ')})`

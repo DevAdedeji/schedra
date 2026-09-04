@@ -9,9 +9,11 @@ import {
   optionalHostRecipients,
   type NotificationPreferenceExecutor
 } from './email-notification-preferences'
+import { customizeGuestBookingEmail, resolveBookingEmailCustomization } from './booking-email-customization'
 
 export interface BookingNotice {
   uid: string
+  organizationId?: string | null
   eventTitle: string
   hostName: string
   hostUserId?: string
@@ -84,6 +86,7 @@ export function bookingNoticeFromManaged(
   const answers = readBookingAnswers(booking.answers)
   return {
     uid: booking.uid,
+    organizationId: booking.organizationId,
     eventTitle: booking.eventTitle,
     hostName: booking.hostName,
     hostUserId: booking.hostId,
@@ -151,6 +154,11 @@ export async function queueBookingEmails(
   const recipients = [booking.attendeeEmail, ...booking.additionalGuestEmails]
   const hosts = booking.hostRecipients?.length ? booking.hostRecipients : [fallbackHost(booking)]
   const notifiedHosts = await optionalHostRecipients(hosts, 'newBookingEmails', executor ?? useDatabase())
+  const customization = await resolveBookingEmailCustomization(booking, executor ?? useDatabase())
+  const guestEmail = (email: Parameters<typeof customizeGuestBookingEmail>[1]) =>
+    customizeGuestBookingEmail('confirmation', email, booking, customization)
+  const reminderEmail = (email: Parameters<typeof customizeGuestBookingEmail>[1]) =>
+    customizeGuestBookingEmail('reminder', email, booking, customization)
   const sendConfirmation = options.sendConfirmation ?? true
   const seriesLabel = booking.series?.frequency === 'biweekly'
     ? 'Every 2 weeks'
@@ -163,7 +171,7 @@ export async function queueBookingEmails(
           dedupeKey: index === 0
             ? `booking:${booking.uid}:created:guest`
             : emailDedupeKey(`booking:${booking.uid}:created:additional`, recipient),
-          email: {
+          email: guestEmail({
             to: recipient,
             subject: booking.series
               ? `Confirmed: ${booking.series.occurrenceCount} ${booking.eventTitle} meetings`
@@ -203,7 +211,7 @@ export async function queueBookingEmails(
                 ? 'Each meeting can be rescheduled or cancelled separately from its booking page.'
                 : 'Plans change. You can reschedule or cancel from the booking page without contacting the host.'
               : 'The person who made the booking can reschedule or cancel it. You will receive any updates automatically.'
-          }
+          })
         }))
       : []),
     ...(sendConfirmation
@@ -269,7 +277,7 @@ export async function queueBookingEmails(
         bookingUid: booking.uid,
         category: 'booking_reminder' as const,
         availableAt,
-        email: {
+        email: reminderEmail({
           to: recipient,
           subject: `Reminder: ${booking.eventTitle} is ${timing}`,
           preheader: `${booking.eventTitle} with ${booking.hostName} is ${timing}.`,
@@ -291,7 +299,7 @@ export async function queueBookingEmails(
           footer: index === 0
             ? 'Need a different time? You can reschedule or cancel from the booking page.'
             : 'The person who made the booking manages changes for everyone invited.'
-        }
+        })
       }))
     })
   ], executor)
@@ -315,6 +323,9 @@ export async function queueBookingRescheduledEmails(
     'rescheduleEmails',
     executor ?? useDatabase()
   )
+  const customization = await resolveBookingEmailCustomization(booking, executor ?? useDatabase())
+  const guestEmail = (email: Parameters<typeof customizeGuestBookingEmail>[1]) =>
+    customizeGuestBookingEmail('reschedule', email, booking, customization)
   const seriesDetail = reschedule.seriesPosition
     ? [{ label: 'Recurring meeting', value: `Meeting ${reschedule.seriesPosition} in the series` }]
     : []
@@ -339,7 +350,7 @@ export async function queueBookingRescheduledEmails(
       dedupeKey: index === 0
         ? `booking:${booking.uid}:rescheduled:guest`
         : emailDedupeKey(`booking:${booking.uid}:rescheduled:additional`, recipient),
-      email: {
+      email: guestEmail({
         to: recipient,
         ...guestState,
         details: [
@@ -357,7 +368,7 @@ export async function queueBookingRescheduledEmails(
         action: index === 0
           ? { label: reschedule.requiresConfirmation ? 'View the request' : 'View updated booking', url: manage }
           : { label: 'View the host’s booking page', url: hostPage }
-      }
+      })
     })),
     ...notifiedHosts.map((host, index) => ({
       dedupeKey: index === 0
@@ -422,6 +433,9 @@ export async function queueBookingRequestEmails(booking: BookingNotice, executor
   const recipients = [booking.attendeeEmail, ...booking.additionalGuestEmails]
   const hosts = booking.hostRecipients?.length ? booking.hostRecipients : [fallbackHost(booking)]
   const notifiedHosts = await optionalHostRecipients(hosts, 'approvalRequestEmails', executor ?? useDatabase())
+  const customization = await resolveBookingEmailCustomization(booking, executor ?? useDatabase())
+  const guestEmail = (email: Parameters<typeof customizeGuestBookingEmail>[1]) =>
+    customizeGuestBookingEmail('request', email, booking, customization)
   const hostPage = `${useEnv().schedraUrl}${booking.publicBookingPath ?? `/${booking.hostUsername}`}`
   const guestDetails = [
     { label: 'Meeting', value: booking.eventTitle },
@@ -434,7 +448,7 @@ export async function queueBookingRequestEmails(booking: BookingNotice, executor
       dedupeKey: index === 0
         ? `booking:${booking.uid}:requested:guest`
         : emailDedupeKey(`booking:${booking.uid}:requested:additional`, recipient),
-      email: {
+      email: guestEmail({
         to: recipient,
         subject: `Request sent: ${booking.eventTitle} with ${booking.hostName}`,
         preheader: `${booking.hostName} will review this booking request.`,
@@ -445,7 +459,7 @@ export async function queueBookingRequestEmails(booking: BookingNotice, executor
           ? { label: 'View or change the request', url: manage }
           : { label: 'View the host’s booking page', url: hostPage },
         footer: 'You will receive another email as soon as the host approves or declines the request.'
-      }
+      })
     })),
     ...notifiedHosts.map((host, index) => ({
       dedupeKey: index === 0
@@ -489,12 +503,24 @@ export async function queueBookingRejectedEmails(
         hostTimeZone: booking.hostTimeZone
       })]
   const notifiedHosts = await optionalHostRecipients(hosts, 'approvalRequestEmails', executor ?? useDatabase())
+  const emailOwner = {
+    organizationId: booking.organizationId,
+    hostUserId: booking.hostId,
+    hostName: booking.hostName,
+    attendeeName: booking.attendeeName,
+    attendeeTimeZone: booking.attendeeTimeZone,
+    eventTitle: booking.eventTitle,
+    startsAt: booking.startsAt.toISOString()
+  }
+  const customization = await resolveBookingEmailCustomization(emailOwner, executor ?? useDatabase())
+  const guestEmail = (email: Parameters<typeof customizeGuestBookingEmail>[1]) =>
+    customizeGuestBookingEmail('rejection', email, emailOwner, customization)
   await enqueueEmails([
     ...recipients.map((recipient, index) => ({
       dedupeKey: index === 0
         ? `booking:${booking.uid}:rejected:guest`
         : emailDedupeKey(`booking:${booking.uid}:rejected:additional`, recipient),
-      email: {
+      email: guestEmail({
         to: recipient,
         subject: `Booking request declined: ${booking.eventTitle}`,
         preheader: `${booking.hostName} could not confirm the requested time.`,
@@ -507,7 +533,7 @@ export async function queueBookingRejectedEmails(
         ],
         action: { label: 'Choose another time', url: chooseAgain },
         footer: 'No calendar event was created for this request.'
-      }
+      })
     })),
     ...notifiedHosts.map((host, index) => ({
       dedupeKey: index === 0
@@ -557,11 +583,23 @@ export async function queueCancellationEmails(
         hostTimeZone: booking.hostTimeZone
       })]
   const notifiedHosts = await optionalHostRecipients(hosts, 'cancellationEmails', executor ?? useDatabase())
+  const emailOwner = {
+    organizationId: booking.organizationId,
+    hostUserId: booking.hostId,
+    hostName: booking.hostName,
+    attendeeName: booking.attendeeName,
+    attendeeTimeZone: booking.attendeeTimeZone,
+    eventTitle: booking.eventTitle,
+    startsAt: booking.startsAt.toISOString()
+  }
+  const customization = await resolveBookingEmailCustomization(emailOwner, executor ?? useDatabase())
+  const guestEmail = (email: Parameters<typeof customizeGuestBookingEmail>[1]) =>
+    customizeGuestBookingEmail('cancellation', email, emailOwner, customization)
 
   await enqueueEmails([
     {
       dedupeKey: `booking:${booking.uid}:cancelled:guest`,
-      email: {
+      email: guestEmail({
         to: booking.attendeeEmail,
         subject: `Cancelled: ${booking.eventTitle} with ${booking.hostName}`,
         preheader: `${booking.eventTitle} with ${booking.hostName} has been cancelled.`,
@@ -575,11 +613,11 @@ export async function queueCancellationEmails(
         ],
         action: { label: 'Book another time', url: bookingPage },
         footer: 'If you still need to meet, choose a new time from the host’s booking page.'
-      }
+      })
     },
     ...booking.additionalGuestEmails.map(recipient => ({
       dedupeKey: emailDedupeKey(`booking:${booking.uid}:cancelled:additional`, recipient),
-      email: {
+      email: guestEmail({
         to: recipient,
         subject: `Cancelled: ${booking.eventTitle} with ${booking.hostName}`,
         preheader: `${booking.eventTitle} with ${booking.hostName} has been cancelled.`,
@@ -593,7 +631,7 @@ export async function queueCancellationEmails(
         ],
         action: { label: 'View the host’s booking page', url: bookingPage },
         footer: 'You were included as an additional guest on this booking.'
-      }
+      })
     })),
     ...notifiedHosts.map((host, index) => ({
       dedupeKey: index === 0

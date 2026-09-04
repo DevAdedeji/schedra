@@ -11,6 +11,13 @@ export interface EmailDetail {
   url?: string
 }
 
+export interface EmailBranding {
+  name: string
+  logoUrl?: string
+  accentColor: string
+  hideSchedraBranding: boolean
+}
+
 export interface Email {
   to: string
   subject: string
@@ -20,6 +27,7 @@ export interface Email {
   details?: EmailDetail[]
   action: { label: string, url: string }
   footer?: string
+  branding?: EmailBranding
 }
 
 export class EmailDeliveryError extends Error {
@@ -64,6 +72,29 @@ function safeHttpUrl(value: string) {
   }
 }
 
+function safeAccentColor(value?: string) {
+  return value && /^#[0-9a-f]{6}$/i.test(value) ? value.toUpperCase() : '#FF5A2F'
+}
+
+function contrastColor(hex: string) {
+  const red = Number.parseInt(hex.slice(1, 3), 16)
+  const green = Number.parseInt(hex.slice(3, 5), 16)
+  const blue = Number.parseInt(hex.slice(5, 7), 16)
+  const luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255
+  return luminance > 0.58 ? '#1c1917' : '#ffffff'
+}
+
+function emailBrand(email: Email) {
+  const name = email.branding?.name.trim() || 'schedra'
+  const accentColor = safeAccentColor(email.branding?.accentColor)
+  const logoUrl = email.branding?.logoUrl ? safeHttpUrl(email.branding.logoUrl) : undefined
+  const mark = logoUrl
+    ? `<img src="${escapeHtml(logoUrl)}" alt="" width="36" height="36" style="display:block;max-width:120px;width:auto;height:36px;object-fit:contain">`
+    : `<span style="display:inline-block;width:28px;height:28px;line-height:28px;text-align:center;background:${accentColor};border-radius:7px;color:${contrastColor(accentColor)};font-size:16px;font-weight:700">${escapeHtml(name.slice(0, 1).toUpperCase())}</span>`
+
+  return { name, accentColor, mark }
+}
+
 function paragraphs(body: string) {
   return body
     .split(/\n{2,}/)
@@ -91,6 +122,12 @@ export function renderEmailHtml(email: Email) {
   const preheader = email.preheader ?? email.body.split(/\n/)[0] ?? email.heading
   const actionUrl = safeHttpUrl(email.action.url)
   if (!actionUrl) throw new Error('Email action URL must use HTTP or HTTPS.')
+  const brand = emailBrand(email)
+  const poweredBy = !email.branding
+    ? 'Sent by Schedra · Scheduling that works around you'
+    : email.branding.hideSchedraBranding
+      ? `Sent by ${escapeHtml(brand.name)}`
+      : `Sent by ${escapeHtml(brand.name)} · Powered by Schedra`
 
   return `<!doctype html>
 <html lang="en">
@@ -116,8 +153,8 @@ export function renderEmailHtml(email: Email) {
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px">
         <tr><td style="padding:0 4px 20px">
           <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-            <td width="28" height="28" align="center" style="width:28px;height:28px;background:#ff5a2f;border-radius:7px;color:#fff;font-size:16px;font-weight:700">S</td>
-            <td style="padding-left:10px;font-size:17px;font-weight:700;letter-spacing:-0.03em;color:#1c1917">schedra</td>
+            <td style="vertical-align:middle">${brand.mark}</td>
+            <td style="padding-left:10px;vertical-align:middle;font-size:17px;font-weight:700;letter-spacing:-0.03em;color:#1c1917">${escapeHtml(brand.name)}</td>
           </tr></table>
         </td></tr>
         <tr><td style="background:#fff;border:1px solid #e7e5e4;border-radius:16px;overflow:hidden">
@@ -127,8 +164,8 @@ export function renderEmailHtml(email: Email) {
               ${paragraphs(email.body)}
               ${email.details?.length ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;margin-top:28px;padding:20px;background:#fafaf9;border:1px solid #e7e5e4;border-radius:12px">${detailRows(email.details)}</table>` : ''}
               <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:28px"><tr>
-                <td style="border-radius:10px;background:#ff5a2f">
-                  <a href="${escapeHtml(actionUrl)}" style="display:inline-block;min-height:20px;padding:14px 22px;color:#1c1917;font-size:15px;line-height:20px;font-weight:650;text-decoration:none;border-radius:10px">${escapeHtml(email.action.label)}</a>
+                <td style="border-radius:10px;background:${brand.accentColor}">
+                  <a href="${escapeHtml(actionUrl)}" style="display:inline-block;min-height:20px;padding:14px 22px;color:${contrastColor(brand.accentColor)};font-size:15px;line-height:20px;font-weight:650;text-decoration:none;border-radius:10px">${escapeHtml(email.action.label)}</a>
                 </td>
               </tr></table>
               <p style="margin:28px 0 0;font-size:12px;line-height:1.6;color:#a8a29e">If the button does not work, copy and paste this link into your browser:<br><a href="${escapeHtml(actionUrl)}" style="color:#78716c;word-break:break-all;text-decoration:underline">${escapeHtml(actionUrl)}</a></p>
@@ -136,7 +173,7 @@ export function renderEmailHtml(email: Email) {
             </td></tr>
           </table>
         </td></tr>
-        <tr><td align="center" style="padding:20px 20px 0;font-size:12px;line-height:1.6;color:#a8a29e">Sent by Schedra · Scheduling that works around you</td></tr>
+        <tr><td align="center" style="padding:20px 20px 0;font-size:12px;line-height:1.6;color:#a8a29e">${poweredBy}</td></tr>
       </table>
     </td></tr>
   </table>
@@ -150,7 +187,13 @@ export function renderEmailText(email: Email) {
     : ''
   const footer = email.footer ? `\n\n${email.footer}` : ''
 
-  return `${email.heading}\n\n${email.body}${details}\n\n${email.action.label}: ${email.action.url}${footer}\n\n— Schedra`
+  const brandName = email.branding?.name.trim() || 'Schedra'
+  const signature = !email.branding
+    ? 'Schedra'
+    : email.branding.hideSchedraBranding
+      ? brandName
+      : `${brandName} · Powered by Schedra`
+  return `${email.heading}\n\n${email.body}${details}\n\n${email.action.label}: ${email.action.url}${footer}\n\n— ${signature}`
 }
 
 export async function sendEmail(email: Email, idempotencyKey?: string) {

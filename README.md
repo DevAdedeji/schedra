@@ -48,12 +48,14 @@ example `--build-arg SCHEDRA_URL=https://schedra.xyz`.
 ## Production deployment
 
 Run `pnpm db:migrate` before starting the new application version. The current
-release candidate includes two ordered migrations that must not be skipped:
+release candidate includes three ordered migrations that must not be skipped:
 
 - `0050_complete_lady_deathstrike.sql` adds managed-event assignments and the
   list of template fields that a team member may personalize.
 - `0051_bumpy_rage.sql` adds email-notification preferences, authenticator 2FA
   records and booking attendance/no-show fields.
+- `0052_cool_bruce_banner.sql` stores paid personal/team guest-email templates
+  and snapshots the selected branding into queued email jobs.
 
 Background work must be running in every deployed environment. For a small
 deployment, use `SCHEDRA_PROCESS_ROLE=all` on the application process. For
