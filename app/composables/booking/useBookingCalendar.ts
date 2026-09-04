@@ -1,4 +1,5 @@
-import { computed, onMounted, ref, toValue, watch, watchEffect, type MaybeRefOrGetter } from 'vue'
+import { computed, onMounted, ref, toValue, watch, watchEffect, type MaybeRefOrGetter, type Ref } from 'vue'
+import { lastBookingCalendarWeek } from '#shared/booking-calendar'
 import type { AvailabilityResponse, PublicBookingPage } from '~/services/schedra-api'
 import {
   addLocalCalendarDays,
@@ -23,12 +24,12 @@ export function addCalendarDays(date: Date, count: number) {
 export function useBookingCalendar(options: {
   availability: MaybeRefOrGetter<AvailabilityResponse | null | undefined>
   page: MaybeRefOrGetter<PublicBookingPage | null | undefined>
+  weekOffset?: Ref<number>
 }) {
   const viewerTimeZone = ref('UTC')
   const viewerTimeZoneReady = ref(false)
   const zones = Intl.supportedValuesOf('timeZone')
-  const weekOffset = ref(0)
-  const maxWeekOffset = 8
+  const weekOffset = options.weekOffset ?? ref(0)
   const selectedDate = ref<string | null>(null)
   const selectedSlot = ref<string | null>(null)
   const jumped = ref(false)
@@ -45,6 +46,12 @@ export function useBookingCalendar(options: {
 
   const today = new Date()
   const firstMonday = addCalendarDays(today, -((today.getDay() + 6) % 7))
+  const maxWeekOffset = computed(() => lastBookingCalendarWeek(
+    isoCalendarDate(firstMonday), today.toISOString(), toValue(options.page)?.bookingWindowDays, viewerTimeZone.value
+  ))
+  watch(maxWeekOffset, (maximum) => {
+    if (weekOffset.value > maximum) weekOffset.value = maximum
+  })
   const weekStart = computed(() => addCalendarDays(firstMonday, weekOffset.value * 7))
   const days = computed(() => Array.from({ length: 7 }, (_, index) => addCalendarDays(weekStart.value, index)))
   const slotsByDate = computed(() => {
@@ -60,9 +67,13 @@ export function useBookingCalendar(options: {
 
   watchEffect(() => {
     if (!viewerTimeZoneReady.value || jumped.value || !slotsByDate.value.size) return
+    if (weekOffset.value > 0) {
+      jumped.value = true
+      return
+    }
     const first = [...slotsByDate.value.keys()].sort()[0]!
     const monday = startOfIsoWeek(first)
-    weekOffset.value = Math.min(maxWeekOffset, Math.max(0,
+    weekOffset.value = Math.min(maxWeekOffset.value, Math.max(0,
       Math.round(calendarDaysBetween(isoCalendarDate(firstMonday), monday) / 7)))
     selectedDate.value = first
     jumped.value = true

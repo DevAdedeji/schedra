@@ -5,6 +5,7 @@ const { isSignedIn, accountDestination } = await useLandingNavigation()
 <template>
   <section class="bg-muted">
     <div class="mx-auto max-w-312 px-6 pb-20 pt-16 lg:px-10 lg:pb-28 lg:pt-24">
+      <SandboxPaymentNotice class="mb-8" />
       <div class="grid items-center gap-14 lg:grid-cols-[1.15fr_0.85fr] lg:gap-20">
         <div>
           <p class="eyebrow text-primary">

@@ -4,7 +4,7 @@ import { bookings } from '../database/schema'
 import { useDatabase } from '../database/index'
 import { findPublicEventType, slotsFor } from './booking-page'
 import type { EventTypeRow } from './booking-page'
-import { findBookingByUid } from '../repositories/booking'
+import { bookingToReschedule } from './booking-reschedule'
 import { queueBookingEmails, queueBookingRequestEmails, queueBookingRescheduledEmails } from './booking-emails'
 import { cancelBookingReminders } from './email-outbox'
 import { cancelPendingAutomationRuns, publishBookingEvent } from './workflows'
@@ -26,6 +26,7 @@ import { addUtcCalendarDays, utcCalendarDate } from '../utils/date-time'
 import { personalPaidBookingFeeBps } from './personal-entitlement'
 import { createPersonalRecurringBooking } from './recurring-booking-creation'
 import { assertBookingLimits } from './booking-limits'
+import { databaseErrorCode } from '../database/errors'
 
 const SLOT_TAKEN = '23P01'
 
@@ -33,7 +34,7 @@ export interface PersonalBookingCreationResult {
   uid: string
   start: string
   end: string
-  status: 'awaiting_payment' | 'pending' | 'confirmed'
+  status: 'awaiting_payment' | 'pending' | 'confirmed' | 'cancelled' | 'rejected'
   locationType: MeetingLocationType
   locationDetails: string
   meetingUrl: string | null
@@ -41,7 +42,8 @@ export interface PersonalBookingCreationResult {
   checkoutUrl?: string | null
   paymentExpiresAt?: string | null
   seriesCount?: number
-  occurrences?: Array<{ uid: string, start: string, end: string }>
+  replayed?: boolean
+  occurrences?: Array<{ uid: string, start: string, end: string, status?: 'awaiting_payment' | 'pending' | 'confirmed' | 'cancelled' | 'rejected' }>
 }
 
 export async function createPersonalBooking(input: CreateBookingInput): Promise<PersonalBookingCreationResult> {
@@ -130,6 +132,7 @@ export async function createPersonalBooking(input: CreateBookingInput): Promise<
   }
 
   const now = new Date().toISOString()
+  const previous = await bookingToReschedule(rescheduleOf, eventType.id, email)
   const wanted = new Date(start).getTime()
 
   // A day either side, because the slot's date in the host's timezone can
@@ -143,7 +146,7 @@ export async function createPersonalBooking(input: CreateBookingInput): Promise<
   let offered
   try {
     await requireLocationIntegration(eventType.hostId, eventType.locationType)
-    const available = await slotsFor(eventType, day(-1), day(1), now, durationMinutes)
+    const available = await slotsFor(eventType, day(-1), day(1), now, durationMinutes, [], previous?.id)
     offered = invitation ? filterInvitationSlots(invitation, available) : available
   } catch (error) {
     if (error instanceof CalendarUnavailableError || (
@@ -161,26 +164,6 @@ export async function createPersonalBooking(input: CreateBookingInput): Promise<
 
   if (!slot) {
     throw createError({ statusCode: 409, statusMessage: 'That time is no longer available.' })
-  }
-
-  const previous = rescheduleOf ? await findBookingByUid(rescheduleOf) : null
-
-  if (rescheduleOf && !previous) {
-    throw createError({ statusCode: 404, statusMessage: 'No such booking to move' })
-  }
-
-  if (previous) {
-    if (previous.hostId !== eventType.hostId || previous.eventTypeId !== eventType.id) {
-      throw createError({ statusCode: 409, statusMessage: 'That booking cannot be moved to this event.' })
-    }
-
-    if (!['pending', 'confirmed'].includes(previous.status) || previous.endsAt <= new Date()) {
-      throw createError({ statusCode: 409, statusMessage: 'That booking can no longer be moved.' })
-    }
-
-    if (previous.attendeeEmail.toLowerCase() !== email.toLowerCase()) {
-      throw createError({ statusCode: 409, statusMessage: 'Use the email address already attached to this booking.' })
-    }
   }
 
   const payment = await eventPaymentReadiness(eventType.id)
@@ -341,7 +324,7 @@ export async function createPersonalBooking(input: CreateBookingInput): Promise<
     })
   } catch (error) {
     // Postgres rejected an overlap, which means someone else won the race.
-    if ((error as { code?: string }).code === SLOT_TAKEN) {
+    if (databaseErrorCode(error) === SLOT_TAKEN) {
       throw createError({ statusCode: 409, statusMessage: 'Someone just booked that time.' })
     }
     if (isGroupSessionFullError(error)) {

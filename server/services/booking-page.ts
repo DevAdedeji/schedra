@@ -1,7 +1,7 @@
-import { and, eq, gte, lt, lte, sql } from 'drizzle-orm'
+import { and, eq, gte, isNull, lt, lte, ne, sql } from 'drizzle-orm'
 import { getAvailableSlots } from '../domain/availability'
 import type { AvailabilityRule, DateOverride, Slot, Weekday } from '../domain/types'
-import { availabilityRules, bookings, dateOverrides, eventTypes, schedules, users } from '../database/schema'
+import { availabilityRules, bookingHosts, bookings, dateOverrides, eventTypes, schedules, users } from '../database/schema'
 import { useDatabase } from '../database'
 import { calendarBusyTimes } from '../integrations/calendar/providers'
 import { bookingLimitRange, utcCalendarDateBoundary } from '../utils/date-time'
@@ -101,7 +101,8 @@ export async function slotsFor(
   to: string,
   now: string,
   requestedDurationMinutes = event.durationMinutes,
-  provisionalLimitBookings: Array<{ start: string, end: string }> = []
+  provisionalLimitBookings: Array<{ start: string, end: string }> = [],
+  excludedBookingId?: string
 ): Promise<Slot[]> {
   const durationOptions = eventTypeDurationOptions(event)
   if (!durationOptions.includes(requestedDurationMinutes)) {
@@ -109,10 +110,9 @@ export async function slotsFor(
   }
   const db = useDatabase()
   const timeZone = event.scheduleTimeZone ?? event.hostTimeZone
-  // Expand beyond the requested local dates because the schedule's timezone
-  // can put its boundary on a different UTC day.
-  const busyFrom = utcCalendarDateBoundary(from, -1).toISOString()
-  const busyTo = utcCalendarDateBoundary(to, 2).toISOString()
+  // Include the full 24-hour buffer allowance beyond timezone-shifted meetings.
+  const busyFrom = utcCalendarDateBoundary(from, -2).toISOString()
+  const busyTo = utcCalendarDateBoundary(to, 3).toISOString()
   const limitRange = bookingLimitRange(from, to, timeZone)
 
   const [rules, overrides, taken, externalBusy, groupSessions, awayIntervals] = await Promise.all([
@@ -141,14 +141,18 @@ export async function slotsFor(
       eventTypeId: bookings.eventTypeId,
       groupSessionId: bookings.groupSessionId,
       start: bookings.startsAt,
-      end: bookings.endsAt
+      end: bookings.endsAt,
+      reservedStart: bookingHosts.reservedStartsAt,
+      reservedEnd: bookingHosts.reservedEndsAt
     })
-      .from(bookings)
+      .from(bookingHosts)
+      .innerJoin(bookings, eq(bookings.id, bookingHosts.bookingId))
       .where(and(
-        eq(bookings.hostId, event.hostId),
-        sql`${bookings.status} in ('awaiting_payment', 'pending', 'confirmed')`,
-        gte(bookings.endsAt, limitRange.start),
-        lt(bookings.startsAt, limitRange.end)
+        eq(bookingHosts.userId, event.hostId),
+        isNull(bookingHosts.releasedAt),
+        excludedBookingId ? ne(bookings.id, excludedBookingId) : undefined,
+        gte(bookingHosts.reservedEndsAt, limitRange.start),
+        lt(bookingHosts.reservedStartsAt, limitRange.end)
       )),
 
     calendarBusyTimes(event.hostId, busyFrom, busyTo),
@@ -215,8 +219,8 @@ export async function slotsFor(
       maxPerMonth: event.maxPerMonth ?? undefined
     },
     bookings: busyBookings.map(row => ({
-      start: row.start.toISOString(),
-      end: row.end.toISOString()
+      start: row.reservedStart.toISOString(),
+      end: row.reservedEnd.toISOString()
     })),
     limitBookings: [...limitBookings.map(row => ({
       start: row.start.toISOString(),

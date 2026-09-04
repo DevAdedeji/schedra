@@ -1,6 +1,7 @@
 import { and, eq, gt, inArray, sql } from 'drizzle-orm'
 import type { CreateTeamBookingInput, MeetingLocationType } from '#shared/validation'
 import { bookingHosts, bookings } from '../database/schema'
+import { databaseErrorCode } from '../database/errors'
 import { useDatabase } from '../database/index'
 import {
   activeHostsFor,
@@ -38,7 +39,7 @@ export interface TeamBookingCreationResult {
   uid: string
   start: string
   end: string
-  status: 'awaiting_payment' | 'pending' | 'confirmed'
+  status: 'awaiting_payment' | 'pending' | 'confirmed' | 'cancelled' | 'rejected'
   hostNames: string[]
   locationType: MeetingLocationType
   locationDetails: string
@@ -47,6 +48,7 @@ export interface TeamBookingCreationResult {
   checkoutUrl?: string | null
   paymentExpiresAt?: string | null
   seriesCount?: number
+  replayed?: boolean
   occurrences?: Array<{ uid: string, start: string, end: string }>
 }
 
@@ -152,7 +154,7 @@ export async function createTeamBooking(input: CreateTeamBookingInput): Promise<
   // busy between the calendar loading and this submission.
   let offered
   try {
-    offered = await teamSlotsFor(eventType, hosts, day(-1), day(1), now, durationMinutes)
+    offered = await teamSlotsFor(eventType, hosts, day(-1), day(1), now, durationMinutes, [], previous?.id)
   } catch (error) {
     if (error instanceof CalendarUnavailableError) {
       throw createError({
@@ -377,7 +379,7 @@ export async function createTeamBooking(input: CreateTeamBookingInput): Promise<
       }
     })
   } catch (error) {
-    if ((error as { code?: string }).code === SLOT_TAKEN) {
+    if (databaseErrorCode(error) === SLOT_TAKEN) {
       throw createError({ statusCode: 409, statusMessage: 'Someone just booked that time.' })
     }
     if (isGroupSessionFullError(error)) {

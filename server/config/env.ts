@@ -21,6 +21,7 @@ export interface Env {
 
   bachsSecretKey?: string
   bachsWebhookSecret?: string
+  billingMode: 'sandbox' | 'live' | 'disabled'
   paidBookingPlatformFeeBps: number
 
   resendApiKey?: string
@@ -104,6 +105,16 @@ export function useEnv(): Env {
   const integrationEncryptionKey = optional('INTEGRATION_ENCRYPTION_KEY')
   const bachsSecretKey = optional('BACHS_SECRET_KEY')
   const bachsWebhookSecret = optional('BACHS_WEBHOOK_SECRET')
+  const configuredBillingMode = optional('SCHEDRA_BILLING_MODE')
+  if (configuredBillingMode && !['sandbox', 'live'].includes(configuredBillingMode)) {
+    throw new Error('SCHEDRA_BILLING_MODE must be sandbox or live.')
+  }
+  if (configuredBillingMode && !bachsSecretKey?.startsWith(`sk_${configuredBillingMode}_`)) {
+    throw new Error('SCHEDRA_BILLING_MODE must match the Bachs secret-key environment.')
+  }
+  const billingMode = bachsSecretKey?.startsWith('sk_sandbox_')
+    ? 'sandbox'
+    : bachsSecretKey?.startsWith('sk_live_') ? 'live' : 'disabled'
   const paidBookingPlatformFeeBps = integer('PAID_BOOKING_PLATFORM_FEE_BPS', 500, 1, 5000)
   const resendApiKey = optional('RESEND_API_KEY')
   const smtpUrl = optional('SMTP_URL')
@@ -159,7 +170,7 @@ export function useEnv(): Env {
     if (integrationEncryptionKey === authSecret) {
       throw new Error('INTEGRATION_ENCRYPTION_KEY must not reuse AUTH_SECRET in production.')
     }
-    if (!bachsSecretKey?.startsWith('sk_live_')) {
+    if (configuredBillingMode !== 'sandbox' && !bachsSecretKey?.startsWith('sk_live_')) {
       throw new Error('Production requires a BACHS_SECRET_KEY beginning with sk_live_.')
     }
     if (!bachsWebhookSecret) {
@@ -192,6 +203,7 @@ export function useEnv(): Env {
     integrationEncryptionKey,
     bachsSecretKey,
     bachsWebhookSecret,
+    billingMode,
     paidBookingPlatformFeeBps,
     googleClientId,
     googleClientSecret,

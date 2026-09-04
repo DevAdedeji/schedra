@@ -221,6 +221,7 @@ useHead({
 
     <section class="border-b border-default bg-muted">
       <div class="mx-auto max-w-312 px-6 py-16 lg:px-10 lg:py-20">
+        <SandboxPaymentNotice class="mb-8" />
         <!-- Sits with the cards, not up in the hero: the price above changes
              when this changes, so the control has to be next to what it moves. -->
         <div class="mb-6 flex flex-wrap items-center justify-between gap-3">

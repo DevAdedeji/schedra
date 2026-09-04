@@ -85,6 +85,7 @@ function formatDate(value: string | null | undefined) {
       title="Plan & billing"
       description="Compare your personal and Team options. A paid Team seat already includes Personal Pro."
     />
+    <SandboxPaymentNotice />
 
     <AsyncErrorState
       v-if="error && !data"

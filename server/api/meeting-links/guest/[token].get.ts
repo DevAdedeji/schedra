@@ -13,6 +13,7 @@ export default defineEventHandler(async (event) => {
     title: found.title,
     description: found.description,
     durationMinutes: durations[0] ?? found.durationMinutes,
+    bookingWindowDays: found.bookingWindowDays,
     durationOptionsMinutes: durations,
     bookingQuestions: found.bookingQuestions,
     requiresConfirmation: found.requiresConfirmation,
