@@ -11,6 +11,8 @@ describe.skipIf(!url)('booking reliability', () => {
   let eventTypeId: string
   beforeEach(async () => {
     configureAppTestEnvironment(url!)
+    const { calendarBusyTimes } = await import('../integrations/calendar/providers')
+    vi.mocked(calendarBusyTimes).mockReset().mockResolvedValue([])
     vi.stubGlobal('createError', (input: { statusCode: number, statusMessage: string }) => Object.assign(new Error(input.statusMessage), input))
     await sql`truncate users, organizations cascade`
     const [host] = await sql`insert into users (email, name, username, email_verified, time_zone)
@@ -141,6 +143,29 @@ describe.skipIf(!url)('booking reliability', () => {
     await expect(insertBooking('2030-09-09T09:30:00Z', '2030-09-09T10:00:00Z', otherEvent!.id)).resolves.toBeDefined()
   })
 
+  it('loads external busy time covering full-day buffers across extreme host timezone boundaries', async () => {
+    await sql`update schedules set time_zone = 'Pacific/Kiritimati' where user_id = ${hostId}`
+    await sql`update event_types set buffer_before_minutes = 1440 where id = ${eventTypeId}`
+    const { calendarBusyTimes } = await import('../integrations/calendar/providers')
+    const external = { start: '2030-09-07T20:00:00Z', end: '2030-09-07T21:00:00Z' }
+    vi.mocked(calendarBusyTimes).mockImplementation(async (_user, from, to) =>
+      Date.parse(external.end) > Date.parse(from) && Date.parse(external.start) < Date.parse(to) ? [external] : [])
+    const { slotsFor } = await import('../services/booking-page')
+    const slots = await slotsFor(await event(), '2030-09-09', '2030-09-09', '2030-09-01T00:00:00Z')
+    expect(slots.some(slot => slot.start === '2030-09-08T19:00:00Z')).toBe(false)
+    expect(slots.some(slot => slot.start === '2030-09-08T21:00:00Z')).toBe(true)
+    expect(calendarBusyTimes).toHaveBeenCalledWith(hostId, '2030-09-07T00:00:00.000Z', '2030-09-12T00:00:00.000Z')
+
+    await sql`update schedules set time_zone = 'Etc/GMT+12' where user_id = ${hostId}`
+    await sql`update event_types set buffer_before_minutes = 0, buffer_after_minutes = 1440 where id = ${eventTypeId}`
+    const later = { start: '2030-09-11T04:00:00Z', end: '2030-09-11T05:00:00Z' }
+    vi.mocked(calendarBusyTimes).mockImplementation(async (_user, from, to) =>
+      Date.parse(later.end) > Date.parse(from) && Date.parse(later.start) < Date.parse(to) ? [later] : [])
+    const lateSlots = await slotsFor(await event(), '2030-09-09', '2030-09-09', '2030-09-01T00:00:00Z')
+    expect(lateSlots.some(slot => slot.start === '2030-09-10T04:00:00Z')).toBe(false)
+    expect(lateSlots.some(slot => slot.start === '2030-09-09T21:00:00Z')).toBe(true)
+  })
+
   it('moves a team booking at its daily limit while protecting both old and new reservation state', async () => {
     const [team] = await sql`insert into organizations (name, slug) values ('Reliability team', 'reliability-team') returning id`
     await sql`insert into organization_subscriptions (organization_id, status) values (${team!.id}, 'active')`
@@ -155,5 +180,19 @@ describe.skipIf(!url)('booking reliability', () => {
     const result = await createTeamBooking({ ...request(), team: 'reliability-team', slug: 'team-intro', rescheduleOf: old.uid })
     expect(result).toMatchObject({ moved: true, status: 'confirmed', start: '2030-09-09T12:00:00Z' })
     expect((await sql`select count(*)::int as count from booking_hosts where released_at is null`)[0]!.count).toBe(1)
+
+    await sql`update bookings set status = 'cancelled'`
+    await sql`update schedules set time_zone = 'Pacific/Kiritimati' where user_id = ${hostId}`
+    await sql`update event_types set buffer_before_minutes = 1440 where id = ${teamEvent!.id}`
+    const { calendarBusyTimes } = await import('../integrations/calendar/providers')
+    const external = { start: '2030-09-07T20:00:00Z', end: '2030-09-07T21:00:00Z' }
+    vi.mocked(calendarBusyTimes).mockImplementation(async (_user, from, to) =>
+      Date.parse(external.end) > Date.parse(from) && Date.parse(external.start) < Date.parse(to) ? [external] : [])
+    const { activeHostsFor, findPublicTeamEventType, teamSlotsFor } = await import('../services/team-booking')
+    const config = (await findPublicTeamEventType('reliability-team', 'team-intro'))!
+    const slots = await teamSlotsFor(config, await activeHostsFor(config.id), '2030-09-09', '2030-09-09', '2030-09-01T00:00:00Z')
+    expect(slots.some(slot => slot.start === '2030-09-08T19:00:00Z')).toBe(false)
+    expect(slots.some(slot => slot.start === '2030-09-08T21:00:00Z')).toBe(true)
+    expect(calendarBusyTimes).toHaveBeenLastCalledWith(hostId, '2030-09-07T00:00:00.000Z', '2030-09-12T00:00:00.000Z')
   })
 })

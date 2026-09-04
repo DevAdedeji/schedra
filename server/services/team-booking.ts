@@ -198,8 +198,9 @@ async function slotsForHost(
 ) {
   const db = useDatabase()
   const timeZone = host.scheduleTimeZone ?? host.timeZone
-  const busyFrom = utcCalendarDateBoundary(from, -1).toISOString()
-  const busyTo = utcCalendarDateBoundary(to, 2).toISOString()
+  // Include the full 24-hour buffer allowance beyond timezone-shifted meetings.
+  const busyFrom = utcCalendarDateBoundary(from, -2).toISOString()
+  const busyTo = utcCalendarDateBoundary(to, 3).toISOString()
   const limitRange = bookingLimitRange(from, to, timeZone)
 
   const [rules, overrides, taken, externalBusy, awayIntervals] = await Promise.all([

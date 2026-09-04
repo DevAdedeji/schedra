@@ -110,10 +110,9 @@ export async function slotsFor(
   }
   const db = useDatabase()
   const timeZone = event.scheduleTimeZone ?? event.hostTimeZone
-  // Expand beyond the requested local dates because the schedule's timezone
-  // can put its boundary on a different UTC day.
-  const busyFrom = utcCalendarDateBoundary(from, -1).toISOString()
-  const busyTo = utcCalendarDateBoundary(to, 2).toISOString()
+  // Include the full 24-hour buffer allowance beyond timezone-shifted meetings.
+  const busyFrom = utcCalendarDateBoundary(from, -2).toISOString()
+  const busyTo = utcCalendarDateBoundary(to, 3).toISOString()
   const limitRange = bookingLimitRange(from, to, timeZone)
 
   const [rules, overrides, taken, externalBusy, groupSessions, awayIntervals] = await Promise.all([
