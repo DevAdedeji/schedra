@@ -23,6 +23,7 @@ export default defineEventHandler(async (event) => {
     title: found.title,
     description: found.description,
     durationMinutes: found.durationMinutes,
+    bookingWindowDays: found.bookingWindowDays,
     durationOptionsMinutes: eventTypeDurationOptions(found),
     recurringBookingEnabled: found.recurringBookingEnabled,
     recurringBookingMaxOccurrences: found.recurringBookingMaxOccurrences,

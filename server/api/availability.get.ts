@@ -4,13 +4,15 @@ import { enforceRateLimit } from '../services/rate-limit'
 import { CalendarUnavailableError } from '../integrations/calendar/google'
 import { requireLocationIntegration } from '../services/event-location'
 import { calendarDaysBetween } from '../utils/date-time'
+import { bookingToReschedule } from '../services/booking-reschedule'
 
 const query = z.object({
   username: z.string().min(1),
   slug: z.string().min(1),
   from: z.iso.date(),
   to: z.iso.date(),
-  durationMinutes: z.coerce.number().int().min(5).max(720).optional()
+  durationMinutes: z.coerce.number().int().min(5).max(720).optional(),
+  rescheduleOf: z.uuid().optional()
 }).superRefine(({ from, to }, context) => {
   const days = calendarDaysBetween(from, to)
 
@@ -29,7 +31,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Invalid availability request' })
   }
 
-  const { username, slug, from, to, durationMinutes } = parsed.data
+  const { username, slug, from, to, durationMinutes, rescheduleOf } = parsed.data
   const eventType = await findPublicEventType(username, slug)
 
   if (!eventType) {
@@ -37,9 +39,10 @@ export default defineEventHandler(async (event) => {
   }
 
   let slots
+  const previous = await bookingToReschedule(rescheduleOf, eventType.id)
   try {
     await requireLocationIntegration(eventType.hostId, eventType.locationType)
-    slots = await slotsFor(eventType, from, to, new Date().toISOString(), durationMinutes)
+    slots = await slotsFor(eventType, from, to, new Date().toISOString(), durationMinutes, [], previous?.id)
   } catch (error) {
     if (error instanceof CalendarUnavailableError || (
       ['google_meet', 'microsoft_teams', 'zoom'].includes(eventType.locationType)

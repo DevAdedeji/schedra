@@ -29,6 +29,7 @@ export default defineEventHandler(async (request) => {
     title: eventType.title,
     description: eventType.description,
     durationMinutes: eventType.durationMinutes,
+    bookingWindowDays: eventType.bookingWindowDays,
     durationOptionsMinutes: eventTypeDurationOptions(eventType),
     recurringBookingEnabled: eventType.recurringBookingEnabled,
     recurringBookingMaxOccurrences: eventType.recurringBookingMaxOccurrences,

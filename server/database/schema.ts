@@ -1143,6 +1143,8 @@ export const bookingHosts = pgTable('booking_hosts', {
 
   startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
   endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
+  reservedStartsAt: timestamp('reserved_starts_at', { withTimezone: true }).notNull().defaultNow(),
+  reservedEndsAt: timestamp('reserved_ends_at', { withTimezone: true }).notNull().defaultNow(),
   // Set when the booking stops holding time, which frees the slot without
   // losing the record of who was assigned.
   releasedAt: timestamp('released_at', { withTimezone: true }),

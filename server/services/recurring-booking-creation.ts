@@ -12,6 +12,8 @@ import { publishBookingEvent } from './workflows'
 import { queueBookingEmails } from './booking-emails'
 import { requireTeamLocationIntegrations } from './event-location'
 import { assertBookingLimits } from './booking-limits'
+import { currentSeriesOccurrences } from '../domain/booking-series'
+import { databaseErrorCode } from '../database/errors'
 
 const SLOT_TAKEN = '23P01'
 
@@ -59,21 +61,24 @@ async function existingSeriesResult(requestId: string, fingerprint: string) {
     throw createError({ statusCode: 409, statusMessage: 'That recurring request identifier was already used with different details.' })
   }
   const items = await useDatabase().select({
+    id: bookings.id,
+    rescheduledFromId: bookings.rescheduledFromId,
+    position: bookings.seriesPosition,
+    status: bookings.status,
     uid: bookings.uid,
     start: bookings.startsAt,
     end: bookings.endsAt
   }).from(bookings).where(eq(bookings.seriesId, series.id)).orderBy(asc(bookings.seriesPosition))
-  const first = items[0]
-  if (!first || items.length !== series.occurrenceCount) {
-    throw new Error('A recurring booking series is incomplete.')
-  }
+  const current = currentSeriesOccurrences(items, series.occurrenceCount)
+  const first = current[0]!
   return {
     uid: first.uid,
     start: first.start.toISOString(),
     end: first.end.toISOString(),
-    status: 'confirmed' as const,
-    seriesCount: items.length,
-    occurrences: items.map(item => ({ uid: item.uid, start: item.start.toISOString(), end: item.end.toISOString() }))
+    status: first.status,
+    replayed: true,
+    seriesCount: current.length,
+    occurrences: current.map(item => ({ uid: item.uid, start: item.start.toISOString(), end: item.end.toISOString(), status: item.status }))
   }
 }
 
@@ -82,7 +87,7 @@ function unavailableOccurrence(items: Array<{ position: number, available: boole
 }
 
 function seriesConflict(error: unknown) {
-  return (error as { code?: string }).code === SLOT_TAKEN
+  return databaseErrorCode(error) === SLOT_TAKEN
 }
 
 export async function createPersonalRecurringBooking(input: {
@@ -213,7 +218,7 @@ export async function createPersonalRecurringBooking(input: {
       occurrences: result.map(item => ({ uid: item.uid, start: item.start, end: item.end }))
     }
   } catch (error) {
-    if ((error as { code?: string }).code === '23505') {
+    if (databaseErrorCode(error) === '23505') {
       const duplicate = await existingSeriesResult(input.requestId, fingerprint)
       if (duplicate) return duplicate
     }
@@ -388,7 +393,7 @@ export async function createTeamRecurringBooking(input: {
       occurrences: result
     }
   } catch (error) {
-    if ((error as { code?: string }).code === '23505') {
+    if (databaseErrorCode(error) === '23505') {
       const duplicate = await existingSeriesResult(input.requestId, fingerprint)
       if (duplicate) return duplicate
     }

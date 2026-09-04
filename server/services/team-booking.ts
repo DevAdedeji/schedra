@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, ne, sql } from 'drizzle-orm'
 import { eventTypeDurationOptions, type AssignmentMode, type BookingQuestion } from '#shared/validation'
 import { getAvailableSlots } from '../domain/availability'
 import { combineHostSlots, pickRoundRobinHost, type HostLoad, type TeamSlot } from '../domain/team-availability'
@@ -193,7 +193,8 @@ async function slotsForHost(
   now: string,
   groupSessions: Awaited<ReturnType<typeof groupSessionCapacity>>,
   requestedDurationMinutes: number,
-  provisionalLimitBookings: Array<{ start: string, end: string }>
+  provisionalLimitBookings: Array<{ start: string, end: string }>,
+  excludedBookingId?: string
 ) {
   const db = useDatabase()
   const timeZone = host.scheduleTimeZone ?? host.timeZone
@@ -225,15 +226,18 @@ async function slotsForHost(
       groupSessionId: bookingHosts.groupSessionId,
       eventTypeId: bookings.eventTypeId,
       start: bookingHosts.startsAt,
-      end: bookingHosts.endsAt
+      end: bookingHosts.endsAt,
+      reservedStart: bookingHosts.reservedStartsAt,
+      reservedEnd: bookingHosts.reservedEndsAt
     })
       .from(bookingHosts)
       .innerJoin(bookings, eq(bookings.id, bookingHosts.bookingId))
       .where(and(
         eq(bookingHosts.userId, host.userId),
         isNull(bookingHosts.releasedAt),
-        gte(bookingHosts.endsAt, limitRange.start),
-        lt(bookingHosts.startsAt, limitRange.end)
+        excludedBookingId ? ne(bookings.id, excludedBookingId) : undefined,
+        gte(bookingHosts.reservedEndsAt, limitRange.start),
+        lt(bookingHosts.reservedStartsAt, limitRange.end)
       )),
 
     calendarBusyTimes(host.userId, busyFrom, busyTo),
@@ -292,7 +296,7 @@ async function slotsForHost(
       maxPerWeek: event.maxPerWeek ?? undefined,
       maxPerMonth: event.maxPerMonth ?? undefined
     },
-    bookings: busyReservations.map(row => ({ start: row.start.toISOString(), end: row.end.toISOString() })),
+    bookings: busyReservations.map(row => ({ start: row.reservedStart.toISOString(), end: row.reservedEnd.toISOString() })),
     limitBookings: [
       ...limitReservations.map(row => ({ start: row.start.toISOString(), end: row.end.toISOString() })),
       ...provisionalLimitBookings
@@ -316,7 +320,8 @@ export async function teamSlotsFor(
   to: string,
   now: string,
   requestedDurationMinutes = event.durationMinutes,
-  provisionalLimitBookings: Array<{ start: string, end: string }> = []
+  provisionalLimitBookings: Array<{ start: string, end: string }> = [],
+  excludedBookingId?: string
 ): Promise<TeamSlot[]> {
   if (!hosts.length) return []
   if (!eventTypeDurationOptions(event).includes(requestedDurationMinutes)) {
@@ -339,7 +344,8 @@ export async function teamSlotsFor(
       now,
       groupSessions,
       requestedDurationMinutes,
-      provisionalLimitBookings
+      provisionalLimitBookings,
+      excludedBookingId
     )
   })))
 

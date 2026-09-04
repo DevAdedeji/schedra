@@ -4,13 +4,15 @@ import { enforceRateLimit } from '../services/rate-limit'
 import { CalendarUnavailableError } from '../integrations/calendar/google'
 import { requireTeamLocationIntegrations } from '../services/event-location'
 import { calendarDaysBetween } from '../utils/date-time'
+import { bookingToReschedule } from '../services/booking-reschedule'
 
 const query = z.object({
   team: z.string().min(1),
   slug: z.string().min(1),
   from: z.iso.date(),
   to: z.iso.date(),
-  durationMinutes: z.coerce.number().int().min(5).max(720).optional()
+  durationMinutes: z.coerce.number().int().min(5).max(720).optional(),
+  rescheduleOf: z.uuid().optional()
 }).superRefine(({ from, to }, context) => {
   const days = calendarDaysBetween(from, to)
 
@@ -31,11 +33,12 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Invalid availability request' })
   }
 
-  const { team, slug, from, to, durationMinutes } = parsed.data
+  const { team, slug, from, to, durationMinutes, rescheduleOf } = parsed.data
   const eventType = await findPublicTeamEventType(team, slug)
   if (!eventType) throw createError({ statusCode: 404, statusMessage: 'No such booking page' })
 
   const hosts = await activeHostsFor(eventType.id)
+  const previous = await bookingToReschedule(rescheduleOf, eventType.id)
 
   try {
     await requireTeamLocationIntegrations(
@@ -44,7 +47,7 @@ export default defineEventHandler(async (event) => {
         : hosts).map(host => host.userId),
       eventType.locationType
     )
-    const slots = await teamSlotsFor(eventType, hosts, from, to, new Date().toISOString(), durationMinutes)
+    const slots = await teamSlotsFor(eventType, hosts, from, to, new Date().toISOString(), durationMinutes, [], previous?.id)
 
     return {
       timeZone: hosts[0]?.scheduleTimeZone ?? 'UTC',
