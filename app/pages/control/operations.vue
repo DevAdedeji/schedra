@@ -592,8 +592,6 @@ async function acknowledgeAlert(id: string) {
           only failed, idempotent operations can be retried.
         </p>
       </section>
-
-      <PaymentActivityList operations />
     </template>
   </div>
 </template>
