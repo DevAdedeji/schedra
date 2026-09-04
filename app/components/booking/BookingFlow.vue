@@ -14,6 +14,7 @@ import { formatMoney } from '#shared/payments'
 import type { RecurringOccurrencePreview } from '#shared/recurrence'
 import { useRecurringBooking } from '~/composables/booking/useRecurringBooking'
 import { formatInstant } from '~/utils/date-time'
+import { bookingCalendarRange } from '#shared/booking-calendar'
 
 /**
  * One booking flow for both the personal page and the team page. The two
@@ -56,6 +57,8 @@ const rescheduleOf = computed(() => {
 
 const today = new Date()
 const firstMonday = addCalendarDays(today, -((today.getDay() + 6) % 7))
+const calendarWeekOffset = ref(0)
+const calendarRange = computed(() => bookingCalendarRange(isoCalendarDate(firstMonday), calendarWeekOffset.value))
 
 const availabilityRequest = useFetch<AvailabilityResponse>(
   () => isInvite.value && props.inviteToken
@@ -64,9 +67,8 @@ const availabilityRequest = useFetch<AvailabilityResponse>(
   {
     query: computed(() => ({
       ...(!isInvite.value && (isTeam.value ? { team: owner.value } : { username: owner.value })),
-      ...(!isInvite.value ? { slug: slug.value } : {}),
-      from: isoCalendarDate(firstMonday),
-      to: isoCalendarDate(addCalendarDays(firstMonday, 62)),
+      ...(!isInvite.value ? { slug: slug.value, rescheduleOf: rescheduleOf.value } : {}),
+      ...calendarRange.value,
       durationMinutes: selectedDurationMinutes.value
     }))
   }
@@ -116,9 +118,12 @@ const {
   selectedDate, selectedSlot, days, slotsByDate, daySlots,
   hasAnything, additionalGuestLimit, monthLabel,
   longSelected, timeLabel, locationLabel, locationIcon, isoDate
-} = useBookingCalendar({ availability: data, page })
+} = useBookingCalendar({ availability: data, page, weekOffset: calendarWeekOffset })
 
 watch(selectedDurationMinutes, () => {
+  selectedSlot.value = null
+})
+watch(calendarWeekOffset, () => {
   selectedSlot.value = null
 })
 
@@ -296,6 +301,10 @@ async function confirm() {
       window.open(result.checkoutUrl, '_top')
       return
     }
+    if (result.replayed || result.status === 'cancelled' || result.status === 'rejected') {
+      await navigateTo(`/booking/${encodeURIComponent(result.uid)}`)
+      return
+    }
     confirmed.value = {
       start: result.start,
       uid: result.uid,
@@ -372,6 +381,10 @@ useHead({
       :class="embedded ? 'px-3 sm:px-4' : 'px-5'"
     >
       <div class="mx-auto max-w-4xl">
+        <SandboxPaymentNotice
+          v-if="page?.paymentEnabled"
+          class="my-4"
+        />
         <div
           v-if="!embedded"
           class="pt-6 pb-12"
@@ -680,7 +693,7 @@ useHead({
                     : slotsByDate.has(isoDate(day))
                       ? 'text-highlighted hover:bg-muted'
                       : 'cursor-not-allowed text-dimmed opacity-40'"
-                  :disabled="!viewerTimeZoneReady || !slotsByDate.has(isoDate(day))"
+                  :disabled="!viewerTimeZoneReady || status === 'pending' || !slotsByDate.has(isoDate(day))"
                   :aria-label="dayAriaLabel(day)"
                   :aria-pressed="selectedDate === isoDate(day)"
                   @click="selectedDate = isoDate(day); selectedSlot = null"
@@ -714,7 +727,7 @@ useHead({
                   v-else-if="!hasAnything"
                   class="py-16 text-center text-sm text-dimmed"
                 >
-                  No free times in the next nine weeks.
+                  No free times in this date range. Try another week if the booking window allows it.
                 </p>
 
                 <template v-else-if="daySlots.length">

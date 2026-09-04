@@ -92,6 +92,7 @@ export interface BookingDetail {
 }
 
 export interface CreateBookingResult {
+  replayed?: boolean
   start: string
   uid: string
   locationType: MeetingLocationType
@@ -205,6 +206,7 @@ export interface CurrentProfile {
 }
 
 export interface PublicBookingPage {
+  bookingWindowDays?: number | null
   hostName: string
   title: string
   description: string | null

@@ -200,6 +200,7 @@ const statusColor: Record<string, 'success' | 'warning' | 'error' | 'neutral'> =
       title="Billing"
       description="Plan, payment method and invoice history for this team."
     />
+    <SandboxPaymentNotice />
 
     <div
       v-if="paidJustNow"

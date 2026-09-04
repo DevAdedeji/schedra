@@ -9,6 +9,7 @@ const keys = [
   'INTEGRATION_ENCRYPTION_KEY',
   'BACHS_SECRET_KEY',
   'BACHS_WEBHOOK_SECRET',
+  'SCHEDRA_BILLING_MODE',
   'PLATFORM_ADMIN_EMAILS',
   'DATABASE_POOL_MAX',
   'SMTP_URL',
@@ -31,6 +32,7 @@ describe('environment validation', () => {
     delete process.env.INTEGRATION_ENCRYPTION_KEY
     delete process.env.BACHS_SECRET_KEY
     delete process.env.BACHS_WEBHOOK_SECRET
+    delete process.env.SCHEDRA_BILLING_MODE
     delete process.env.PLATFORM_ADMIN_EMAILS
     delete process.env.DATABASE_POOL_MAX
     resetEnv()
@@ -84,6 +86,35 @@ describe('environment validation', () => {
     process.env.EMAIL_FROM = 'Schedra <hello@schedra.example>'
 
     expect(useEnv().environment).toBe('production')
+    expect(useEnv().billingMode).toBe('live')
+  })
+
+  it('allows an explicitly sandboxed portfolio deployment without weakening production protections', () => {
+    Object.assign(process.env, {
+      SCHEDRA_ENVIRONMENT: 'production',
+      SCHEDRA_URL: 'https://schedra.example',
+      SCHEDRA_BILLING_MODE: 'sandbox',
+      INTEGRATION_ENCRYPTION_KEY: 'separate-encryption-key-that-is-long-enough',
+      BACHS_SECRET_KEY: 'sk_sandbox_example',
+      BACHS_WEBHOOK_SECRET: 'whsec_example',
+      PLATFORM_ADMIN_EMAILS: 'admin@schedra.example',
+      RESEND_API_KEY: 're_example',
+      EMAIL_FROM: 'Schedra <hello@schedra.example>'
+    })
+    expect(useEnv().environment).toBe('production')
+    expect(useEnv().billingMode).toBe('sandbox')
+    resetEnv()
+    delete process.env.INTEGRATION_ENCRYPTION_KEY
+    expect(() => useEnv()).toThrow('INTEGRATION_ENCRYPTION_KEY is required in production')
+  })
+
+  it('rejects a sandbox label with a live key and rejects unknown billing modes', () => {
+    process.env.SCHEDRA_BILLING_MODE = 'sandbox'
+    process.env.BACHS_SECRET_KEY = 'sk_live_example'
+    expect(() => useEnv()).toThrow('SCHEDRA_BILLING_MODE must match')
+    resetEnv()
+    process.env.SCHEDRA_BILLING_MODE = 'demo'
+    expect(() => useEnv()).toThrow('SCHEDRA_BILLING_MODE must be sandbox or live.')
   })
 
   it('keeps sandbox payment credentials valid on staging', () => {
