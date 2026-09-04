@@ -78,6 +78,7 @@ const comparison: { group: string, rows: ComparisonRow[] }[] = [
       { label: 'Routing forms', free: 'Unlimited', pro: 'Unlimited', team: true },
       { label: 'Booking analytics', free: 'Core insights', pro: 'Revenue + CSV', team: true },
       { label: 'Custom booking-page branding', free: false, pro: true, team: true },
+      { label: 'Custom branded guest emails', free: false, pro: true, team: true },
       { label: 'Remove Schedra branding', free: false, pro: true, team: true },
       { label: 'Paid bookings', free: true, pro: true, team: true },
       { label: 'Paid-booking platform fee', free: '5%', pro: '2.5%', team: '5%' },
@@ -134,7 +135,7 @@ const comparison: { group: string, rows: ComparisonRow[] }[] = [
 const faqs = [
   {
     q: 'What is included in Personal Pro?',
-    a: 'Personal Pro adds custom booking-page branding, revenue reports, CSV exports and a lower 2.5% paid-booking platform fee. Workflows, routing forms and core booking analytics remain free.'
+    a: 'Personal Pro adds custom booking-page and guest-email branding, reusable email wording, revenue reports, CSV exports and a lower 2.5% paid-booking platform fee. Workflows, routing forms and core booking analytics remain free.'
   },
   {
     q: 'Who exactly am I paying for?',
@@ -299,8 +300,8 @@ useHead({
               </template>
             </p>
             <p class="mt-6 max-w-[40ch] text-[16px] leading-relaxed text-muted">
-              Build a professional booking experience with your logo and colours,
-              remove Schedra branding, track revenue and export your reports.
+              Build a professional booking experience with your logo, colours and
+              custom guest emails, remove Schedra branding, and unlock revenue reports.
             </p>
             <p class="my-4 rounded-xl bg-muted px-4 py-3 text-[14px] leading-relaxed text-muted">
               Includes a lower 2.5% platform fee on paid bookings.

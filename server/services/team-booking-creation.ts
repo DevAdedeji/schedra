@@ -329,6 +329,7 @@ export async function createTeamBooking(input: CreateTeamBookingInput): Promise<
 
       const notice = {
         uid,
+        organizationId: eventType.organizationId,
         eventTitle: eventType.title,
         hostName: attending.length > 1
           ? `${eventType.organizationName} (${attending.map(host => host.name).join(', ')})`

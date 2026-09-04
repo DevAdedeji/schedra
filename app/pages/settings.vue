@@ -292,6 +292,8 @@ const initials = computed(() => getInitials(profile.name))
       </aside>
     </div>
 
+    <BookingEmailTemplateSettings />
+
     <section class="overflow-hidden rounded-xl border border-error/30 bg-default">
       <div class="px-6 py-5 sm:px-7 sm:flex sm:items-center sm:justify-between sm:gap-6">
         <div>

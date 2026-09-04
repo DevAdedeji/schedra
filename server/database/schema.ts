@@ -27,6 +27,8 @@ import type {
 } from '#shared/validation'
 import type { WorkflowAction } from '#shared/workflows'
 import type { RoutingCondition } from '#shared/routing'
+import type { BookingEmailTemplateSettings } from '#shared/email-templates'
+import type { EmailBranding } from '../integrations/email'
 
 // PostgreSQL supplies creation time and migration 0041 maintains updated_at
 // with a trigger. Application writes may still use sql`now()` when several
@@ -49,6 +51,7 @@ export const organizations = pgTable('organizations', {
   brandDarkColor: text('brand_dark_color'),
   bookingPageTheme: text('booking_page_theme').notNull().default('system'),
   hideSchedraBranding: boolean('hide_schedra_branding').notNull().default(false),
+  bookingEmailTemplates: jsonb('booking_email_templates').$type<BookingEmailTemplateSettings>(),
   metadata: jsonb('metadata').$type<Record<string, unknown>>(),
   // Organizations are archived rather than deleted so booking history, exports
   // and audit records survive. The slug stays reserved so nobody can claim it
@@ -89,6 +92,7 @@ export const users = pgTable('users', {
   brandDarkColor: text('brand_dark_color'),
   bookingPageTheme: text('booking_page_theme').notNull().default('system'),
   hideSchedraBranding: boolean('hide_schedra_branding').notNull().default(false),
+  bookingEmailTemplates: jsonb('booking_email_templates').$type<BookingEmailTemplateSettings>(),
   timeZone: text('time_zone').notNull().default('UTC'),
   twoFactorEnabled: boolean('two_factor_enabled').notNull().default(false),
 
@@ -509,6 +513,7 @@ export const emailOutbox = pgTable('email_outbox', {
   actionLabel: text('action_label').notNull(),
   actionUrl: text('action_url').notNull(),
   footer: text('footer'),
+  branding: jsonb('branding').$type<EmailBranding>(),
   bookingUid: text('booking_uid'),
   category: text('category').notNull().default('transactional'),
   status: emailDeliveryStatus('status').notNull().default('pending'),

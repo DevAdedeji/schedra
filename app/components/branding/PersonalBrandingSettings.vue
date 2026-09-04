@@ -124,7 +124,7 @@ async function removeLogo() {
         </UBadge>
       </div>
       <p class="mt-1 text-[14px] text-muted">
-        Applied to your personal profile, event pages and embedded booking flow.
+        Applied to your booking pages, embedded flow and guest booking emails.
       </p>
     </div>
 

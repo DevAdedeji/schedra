@@ -108,7 +108,7 @@ async function removeLogo() {
         Organization branding
       </h2>
       <p class="mt-1 text-[13px] text-muted">
-        Applied to the public team page, event pages and embedded booking flow.
+        Applied to team booking pages, the embedded flow and guest booking emails.
       </p>
     </header>
 

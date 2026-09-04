@@ -342,6 +342,12 @@ async function leave() {
         :team-name="team.organization.name"
       />
 
+      <BookingEmailTemplateSettings
+        v-if="permissions?.updateTeam"
+        :team-slug="slug"
+        :disabled="Boolean(entitlement?.readOnly)"
+      />
+
       <section class="overflow-hidden rounded-xl border border-default bg-default">
         <header class="border-b border-default px-5 py-4">
           <h2 class="text-[15px] font-semibold text-highlighted">

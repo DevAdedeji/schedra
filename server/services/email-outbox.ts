@@ -41,6 +41,7 @@ export async function enqueueEmails(
       actionLabel: email.action.label,
       actionUrl: email.action.url,
       footer: email.footer,
+      branding: email.branding,
       bookingUid,
       category: category ?? 'transactional',
       availableAt
@@ -115,7 +116,8 @@ export async function processEmailOutbox(batchSize = 10) {
         body: job.body,
         details: job.details ?? undefined,
         action: { label: job.actionLabel, url: job.actionUrl },
-        footer: job.footer ?? undefined
+        footer: job.footer ?? undefined,
+        branding: job.branding ?? undefined
       }, job.id)
 
       await db

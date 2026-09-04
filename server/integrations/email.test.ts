@@ -58,4 +58,29 @@ Only use the link if you made this booking.
       action: { label: 'Unsafe', url: 'javascript:alert(1)' }
     })).toThrow('Email action URL must use HTTP or HTTPS.')
   })
+
+  it('renders safe custom branding without trusting logo or colour input', () => {
+    const html = renderEmailHtml({
+      ...message,
+      branding: {
+        name: 'Alex <Studio>',
+        logoUrl: 'javascript:alert(1)',
+        accentColor: 'red',
+        hideSchedraBranding: false
+      }
+    })
+
+    expect(html).toContain('Alex &lt;Studio&gt;')
+    expect(html).toContain('background:#FF5A2F')
+    expect(html).not.toContain('javascript:alert(1)')
+    expect(html).toContain('Powered by Schedra')
+    expect(renderEmailText({
+      ...message,
+      branding: {
+        name: 'Alex Studio',
+        accentColor: '#123456',
+        hideSchedraBranding: true
+      }
+    })).toContain('— Alex Studio')
+  })
 })

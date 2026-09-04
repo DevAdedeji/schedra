@@ -140,6 +140,77 @@ describe.skipIf(!url)('meeting delivery', () => {
     expect(statuses.map(row => row.status)).toEqual(['cancelled', 'cancelled'])
   })
 
+  it('snapshots paid personal email wording and branding for guest messages only', async () => {
+    const { hostId } = await bookingFixture()
+    await sql`
+      insert into personal_subscriptions (
+        user_id, status, interval, collection_method, current_period_end
+      ) values (${hostId}, 'active', 'yearly', 'charge_automatically', now() + interval '1 year')
+    `
+    await sql`
+      update users set
+        brand_name = 'Host Studio',
+        brand_color = '#123456',
+        hide_schedra_branding = true,
+        booking_email_templates = ${sql.json({
+          templates: {
+            confirmation: {
+              subject: 'Welcome {{guest_name}} to {{event_name}}',
+              body: 'You are meeting {{host_name}} at {{start_time}} in {{time_zone}}.'
+            },
+            reminder: null,
+            reschedule: null,
+            request: null,
+            rejection: null,
+            cancellation: null
+          },
+          footer: 'Questions? Reply to your host.'
+        })}
+      where id = ${hostId}
+    `
+
+    const { queueBookingEmails } = await import('../services/booking-emails')
+    await queueBookingEmails({
+      uid: 'custom-email-booking',
+      eventTitle: 'Intro call',
+      hostUserId: hostId,
+      hostName: 'Host Person',
+      hostUsername: 'host',
+      hostEmail: 'host@example.com',
+      hostTimeZone: 'Africa/Lagos',
+      attendeeName: 'Guest Person',
+      attendeeEmail: 'guest@example.com',
+      additionalGuestEmails: [],
+      attendeeTimeZone: 'Europe/London',
+      startsAt: '2030-09-07T08:00:00Z',
+      endsAt: '2030-09-07T08:30:00Z',
+      locationType: 'phone',
+      locationDetails: '+2348000000000',
+      reminderMinutes: []
+    })
+
+    const messages = await sql<{
+      recipient: string
+      subject: string
+      body: string
+      footer: string
+      branding: { name: string, accentColor: string, hideSchedraBranding: boolean } | null
+    }[]>`
+      select recipient, subject, body, footer, branding
+      from email_outbox order by recipient
+    `
+    expect(messages.find(message => message.recipient === 'guest@example.com')).toMatchObject({
+      subject: 'Welcome Guest Person to Intro call',
+      body: expect.stringContaining('Host Person'),
+      footer: 'Questions? Reply to your host.',
+      branding: { name: 'Host Studio', accentColor: '#123456', hideSchedraBranding: true }
+    })
+    expect(messages.find(message => message.recipient === 'host@example.com')).toMatchObject({
+      subject: 'New booking: Intro call',
+      branding: null
+    })
+  })
+
   it('generates a standards-shaped calendar file with the booking snapshot', async () => {
     await bookingFixture()
     const { findBookingByUid } = await import('../repositories/booking')

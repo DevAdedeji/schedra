@@ -79,6 +79,7 @@ export default defineEventHandler(async (event) => {
         brandDarkColor: profileRow.brandDarkColor,
         bookingPageTheme: profileRow.bookingPageTheme,
         hideSchedraBranding: profileRow.hideSchedraBranding,
+        bookingEmailTemplates: profileRow.bookingEmailTemplates,
         timeZone: profileRow.timeZone,
         twoFactorEnabled: profileRow.twoFactorEnabled,
         createdAt: profileRow.createdAt,
