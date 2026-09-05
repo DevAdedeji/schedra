@@ -26,7 +26,7 @@ each check has already passed.
 3. Configure the sandbox provider webhook for that origin's
    `/api/webhooks/bachs`. A live webhook secret is not interchangeable.
 4. Confirm `/api/payment-environment` reports `sandbox` and the notice appears
-   on pricing, billing, and paid booking pages after deployment.
+   on billing and paid booking pages after deployment, not on marketing pages.
 5. Verify checkout uses the sandbox provider. Only use official test details.
 6. Check renewal/cancellation, delayed and duplicated webhook delivery, and
    provider failures before presenting those flows as verified.
