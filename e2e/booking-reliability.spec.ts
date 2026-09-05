@@ -73,14 +73,25 @@ test('reschedules on a full day without losing the existing allowance', async ({
   expect(new Date(moved!.starts_at).toISOString().slice(0, 10)).toBe(date)
 })
 
-test('shows the payment warning only when the running server reports sandbox', async ({ page, request }) => {
+test('keeps marketing pages clear and shows sandbox warnings on paid booking screens only', async ({ page, request }) => {
   const actual = await request.get('/api/payment-environment')
   expect(await actual.json()).toEqual({ mode: 'disabled' })
   expect(actual.headers()['cache-control']).toContain('no-store')
   for (const mode of ['sandbox', 'live']) {
     await page.route('**/api/payment-environment', route => route.fulfill({ json: { mode } }))
-    await page.goto('/pricing')
     const notice = page.getByRole('note', { name: 'Sandbox payments' })
+    for (const path of ['/', '/pricing']) {
+      await page.goto(path)
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+      await expect(notice).toHaveCount(0)
+    }
+    await sql`update event_types set payment_enabled = false, price_cents = null where id = ${eventTypeId}`
+    await page.goto(`/${username}/intro`)
+    await expect(page.getByTestId('booking-slot').first()).toBeVisible()
+    await expect(notice).toHaveCount(0)
+    await sql`update event_types set payment_enabled = true, price_cents = 1000 where id = ${eventTypeId}`
+    await page.goto(`/${username}/intro`)
+    await expect(page.getByTestId('booking-slot').first()).toBeVisible()
     if (mode === 'sandbox') await expect(notice).toContainText('not real charges')
     else await expect(notice).toHaveCount(0)
     await page.unroute('**/api/payment-environment')
